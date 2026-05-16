@@ -1,0 +1,13 @@
+node_modules
+packages/create-forgewp/template/node_modules
+dist
+*.local
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+*.log
+coverage
+.turbo
+.vite

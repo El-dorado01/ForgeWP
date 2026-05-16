@@ -1,0 +1,22 @@
+{
+  "name": "create-forgewp",
+  "version": "0.1.0",
+  "description": "Scaffold a ForgeWP React + Tailwind WordPress theme project",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "create-forgewp": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "template"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "picocolors": "^1.1.1",
+    "prompts": "^2.4.2"
+  }
+}
