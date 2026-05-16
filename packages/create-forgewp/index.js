@@ -19,7 +19,7 @@ import { addToPnpmWorkspace } from "./lib/workspace.js";
 function printHelp() {
   console.log(`
 Usage:
-  npx create-forgewp [project-directory] [options]
+  npm init @forgewp [project-directory] [options]
 
 Options:
   -y, --yes           Use defaults (skip prompts)
@@ -27,8 +27,8 @@ Options:
   -h, --help          Show help
 
 Examples:
-  npx create-forgewp my-theme
-  npx create-forgewp ./sites/acme --yes
+  npm init @forgewp my-theme
+  pnpm create @forgewp ./sites/acme --yes
 `);
 }
 
@@ -201,7 +201,7 @@ async function main() {
 
   const config = await gatherConfig(cli, defaults);
 
-  console.log(pc.cyan("\n  create-forgewp\n"));
+  console.log(pc.cyan("\n  @forgewp/create\n"));
   console.log(`  ${pc.dim("target")}  ${targetDir}\n`);
 
   copyTemplate(targetDir);
