@@ -1,4 +1,5 @@
 packages:
+  - "my-forgewp-theme"
   - "packages/*"
   # CLI bundle (no deps until install); kept out of hoisted workspace installs
   - "!packages/create-forgewp/template"

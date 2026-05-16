@@ -14,6 +14,7 @@ import {
   slugify,
   titleCaseFromSlug,
 } from "./lib/utils.js";
+import { addToPnpmWorkspace } from "./lib/workspace.js";
 
 function printHelp() {
   console.log(`
@@ -205,6 +206,10 @@ async function main() {
 
   copyTemplate(targetDir);
   applyProjectConfig(targetDir, config);
+
+  if (config.packageManager === "pnpm") {
+    addToPnpmWorkspace(targetDir);
+  }
 
   if (config.install) {
     console.log(pc.dim(`\nInstalling with ${config.packageManager}...\n`));

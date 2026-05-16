@@ -1,0 +1,19 @@
+Next (recommended order)
+1. Validate on real WordPress (do this first)
+Install packages/starter/.forgewp/forgewp-starter.zip on a local WP site
+Confirm: theme activates, home/front page looks right, Tailwind CSS loads, no console errors
+Note anything broken (paths, wp_head, missing styles)
+2. Polish the export (still Step 2)
+Small, high-impact compiler improvements:
+
+Split layout — render SiteHeader / SiteFooter / page content separately → real header.php / footer.php instead of one app.html blob
+Fix nav links — # → <?php echo esc_url( home_url( '/' ) ); ?> (or compile-time placeholders)
+Drop unused JS from the theme ZIP (CSS-only export; smaller package)
+pnpm sync:template — ship export, manifest, and compiler dep in scaffolds from create-forgewp
+3. Blog / index behavior
+index.php with a basic WordPress loop for posts (static front + fallback content)
+Optional single.php stub later
+4. DX / repo hygiene
+prepublishOnly on create-forgewp → sync:template
+CI: typecheck + pnpm export smoke test
+Git init + first commit if you haven’t already

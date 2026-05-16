@@ -1,6 +1,7 @@
 node_modules
 packages/create-forgewp/template/node_modules
 dist
+.forgewp
 *.local
 .DS_Store
 Thumbs.db
