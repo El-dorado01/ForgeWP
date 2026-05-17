@@ -1,8 +1,6 @@
 import { SEO } from "../lib/SEO";
 import wpConfig from "../../wp.config";
 import { useWpCustomField, WpMenu, WpQueryLoop } from "../lib/wordpress";
-import { HeroSection } from "@/components/ui/hero-section";
-import { Navbar } from "@/components/ui/navbar";
 
 export default function HomePage() {
   const colors = wpConfig.settings?.color?.palette || [];
@@ -19,10 +17,6 @@ export default function HomePage() {
 
       {/* Main Container — Sharp brutalist outer grid */}
       <main className="mx-auto max-w-6xl border-4 border-zinc-950 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-
-        <HeroSection />
-        <Navbar />
-        
         {/* Header Grid Bar */}
         <header className="flex flex-col sm:flex-row items-stretch border-b-4 border-zinc-950">
           <div className="bg-brand text-white px-6 py-6 flex items-center border-b-4 sm:border-b-0 sm:border-r-4 border-zinc-950 font-black tracking-wider text-xl uppercase select-none">

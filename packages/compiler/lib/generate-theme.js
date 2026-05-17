@@ -1,4 +1,4 @@
-import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 /**
@@ -111,10 +111,13 @@ export function generateTheme({
     writeFileSync(path.join(staticDir, "archive.html"), processedArchive, "utf8");
   }
 
+  // Dynamic Gutenberg blocks compilation (Phase 5)
+  const compiledBlocks = compileBlocks(themeRoot, outDir);
+
   writeFileSync(path.join(outDir, "style.css"), buildStyleCss(config), "utf8");
   writeFileSync(
     path.join(outDir, "functions.php"),
-    buildFunctionsPhp(config, assets),
+    buildFunctionsPhp(config, assets, compiledBlocks),
     "utf8",
   );
   writeFileSync(path.join(outDir, "header.php"), buildHeaderPhp(config), "utf8");
@@ -318,7 +321,7 @@ Text Domain: ${config.textDomain}
  * @param {import('./types.js').ForgeWPThemeConfig} config
  * @param {import('./types.js').ForgeWPBuildAssets} assets
  */
-function buildFunctionsPhp(config, assets) {
+function buildFunctionsPhp(config, assets, blockSlugs = []) {
   const css = assets.cssFile.replace(/^assets\//, "");
   const version = config.version.replace(/'/g, "\\'");
   const googleFonts = config.settings?.typography?.googleFonts || [];
@@ -355,6 +358,23 @@ function forgewp_google_fonts_resource_hints(array $urls, string $relation_type)
     return $urls;
 }
 add_filter('wp_resource_hints', 'forgewp_google_fonts_resource_hints', 10, 2);
+`;
+  }
+
+  let blocksRegistration = "";
+  if (blockSlugs.length > 0) {
+    const blocksArray = blockSlugs.map(s => `'${s}'`).join(", ");
+    blocksRegistration = `
+/**
+ * Register dynamic Gutenberg blocks compiled by ForgeWP.
+ */
+function forgewp_register_dynamic_blocks(): void {
+    $blocks = array(${blocksArray});
+    foreach ($blocks as $block) {
+        register_block_type(__DIR__ . '/blocks/' . $block);
+    }
+}
+add_action('init', 'forgewp_register_dynamic_blocks');
 `;
   }
 
@@ -399,9 +419,12 @@ function forgewp_theme_setup(): void {
     add_theme_support('html5', array('search-form', 'comment-form', 'comment-list', 'gallery', 'caption', 'style', 'script'));
     add_theme_support('wp-block-styles');
     add_theme_support('editor-styles');
+
+    // Load compiled theme stylesheet inside Gutenberg Block Editor
+    add_editor_style('assets/${css}');
 }
 add_action('after_setup_theme', 'forgewp_theme_setup');
-${preconnectFilter}`;
+${preconnectFilter}${blocksRegistration}`;
 }
 
 function buildHeaderPhp(config) {
@@ -636,3 +659,128 @@ if (file_exists($page_file)) {
 get_footer();
 `;
 }
+
+/**
+ * Scans the \`src/blocks/\` folder, parses block settings and JSX content,
+ * and compiles them into official, dynamic WordPress blocks.
+ *
+ * @param {string} themeRoot
+ * @param {string} outDir
+ * @returns {string[]} Compiled block slugs
+ */
+function compileBlocks(themeRoot, outDir) {
+  const blocksDir = path.join(themeRoot, "src", "blocks");
+  const blockSlugs = [];
+
+  if (!existsSync(blocksDir)) {
+    return blockSlugs;
+  }
+
+  const entries = readdirSync(blocksDir);
+  for (const entry of entries) {
+    const entryPath = path.join(blocksDir, entry);
+    let blockFile = "";
+    let blockSlug = "";
+
+    if (statSync(entryPath).isDirectory()) {
+      const indexPath = path.join(entryPath, "index.tsx");
+      if (existsSync(indexPath)) {
+        blockFile = indexPath;
+        blockSlug = entry.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      }
+    } else if (entry.endsWith(".tsx") || entry.endsWith(".jsx")) {
+      blockFile = entryPath;
+      blockSlug = entry.replace(/\.(tsx|jsx)$/, "").replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    }
+
+    if (blockFile) {
+      try {
+        const code = readFileSync(blockFile, "utf8");
+
+        // Parse human-readable title and metadata from setting exports
+        const settingsMatch = code.match(/export\s+const\s+settings\s*=\s*(\{[\s\S]*?\});/);
+        let settings = {
+          apiVersion: 3,
+          name: `forgewp/${blockSlug}`,
+          title: blockSlug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+          category: "design",
+          icon: "admin-generic",
+          attributes: {},
+          render: "file:./render.php"
+        };
+
+        if (settingsMatch) {
+          try {
+            // Evaluates settings safely without external libraries
+            const evalFn = new Function(`return ${settingsMatch[1]};`);
+            settings = { ...settings, ...evalFn() };
+            // Ensure schema, apiVersion, name and render path are strictly aligned
+            settings.name = `forgewp/${blockSlug}`;
+            settings.apiVersion = 3;
+            settings.render = "file:./render.php";
+          } catch (e) {
+            console.warn(`[Gutenberg Block Compiler] Error parsing settings for ${blockSlug}:`, e.message);
+          }
+        }
+
+        // Parse JSX block content
+        let jsx = "";
+        const returnMatch = code.match(/return\s*\(\s*(<[\s\S]*?>)\s*\)/);
+        if (returnMatch) {
+          jsx = returnMatch[1];
+        } else {
+          const returnMatchSingle = code.match(/return\s+(<[\s\S]*?>);/);
+          if (returnMatchSingle) {
+            jsx = returnMatchSingle[1];
+          }
+        }
+
+        if (!jsx) {
+          console.warn(`[Gutenberg Block Compiler] Skipping block ${blockSlug}: No returning JSX element found.`);
+          continue;
+        }
+
+        // Translate dynamic attributes inside returning JSX into dynamic PHP echoes
+        let phpMarkup = jsx;
+
+        // className="..." -> class="..."
+        phpMarkup = phpMarkup.replace(/className=/g, "class=");
+
+        // src={image} or src={attributes.image}
+        phpMarkup = phpMarkup.replace(/(src|href|alt|title)=\{\s*(?:attributes\.|props\.)?([a-zA-Z0-9_-]+)\s*\}/gi, (match, attr, varName) => {
+          const escFunc = attr === "href" || attr === "src" ? "esc_url" : "esc_attr";
+          return `${attr}="<?php echo ${escFunc}( $attributes['${varName}'] ?? '' ); ?>"`;
+        });
+
+        // {title} or {props.title}
+        phpMarkup = phpMarkup.replace(/\{\s*(?:attributes\.|props\.)?([a-zA-Z0-9_-]+)\s*\}/g, (match, varName) => {
+          return `<?php echo esc_html( $attributes['${varName}'] ?? '' ); ?>`;
+        });
+
+        // Wrap the final PHP template markup in a clean block wrapper
+        const renderPhpContent = `<?php
+/**
+ * Gutenberg dynamic block template — ${settings.title}
+ * Autogenerated by ForgeWP Theme Compiler. Do not modify manually.
+ */
+?>
+${phpMarkup}
+`;
+
+        const blockOutDir = path.join(outDir, "blocks", blockSlug);
+        mkdirSync(blockOutDir, { recursive: true });
+
+        // Write block.json and render.php
+        writeFileSync(path.join(blockOutDir, "block.json"), JSON.stringify(settings, null, 2), "utf8");
+        writeFileSync(path.join(blockOutDir, "render.php"), renderPhpContent, "utf8");
+
+        blockSlugs.push(blockSlug);
+      } catch (e) {
+        console.error(`[Gutenberg Block Compiler] Failed to compile block ${blockSlug}:`, e.message);
+      }
+    }
+  }
+
+  return blockSlugs;
+}
+
