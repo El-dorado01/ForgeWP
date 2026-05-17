@@ -1,11 +1,4 @@
 {
-  "menu": {
-    "primary": [
-      { "title": "Home", "url": "/" },
-      { "title": "Blog", "url": "/post" },
-      { "title": "Archive", "url": "/archive" }
-    ]
-  },
   "post": [
     {
       "id": 1,

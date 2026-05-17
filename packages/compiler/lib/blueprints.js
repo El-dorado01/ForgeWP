@@ -218,7 +218,7 @@ export function WpMenu({ location = "primary", className = "", linkClassName = "
     ];
     return (
       <nav className={className}>
-        {mockItems.map((item, idx) => (
+        {mockItems.map((item: any, idx: number) => (
           <a key={idx} href={item.url} className={linkClassName}>
             {item.title}
           </a>
@@ -312,33 +312,35 @@ export function WpShortcode({ code }: WpShortcodeProps) {
 }
 
 declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      "forgewp-menu": React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & {
-          location?: "primary" | "footer" | "sidebar";
-          linkClassName?: string;
-        },
-        HTMLElement
-      >;
-      "forgewp-query-loop-start": React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & {
-          postType?: string;
-          postsPerPage?: number;
-          categoryName?: string;
-        },
-        HTMLElement
-      >;
-      "forgewp-query-loop-end": React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement>,
-        HTMLElement
-      >;
-      "forgewp-shortcode": React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & {
-          code?: string;
-        },
-        HTMLElement
-      >;
+  namespace React {
+    namespace JSX {
+      interface IntrinsicElements {
+        "forgewp-menu": React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement> & {
+            location?: "primary" | "footer" | "sidebar";
+            linkClassName?: string;
+          },
+          HTMLElement
+        >;
+        "forgewp-query-loop-start": React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement> & {
+            postType?: string;
+            postsPerPage?: number;
+            categoryName?: string;
+          },
+          HTMLElement
+        >;
+        "forgewp-query-loop-end": React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement>,
+          HTMLElement
+        >;
+        "forgewp-shortcode": React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement> & {
+            code?: string;
+          },
+          HTMLElement
+        >;
+      }
     }
   }
 }
