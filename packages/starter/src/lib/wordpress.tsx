@@ -149,7 +149,7 @@ export interface WpMenuProps {
 
 export function WpMenu({ location = "primary", className = "", linkClassName = "" }: WpMenuProps) {
   if (IS_DEV) {
-    const mockItems = [
+    const mockItems = (mockData as any).menu?.[location] || [
       { title: "Home", url: "/" },
       { title: "Blog", url: "/post" },
       { title: "Archive", url: "/archive" },

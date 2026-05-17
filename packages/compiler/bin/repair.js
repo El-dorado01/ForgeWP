@@ -31,6 +31,13 @@ try {
   const mockDataPath = path.join(projectRoot, "wordpress", "mock-data.json");
   if (!existsSync(mockDataPath)) {
     const defaultJson = {
+      menu: {
+        primary: [
+          { title: "Home", url: "/" },
+          { title: "Blog", url: "/post" },
+          { title: "Archive", url: "/archive" }
+        ]
+      },
       post: [
         {
           id: 1,
