@@ -1,17 +1,17 @@
 import type { ReactNode } from "react";
-import { Helmet } from "react-helmet-async";
-import { useWpTitle } from "@/lib/wordpress";
+import { SEO } from "@/components/SEO";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  const defaultTitle = useWpTitle();
-
   return (
     <div className="forgewp-root">
-      <Helmet>
-        <title>{defaultTitle}</title>
-        {/* Add your default meta tags here */}
-        <meta name="description" content="A WordPress theme built with ForgeWP" />
-      </Helmet>
+      {/* 
+        Define default SEO settings here. 
+        Individual pages can override them by rendering their own <SEO /> component.
+      */}
+      <SEO 
+        description="A WordPress theme built with ForgeWP - React & Tailwind CSS"
+        keywords="WordPress, React, Tailwind, ForgeWP"
+      />
       {children}
     </div>
   );
