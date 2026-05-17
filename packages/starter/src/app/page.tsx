@@ -1,45 +1,41 @@
 import { Badge } from "@/components/Badge";
 import { MainLayout } from "@/components/layouts/MainLayout";
+import { WpLoop, useWpTitle, useWpExcerpt, useWpPermalink } from "@/lib/wordpress";
 
 export default function HomePage() {
   return (
     <MainLayout>
       <section className="mx-auto max-w-3xl px-6 py-16">
-        <Badge>ForgeWP</Badge>
+        <Badge>ForgeWP Data Hooks</Badge>
         <h1 className="mt-6 text-4xl font-semibold tracking-tight text-zinc-900">
-          Build WordPress themes like modern web apps
+          Native WordPress loops, built in React.
         </h1>
         <p className="mt-4 text-lg leading-relaxed text-zinc-600">
-          This starter runs on Vite, React, TypeScript, and Tailwind. The theme
-          compiler will export this project as a native WordPress theme in a later
-          step.
+          Below is a grid powered by `WpLoop`. Locally, it renders dummy posts so you can design your cards. When exported, the compiler converts this into a true `while(have_posts())` PHP loop.
         </p>
-        <div className="mt-10 grid gap-4 sm:grid-cols-2">
-          <FeatureCard
-            title="React authoring"
-            description="Components, pages, and layouts in a familiar frontend stack."
-          />
-          <FeatureCard
-            title="WordPress output"
-            description="Compiled PHP templates and assets — installable on any host."
-          />
+
+        <div className="mt-10 grid gap-6 sm:grid-cols-2">
+          <WpLoop>
+            <PostCard />
+          </WpLoop>
         </div>
       </section>
     </MainLayout>
   );
 }
 
-function FeatureCard({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+function PostCard() {
+  const title = useWpTitle();
+  const excerpt = useWpExcerpt();
+  const link = useWpPermalink();
+
   return (
-    <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <h2 className="font-medium text-zinc-900">{title}</h2>
-      <p className="mt-2 text-sm leading-relaxed text-zinc-600">{description}</p>
+    <article className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+      <h2 className="text-xl font-bold text-zinc-900 mb-2" dangerouslySetInnerHTML={{ __html: title }} />
+      <div className="text-sm leading-relaxed text-zinc-600 mb-6" dangerouslySetInnerHTML={{ __html: excerpt }} />
+      <a href={link} className="inline-flex items-center text-sm font-semibold text-zinc-900 hover:underline">
+        Read Article &rarr;
+      </a>
     </article>
   );
 }

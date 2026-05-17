@@ -112,6 +112,21 @@ function processMarkup(html) {
     '<?php the_permalink(); ?>'
   );
 
+  processed = processed.replace(
+    /__FORGEWP_THE_EXCERPT__/g,
+    '<?php the_excerpt(); ?>'
+  );
+
+  processed = processed.replace(
+    /<forgewp-loop-start\s*\/?>/g,
+    '<?php if (have_posts()) : while (have_posts()) : the_post(); ?>'
+  );
+
+  processed = processed.replace(
+    /<forgewp-loop-end\s*\/?>/g,
+    '<?php endwhile; else : echo "<p>No posts found.</p>"; endif; ?>'
+  );
+
   return processed;
 }
 

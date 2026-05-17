@@ -5,6 +5,7 @@
  * When compiled for production, they inject specific tokens that the
  * ForgeWP compiler replaces with actual WordPress PHP functions.
  */
+import React from "react";
 
 export function useWpTitle() {
   // @ts-ignore - Vite env variable
@@ -28,4 +29,37 @@ export function useWpPermalink() {
     return "#";
   }
   return "__FORGEWP_THE_PERMALINK__";
+}
+
+export function useWpExcerpt() {
+  // @ts-ignore
+  if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+    return "This is a short sample excerpt summarizing the post. It gives readers a quick preview of what to expect.";
+  }
+  return "__FORGEWP_THE_EXCERPT__";
+}
+
+export function WpLoop({ children }: { children: React.ReactNode }) {
+  // @ts-ignore
+  if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+    // Render 3 dummy posts locally so the developer can see the grid/list layout
+    return (
+      <>
+        {children}
+        {children}
+        {children}
+      </>
+    );
+  }
+
+  // In production, we emit custom tags that the compiler replaces with the PHP while loop
+  return (
+    <>
+      {/* @ts-ignore - Custom elements used as compiler tokens */}
+      <forgewp-loop-start />
+      {children}
+      {/* @ts-ignore */}
+      <forgewp-loop-end />
+    </>
+  );
 }
