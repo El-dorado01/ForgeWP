@@ -1,4 +1,6 @@
 packages:
+  - "nike-new"
+  - "nike"
   - "my-forgewp-theme"
   - "packages/*"
   # CLI bundle (no deps until install); kept out of hoisted workspace installs
