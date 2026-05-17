@@ -1,12 +1,31 @@
 {
+  "_comment": "⚡ ForgeWP Navigation Menus — Edit this file to add/remove links in local dev. Run 'pnpm forgewp sync:routes' to auto-scaffold corresponding React pages!",
   "primary": [
-    { "title": "Home", "url": "/" },
-    { "title": "New", "url": "/new" },
-    { "title": "Men", "url": "/men" },
-    { "title": "Women", "url": "/women" }
+    {
+      "title": "Home",
+      "url": "/"
+    },
+    {
+      "title": "New",
+      "url": "/new"
+    },
+    {
+      "title": "Men",
+      "url": "/men"
+    },
+    {
+      "title": "Women",
+      "url": "/women"
+    }
   ],
   "utility": [
-    { "title": "Help", "url": "/help" },
-    { "title": "Sign In", "url": "/login" }
+    {
+      "title": "Help",
+      "url": "/help"
+    },
+    {
+      "title": "Sign In",
+      "url": "/login"
+    }
   ]
 }

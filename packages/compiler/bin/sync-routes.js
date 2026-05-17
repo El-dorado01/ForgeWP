@@ -28,10 +28,9 @@ if (!existsSync(menusPath)) {
       // Ignored
     }
   }
-  
   if (!menus) {
-    // Scaffold default menus.json
     menus = {
+      _comment: "⚡ ForgeWP Navigation Menus — Edit this file to add/remove links in local dev. Run 'pnpm forgewp sync:routes' to auto-scaffold corresponding React pages!",
       primary: [
         { title: "Home", url: "/" },
         { title: "New", url: "/new" },
@@ -126,7 +125,17 @@ for (const route of routesToScaffold) {
   const componentName = toPascalCase(route.title);
   const componentPath = path.join(pagesDir, `${componentName}.tsx`);
   
-  const componentContent = `import { SEO } from "../../.forgewp/SEO";
+  const componentContent = `/**
+ * ⚡ Auto-Generated Page Component by ForgeWP
+ * 
+ * This file was generated automatically from your sitemap configuration (wordpress/menus.json).
+ * You can safely edit this file to customize the visual layout, styles, and logic.
+ * Subsequent runs of 'pnpm forgewp sync:routes' will NOT overwrite your changes.
+ * 
+ * To force reset this page back to boilerplate defaults, run:
+ * 'pnpm forgewp sync:routes --force'
+ */
+import { SEO } from "../../.forgewp/SEO";
 import { WpQueryLoop, useWpTitle, useWpExcerpt, useWpFeaturedImage } from "../../.forgewp/wordpress";
 
 export function ${componentName}() {

@@ -8,6 +8,7 @@
 
 export const SYSTEM_BLUEPRINTS = {
   "wordpress/menus.json": `{
+  "_comment": "⚡ ForgeWP Navigation Menus — Edit this file to add/remove links in local dev. Run 'pnpm forgewp sync:routes' to auto-scaffold corresponding React pages!",
   "primary": [
     { "title": "Home", "url": "/" },
     { "title": "New", "url": "/new" },

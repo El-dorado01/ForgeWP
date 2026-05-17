@@ -1,3 +1,13 @@
+/**
+ * ⚡ Auto-Generated Page Component by ForgeWP
+ * 
+ * This file was generated automatically from your sitemap configuration (wordpress/menus.json).
+ * You can safely edit this file to customize the visual layout, styles, and logic.
+ * Subsequent runs of 'pnpm forgewp sync:routes' will NOT overwrite your changes.
+ * 
+ * To force reset this page back to boilerplate defaults, run:
+ * 'pnpm forgewp sync:routes --force'
+ */
 import { SEO } from "../../.forgewp/SEO";
 import { WpQueryLoop, useWpTitle, useWpExcerpt, useWpFeaturedImage } from "../../.forgewp/wordpress";
 
