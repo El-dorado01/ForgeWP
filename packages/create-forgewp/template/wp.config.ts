@@ -1,4 +1,4 @@
-import type { ForgeWPThemeConfig } from "./src/lib/forgewp-config";
+import type { ForgeWPThemeConfig } from "./src/.forgewp/forgewp-config";
 
 const config: ForgeWPThemeConfig = {
   name: "ForgeWP Starter",
