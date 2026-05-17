@@ -19,9 +19,12 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@forgewp/registry": "workspace:*",
     "archiver": "^7.0.1",
     "jiti": "^2.6.1",
-    "picocolors": "^1.1.1",
-    "@forgewp/registry": "workspace:*"
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.19"
   }
 }
