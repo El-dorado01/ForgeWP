@@ -1,6 +1,6 @@
 {
   "name": "@forgewp/registry",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Component registry for ForgeWP",
   "type": "module",
   "license": "MIT",

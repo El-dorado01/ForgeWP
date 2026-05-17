@@ -53,7 +53,7 @@ pkg.name = "forgewp-scaffold-template";
 // Standalone scaffolds need @forgewp/compiler for theme export
 if (pkg.devDependencies?.["@forgewp/compiler"]) {
   // Convert workspace:* to a real version (match packages/compiler/package.json)
-  pkg.devDependencies["@forgewp/compiler"] = "^0.1.4";
+  pkg.devDependencies["@forgewp/compiler"] = "^0.1.5";
 }
 
 writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");

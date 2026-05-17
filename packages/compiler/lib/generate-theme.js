@@ -92,10 +92,27 @@ function processMarkup(html) {
   // Fix nav links — # → <?php echo esc_url( home_url( '/' ) ); ?>
   // We use a placeholder and replace it in the PHP file generation if needed,
   // but for now we'll do it via string replacement in the template files.
-  return html.replace(
+  let processed = html.replace(
     /href="#"/g,
     'href="<?php echo esc_url( home_url( \'/\' ) ); ?>"',
   );
+
+  processed = processed.replace(
+    /__FORGEWP_THE_TITLE__/g,
+    '<?php the_title(); ?>'
+  );
+
+  processed = processed.replace(
+    /__FORGEWP_THE_CONTENT__/g,
+    '<?php the_content(); ?>'
+  );
+
+  processed = processed.replace(
+    /__FORGEWP_THE_PERMALINK__/g,
+    '<?php the_permalink(); ?>'
+  );
+
+  return processed;
 }
 
 /**
