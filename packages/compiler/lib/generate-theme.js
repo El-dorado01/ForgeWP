@@ -18,6 +18,9 @@ export function generateTheme({
   appHtml,
   headerHtml = "",
   footerHtml = "",
+  headHtml = "",
+  singleHtml = "",
+  notFoundHtml = "",
   assets,
 }) {
   if (existsSync(outDir)) {
@@ -55,13 +58,43 @@ export function generateTheme({
     contentHtml = contentHtml.replace(processedFooter, "");
   }
 
+  // Process single post template if exists
+  let processedSingle = "";
+  if (singleHtml) {
+    processedSingle = processMarkup(singleHtml);
+    if (processedHeader) {
+      processedSingle = processedSingle.replace(processedHeader, "");
+    }
+    if (processedFooter) {
+      processedSingle = processedSingle.replace(processedFooter, "");
+    }
+  }
+
+  // Process 404 template if exists
+  let processedNotFound = "";
+  if (notFoundHtml) {
+    processedNotFound = processMarkup(notFoundHtml);
+    if (processedHeader) {
+      processedNotFound = processedNotFound.replace(processedHeader, "");
+    }
+    if (processedFooter) {
+      processedNotFound = processedNotFound.replace(processedFooter, "");
+    }
+  }
+
   const staticDir = path.join(outDir, "forgewp-static");
   mkdirSync(staticDir, { recursive: true });
   writeFileSync(path.join(staticDir, "content.html"), contentHtml, "utf8");
   writeFileSync(path.join(staticDir, "header.html"), processedHeader, "utf8");
   writeFileSync(path.join(staticDir, "footer.html"), processedFooter, "utf8");
-  if (options.headHtml) {
-    writeFileSync(path.join(staticDir, "head.html"), options.headHtml, "utf8");
+  if (headHtml) {
+    writeFileSync(path.join(staticDir, "head.html"), headHtml, "utf8");
+  }
+  if (processedSingle) {
+    writeFileSync(path.join(staticDir, "single.html"), processedSingle, "utf8");
+  }
+  if (processedNotFound) {
+    writeFileSync(path.join(staticDir, "404.html"), processedNotFound, "utf8");
   }
 
   writeFileSync(path.join(outDir, "style.css"), buildStyleCss(config), "utf8");
@@ -74,6 +107,7 @@ export function generateTheme({
   writeFileSync(path.join(outDir, "footer.php"), buildFooterPhp(config), "utf8");
   writeFileSync(path.join(outDir, "index.php"), buildIndexPhp(), "utf8");
   writeFileSync(path.join(outDir, "single.php"), buildSinglePhp(), "utf8");
+  writeFileSync(path.join(outDir, "404.php"), build404Php(), "utf8");
   writeFileSync(path.join(outDir, "front-page.php"), buildIndexPhp(), "utf8");
 
   const themeJsonSrc = path.join(themeRoot, "wordpress", "theme.json");
@@ -304,18 +338,53 @@ function buildSinglePhp() {
 
 get_header();
 
-if (have_posts()) {
-    while (have_posts()) {
-        the_post();
-        echo '<main class="mx-auto max-w-3xl px-6 py-12">';
-        echo '<article>';
-        echo '<h1 class="text-4xl font-bold mb-6">' . get_the_title() . '</h1>';
-        echo '<div class="prose prose-zinc max-w-none">';
-        the_content();
-        echo '</div>';
-        echo '</article>';
-        echo '</main>';
+$single_file = get_template_directory() . '/forgewp-static/single.html';
+if (file_exists($single_file)) {
+    if (have_posts()) {
+        while (have_posts()) {
+            the_post();
+            include $single_file;
+        }
     }
+} else {
+    if (have_posts()) {
+        while (have_posts()) {
+            the_post();
+            echo '<main class="mx-auto max-w-3xl px-6 py-12">';
+            echo '<article>';
+            echo '<h1 class="text-4xl font-bold mb-6">' . get_the_title() . '</h1>';
+            echo '<div class="prose prose-zinc max-w-none">';
+            the_content();
+            echo '</div>';
+            echo '</article>';
+            echo '</main>';
+        }
+    }
+}
+
+get_footer();
+`;
+}
+
+function build404Php() {
+  return `<?php
+/**
+ * 404 template
+ *
+ * @package forgewp
+ */
+
+get_header();
+
+$notFound_file = get_template_directory() . '/forgewp-static/404.html';
+if (file_exists($notFound_file)) {
+    include $notFound_file;
+} else {
+    echo '<main class="flex min-h-[60vh] flex-col items-center justify-center text-center px-6 py-24">';
+    echo '<p class="text-base font-semibold text-zinc-900">404</p>';
+    echo '<h1 class="mt-4 text-3xl font-bold tracking-tight text-zinc-900 sm:text-5xl">Page not found</h1>';
+    echo '<p class="mt-6 text-base leading-7 text-zinc-600">Sorry, we couldn’t find the page you’re looking for.</p>';
+    echo '</main>';
 }
 
 get_footer();

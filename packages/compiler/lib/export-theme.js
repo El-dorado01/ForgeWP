@@ -38,6 +38,8 @@ export async function exportTheme(options) {
     headerHtml: markup.headerHtml,
     footerHtml: markup.footerHtml,
     headHtml: markup.headHtml,
+    singleHtml: markup.singleHtml,
+    notFoundHtml: markup.notFoundHtml,
     assets,
   });
 

@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
@@ -55,6 +55,40 @@ try {
   appHtml = renderToStaticMarkup(React.createElement(App));
 }
 
+// Conditionally render single.tsx (Single post template)
+const singlePath = path.join(themeRoot, "src", "app", "single.tsx");
+let singleHtml = "";
+if (existsSync(singlePath)) {
+  try {
+    const { default: SinglePage } = await import(pathToFileURL(singlePath).href);
+    const { HelmetProvider } = require("react-helmet-async");
+    const helmetContext: any = {};
+    singleHtml = renderToStaticMarkup(
+      React.createElement(HelmetProvider, { context: helmetContext }, React.createElement(SinglePage))
+    );
+  } catch (e) {
+    const { default: SinglePage } = await import(pathToFileURL(singlePath).href);
+    singleHtml = renderToStaticMarkup(React.createElement(SinglePage));
+  }
+}
+
+// Conditionally render 404.tsx (Not found page template)
+const notFoundPath = path.join(themeRoot, "src", "app", "404.tsx");
+let notFoundHtml = "";
+if (existsSync(notFoundPath)) {
+  try {
+    const { default: NotFoundPage } = await import(pathToFileURL(notFoundPath).href);
+    const { HelmetProvider } = require("react-helmet-async");
+    const helmetContext: any = {};
+    notFoundHtml = renderToStaticMarkup(
+      React.createElement(HelmetProvider, { context: helmetContext }, React.createElement(NotFoundPage))
+    );
+  } catch (e) {
+    const { default: NotFoundPage } = await import(pathToFileURL(notFoundPath).href);
+    notFoundHtml = renderToStaticMarkup(React.createElement(NotFoundPage));
+  }
+}
+
 const outDir = path.join(themeRoot, ".forgewp");
 mkdirSync(outDir, { recursive: true });
 
@@ -62,5 +96,12 @@ writeFileSync(path.join(outDir, "header.html"), headerHtml, "utf8");
 writeFileSync(path.join(outDir, "footer.html"), footerHtml, "utf8");
 writeFileSync(path.join(outDir, "app.html"), appHtml, "utf8");
 writeFileSync(path.join(outDir, "head.html"), headHtml, "utf8");
+
+if (singleHtml) {
+  writeFileSync(path.join(outDir, "single.html"), singleHtml, "utf8");
+}
+if (notFoundHtml) {
+  writeFileSync(path.join(outDir, "404.html"), notFoundHtml, "utf8");
+}
 
 process.stdout.write(outDir);

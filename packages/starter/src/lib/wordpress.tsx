@@ -26,7 +26,7 @@ export function useWpContent() {
 export function useWpPermalink() {
   // @ts-ignore
   if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
-    return "#";
+    return "/post";
   }
   return "__FORGEWP_THE_PERMALINK__";
 }
