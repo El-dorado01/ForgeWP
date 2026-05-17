@@ -1,6 +1,10 @@
-# Ignore local template node_modules and build artifacts from npm bundle
-template/node_modules
-template/.vite
-template/.forgewp
-template/dist
+# Exclude all node_modules from create-forgewp package bundle
+node_modules/
+**/node_modules/
+**/node_modules/**
+template/node_modules/
+template/node_modules/**
+template/.vite/
+template/.forgewp/
+template/dist/
 template/package-lock.json
