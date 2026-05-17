@@ -17,7 +17,9 @@ The component library for ForgeWP themes. This package contains pre-built, WordP
 This package is intended to be used via the ForgeWP CLI:
 
 ```bash
-pnpm forgewp:add [component-name]
+pnpm forgewp add [component-name]
+# Or
+pnpm forgewp add --name [component-name]
 ```
 
 ---

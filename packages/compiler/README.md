@@ -18,7 +18,18 @@ pnpm export
 A powerful utility that pulls components from the ForgeWP Registry or shadcn/ui and applies the signature **Sharpness Transformer**.
 
 ```bash
-pnpm forgewp:add button
+pnpm forgewp add navbar
+# Or
+pnpm forgewp add --name navbar
+```
+
+### 3. Native Gutenberg Block Generator
+Dynamically scaffolds dynamic WordPress blocks authored in React:
+
+```bash
+pnpm forgewp make:block HeroBlock
+# Or
+pnpm forgewp make:block --name HeroBlock
 ```
 
 ## 🔌 Configuration

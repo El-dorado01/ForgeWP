@@ -12,15 +12,16 @@ The ForgeWP ecosystem consists of three core pillars:
 
 | Package | Purpose | Command |
 | :--- | :--- | :--- |
-| **`@forgewp/create`** | The initializer CLI for new themes. | `npm init @forgewp` |
-| **`@forgewp/compiler`** | The engine that turns React into PHP. | `pnpm export` |
-| **`@forgewp/registry`** | A curated library of "Sharp" components. | `pnpm forgewp:add` |
+| **`create-forgewp`** | The initializer CLI for new themes. | `npx create-forgewp` |
+| **`@forgewp/compiler`** | The engine that compiles React to PHP & Gutenberg blocks. | `pnpm export` / `pnpm forgewp` |
+| **`@forgewp/registry`** | A curated library of "Sharp" components. | `pnpm forgewp add` |
 
 ---
 
 ## ✨ Key Features
 
 - **Sharp Aesthetics**: Zero border-radius by default. A brutalist, premium design system.
+- **Dynamic Gutenberg Integration**: Write dynamic Gutenberg blocks in React, compile to native PHP blocks.
 - **Static-First**: Ultra-performance by rendering React to static PHP templates.
 - **shadcn/ui Integration**: Native support for the industry-standard UI library with automatic "Sharpening" transformation.
 - **Developer Ownership**: No runtime dependencies in your WordPress theme. You own the code.
@@ -32,7 +33,7 @@ The ForgeWP ecosystem consists of three core pillars:
 Start your first theme in seconds:
 
 ```bash
-npm init @forgewp
+npx create-forgewp my-new-theme
 ```
 
 ---
