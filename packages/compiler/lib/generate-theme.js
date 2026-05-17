@@ -279,6 +279,16 @@ function processMarkup(html) {
   );
   processed = processed.replace(/<\/forgewp-menu>/g, '');
 
+  // ── WordPress Shortcodes Support ──
+  processed = processed.replace(
+    /<forgewp-shortcode\s+[^>]*code="([^"]+)"\s*\/?>/g,
+    (match, code) => {
+      const decodedCode = code.replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+      return `<?php echo do_shortcode('${decodedCode}'); ?>`;
+    }
+  );
+  processed = processed.replace(/<\/forgewp-shortcode>/g, '');
+
   // ── Custom WP_Query Loop Blocks ──
   processed = processed.replace(
     /<forgewp-query-loop-start\s+[^>]*post[Tt]ype="([^"]+)"\s+[^>]*posts[Pp]er[Pp]age="([^"]+)"\s*(?:[^>]*category[Nn]ame="([^"]*)")?\s*\/?>/g,

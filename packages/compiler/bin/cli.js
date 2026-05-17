@@ -10,7 +10,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const subcommands = {
   add: path.join(__dirname, "add.js"),
   "make:block": path.join(__dirname, "make-block.js"),
+  "make:post-type": path.join(__dirname, "make-post-type.js"),
+  "make:component": path.join(__dirname, "make-component.js"),
   export: path.join(__dirname, "export.js"),
+  doctor: path.join(__dirname, "doctor.js"),
+  repair: path.join(__dirname, "repair.js"),
+  clean: path.join(__dirname, "clean.js"),
 };
 
 const args = process.argv.slice(2);
@@ -27,6 +32,10 @@ let targetScript = subcommands[command];
 if (!targetScript) {
   if (command === "make-block" || command === "make") {
     targetScript = subcommands["make:block"];
+  } else if (command === "make-post-type" || command === "post-type" || command === "make:post-type") {
+    targetScript = subcommands["make:post-type"];
+  } else if (command === "make-component" || command === "component" || command === "make:component") {
+    targetScript = subcommands["make:component"];
   }
 }
 
@@ -58,13 +67,21 @@ function printHelp() {
   ${pc.bold("Commands:")}
     ${pc.cyan("add <component>")}          Add registry components (e.g. navbar)
     ${pc.cyan("make:block <Name>")}        Scaffold a React Gutenberg block (e.g. HeroBlock)
+    ${pc.cyan("make:post-type <slug>")}    Register a custom mock post-type (e.g. portfolio)
+    ${pc.cyan("make:component <Name>")}    Scaffold a post-type grid loop component
     ${pc.cyan("export")}                  Package your theme into an installable WP zip
+    ${pc.cyan("doctor")}                  Perform diagnostic check on project health
+    ${pc.cyan("repair")}                  Force-repair/auto-heal system internals
+    ${pc.cyan("clean")}                   Clear all build caches and temporary artifacts
 
   ${pc.bold("Examples:")}
     pnpm forgewp add navbar
-    pnpm forgewp add --name navbar
-    pnpm forgewp make:block HeroBlock
-    pnpm forgewp make:block --name HeroBlock
+    pnpm forgewp make:block HeroBlock --attributes=title,subtitle
+    pnpm forgewp make:post-type portfolio --customFields=client_name
+    pnpm forgewp make:component PortfolioGrid --postType=portfolio
+    pnpm forgewp doctor
+    pnpm forgewp repair
+    pnpm forgewp clean
     pnpm forgewp export
   `);
 }

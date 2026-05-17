@@ -24,12 +24,27 @@ pnpm forgewp add --name navbar
 ```
 
 ### 3. Native Gutenberg Block Generator
-Dynamically scaffolds dynamic WordPress blocks authored in React:
+Dynamically scaffolds dynamic WordPress blocks authored in React with options for custom attributes:
 
 ```bash
-pnpm forgewp make:block HeroBlock
-# Or
-pnpm forgewp make:block --name HeroBlock
+pnpm forgewp make:block HeroBlock --attributes=heading,text,image,buttonText
+```
+
+### 4. Post-Type Loop Component Scaffolder
+Instantly scaffolds beautifully designed React loop grid components bound to custom WordPress post types (ACF-like integration):
+
+```bash
+pnpm forgewp make:component PortfolioGrid --postType=portfolio
+```
+*Note: If the requested post type does not exist in `wordpress/mock-data.json`, the compiler will automatically register and seed it for you!*
+
+### 5. Resilient Framework Immunity & Diagnostics
+Keep your monorepo perfectly healthy, clean, and self-healing:
+
+```bash
+pnpm forgewp doctor   # Run diagnostic health & dependency checks
+pnpm forgewp repair   # Force restore framework utility blueprints
+pnpm forgewp clean    # Prune build artifacts and clear caches
 ```
 
 ## 🔌 Configuration
@@ -46,4 +61,5 @@ export default {
 
 ---
 
-Maintainable, Scalable, WordPress-native.
+Maintainable, Resilient, WordPress-native.
+

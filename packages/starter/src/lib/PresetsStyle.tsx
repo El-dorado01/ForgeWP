@@ -43,16 +43,16 @@ export function PresetsStyle() {
   const fontsHtml = googleFonts.length > 0
     ? `<link rel="preconnect" href="https://fonts.googleapis.com">
        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-       <link href="https://fonts.googleapis.com/css2?family=${googleFonts.map(f => encodeURIComponent(f)).join("&family=")}&display=swap" rel="stylesheet">`
+       <link href="https://fonts.googleapis.com/css2?family=&{googleFonts.map(f => encodeURIComponent(f)).join("&family=")}&display=swap" rel="stylesheet">`
     : "";
 
   const devCss = `
 :root {
-  ${colors.map((c) => `--wp--preset--color--${c.slug}: ${c.color};`).join("\n  ")}
-  ${fontSizes.map((f) => `--wp--preset--font-size--${f.slug}: ${f.size};`).join("\n  ")}
-  ${fontFamilies.map((f) => `--wp--preset--font-family--${f.slug}: ${f.fontFamily};`).join("\n  ")}
-  ${layout.contentSize ? `--wp--style--global--content-size: ${layout.contentSize};` : ""}
-  ${layout.wideSize ? `--wp--style--global--wide-size: ${layout.wideSize};` : ""}
+  ${colors.map((c) => "--wp--preset--color--" + c.slug + ": " + c.color + ";").join("\n  ")}
+  ${fontSizes.map((f) => "--wp--preset--font-size--" + f.slug + ": " + f.size + ";").join("\n  ")}
+  ${fontFamilies.map((f) => "--wp--preset--font-family--" + f.slug + ": " + f.fontFamily + ";").join("\n  ")}
+  ${layout.contentSize ? "--wp--style--global--content-size: " + layout.contentSize + ";" : ""}
+  ${layout.wideSize ? "--wp--style--global--wide-size: " + layout.wideSize + ";" : ""}
 
   /* Registry Aesthetic Mode Custom Properties */
   --radius: ${themeStyle === "forgewp" ? "0px" : "0.5rem"};

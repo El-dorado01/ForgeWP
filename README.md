@@ -21,23 +21,30 @@ The ForgeWP ecosystem consists of three core pillars:
 ## ✨ Key Features
 
 - **Sharp Aesthetics**: Zero border-radius by default. A brutalist, premium design system.
-- **Dynamic Gutenberg Integration**: Write dynamic Gutenberg blocks in React, compile to native PHP blocks.
-- **Static-First**: Ultra-performance by rendering React to static PHP templates.
-- **shadcn/ui Integration**: Native support for the industry-standard UI library with automatic "Sharpening" transformation.
-- **Developer Ownership**: No runtime dependencies in your WordPress theme. You own the code.
+- **Resilient "Self-Healing" Architecture**: An active framework immune system that auto-repairs missing configuration files or corrupted internal hooks on dev server boot.
+- **Dynamic Gutenberg Integration**: Scaffold React blocks with attributes using simple command line parameters (`pnpm forgewp make:block`).
+- **Post-Type Loop Components**: Instantly build loop layouts synced with dynamic simulated databases (`pnpm forgewp make:component`).
+- **Static-First Performance**: Extreme speed and safety by transpiling React trees into standard zero-dependency WordPress PHP templates.
+- **shadcn/ui Integration**: Native support for standard libraries with automatic "Sharpening" visual transforms.
 
 ---
 
-## 🚀 Getting Started
+## 🚀 CLI Commands At-A-Glance
 
-Start your first theme in seconds:
-
-```bash
-npx create-forgewp my-new-theme
-```
+| Command | Action | Example |
+| :--- | :--- | :--- |
+| **`doctor`** | Perform system diagnostic audits. | `pnpm forgewp doctor` |
+| **`repair`** | Force heal/restore framework blueprints. | `pnpm forgewp repair` |
+| **`clean`** | Prune workspace cache & build folders. | `pnpm forgewp clean` |
+| **`make:block`** | Scaffold Gutenberg editor blocks. | `pnpm forgewp make:block PromoBlock --attributes=heading` |
+| **`make:component`** | Scaffold custom post type grid loops. | `pnpm forgewp make:component JobList --postType=job` |
+| **`make:post-type`** | Register mock database custom fields. | `pnpm forgewp make:post-type event --customFields=v_name` |
+| **`add`** | Add shadcn or registry elements. | `pnpm forgewp add navbar` |
+| **`export`** | Compile and package into production ZIP. | `pnpm forgewp export` |
 
 ---
 
 ## 📄 License
 
-MIT © [Your Name/ForgeWP]
+MIT © ForgeWP Community
+

@@ -63,19 +63,50 @@ if (existsSync(targetFile)) {
   process.exit(1);
 }
 
-// 2. Generate the beautiful Neo-Brutalist React block template
-const blockTemplate = `export default function ${pascalCase}({ title, description }: { title: string; description: string }) {
+// 2. Parse custom attributes if provided via --attributes or --attrs
+let attributesList = ["title", "description"];
+const attrsArg = args.find(a => /^-+attributes=/.test(a) || /^-+attrs=/.test(a));
+if (attrsArg) {
+  const rawAttrs = attrsArg.split("=")[1];
+  if (rawAttrs) {
+    attributesList = rawAttrs.split(",").map(a => a.trim()).filter(Boolean);
+  }
+} else {
+  const attrsIndex = args.findIndex(a => /^-+attributes$/.test(a) || /^-+attrs$/.test(a));
+  if (attrsIndex !== -1 && args[attrsIndex + 1]) {
+    attributesList = args[attrsIndex + 1].split(",").map(a => a.trim()).filter(Boolean);
+  }
+}
+
+const propSignature = attributesList.map(a => `${a}: string`).join("; ");
+const propDestructuring = attributesList.join(", ");
+
+const layoutMarkup = attributesList.map((attr, index) => {
+  if (index === 0) {
+    return `<h3 className="text-2xl font-black text-zinc-950 uppercase tracking-tight leading-none mb-3">
+        {${attr}}
+      </h3>`;
+  }
+  if (attr.toLowerCase().includes("image") || attr.toLowerCase().includes("pic") || attr.toLowerCase().includes("img")) {
+    return `<img src={${attr}} alt="Block Media" className="w-full border-2 border-zinc-950 mb-3" />`;
+  }
+  return `<p className="text-sm text-zinc-600 font-medium font-sans leading-relaxed mb-3">
+        {${attr}}
+      </p>`;
+}).join("\n      ");
+
+const attributesRegistry = attributesList.map(a => {
+  return `    ${a}: { type: "string", default: "Customize ${a} here" }`;
+}).join(",\n");
+
+// 3. Generate the beautiful Neo-Brutalist React block template
+const blockTemplate = `export default function ${pascalCase}({ ${propDestructuring} }: { ${propSignature} }) {
   return (
     <div className="p-8 bg-white border-4 border-zinc-950 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-none my-6 selection:bg-brand selection:text-white">
       <span className="inline-block bg-brand text-white text-xs font-mono font-bold uppercase tracking-wider px-2 py-0.5 mb-3 border-2 border-zinc-950">
         Gutenberg Custom Block
       </span>
-      <h3 className="text-2xl font-black text-zinc-950 uppercase tracking-tight leading-none mb-3">
-        {title}
-      </h3>
-      <p className="text-sm text-zinc-600 font-medium font-sans leading-relaxed">
-        {description}
-      </p>
+      ${layoutMarkup}
     </div>
   );
 }
@@ -85,13 +116,12 @@ export const settings = {
   icon: "admin-post", // Choose icons from: https://developer.wordpress.org/resource/dashicons/
   category: "design",
   attributes: {
-    title: { type: "string", default: "Enter Title Content Here" },
-    description: { type: "string", default: "Enter a detailed description to display inside this dynamic Neo-Brutalist layout." }
+${attributesRegistry}
   }
 };
 `;
 
-// 3. Write template out to disk
+// 4. Write template out to disk
 writeFileSync(targetFile, blockTemplate, "utf8");
 
 console.log(pc.green(`\n⚡ Block "${pascalCase}" successfully created!`));

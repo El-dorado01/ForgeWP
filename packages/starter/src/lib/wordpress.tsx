@@ -4,59 +4,60 @@
  * These hooks provide mock data during local development (Vite dev server).
  * When the theme is exported, the ForgeWP compiler replaces every token
  * with the equivalent WordPress PHP function call.
- *
- * ── Available hooks ────────────────────────────────────────────────────────
- *  useWpTitle()          → the_title() / get_the_title()
- *  useWpContent()        → the_content()
- *  useWpExcerpt()        → the_excerpt()
- *  useWpPermalink()      → get_permalink()
- *  useWpDate()           → get_the_date()
- *  useWpAuthor()         → get_the_author()
- *  useWpFeaturedImage()  → get_the_post_thumbnail_url()
- *  useWpCategories()     → the_category()
- *  useWpArchiveTitle()   → the_archive_title()
- *  WpLoop                → while ( have_posts() ) : the_post();
- * ──────────────────────────────────────────────────────────────────────────
  */
-import React from "react";
+import React, { createContext, useContext } from "react";
+
+// @ts-ignore
+import mockData from "../../wordpress/mock-data.json";
 
 const IS_DEV =
   typeof import.meta !== "undefined" &&
   // @ts-ignore
   import.meta.env?.DEV === true;
 
+// React context to support database-like query loops during local development
+const WpPostContext = createContext<any>(null);
+
 // ── Post content ─────────────────────────────────────────────────────────────
 
 export function useWpTitle() {
-  if (IS_DEV) return "Sample WordPress Post Title";
+  if (IS_DEV) {
+    const post = useContext(WpPostContext);
+    return post?.title || "Sample WordPress Post Title";
+  }
   return "__FORGEWP_THE_TITLE__";
 }
 
 export function useWpContent() {
   if (IS_DEV) {
-    return "<p>This is sample post content rendered locally so you can design your theme. In WordPress, this is replaced by the actual content from the Gutenberg editor — including blocks, shortcodes, and embeds.</p><p>You can style this area using the <code>.prose</code> utility or any Tailwind class you like.</p>";
+    const post = useContext(WpPostContext);
+    return post?.content || "<p>This is sample post content rendered locally so you can design your theme. In WordPress, this is replaced by the actual content from the Gutenberg editor — including blocks, shortcodes, and embeds.</p>";
   }
   return "__FORGEWP_THE_CONTENT__";
 }
 
 export function useWpExcerpt() {
   if (IS_DEV) {
-    return "A short excerpt that gives readers a quick preview of what to expect in the full post. ForgeWP replaces this with the_excerpt() on export.";
+    const post = useContext(WpPostContext);
+    return post?.excerpt || "A short excerpt that gives readers a quick preview of what to expect in the full post.";
   }
   return "__FORGEWP_THE_EXCERPT__";
 }
 
 export function useWpPermalink() {
-  if (IS_DEV) return "/post";
+  if (IS_DEV) {
+    const post = useContext(WpPostContext);
+    return post ? `/post/${post.id}` : "/post";
+  }
   return "__FORGEWP_THE_PERMALINK__";
 }
 
 // ── Post meta ─────────────────────────────────────────────────────────────────
 
-/** Returns the formatted post date. Maps to get_the_date() in WordPress. */
 export function useWpDate() {
   if (IS_DEV) {
-    return new Date().toLocaleDateString("en-US", {
+    const post = useContext(WpPostContext);
+    return post?.date || new Date().toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
       day: "numeric",
@@ -65,33 +66,22 @@ export function useWpDate() {
   return "__FORGEWP_THE_DATE__";
 }
 
-/** Returns the post author's display name. Maps to get_the_author() in WordPress. */
 export function useWpAuthor() {
-  if (IS_DEV) return "Jane Doe";
+  if (IS_DEV) {
+    const post = useContext(WpPostContext);
+    return post?.author || "Jane Doe";
+  }
   return "__FORGEWP_THE_AUTHOR__";
 }
 
-/**
- * Returns the featured image URL (large size).
- * Maps to get_the_post_thumbnail_url(null, 'large') in WordPress.
- *
- * In dev, returns a placeholder image from picsum.photos.
- * In your JSX, use it as: <img src={featuredImage} alt={title} />
- */
 export function useWpFeaturedImage() {
-  if (IS_DEV) return "https://picsum.photos/seed/forgewp/1200/630";
+  if (IS_DEV) {
+    const post = useContext(WpPostContext);
+    return post?.featuredImage || "https://picsum.photos/seed/forgewp/1200/630";
+  }
   return "__FORGEWP_THE_POST_THUMBNAIL_URL__";
 }
 
-/**
- * Returns the post's categories as an HTML string (links separated by commas).
- * Maps to the_category(', ') in WordPress.
- *
- * Use with dangerouslySetInnerHTML since it contains anchor tags.
- * @example
- * const categories = useWpCategories();
- * <div dangerouslySetInnerHTML={{ __html: categories }} />
- */
 export function useWpCategories() {
   if (IS_DEV) {
     return '<a href="#">Technology</a>, <a href="#">Design</a>';
@@ -99,11 +89,6 @@ export function useWpCategories() {
   return "__FORGEWP_THE_CATEGORY_LIST__";
 }
 
-/**
- * Returns the archive page title (e.g. "Category: Technology", "Tag: React").
- * Maps to the_archive_title() in WordPress.
- * Use this in archive.tsx — not needed for single posts.
- */
 export function useWpArchiveTitle() {
   if (IS_DEV) return "Category: Technology";
   return "__FORGEWP_THE_ARCHIVE_TITLE__";
@@ -111,33 +96,28 @@ export function useWpArchiveTitle() {
 
 // ── Loop ──────────────────────────────────────────────────────────────────────
 
-/**
- * `<WpLoop>` — Renders a WordPress post loop.
- *
- * In dev: renders your children 3 times with mock data so you can design your layout.
- * On export: wraps your JSX in a real `while (have_posts()) : the_post();` PHP loop.
- *
- * @example
- * <WpLoop>
- *   <PostCard />
- * </WpLoop>
- */
 export function WpLoop({ children }: { children: React.ReactNode }) {
   if (IS_DEV) {
-    // Render 3 dummy posts so the developer can design the grid/list layout
+    const posts = mockData?.post || [
+      { id: 1, title: "Mock Post 1" },
+      { id: 2, title: "Mock Post 2" },
+      { id: 3, title: "Mock Post 3" }
+    ];
+    
     return (
       <>
-        {children}
-        {children}
-        {children}
+        {posts.map((post: any) => (
+          <WpPostContext.Provider key={post.id} value={post}>
+            {children}
+          </WpPostContext.Provider>
+        ))}
       </>
     );
   }
 
-  // In production: custom elements become compiler tokens → PHP loop
   return (
     <>
-      {/* @ts-ignore — custom elements used as ForgeWP compiler tokens */}
+      {/* @ts-ignore */}
       <forgewp-loop-start />
       {children}
       {/* @ts-ignore */}
@@ -148,16 +128,15 @@ export function WpLoop({ children }: { children: React.ReactNode }) {
 
 // ── Custom Field Mapping (ACF / Meta Fields) ──────────────────────────────────
 
-/**
- * Returns a WordPress post custom field value.
- * Maps to get_post_meta(get_the_ID(), $fieldName, true) in WordPress production.
- * In development, returns the default value or mock placeholder.
- */
 export function useWpCustomField(fieldName: string, defaultValue: string = ""): string {
   if (IS_DEV) {
-    return defaultValue || `[Mock custom field: ${fieldName}]`;
+    const post = useContext(WpPostContext);
+    if (post && post.customFields && typeof post.customFields[fieldName] !== "undefined") {
+      return post.customFields[fieldName];
+    }
+    return defaultValue || "[Mock custom field: " + fieldName + "]";
   }
-  return `__FORGEWP_CUSTOM_FIELD__${fieldName}__`;
+  return "__FORGEWP_CUSTOM_FIELD__" + fieldName + "__";
 }
 
 // ── Navigation Menu Component ──────────────────────────────────────────────────
@@ -168,12 +147,6 @@ export interface WpMenuProps {
   linkClassName?: string;
 }
 
-/**
- * `<WpMenu>` — Dynamic WordPress Nav Menu.
- * 
- * In development: renders mock links (Home, Blog, Archive) for visual design.
- * On export: compiles to a native PHP dynamic nav loop pulling registered WP menus.
- */
 export function WpMenu({ location = "primary", className = "", linkClassName = "" }: WpMenuProps) {
   if (IS_DEV) {
     const mockItems = [
@@ -207,14 +180,6 @@ export interface WpQueryLoopProps {
   children: React.ReactNode;
 }
 
-/**
- * `<WpQueryLoop>` — Custom WordPress query loop (WP_Query).
- * 
- * Allows querying specific types, sizes, or category-filtered post collections.
- * 
- * In development: renders children 3 times.
- * On export: wraps children in a dynamic WP_Query PHP template block.
- */
 export function WpQueryLoop({
   postType = "post",
   postsPerPage = 3,
@@ -222,11 +187,32 @@ export function WpQueryLoop({
   children
 }: WpQueryLoopProps) {
   if (IS_DEV) {
+    const allPosts = (mockData as any)?.[postType] || [];
+    const posts = allPosts.slice(0, postsPerPage);
+
+    if (posts.length === 0) {
+      const fallbacks = Array.from({ length: postsPerPage }).map((_, i) => ({
+        id: i + 1,
+        title: `Mock ${postType} ${i + 1}`,
+      }));
+      return (
+        <>
+          {fallbacks.map((post: any) => (
+            <WpPostContext.Provider key={post.id} value={post}>
+              {children}
+            </WpPostContext.Provider>
+          ))}
+        </>
+      );
+    }
+
     return (
       <>
-        {children}
-        {children}
-        {children}
+        {posts.map((post: any) => (
+          <WpPostContext.Provider key={post.id} value={post}>
+            {children}
+          </WpPostContext.Provider>
+        ))}
       </>
     );
   }
@@ -242,3 +228,23 @@ export function WpQueryLoop({
   );
 }
 
+// ── Shortcodes Component ────────────────────────────────────────────────────────
+
+export interface WpShortcodeProps {
+  code: string;
+}
+
+export function WpShortcode({ code }: WpShortcodeProps) {
+  if (IS_DEV) {
+    return (
+      <div className="p-4 bg-zinc-100 border-2 border-dashed border-zinc-400 font-mono text-xs text-zinc-600 rounded-none my-4">
+        <span className="font-bold text-zinc-800">WordPress Shortcode Preview:</span> {code}
+      </div>
+    );
+  }
+
+  return (
+    // @ts-ignore
+    <forgewp-shortcode code={code} />
+  );
+}

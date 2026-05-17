@@ -1,274 +1,746 @@
-# ForgeWP Framework Reference & Documentation Guide ⚒️📖
+# ForgeWP Framework Developer Manual — Phase 1: Foundation ⚒️📖
 
-Welcome to the official developer guide for **ForgeWP**—the premium, component-driven visual framework that lets you build lightning-fast, modern WordPress themes using **React**, **Tailwind CSS v4**, and **Vite**.
+Welcome to the master developer reference guide for **ForgeWP**. Since this framework represents a powerful paradigm shift in how WordPress themes are engineered, this manual will guide you through the exact internal mechanics, architectural code paths, and configurations, taking it **one phase at a time**.
 
-This guide is organized phase-by-phase (aligned with our architectural roadmap) to serve as a complete developer reference with concrete code examples, CLI commands, and implementation specifications.
+This module covers **Phase 1 — Foundation** in extreme depth. Review, test, and master this foundation. Once you are fully satisfied with Phase 1, we will proceed to Phase 2.
 
 ---
 
-## 📦 How to Publish ForgeWP Packages
+# Phase 1 — Foundation Architecture
 
-Before publishing, ensure you are logged into your npm account (`npm login`). Because ForgeWP uses scoped packages and standard monorepo workspace dependencies, use the following commands to publish to the npm registry:
+Phase 1 establishes the monorepo structure, high-speed Vite hot-reload pipeline, path resolution rules, styling architecture, and project bootstrapper.
 
-### 1. Publish All Workspace Packages at Once
-To publish all workspace packages (`create-forgewp`, `@forgewp/compiler`, `@forgewp/registry`) together:
-```bash
-pnpm -r publish --access public
-```
-*Tip: If you have uncommitted changes or tags you want to bypass during testing, add the `--no-git-checks` flag:*
-```bash
-pnpm -r publish --access public --no-git-checks
-```
-
-### 2. Publish a Single Specific Package
-To publish only one of the packages (e.g., only the CLI compiler):
-```bash
-pnpm --filter @forgewp/compiler publish --access public
+```mermaid
+graph TD
+    A[Monorepo Workspace Root] --> B[packages/create-forgewp]
+    A --> C[packages/compiler]
+    A --> D[packages/registry]
+    A --> E[packages/starter]
+    
+    C -->|Provides forgewp CLI| E
+    D -->|Populates registry| E
+    B -->|Scaffolds new projects| F[User Custom Theme]
 ```
 
 ---
 
-## 🟢 Phase 1 — Foundation
+## 1. Monorepo Setup & Workspace Interactions
 
-The foundation configures a lightning-fast developer environment using a pnpm monorepo structure.
+ForgeWP is architected as a highly organized **pnpm monorepo** to maximize code reuse and decouple the build toolchain from runtime starters.
 
-### Project Structure Conventions
-Every ForgeWP theme has a minimal, predictable structure:
-```text
-my-theme/
-├── src/
-│   ├── app/
-│   │   └── page.tsx         # Main entry point (compiles to front-page.php/index.php)
-│   ├── blocks/              # Custom Gutenberg Block definitions
-│   │   └── HeroBlock.tsx
-│   ├── components/          # Shared layout components
-│   │   └── ui/
-│   └── lib/                 # Core framework bindings & self-healing library
-│       └── wordpress.tsx
-├── wp.config.ts             # Theme configuration file
-├── vite.config.ts           # Vite + Tailwind compiler setup
-└── package.json
+### Workspace Configuration (`pnpm-workspace.yaml`)
+Defined in the root, it orchestrates all monorepo packages:
+```yaml
+packages:
+  - 'packages/*'
 ```
 
-### Theme Configuration File (`wp.config.ts`)
-Controls theme output settings, fonts, and styles:
+### The 4 Pillars of the Workspace:
+1.  **`packages/create-forgewp`**: The bootstrapping CLI tool published to npm under `create-forgewp`. This scaffolds new projects on developer machines via `npx create-forgewp`.
+2.  **`packages/compiler`**: The framework's engine. Exposes the `forgewp` binary. It handles theme compilation, dynamic Gutenberg block transpilation, and registry additions.
+3.  **`packages/registry`**: The component warehouse. Holds visual UI layouts and WordPress query layer components.
+4.  **`packages/starter`**: The local testbed theme. It acts as an active workspace theme for developers to build and preview, using the compiler directly in the same monorepo.
+
+### Dynamic Linking via Workspace Symlinks (`workspace:*`)
+Monorepo packages references each other dynamically. For example, `packages/starter/package.json` imports the compiler like this:
+```json
+"devDependencies": {
+  "@forgewp/compiler": "workspace:*"
+}
+```
+When you run `pnpm install`, pnpm does not download the compiler from npm; it creates a local symlink in `packages/starter/node_modules/@forgewp/compiler` pointing directly to `packages/compiler`. Any code change you make inside the compiler is immediately reflected in the starter theme without rebuilding or re-downloading!
+
+---
+
+## 2. Vite Developer Server & HMR Pipeline
+
+In typical WordPress theme development, previewing changes requires refreshing the browser or relying on complex proxy setups. ForgeWP completely bypasses this by introducing a **Vite-powered Dev Server**.
+
+### The Developer Flow (`pnpm dev`)
+When you run `pnpm dev` inside a ForgeWP project:
+1.  Vite starts a super-fast local server on `http://localhost:5173`.
+2.  It mounts `index.html` as the entrypoint.
+3.  It loads `src/app/page.tsx` as a standard React client application in the browser.
+4.  Any changes to your React layouts trigger instant **Hot Module Replacement (HMR)** in milliseconds. No database connection, LocalWP setup, or PHP environment is required to build the visual design!
+
+### The Self-Healing Middleware Hook (`forgewpValidationPlugin`)
+We engineered a custom Vite plugin inside `packages/starter/vite.config.ts` to enforce project integrity every time the server boots:
 ```typescript
-import { defineConfig } from "./src/lib/wordpress";
+function forgewpValidationPlugin(): PluginOption {
+  return {
+    name: "forgewp-validation",
+    configureServer() {
+      try {
+        // Enforce file checks during dev server startup
+        validateCriticalFiles(__dirname);
+      } catch (err) {
+        console.error(`\x1b[31m[ForgeWP Validation Error]\x1b[0m\n${err.message}`);
+      }
+    },
+  };
+}
+```
+If a developer accidentally deletes a crucial library file (like `src/lib/wordpress.tsx`), the `validateCriticalFiles` self-healing utility detects it and instantly regenerates it from pre-compiled blueprints, preventing build crashes!
+
+---
+
+## 3. Path Aliases (`@/*`) Resolution
+
+To avoid complex and ugly relative import paths (e.g. `import Header from "../../../components/ui/header"`), ForgeWP implements a strict, elegant `@/*` alias mapping.
+
+### TypeScript Resolver (`tsconfig.json`)
+The TypeScript compiler is configured to understand `@/` as a shortcut pointing to the `src/` directory:
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}
+```
+
+### Vite Compiler Resolver (`vite.config.ts`)
+Since TypeScript only handles type-checking and does not rewrite imports in the compiled JavaScript output, Vite's resolver maps the aliases during compilation and hot-reloading:
+```typescript
+export default defineConfig({
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+});
+```
+This lets you write clean, maintainable imports from anywhere in your project:
+```tsx
+import { WpMenu } from "@/lib/wordpress";
+import Navbar from "@/components/ui/navbar";
+```
+
+---
+
+## 4. Tailwind CSS v4 & Theme Settings Configuration
+
+ForgeWP integrates **Tailwind CSS v4**, which features a modern, CSS-first design architecture.
+
+### Build Integration
+Instead of relying on heavy configuration files, Tailwind v4 is integrated as a Vite compiler plugin:
+```typescript
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  themeName: "ForgeWP Starter Theme",
-  slug: "forgewp-starter",
-  style: "forgewp", // Aesthetics: "forgewp" (brutalist, sharp) or "shadcn" (curved)
-  googleFonts: [
-    "Outfit:wght@300;400;500;600;700",
-    "Lora:ital,wght@0,400;0,500;1,400"
-  ]
+  plugins: [react(), tailwindcss(), forgewpValidationPlugin()]
 });
 ```
 
+### Configuration Syncing (`wp.config.ts`)
+The `wp.config.ts` file acts as the single source of truth for the entire design system:
+```typescript
+const config: ForgeWPThemeConfig = {
+  name: "ForgeWP Starter",
+  slug: "forgewp-starter",
+  version: "0.1.1",
+  style: "forgewp", // Aesthetics: "forgewp" (sharp, flat brutalist) or "shadcn" (curved)
+  settings: {
+    layout: {
+      contentSize: "720px",
+      wideSize: "1200px",
+    },
+    color: {
+      custom: true,
+      palette: [
+        { name: "Brand Primary", slug: "brand", color: "#2563eb" },
+        { name: "Brand Secondary", slug: "secondary", color: "#4f46e5" }
+      ]
+    },
+    typography: {
+      googleFonts: [
+        "Outfit:wght@300;400;500;600;700",
+        "Lora:ital,wght@0,400;0,500;1,400"
+      ]
+    }
+  }
+};
+```
+### How Styles Are Enqueued:
+*   **During Dev Server (`pnpm dev`)**: Tailwind enqueues the dynamic styles directly into the React DOM.
+*   **During Build (`pnpm export`)**: The theme compiler parses `wp.config.ts` and merges your design tokens directly into WordPress's native **`theme.json`**!
+*   **Google Fonts Optimization**: The compiler automatically registers preconnect resource hints for Google Fonts performance, enqueuing them dynamically inside `functions.php` to ensure top-tier loading speeds.
+
 ---
 
-## 🟢 Phase 2 — Theme Compiler
+## 5. CLI Scaffolding Mechanics (`create-forgewp`)
 
-The theme compiler compiles a React single page application (SPA) layout into standard, fully compatible, installable WordPress PHP theme template structures.
+The onboarding experience is orchestrated by `create-forgewp`.
 
-### Compiled Theme Outputs
-When running `pnpm export`, the compiler generates:
-1.  **`index.php` & `front-page.php`**: Handled via dynamic rendering.
-2.  **`single.php` & `page.php`**: Built with the signature Gutenberg dynamic loader.
-3.  **`header.php` & `footer.php`**: Extracted statically from your React layout file splits.
-4.  **`theme.json`**: Pre-configured global settings and Tailwind preset design tokens.
-5.  **`functions.php`**: Registers styles, editor-styles, block enqueues, and preconnect fonts.
+### Scaffolding Flow Diagram
+```text
+[npx create-forgewp my-theme]
+         │
+         ▼
+[1. Parse command flags & named args] (Supports --projectName)
+         │
+         ▼
+[2. Prompt for Theme metadata] (Can skip with --yes)
+         │
+         ▼
+[3. Copy templates from template/] -> Writes to destination
+         │
+         ▼
+[4. Apply metadata replacements] -> Customizes package.json and config files
+         │
+         ▼
+[5. Install dependencies] -> Auto-detects pnpm / npm / yarn
+```
+
+### Key Scaffolding Commands
+*   **Interactive Guide**:
+    ```bash
+    npx create-forgewp
+    ```
+*   **Bypass Prompts (Fast Default Setup)**:
+    ```bash
+    npx create-forgewp my-theme --yes
+    ```
+*   **Named Project Flag**:
+    ```bash
+    npx create-forgewp --projectName my-theme
+    ```
 
 ---
 
-## 🟢 Phase 3 — Component System & Tailwind Customizer
+# Phase 2 — Theme Compiler Architecture
 
-ForgeWP features an elegant neo-brutalist registry and custom CSS transformations.
+Phase 2 reveals the inner workings of the build engine (`pnpm export`). It is responsible for bridging the gap between a modern React SPA and standard WordPress PHP template hierarchy.
 
-### 1. CLI Component Adder
-Instantly fetch pre-built responsive components and add them to your `src/components/ui/` folder:
+```mermaid
+graph TD
+    A[React Source src/app/*] -->|renderToStaticMarkup| B(Static HTML Cache)
+    B --> C[Header / Footer Splitter]
+    C --> D{generateTheme Router}
+    D --> E[header.php & footer.php]
+    D --> F[index.php & single.php]
+    D --> G[functions.php & style.css]
+    E --> H[ZIP Packager]
+    F --> H
+    G --> H
+    H --> I[.forgewp/theme-name.zip]
+```
+
+## 1. Template Generation & Routing
+
+In WordPress, routing is handled by the **Template Hierarchy** (e.g., `front-page.php`, `single.php`). To maintain this standard, the ForgeWP compiler maps your React filesystem directly to these PHP templates.
+
+### The Rendering Pipeline (`render-static.mts`)
+When you run `pnpm export`, the compiler (`packages/compiler/lib/export-theme.js`) spawns a TypeScript execution context to statically render your React tree:
+```typescript
+import { renderToStaticMarkup } from "react-dom/server";
+
+// Dynamic imports based on filesystem availability
+const { default: App } = await import("src/app/page.tsx");
+const appHtml = renderToStaticMarkup(<App />);
+```
+### Routing Map
+The compiler detects which files exist in your `src/app/` directory and creates the corresponding WordPress templates automatically:
+*   `src/app/page.tsx` ➜ `front-page.php` & `index.php` (The Homepage/Fallback)
+*   `src/app/single.tsx` ➜ `single.php` (Blog Posts)
+*   `src/app/404.tsx` ➜ `404.php` (Not Found Errors)
+*   `src/app/archive.tsx` ➜ `archive.php` (Category/Tag listings)
+
+---
+
+## 2. Dynamic Header & Footer Splits
+
+WordPress strictly requires layouts to be split into `get_header()` and `get_footer()` functions so plugins can inject global `<head>` and `<body>` scripts.
+
+### How ForgeWP solves this:
+You design your app cohesively in React using `<SiteHeader />` and `<SiteFooter />`. 
+During export, the compiler uses a **Subtraction Matrix** inside `generate-theme.js`:
+1.  **Render the whole page:** `const appHtml = <Page />`
+2.  **Render isolated header/footer:** `const headerHtml = <SiteHeader />`
+3.  **Subtract:** `const contentHtml = appHtml.replace(headerHtml, "").replace(footerHtml, "")`
+
+It then writes standard `header.php` and `footer.php` files, automatically injecting WordPress native hooks:
+```php
+<!-- Auto-generated header.php -->
+<!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+  <meta charset="<?php bloginfo('charset'); ?>">
+  <?php wp_head(); ?> <!-- Critical WP Hook -->
+</head>
+<body <?php body_class(); ?>>
+<?php wp_body_open(); ?>
+<?php include 'forgewp-static/header.html'; ?>
+```
+
+---
+
+## 3. WordPress Functions & Theme.json Merging
+
+ForgeWP does not run JavaScript on the front end for UI layouts. It completely statically hydrates your design into native PHP, creating a blistering fast theme.
+
+### `functions.php` Auto-Generation
+The compiler dynamically writes `functions.php` to handle backend enqueues:
+```php
+function forgewp_enqueue_assets(): void {
+    $theme_uri = get_template_directory_uri();
+    // Enqueues the compiled Tailwind CSS file
+    wp_enqueue_style('forgewp-app', $theme_uri . '/assets/index.css');
+}
+add_action('wp_enqueue_scripts', 'forgewp_enqueue_assets');
+```
+
+### Native `theme.json` Generation
+Instead of maintaining a massive JSON object by hand, the compiler intercepts your `wp.config.ts` design tokens and dynamically generates WordPress v3 `theme.json` standard variables. This allows the Gutenberg block editor to natively understand your Tailwind colors, font sizes, and layout bounds!
+
+---
+
+## 4. Final Compilation & ZIP Bundler
+
+Once the PHP templates, CSS assets, and Gutenberg configurations are fully written to the `.forgewp/out/` directory, the compiler packages it up.
+
+### The Packager (`zip-theme.js`)
+It uses native Node `zlib` compression to recursively archive your compiled theme folder into an installable WordPress zip:
+```text
+.forgewp/
+  ├── out/              # Staging directory for compiled PHP
+  └── forgewp-starter.zip # The final, upload-ready WordPress Theme!
+```
+You can take this exact `.zip` file, go to your WordPress Dashboard `Appearance > Themes > Add New`, upload it, and it will work flawlessly with zero plugin dependencies!
+
+---
+
+## Phase 2 Review & Verification Exercises
+
+To verify that you understand how the compiler handles the conversion pipeline:
+
+1.  **Create a 404 Route**: Inside `packages/starter/src/app/`, create a simple file named `404.tsx` that exports a standard React component `export default function NotFound() { return <h1>404 Error</h1> }`. 
+2.  **Run the Compiler**: Run `pnpm export` in your terminal.
+3.  **Verify the Output**: Look inside `packages/starter/.forgewp/out/forgewp-starter/`. You will magically find a standard WordPress `404.php` file containing your React structure, properly wrapped with `get_header()` and `get_footer()`!
+
+---
+
+# Phase 3 — Component System & Tailwind Customizer
+
+Phase 3 is all about rapid UI development. ForgeWP incorporates a smart CLI component installer that bridges the gap between the industry-standard `shadcn/ui` ecosystem and the ForgeWP signature "Sharp" aesthetic.
+
+```mermaid
+graph TD
+    A[pnpm forgewp add 'name'] --> B{Check ForgeWP Registry}
+    B -->|Exists| C[Copy Local 'name/forgewp.tsx' to src/components/ui/]
+    B -->|Not Found| D[Execute 'npx shadcn@latest add name --yes']
+    D --> E{Config Style == 'forgewp'?}
+    E -->|Yes| F[Execute Auto-Sharpen Regex on Downloaded File]
+    E -->|No| G[Keep Default shadcn curves]
+    F --> H[src/components/ui/name.tsx]
+    C --> H
+    G --> H
+```
+
+## 1. The Component CLI (`forgewp add`)
+
+Instead of writing UI from scratch, ForgeWP provides a unified command to instantly fetch accessible, customizable components:
+
+### Adding Components
 ```bash
-# Add a component using the unified CLI
-pnpm forgewp add navbar
-# Or with the explicit name parameter
-pnpm forgewp add --name navbar
+# Unified command format
+pnpm forgewp add button
+# Or with explicit named parameter
+pnpm forgewp add --name button
 ```
 
-### 2. Auto-Sharpen Regex Resolver
-If the theme config style is set to `"forgewp"`, the compiler automatically parses registry files and converts standard Tailwind rounded corners (`rounded-lg`, `rounded-md`, `rounded-full`) to `rounded-none` on the fly to guarantee a sleek, brutalist look without manual code updates!
+### How the Fetcher Works (`add-component.js`):
+1. **Local Override Precedence**: The CLI first checks your monorepo's local `packages/registry/` directory. If a specialized ForgeWP-authored component exists (like a WordPress `navbar`), it copies it directly to your `src/components/ui/` directory instantly, bypassing the internet.
+2. **shadcn/ui Fallback**: If the component is a standard UI element (like an `accordion` or `dialog`), the CLI acts as a proxy and executes `npx shadcn@latest add <component> --yes` under the hood to fetch it from the official registry.
 
 ---
 
-## 🟢 Phase 4 — WordPress React Data Layer
+## 2. The Auto-Sharpen CSS Customizer
 
-ForgeWP provides zero-runtime React hooks and loop components that compile directly to clean, standard PHP functions.
+ForgeWP defaults to a premium, brutalist design system (Zero border-radius). However, `shadcn/ui` components download with rounded corners by default (`rounded-md`, `rounded-lg`). 
 
-### 1. WordPress Hooks API
-Use hooks directly inside components to fetch post metadata:
-```tsx
-import { 
-  useWpTitle, 
-  useWpContent, 
-  useWpDate, 
-  useWpAuthor, 
-  useWpFeaturedImage 
-} from "@/lib/wordpress";
+Instead of forcing you to manually edit dozens of class names every time you add a component, ForgeWP includes an **Auto-Sharpen Regex Engine**.
 
-export default function BlogPostDetail() {
-  const title = useWpTitle();
-  const content = useWpContent();
-  const date = useWpDate();
-  const author = useWpAuthor();
-  const featuredImage = useWpFeaturedImage();
+### The Regex Engine in Action
+Inside `packages/compiler/lib/add-component.js`, the `sharpenFile()` utility runs against any newly downloaded React file if your `wp.config.ts` style is set to `"forgewp"`:
 
-  return (
-    <article className="border-4 border-black p-6 bg-white">
-      {featuredImage && (
-        <img src={featuredImage} alt={title} className="w-full h-64 object-cover mb-4 border-2 border-black" />
-      )}
-      <span className="text-xs font-mono font-bold text-zinc-500">{date} by {author}</span>
-      <h1 className="text-3xl font-black mt-2 mb-4 uppercase">{title}</h1>
-      <div dangerouslySetInnerHTML={{ __html: content }} className="prose max-w-none" />
-    </article>
-  );
-}
+```javascript
+// The actual Auto-Sharpen regex used by the compiler:
+const sharpened = content.replace(/(?:\b|['"\s])([a-z0-9-:]+)?rounded(-[a-z0-9\[\]]+)?(?=["'\s])/g, (match, prefix, suffix) => {
+  if (match.includes("rounded")) {
+    const cleanPrefix = match.split("rounded")[0];
+    return `${cleanPrefix}rounded-none`;
+  }
+  return match;
+});
 ```
 
-### 2. Loop Abstractions
-Render standard WordPress post loops directly in React:
+### What this accomplishes:
+When you run `pnpm forgewp add card`, the compiler scans the file and performs real-time string replacement while preserving state prefixes:
+*   `className="rounded-xl border"` ➜ `className="rounded-none border"`
+*   `className="hover:rounded-md bg-white"` ➜ `className="hover:rounded-none bg-white"`
+*   `className="focus:ring-2 focus:rounded-sm"` ➜ `className="focus:ring-2 focus:rounded-none"`
 
-#### Standard Loop (`<WpLoop>`)
-Iterates over current query context (e.g., inside index pages or search results):
-```tsx
-import { WpLoop } from "@/lib/wordpress";
-import BlogPostCard from "@/components/BlogPostCard";
-
-export default function BlogIndex() {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <WpLoop>
-        <BlogPostCard />
-      </WpLoop>
-    </div>
-  );
-}
-```
-
-#### Custom Loop (`<WpQueryLoop>`)
-Retrieves custom queries by post type, limits, or categories:
-```tsx
-import { WpQueryLoop } from "@/lib/wordpress";
-import ProjectCard from "@/components/ProjectCard";
-
-export default function FeaturedProjects() {
-  return (
-    <div className="grid grid-cols-2 gap-4">
-      <WpQueryLoop postType="project" postsPerPage={4} categoryName="featured">
-        <ProjectCard />
-      </WpQueryLoop>
-    </div>
-  );
-}
-```
-
-### 3. Dynamic WordPress Menus (`<WpMenu>`)
-Renders native WordPress dynamic menu items using standard loop declarations:
-```tsx
-import { WpMenu } from "@/lib/wordpress";
-
-export default function Navigation() {
-  return (
-    <nav className="flex space-x-6">
-      <WpMenu location="primary">
-        {(item) => (
-          <a 
-            key={item.id} 
-            href={item.url} 
-            className="text-sm font-bold uppercase tracking-widest hover:text-brand"
-          >
-            {item.title}
-          </a>
-        )}
-      </WpMenu>
-    </nav>
-  );
-}
-```
-
-### 4. Advanced Custom Fields (ACF) Integration
-Get custom metadata fields with default fallbacks:
-```tsx
-import { useWpCustomField } from "@/lib/wordpress";
-
-export default function PortfolioItem() {
-  const clientName = useWpCustomField("client_name", "N/A");
-  const budget = useWpCustomField("project_budget", "Confidential");
-
-  return (
-    <div className="border-4 border-black p-4 bg-yellow-100 font-mono">
-      <p><strong>Client:</strong> {clientName}</p>
-      <p><strong>Budget:</strong> {budget}</p>
-    </div>
-  );
-}
-```
+You get an instantly sharp, premium brutalist component without writing a single line of CSS!
 
 ---
 
-## 🟢 Phase 5 — Gutenberg Integration
+## Phase 3 Review & Verification Exercises
 
-ForgeWP features first-class React scaffolding and dynamic PHP code transpilation for WordPress Gutenberg blocks.
+To verify that you understand how the component engine works:
 
-### 1. Scaffolding Custom Blocks via CLI
-To scaffold a custom React block inside your theme:
+1.  **Check Auto-Sharpening**: Run `pnpm forgewp add badge`. Since a badge is a standard UI element, it will fetch from shadcn/ui. Open `src/components/ui/badge.tsx` and verify that all `rounded-full` or `rounded-md` classes have been automatically stripped and replaced with `rounded-none`.
+2.  **Check Local Registry Mapping**: Run `pnpm forgewp add navbar`. This is a specialized ForgeWP block. Verify in the console that it prints `"Found navbar in ForgeWP local registry..."`, confirming the fallback proxy logic!
+
+---
+
+# Phase 4 — WordPress Data Layer Architecture
+
+Phase 4 introduces a revolutionary paradigm: fetching WordPress dynamic data inside React components without needing a live REST API, GraphQL, or a local database during development.
+
+```mermaid
+graph TD
+    A[React Component using Hooks] -->|IS_DEV === true| B(Context-aware Local JSON DB)
+    A -->|IS_DEV === false| C(Returns Regex Token)
+    C --> D[Theme Compiler processMarkup]
+    D --> E{Regex Translation Engine}
+    E -->|__FORGEWP_THE_TITLE__| F[php the_title]
+    E -->|__FORGEWP_CUSTOM_FIELD_rating__| G[php echo get_post_meta]
+    E -->|forgewp-query-loop-start| H[php q = new WP_Query]
+    F --> I[Final PHP File Output]
+    G --> I
+    H --> I
+```
+
+## 1. Local JSON Database & React Context Queries (`wordpress/mock-data.json`)
+
+To build a fully dynamic experience during local styling, ForgeWP enqueues a **Local JSON Database** inside the project root at `wordpress/mock-data.json`.
+
+This JSON file acts as your local MySQL tables:
+```json
+{
+  "post": [
+    { "id": 1, "title": "My First Post", "content": "<p>Content</p>" }
+  ],
+  "project": [
+    {
+      "id": 1,
+      "title": "ForgeWP Compiler",
+      "customFields": {
+        "client_name": "DeepMind",
+        "project_budget": "$50,000"
+      }
+    }
+  ]
+}
+```
+
+### Context-Aware Query Hooks
+Inside `src/lib/wordpress.tsx`, every data hook is fully context-aware during local development. When placed inside a `<WpLoop>` or `<WpQueryLoop postType="project">`, the hook dynamically looks up the active post context from the local JSON database:
+```typescript
+export function useWpTitle() {
+  if (IS_DEV) {
+    const post = useContext(WpPostContext);
+    return post?.title || "Sample WordPress Post Title";
+  }
+  return "__FORGEWP_THE_TITLE__";
+}
+```
+
+This means:
+1. You can define any arbitrary post type in `wordpress/mock-data.json` (e.g. `"portfolio"`, `"event"`).
+2. Populate custom fields inside its `customFields` object.
+3. Fetch them dynamically inside React loops using `useWpCustomField("client_name")`!
+
+### Bulletproof Fail-safe Handling
+ForgeWP enforces maximum application stability through smart safety defaults:
+* **Undefined Custom Fields**: If `useWpCustomField("non_existent_field", "Default Value")` is invoked, it will gracefully fallback to returning your `"Default Value"`. If no default was specified, it renders a clean developer placeholder `[Mock custom field: non_existent_field]` instead of crashing.
+* **Missing Post Types**: If `<WpQueryLoop postType="portfolio">` is rendered but `"portfolio"` table doesn't exist in `wordpress/mock-data.json`, the query engine automatically scaffolds and maps dynamic, beautifully formatted dummy records (with identifiers like `Mock portfolio 1`) on the fly.
+
+---
+
+## 2. Seed Generator CLI Command (`forgewp make:post-type`)
+
+ForgeWP features a dedicated CLI command to register new custom post types and seed template custom fields directly into your local database.
+
+### Scaffolding New Tables
+To register a new custom post type and seed mock custom fields, simply execute:
 ```bash
-# Positionally
-pnpm forgewp make:block PromoBanner
-# Or using the name parameter flag
-pnpm forgewp make:block --name PromoBanner
+pnpm forgewp make:post-type portfolio
+# Or using the named parameter flag
+pnpm forgewp make:post-type --name portfolio
 ```
-This generates a starter block component file inside `src/blocks/PromoBanner.tsx`.
 
-### 2. Block Component Layout & Settings Export
-A dynamic block consists of a default React component function representing its layout, and a named `settings` object:
+### Dynamic Custom Field Flags
+You can dynamically specify exactly which custom fields should be seeded into your database records upon registration by passing a comma-separated `--customFields` parameter:
+```bash
+pnpm forgewp make:post-type portfolio --customFields=client_name,project_budget,tech_stack
+```
+
+### Script Execution Flow
+1. **Validation**: The CLI sanitizes your post type slug to enforce standard, lowercase WordPress URL conventions (alphanumeric, dashes, and underscores).
+2. **Local DB Appending**: It loads `wordpress/mock-data.json`, verifies the table doesn't already exist, and appends a pre-seeded array containing two high-fidelity mock records complete with your specified custom metadata fields dynamically registered inside!
+3. **Completion**: Writes the updated JSON back to disk and outputs clear instructions on how to query your newly created dataset in React.
+
+---
+
+## 3. Schema-Hydrated Loop Component Scaffolder (`forgewp make:component`)
+
+ForgeWP features a powerful CLI utility that dynamically generates fully designed React grid loops synced to your mock database schema.
+
+```bash
+pnpm forgewp make:component PortfolioGrid --postType=portfolio
+```
+
+### Script Execution Flow
+1. **Schema Check**: The utility loads your local `wordpress/mock-data.json` database file and detects the custom metadata fields defined for your target post type.
+2. **Component Generation**: It scaffolds a custom grid component inside `src/components/` that includes standard title/featured image tags, and dynamically writes a tailored layout containing exact custom fields queries matching your schema!
+3. **Auto-Suggestions**: Outputs direct import codes showing you how to render the loop in your pages.
+
+---
+
+## 4. The Regex Translation Engine (`processMarkup`)
+
+When `export-theme.js` processes your statically rendered React DOM tree, it passes the HTML string to `processMarkup()` (inside `packages/compiler/lib/generate-theme.js`).
+
+This function operates as a massive Regex search-and-replace matrix, directly swapping React-generated tokens into functional, natively executed WordPress PHP code:
+
+### Standard Metadata Translation
+```javascript
+// compiler/lib/generate-theme.js
+processed = processed.replace(
+  /__FORGEWP_THE_TITLE__/g,
+  '<?php the_title(); ?>'
+);
+processed = processed.replace(
+  /__FORGEWP_THE_EXCERPT__/g,
+  '<?php the_excerpt(); ?>'
+);
+```
+
+### Custom Fields (ACF) Translation
+For `useWpCustomField('author_bio')`, the React hook returns `__FORGEWP_CUSTOM_FIELD__author_bio__`.
+The compiler regex dynamically captures the inner field name (`$1`) and writes the native `get_post_meta()` query:
+```javascript
+processed = processed.replace(
+  /__FORGEWP_CUSTOM_FIELD__([a-zA-Z0-9_-]+)__/g,
+  "<?php echo esc_html( get_post_meta( get_the_ID(), '$1', true ) ); ?>"
+);
+```
+
+---
+
+## 5. High-Level React Loop Abstractions
+
+Loops are traditionally painful in headless WordPress setups. ForgeWP turns them into intuitive React components `<WpLoop>` and `<WpQueryLoop>`.
+
+### Custom WP_Query Simulation
+When you use `<WpQueryLoop postType="project" postsPerPage={3}>` in your React code:
+1. **Locally**: It reads `"project"` items from `wordpress/mock-data.json`, slices to the page count, and loops children through a React Context.
+2. **Compiled HTML**: It outputs custom, non-standard DOM nodes:
+   `<forgewp-query-loop-start postType="project" postsPerPage="3">`
+3. **Regex Compilation**: The compiler captures those exact attributes and generates a native, highly-optimized `$custom_query = new WP_Query(...)` PHP loop!
+
+```javascript
+// The compiler transpiles the custom React DOM element into native WP_Query arrays:
+processed = processed.replace(
+  /<forgewp-query-loop-start\s+[^>]*post[Tt]ype="([^"]+)"\s+[^>]*posts[Pp]er[Pp]age="([^"]+)"\s*(?:[^>]*category[Nn]ame="([^"]*)")?\s*\/?>/g,
+  '<?php
+  $query_args = array(
+      \'post_type\' => \'$1\',
+      \'posts_per_page\' => $2,
+  );
+  if (\'$3\' !== \'\') {
+      $query_args[\'category_name\'] = \'$3\';
+  }
+  $custom_query = new WP_Query($query_args);
+  if ($custom_query->have_posts()) : while ($custom_query->have_posts()) : $custom_query->the_post();
+  ?>'
+);
+```
+
+### Native WordPress Menus (`<WpMenu>`)
+The `<WpMenu location="primary" className="flex">` abstraction is compiled down to `wp_get_nav_menu_items()` rather than using the clunky `wp_nav_menu()` wrapper, allowing your custom Tailwind styling to perfectly cascade down the generated menu items.
+
+---
+
+## Phase 4 Review & Verification Exercises
+
+To verify that you understand how the dynamic data layer works:
+
+1.  **Check Local Database Seeding**: Run `pnpm forgewp make:post-type event --customFields=event_date,event_location`.
+2.  **Verify Append Success**: Open `wordpress/mock-data.json`. Observe the `"event"` key and the pre-populated seed structures holding your custom fields.
+3.  **Display Custom Fields**: Inside a `<WpQueryLoop postType="event">` in `src/app/page.tsx`, output `<span>{useWpCustomField("event_location")}</span>`.
+4.  **Boot Dev Server**: Run `pnpm dev`. View your browser—you will see your custom seeded field dynamically populated from your mock database without running a database server! 🚀
+
+---
+
+# Phase 5 — Gutenberg Block Integration Architecture
+
+Phase 5 represents the crowning achievement of the ForgeWP compiler: compiling React functional block files into native, dynamic **WordPress Gutenberg blocks (v3 block.json standard)** with server-side dynamic PHP rendering templates (`render.php`) and style cascades.
+
+```mermaid
+graph TD
+    A[React Block src/blocks/HeroBlock.tsx] -->|Theme Compiler Scanner| B(Gutenberg Compiler Engine)
+    B -->|Metadata Extractor| C[blocks/hero-block/block.json]
+    B -->|JSX-to-PHP Transpiler| D[blocks/hero-block/render.php]
+    B -->|Slug Registry| E[functions.php register_block_type]
+    
+    C --> F[ZIP Theme Bundle]
+    D --> F
+    E --> F
+    F --> G[WordPress Native Gutenberg Editor]
+```
+
+---
+
+## 1. Zero-Dependency Dynamic Block Architecture
+
+In traditional WordPress headless setups, building custom blocks requires writing complex React editor scripts, handling REST API updates, and syncing database schemas.
+
+ForgeWP completely shifts this paradigm:
+1. **Write standard React**: You write beautiful layouts in normal React using Tailwind CSS.
+2. **Zero runtime JS**: The compiler translates your React JSX directly into safe, dynamic WordPress PHP layouts (`render.php`).
+3. **Native editor UI**: WordPress reads the compiled `block.json` config and dynamically generates the sidebar settings UI for Gutenberg natively in the dashboard.
+
+When a client inserts your block and edits a text field inside the WordPress Gutenberg editor, WordPress executes the dynamic PHP rendering server-side on page load. You get full visual customizability, blisteringly fast database execution, and zero frontend JS overhead!
+
+---
+
+## 2. Block Scaffolding via CLI (`forgewp make:block`)
+
+To create a new block, developers use the dedicated block generator CLI:
+```bash
+pnpm forgewp make:block TestimonialBlock
+# Or using the named parameter flag
+pnpm forgewp make:block --name TestimonialBlock
+```
+
+### Dynamic Block Attributes Flags
+You can dynamically specify exactly which customizable fields and settings your Gutenberg block should expose upon generation by passing a comma-separated `--attributes` parameter:
+```bash
+pnpm forgewp make:block TestimonialBlock --attributes=authorName,quote,image
+```
+* **Auto-Typing**: The generator automatically creates corresponding TypeScript argument properties, destructures them in your block signature, and maps standard configurations within the Gutenberg `attributes` settings register.
+* **Smart Media Handling**: If an attribute name matches keyword criteria (e.g. contains `"image"` or `"pic"`), the generator dynamically scaffolds an optimized standard brutalist `<img />` tag linked to it rather than a standard paragraph!
+
+### Script Execution Flow (`make-block.js`):
+1. **Sanitization**: Sanitizes your block name into clean PascalCase (e.g. `testimonial-block` ➜ `TestimonialBlock`).
+2. **Directory Preflight**: Ensures it is executed from the root of a valid theme directory and constructs `src/blocks/` folder if it is missing.
+3. **Template Scaffolding**: Writes a premium, Brutalist-styled React template containing standard attributes, styling tokens, and Gutenberg configuration variables to `src/blocks/TestimonialBlock.tsx`.
+
+---
+
+## 3. Structure of a Block File
+
+Every ForgeWP block consists of two parts in a single TypeScript file:
+1. **The React Component** (Default Export): Defines the visual design, class styling, and dynamic data slots.
+2. **The Gutenberg Settings** (`settings` Named Export): Configures attributes, dashboard icons, category placement, and default values.
+
+### Reference Block Structure (`src/blocks/HeroBlock.tsx`):
 ```tsx
-// src/blocks/PromoBanner.tsx
-export default function PromoBanner({ title, buttonText }: { title: string; buttonText: string }) {
+export default function HeroBlock({ title, description, badgeText }: { title: string; description: string; badgeText: string }) {
   return (
-    <div className="p-8 bg-zinc-950 text-white border-4 border-zinc-950 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] my-6">
-      <h3 className="text-2xl font-black mb-3">{title}</h3>
-      <button className="bg-white text-zinc-950 font-bold px-4 py-2 border-2 border-white hover:bg-zinc-950 hover:text-white transition-all">
-        {buttonText}
-      </button>
+    <div className="p-8 bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] rounded-none my-6">
+      <span className="inline-block bg-brand text-white text-xs font-mono font-bold uppercase px-2 py-1 mb-3 border-2 border-black">
+        {badgeText}
+      </span>
+      <h3 className="text-3xl font-black uppercase mb-3">
+        {title}
+      </h3>
+      <p className="text-sm font-medium text-zinc-600 font-sans">
+        {description}
+      </p>
     </div>
   );
 }
 
 export const settings = {
-  title: "Sharp Promo Banner",
-  icon: "tickets-alt", // WordPress Dashicons slug
+  title: "Sharp Hero Block",
+  icon: "megaphone", // Gutenberg Dashicon slug
   category: "design",
   attributes: {
-    title: { type: "string", default: "Get 50% Off Today!" },
-    buttonText: { type: "string", default: "Claim Offer Now" }
+    title: { type: "string", default: "Hero Heading Content" },
+    description: { type: "string", default: "Detailed editorial descriptions." },
+    badgeText: { type: "string", default: "NEW FEATURE" }
   }
 };
 ```
 
 ---
 
-## 🏁 Developer Cheat Sheet: CLI Subcommands
+## 4. The Block Compilation Pipeline (`compileBlocks`)
 
-A summary of all subcommands available through the unified CLI runner:
+During compilation (`pnpm export`), the compiler scans `src/blocks/` and parses each block through the dynamic compilation parser inside `packages/compiler/lib/generate-theme.js`:
 
-| Command | Action | Example |
-| :--- | :--- | :--- |
-| **`forgewp add <component>`** | Downloads a visual component to `src/components/ui/` | `pnpm forgewp add navbar` |
-| **`forgewp make:block <BlockName>`** | Scaffolds a new dynamic React Gutenberg Block template | `pnpm forgewp make:block Hero` |
-| **`forgewp export`** | Compiles, bundles, and creates the installable theme ZIP file | `pnpm forgewp export` |
+### Step 1: Metadata Extraction
+The compiler searches for the exported `settings` variable using a multiline regular expression:
+```javascript
+const settingsMatch = code.match(/export\s+const\s+settings\s*=\s*(\{[\s\S]*?\});/);
+```
+It evaluates the matched string using `new Function()`, merges it with API standard overrides, and registers the block under the `forgewp` namespace:
+```javascript
+settings.name = `forgewp/${blockSlug}`;
+settings.apiVersion = 3;
+settings.render = "file:./render.php";
+```
+This is saved directly to `blocks/<block-slug>/block.json`.
+
+### Step 2: JSX-to-PHP Transpilation
+The compiler extracts the returned JSX layout block using a regular expression:
+```javascript
+const returnMatch = code.match(/return\s*\(\s*(<[\s\S]*?>)\s*\)/);
+```
+It then processes the JSX layout using the custom compiler transpiler:
+1. **Class Attributes Mapping**: Swaps all React JSX `className` properties into standard HTML class names:
+   ```javascript
+   phpMarkup = phpMarkup.replace(/className=/g, "class=");
+   ```
+2. **HTML Content Interpolation**: Captures dynamic tokens (e.g. `{title}` or `{props.title}`) and maps them to secure, escaped PHP variable echoes:
+   ```javascript
+   // {title} -> <?php echo esc_html( $attributes['title'] ?? '' ); ?>
+   phpMarkup = phpMarkup.replace(/\{\s*(?:attributes\.|props\.)?([a-zA-Z0-9_-]+)\s*\}/g, "<?php echo esc_html( $attributes['$1'] ?? '' ); ?>");
+   ```
+3. **Element Asset Attributes Mapping**: Captures dynamic image or link bindings (e.g. `src={image}`) and maps them to URL-escaped PHP parameters:
+   ```javascript
+   // src={image} -> src="<?php echo esc_url( $attributes['image'] ?? '' ); ?>"
+   ```
+
+### Step 3: Registration Enqueuing
+The compiled files are written to `.forgewp/out/blocks/<block-slug>/`. The compiler automatically appends all registered block slugs into the theme's core `functions.php` script initialization queue:
+```php
+function forgewp_register_dynamic_blocks(): void {
+    $blocks = array('hero-block', 'testimonial-block');
+    foreach ($blocks as $block) {
+        register_block_type(__DIR__ . '/blocks/' . $block);
+    }
+}
+add_action('init', 'forgewp_register_dynamic_blocks');
+```
 
 ---
 
-## 🔒 Protected Core & Self-Healing Mechanisms
-To keep developer environments robust and safe, ForgeWP features a **self-healing core engine**. If critical system files like `src/lib/wordpress.tsx` or styling sheets are accidentally modified or deleted, the compiler automatically detects, repairs, and restores the files during build stages to prevent compilation crashes and ensure framework stability!
+## Phase 5 Review & Verification Exercises
+
+To verify that you have mastered the Gutenberg Block Compilation Pipeline:
+
+1. **Scaffold a Custom Block**: Inside your terminal, run `pnpm forgewp make:block PromoCard --attributes=title,description,discountImage`.
+2. **Audit Generated File**: Open the newly created `src/blocks/PromoCard.tsx`. Observe the custom attributes signature and look at the smart auto-generated image element for `discountImage`.
+3. **Execute Compiler**: Run `pnpm export`.
+4. **Audit Generated Output**: Open `.forgewp/out/forgewp-starter/blocks/promo-card/render.php`. You will see that your React structure has been completely transpiled into high-performance, escaped dynamic PHP templates ready for your WordPress block editor! 🚀
+
+---
+
+# Congratulations! 🏆🎉
+
+You have successfully walked through, engineered, and mastered all 5 core development phases of **ForgeWP**!
+
+1. **Phase 1 — Foundation**: Workspace orchestration, hot-reloading Vite dev pipeline, dynamic validation plugins, and Tailwind v4 themes.
+2. **Phase 2 — Compiler Architecture**: Template routing hierarchies, dynamic header/footer splitting, and automated zip enqueuing.
+3. **Phase 3 — Component CLI**: Fallback component proxying, local registries, and the Auto-Sharpen CSS v4 brutalist engine.
+4. **Phase 4 — WordPress Data Layer**: Dynamic context-aware JSON DB mocking, ACF dynamic meta fields, and dynamic CLI scaffolding.
+5. **Phase 5 — Gutenberg Integration**: Seamless JSX transpilation, auto-registering dynamic block json layers, and dynamic server-rendered block packages.
+
+You are now equipped with full engineering mastery of the ForgeWP visual frameworks compiler! Build stunning visual sites, pack them up, and upload them to any standard WordPress installation. Happy coding! 🚀⚒️⚡
