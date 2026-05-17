@@ -142,14 +142,14 @@ export function useWpCustomField(fieldName: string, defaultValue: string = ""): 
 // ── Navigation Menu Component ──────────────────────────────────────────────────
 
 export interface WpMenuProps {
-  location?: string;
+  location?: "primary" | "footer" | "sidebar";
   className?: string;
   linkClassName?: string;
 }
 
 export function WpMenu({ location = "primary", className = "", linkClassName = "" }: WpMenuProps) {
   if (IS_DEV) {
-    const mockItems = [
+    const mockItems = (mockData as any).menu?.[location] || [
       { title: "Home", url: "/" },
       { title: "Blog", url: "/post" },
       { title: "Archive", url: "/archive" },
@@ -247,4 +247,36 @@ export function WpShortcode({ code }: WpShortcodeProps) {
     // @ts-ignore
     <forgewp-shortcode code={code} />
   );
+}
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      "forgewp-menu": React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & {
+          location?: "primary" | "footer" | "sidebar";
+          linkClassName?: string;
+        },
+        HTMLElement
+      >;
+      "forgewp-query-loop-start": React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & {
+          postType?: string;
+          postsPerPage?: number;
+          categoryName?: string;
+        },
+        HTMLElement
+      >;
+      "forgewp-query-loop-end": React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement>,
+        HTMLElement
+      >;
+      "forgewp-shortcode": React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & {
+          code?: string;
+        },
+        HTMLElement
+      >;
+    }
+  }
 }
