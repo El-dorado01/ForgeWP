@@ -14,7 +14,7 @@ const require = createRequire(path.join(themeRoot, "package.json"));
 const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 
-const appUrl = pathToFileURL(path.join(themeRoot, "src", "App.tsx")).href;
+const appUrl = pathToFileURL(path.join(themeRoot, "src", "app", "page.tsx")).href;
 const headerUrl = pathToFileURL(path.join(themeRoot, "src", "components", "SiteHeader.tsx")).href;
 const footerUrl = pathToFileURL(path.join(themeRoot, "src", "components", "SiteFooter.tsx")).href;
 

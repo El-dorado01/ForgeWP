@@ -26,7 +26,7 @@ const REQUIRED_FILES = [
   "tsconfig.json",
   "wp.config.ts",
   "src/main.tsx",
-  "src/App.tsx",
+  "src/app/page.tsx",
 ];
 
 if (!existsSync(starterDir)) {
@@ -53,7 +53,7 @@ pkg.name = "forgewp-scaffold-template";
 // Standalone scaffolds need @forgewp/compiler for theme export
 if (pkg.devDependencies?.["@forgewp/compiler"]) {
   // Convert workspace:* to a real version (match packages/compiler/package.json)
-  pkg.devDependencies["@forgewp/compiler"] = "^0.1.3";
+  pkg.devDependencies["@forgewp/compiler"] = "^0.1.4";
 }
 
 writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
