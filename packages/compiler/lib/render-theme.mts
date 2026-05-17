@@ -36,7 +36,24 @@ try {
   console.warn("SiteFooter not found, skipping separate render");
 }
 
-const appHtml = renderToStaticMarkup(React.createElement(App));
+let appHtml = "";
+let headHtml = "";
+
+try {
+  const { HelmetProvider } = require("react-helmet-async");
+  const helmetContext: any = {};
+  appHtml = renderToStaticMarkup(
+    React.createElement(HelmetProvider, { context: helmetContext }, React.createElement(App))
+  );
+  
+  const { helmet } = helmetContext;
+  if (helmet) {
+    headHtml = helmet.title.toString() + "\n" + helmet.meta.toString() + "\n" + helmet.link.toString();
+  }
+} catch (e) {
+  // Fallback if react-helmet-async is not installed
+  appHtml = renderToStaticMarkup(React.createElement(App));
+}
 
 const outDir = path.join(themeRoot, ".forgewp");
 mkdirSync(outDir, { recursive: true });
@@ -44,5 +61,6 @@ mkdirSync(outDir, { recursive: true });
 writeFileSync(path.join(outDir, "header.html"), headerHtml, "utf8");
 writeFileSync(path.join(outDir, "footer.html"), footerHtml, "utf8");
 writeFileSync(path.join(outDir, "app.html"), appHtml, "utf8");
+writeFileSync(path.join(outDir, "head.html"), headHtml, "utf8");
 
 process.stdout.write(outDir);

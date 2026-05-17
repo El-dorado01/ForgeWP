@@ -1,10 +1,14 @@
 import { Badge } from "@/components/Badge";
 import { MainLayout } from "@/components/layouts/MainLayout";
 import { WpLoop, useWpTitle, useWpExcerpt, useWpPermalink } from "@/lib/wordpress";
+import { Helmet } from "react-helmet-async";
 
 export default function HomePage() {
   return (
     <MainLayout>
+      <Helmet>
+        <title>__FORGEWP_THE_TITLE__</title>
+      </Helmet>
       <section className="mx-auto max-w-3xl px-6 py-16">
         <Badge>ForgeWP Data Hooks</Badge>
         <h1 className="mt-6 text-4xl font-semibold tracking-tight text-zinc-900">

@@ -37,6 +37,7 @@ export async function exportTheme(options) {
     appHtml: markup.appHtml,
     headerHtml: markup.headerHtml,
     footerHtml: markup.footerHtml,
+    headHtml: markup.headHtml,
     assets,
   });
 

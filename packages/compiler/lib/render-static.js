@@ -53,6 +53,7 @@ export async function renderStaticMarkup(themeRoot) {
 
   const headerHtmlPath = path.join(outDir, "header.html");
   const footerHtmlPath = path.join(outDir, "footer.html");
+  const headHtmlPath = path.join(outDir, "head.html");
 
   return {
     appHtml: readFileSync(appHtmlPath, "utf8"),
@@ -61,6 +62,9 @@ export async function renderStaticMarkup(themeRoot) {
       : "",
     footerHtml: existsSync(footerHtmlPath)
       ? readFileSync(footerHtmlPath, "utf8")
+      : "",
+    headHtml: existsSync(headHtmlPath)
+      ? readFileSync(headHtmlPath, "utf8")
       : "",
   };
 }

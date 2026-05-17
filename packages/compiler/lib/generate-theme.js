@@ -60,6 +60,9 @@ export function generateTheme({
   writeFileSync(path.join(staticDir, "content.html"), contentHtml, "utf8");
   writeFileSync(path.join(staticDir, "header.html"), processedHeader, "utf8");
   writeFileSync(path.join(staticDir, "footer.html"), processedFooter, "utf8");
+  if (options.headHtml) {
+    writeFileSync(path.join(staticDir, "head.html"), options.headHtml, "utf8");
+  }
 
   writeFileSync(path.join(outDir, "style.css"), buildStyleCss(config), "utf8");
   writeFileSync(
@@ -217,6 +220,12 @@ function buildHeaderPhp(config) {
 <head>
   <meta charset="<?php bloginfo('charset'); ?>">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <?php
+  $head_file = get_template_directory() . '/forgewp-static/head.html';
+  if (file_exists($head_file)) {
+      include $head_file;
+  }
+  ?>
   <?php wp_head(); ?>
   <style>
     /* Reset WP link underlines to match React/Tailwind expected styling */

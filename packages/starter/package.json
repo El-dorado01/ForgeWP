@@ -15,12 +15,13 @@
     "clsx": "^2.1.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-helmet-async": "^3.0.0",
     "tailwind-merge": "^3.3.0"
   },
   "devDependencies": {
     "@forgewp/compiler": "workspace:*",
-    "@types/node": "^22.15.21",
     "@tailwindcss/vite": "^4.1.7",
+    "@types/node": "^22.15.21",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
     "@vitejs/plugin-react": "^4.4.1",
