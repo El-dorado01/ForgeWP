@@ -5,9 +5,7 @@
   "type": "module",
   "license": "MIT",
   "bin": {
-    "forgewp-export": "./bin/export.js",
-    "forgewp-add": "./bin/add.js",
-    "forgewp-make-block": "./bin/make-block.js"
+    "forgewp": "./bin/cli.js"
   },
   "exports": {
     ".": {

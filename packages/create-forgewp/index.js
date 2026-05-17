@@ -25,20 +25,18 @@ function printBanner() {
 function printHelp() {
   console.log(`
 Usage:
-  npm init @forgewp [project-directory] [options]
-  npx forgewp add [component-name]
+  npx create-forgewp [project-directory] [options]
+  npx create-forgewp --projectName [project-directory]
 
 Options:
   -y, --yes           Use defaults (skip prompts)
   --no-install        Skip dependency install
   -h, --help          Show help
 
-Commands:
-  add                 Add a pre-built component (Navbar, HeroSection, PricingTable)
-
 Examples:
-  npm init @forgewp my-theme
-  npx forgewp add hero-section
+  npx create-forgewp my-theme
+  npx create-forgewp --projectName my-theme
+  npx create-forgewp --yes
 `);
 }
 
@@ -65,6 +63,17 @@ function parseArgs(argv) {
 
     if (arg === "--no-install") {
       args.noInstall = true;
+      continue;
+    }
+
+    if (arg === "--projectName") {
+      args.projectDir = argv[i + 1];
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--projectName=")) {
+      args.projectDir = arg.split("=")[1];
       continue;
     }
 

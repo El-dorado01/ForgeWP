@@ -1,11 +1,11 @@
 {
-  "name": "@forgewp/create",
+  "name": "create-forgewp",
   "version": "0.1.7",
   "description": "Scaffold a ForgeWP React + Tailwind WordPress theme project",
   "type": "module",
   "license": "MIT",
   "bin": {
-    "forgewp": "./index.js"
+    "create-forgewp": "./index.js"
   },
   "files": [
     "index.js",

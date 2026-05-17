@@ -1,4 +1,4 @@
-# @forgewp/create 🚀
+# create-forgewp 🚀
 
 The official initializer for **ForgeWP** themes.
 
@@ -7,13 +7,15 @@ Scaffold a high-performance, React-powered WordPress theme project in seconds. F
 ## 🏁 Quick Start
 
 ```bash
-npm init @forgewp
+npx create-forgewp
 ```
 
 Or with specific options:
 
 ```bash
-npm init @forgewp my-new-theme --yes
+npx create-forgewp my-new-theme --yes
+# Or
+npx create-forgewp --projectName my-new-theme
 ```
 
 ## 🛠️ What's Included?

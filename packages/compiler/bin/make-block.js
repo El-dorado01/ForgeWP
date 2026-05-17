@@ -5,11 +5,23 @@ import path from "node:path";
 import pc from "picocolors";
 
 const args = process.argv.slice(2);
-let rawBlockName = args[0];
+let rawBlockName = args.find(a => !a.startsWith("-"));
+
+// Support --name TestimonialBlock or --name=TestimonialBlock
+const nameIndex = args.indexOf("--name");
+if (nameIndex !== -1 && args[nameIndex + 1]) {
+  rawBlockName = args[nameIndex + 1];
+} else {
+  const nameEqual = args.find(a => a.startsWith("--name="));
+  if (nameEqual) {
+    rawBlockName = nameEqual.split("=")[1];
+  }
+}
 
 if (!rawBlockName) {
   console.error(pc.red("\n❌ Error: Please specify a block name."));
-  console.log(pc.cyan("   Example: pnpm forgewp:make-block TestimonialBlock\n"));
+  console.log(pc.cyan("   Example: pnpm forgewp make:block TestimonialBlock"));
+  console.log(pc.cyan("   Or:      pnpm forgewp make:block --name TestimonialBlock\n"));
   process.exit(1);
 }
 
