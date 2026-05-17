@@ -158,7 +158,8 @@ const notFoundPath = path.join(themeRoot, "src", "app", "404.tsx");
 let notFoundHtml = "";
 if (existsSync(notFoundPath)) {
   const { default: NotFoundPage } = await import(pathToFileURL(notFoundPath).href);
-  notFoundHtml = renderPage(NotFoundPage);
+  // 404 is standalone — no RootLayout. WordPress 404.php calls get_header/get_footer.
+  notFoundHtml = renderToStaticMarkup(React.createElement(NotFoundPage));
 }
 
 // ── Extract SEO from layout.tsx source ───────────────────────────────────────

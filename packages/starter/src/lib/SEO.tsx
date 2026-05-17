@@ -1,5 +1,17 @@
 import { Helmet } from "react-helmet-async";
-import { useWpTitle } from "../lib/wordpress";
+import { useWpTitle } from "./wordpress";
+
+/**
+ * ForgeWP SEO — Internal system file. Do not delete.
+ *
+ * Use this component in `src/app/layout.tsx` to set global SEO defaults,
+ * and in individual page files to override them per-page.
+ *
+ * The ForgeWP compiler reads the props you pass here and injects them
+ * directly into the WordPress theme's <head> as native meta tags.
+ *
+ * @see https://forgewp.dev/docs/seo
+ */
 
 export interface SEOProps {
   /** Page title — defaults to the WordPress post title via useWpTitle() */
@@ -8,39 +20,43 @@ export interface SEOProps {
   description?: string;
   /** Comma-separated keywords */
   keywords?: string;
-  /** Open Graph title (falls back to title) */
+  /** Open Graph title (falls back to title if omitted) */
   ogTitle?: string;
-  /** Open Graph description (falls back to description) */
+  /** Open Graph description (falls back to description if omitted) */
   ogDescription?: string;
-  /** Open Graph image URL */
+  /** Absolute URL to the Open Graph image */
   ogImage?: string;
-  /** Open Graph type, e.g. "website" or "article" */
+  /** Open Graph type — "website" for homepages, "article" for posts */
   ogType?: string;
   /** Twitter card type */
   twitterCard?: string;
   /** Twitter creator handle, e.g. "@username" */
   twitterCreator?: string;
-  /** Canonical URL (optional) */
+  /** Canonical URL — tells search engines the preferred version of this page */
   canonical?: string;
-  /** Set to true to prevent search engine indexing */
+  /** Set to true to prevent this page from being indexed by search engines */
   noIndex?: boolean;
 }
 
 /**
- * `<SEO>` — A drop-in SEO manager for your ForgeWP theme.
+ * `<SEO>` — ForgeWP SEO manager.
  *
- * **Usage in layout.tsx** → sets global defaults for every page.
- * **Usage in a page file** → overrides the defaults for that specific page.
- *
- * @example
- * // layout.tsx — global defaults
- * <SEO description="My awesome WordPress site built with ForgeWP." />
+ * Drop this into your **layout.tsx** to set site-wide defaults.
+ * Then drop it into any **page file** to override for that specific template.
  *
  * @example
- * // single.tsx — per-page override
+ * // layout.tsx — global defaults (the compiler reads these for all pages)
+ * <SEO
+ *   description="Your site tagline or description."
+ *   keywords="WordPress, React, Tailwind"
+ *   ogImage="https://yoursite.com/og-default.png"
+ * />
+ *
+ * @example
+ * // single.tsx — per-page override (article-specific metadata)
  * <SEO
  *   ogType="article"
- *   ogImage="https://example.com/og-image.jpg"
+ *   ogImage="https://yoursite.com/og-post.png"
  *   twitterCreator="@yourhandle"
  * />
  */
