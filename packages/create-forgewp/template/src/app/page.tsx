@@ -1,5 +1,5 @@
 import { Badge } from "@/components/Badge";
-import { MainLayout } from "./layout";
+import { MainLayout } from "@/components/layouts/MainLayout";
 
 export default function HomePage() {
   return (
