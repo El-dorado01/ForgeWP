@@ -2,7 +2,7 @@
  * Copy packages/starter → packages/create-forgewp/template
  * Run after changing the starter so the CLI ships an up-to-date scaffold.
  */
-import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, rmSync, writeFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,7 +36,11 @@ if (!existsSync(starterDir)) {
 }
 
 if (existsSync(templateDir)) {
-  rmSync(templateDir, { recursive: true, force: true });
+  const items = readdirSync(templateDir);
+  for (const item of items) {
+    if (item === "node_modules") continue;
+    rmSync(path.join(templateDir, item), { recursive: true, force: true });
+  }
 }
 
 cpSync(starterDir, templateDir, {
@@ -54,7 +58,9 @@ pkg.name = "forgewp-scaffold-template";
 // Standalone scaffolds need @forgewp/compiler for theme export
 if (pkg.devDependencies?.["@forgewp/compiler"]) {
   // Convert workspace:* to a real version (match packages/compiler/package.json)
-  pkg.devDependencies["@forgewp/compiler"] = "^0.1.7";
+  const compilerPkgPath = path.join(root, "packages", "compiler", "package.json");
+  const compilerPkg = JSON.parse(readFileSync(compilerPkgPath, "utf8"));
+  pkg.devDependencies["@forgewp/compiler"] = `^${compilerPkg.version}`;
 }
 
 writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");

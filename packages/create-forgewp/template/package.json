@@ -20,7 +20,7 @@
     "wouter": "^3.9.0"
   },
   "devDependencies": {
-    "@forgewp/compiler": "^0.1.7",
+    "@forgewp/compiler": "^0.1.8",
     "@tailwindcss/vite": "^4.1.7",
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.4",
