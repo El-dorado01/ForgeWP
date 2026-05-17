@@ -11,11 +11,26 @@ import HomePage from "./page";
  * // 2. Import it here: import AboutPage from "./about";
  * // 3. Add the Route: <Route path="/about" component={AboutPage} />
  */
+import { NewPage } from "./pages/NewPage";
+import { MenPage } from "./pages/MenPage";
+import { WomenPage } from "./pages/WomenPage";
+import { HelpPage } from "./pages/HelpPage";
+import { SignInPage } from "./pages/SignInPage";
 export default function AppRoutes() {
   return (
     <Switch>
       {/* Home preview */}
       <Route path="/" component={HomePage} />
+
+      <Route path="/new" component={NewPage} />
+
+      <Route path="/men" component={MenPage} />
+
+      <Route path="/women" component={WomenPage} />
+
+      <Route path="/help" component={HelpPage} />
+
+      <Route path="/login" component={SignInPage} />
 
       {/* Fallback route */}
       <Route>

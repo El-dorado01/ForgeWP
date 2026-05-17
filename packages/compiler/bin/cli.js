@@ -12,6 +12,7 @@ const subcommands = {
   "make:block": path.join(__dirname, "make-block.js"),
   "make:post-type": path.join(__dirname, "make-post-type.js"),
   "make:component": path.join(__dirname, "make-component.js"),
+  "sync:routes": path.join(__dirname, "sync-routes.js"),
   export: path.join(__dirname, "export.js"),
   doctor: path.join(__dirname, "doctor.js"),
   repair: path.join(__dirname, "repair.js"),
@@ -36,6 +37,8 @@ if (!targetScript) {
     targetScript = subcommands["make:post-type"];
   } else if (command === "make-component" || command === "component" || command === "make:component") {
     targetScript = subcommands["make:component"];
+  } else if (command === "sync-routes" || command === "sync" || command === "sync:routes") {
+    targetScript = subcommands["sync:routes"];
   }
 }
 
@@ -69,6 +72,7 @@ function printHelp() {
     ${pc.cyan("make:block <Name>")}        Scaffold a React Gutenberg block (e.g. HeroBlock)
     ${pc.cyan("make:post-type <slug>")}    Register a custom mock post-type (e.g. portfolio)
     ${pc.cyan("make:component <Name>")}    Scaffold a post-type grid loop component
+    ${pc.cyan("sync:routes")}             Synchronize sitemap menus with routes and scaffold pages
     ${pc.cyan("export")}                  Package your theme into an installable WP zip
     ${pc.cyan("doctor")}                  Perform diagnostic check on project health
     ${pc.cyan("repair")}                  Force-repair/auto-heal system internals
@@ -79,6 +83,7 @@ function printHelp() {
     pnpm forgewp make:block HeroBlock --attributes=title,subtitle
     pnpm forgewp make:post-type portfolio --customFields=client_name
     pnpm forgewp make:component PortfolioGrid --postType=portfolio
+    pnpm forgewp sync:routes
     pnpm forgewp doctor
     pnpm forgewp repair
     pnpm forgewp clean

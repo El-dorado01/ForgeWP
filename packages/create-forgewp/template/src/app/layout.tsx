@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { SEO } from "../lib/SEO";
-import { PresetsStyle } from "../lib/PresetsStyle";
+import { SEO } from "../.forgewp/SEO";
+import { PresetsStyle } from "../.forgewp/PresetsStyle";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

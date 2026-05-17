@@ -7,6 +7,19 @@
  */
 
 export const SYSTEM_BLUEPRINTS = {
+  "wordpress/menus.json": `{
+  "primary": [
+    { "title": "Home", "url": "/" },
+    { "title": "New", "url": "/new" },
+    { "title": "Men", "url": "/men" },
+    { "title": "Women", "url": "/women" }
+  ],
+  "utility": [
+    { "title": "Help", "url": "/help" },
+    { "title": "Sign In", "url": "/login" }
+  ]
+}`,
+
   "wordpress/mock-data.json": `{
   "post": [
     {
@@ -60,7 +73,7 @@ export const SYSTEM_BLUEPRINTS = {
   ]
 }`,
 
-  "src/lib/wordpress.tsx": `/**
+  "src/.forgewp/wordpress.tsx": `/**
  * ForgeWP WordPress Data Hooks
  *
  * These hooks provide mock data during local development (Vite dev server).
@@ -71,6 +84,8 @@ import React, { createContext, useContext } from "react";
 
 // @ts-ignore
 import mockData from "../../wordpress/mock-data.json";
+// @ts-ignore
+import menusData from "../../wordpress/menus.json";
 
 const IS_DEV =
   typeof import.meta !== "undefined" &&
@@ -204,18 +219,20 @@ export function useWpCustomField(fieldName: string, defaultValue: string = ""): 
 // ── Navigation Menu Component ──────────────────────────────────────────────────
 
 export interface WpMenuProps {
-  location?: "primary" | "footer" | "sidebar";
+  location?: "primary" | "footer" | "sidebar" | string;
   className?: string;
   linkClassName?: string;
 }
 
 export function WpMenu({ location = "primary", className = "", linkClassName = "" }: WpMenuProps) {
   if (IS_DEV) {
-    const mockItems = (mockData as any).menu?.[location] || [
-      { title: "Home", url: "/" },
-      { title: "Blog", url: "/post" },
-      { title: "Archive", url: "/archive" },
-    ];
+    const mockItems =
+      (menusData as any)?.[location] ||
+      (mockData as any).menu?.[location] || [
+        { title: "Home", url: "/" },
+        { title: "Blog", url: "/post" },
+        { title: "Archive", url: "/archive" },
+      ];
     return (
       <nav className={className}>
         {mockItems.map((item: any, idx: number) => (
@@ -346,7 +363,7 @@ declare global {
 }
 `,
 
-  "src/lib/SEO.tsx": `import * as ReactHelmetAsync from "react-helmet-async";
+  "src/.forgewp/SEO.tsx": `import * as ReactHelmetAsync from "react-helmet-async";
 import { useWpTitle } from "./wordpress";
 
 // Support both ESM and CommonJS exports of react-helmet-async across Vite and TSX compiler
@@ -453,7 +470,7 @@ export function SEO({
 }
 `,
 
-  "src/lib/PresetsStyle.tsx": `import wpConfig from "../../wp.config";
+  "src/.forgewp/PresetsStyle.tsx": `import wpConfig from "../../wp.config";
 
 const IS_DEV =
   typeof import.meta !== "undefined" &&

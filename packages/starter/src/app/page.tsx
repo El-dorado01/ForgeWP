@@ -1,6 +1,6 @@
-import { SEO } from "../lib/SEO";
+import { SEO } from "../.forgewp/SEO";
 import wpConfig from "../../wp.config";
-import { useWpCustomField, WpMenu, WpQueryLoop } from "../lib/wordpress";
+import { useWpCustomField, WpMenu, WpQueryLoop } from "../.forgewp/wordpress";
 
 export default function HomePage() {
   const colors = wpConfig.settings?.color?.palette || [];

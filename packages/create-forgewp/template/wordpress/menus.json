@@ -1,0 +1,12 @@
+{
+  "primary": [
+    { "title": "Home", "url": "/" },
+    { "title": "New", "url": "/new" },
+    { "title": "Men", "url": "/men" },
+    { "title": "Women", "url": "/women" }
+  ],
+  "utility": [
+    { "title": "Help", "url": "/help" },
+    { "title": "Sign In", "url": "/login" }
+  ]
+}
