@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { cwd } from "node:process";
 import pc from "picocolors";
@@ -15,6 +15,7 @@ import {
   titleCaseFromSlug,
 } from "./lib/utils.js";
 import { addToPnpmWorkspace } from "./lib/workspace.js";
+import { COMPONENT_REGISTRY } from "./lib/registry.js";
 
 function printBanner() {
   console.log(`\n  ${pc.bold(pc.bgCyan(pc.black("  ⚡ FORGEWP  ")))} ${pc.cyan("— React & Tailwind CSS for WordPress")}`);
@@ -25,15 +26,19 @@ function printHelp() {
   console.log(`
 Usage:
   npm init @forgewp [project-directory] [options]
+  npx forgewp add [component-name]
 
 Options:
   -y, --yes           Use defaults (skip prompts)
   --no-install        Skip dependency install
   -h, --help          Show help
 
+Commands:
+  add                 Add a pre-built component (Navbar, HeroSection, PricingTable)
+
 Examples:
   npm init @forgewp my-theme
-  pnpm create @forgewp ./sites/acme --yes
+  npx forgewp add hero-section
 `);
 }
 
@@ -134,8 +139,70 @@ async function gatherConfig(cli, defaults) {
   };
 }
 
+async function handleAddCommand(componentName) {
+  printBanner();
+  
+  if (!existsSync(path.join(cwd(), "wp.config.ts"))) {
+    console.error(pc.red("Error: wp.config.ts not found. Please run this command inside a ForgeWP theme project."));
+    process.exit(1);
+  }
+
+  let selected = componentName;
+  if (!selected) {
+    const response = await prompts({
+      type: "select",
+      name: "component",
+      message: `${pc.cyan("✔")} Choose a component to add`,
+      choices: Object.keys(COMPONENT_REGISTRY).map(key => ({
+        title: `${key} — ${key === "navbar" ? "Dynamic site header" : key === "hero-section" ? "Premium Brutalist/Modern hero" : "Dynamic tiered pricing sheet"}`,
+        value: key
+      }))
+    }, {
+      onCancel: () => {
+        console.log(pc.yellow("\nCancelled."));
+        process.exit(0);
+      }
+    });
+    selected = response.component;
+  }
+
+  const componentData = COMPONENT_REGISTRY[selected];
+  if (!componentData) {
+    console.error(pc.red(`Error: Component "${selected}" not found in registry.`));
+    console.log(`Available components: ${Object.keys(COMPONENT_REGISTRY).join(", ")}`);
+    process.exit(1);
+  }
+
+  const componentsDir = path.join(cwd(), "src", "components");
+  if (!existsSync(componentsDir)) {
+    mkdirSync(componentsDir, { recursive: true });
+  }
+
+  const targetFile = path.join(componentsDir, componentData.filename);
+  writeFileSync(targetFile, componentData.code, "utf8");
+
+  console.log(`\n  ${pc.bold(pc.green("🎉 Component added successfully!"))}`);
+  console.log(`  ┌──────────────────────────────────────────────────────────`);
+  console.log(`  │ Saved to: ${pc.cyan(path.relative(cwd(), targetFile))}`);
+  console.log(`  │`);
+  console.log(`  │ How to use in your src/app/page.tsx:`);
+  console.log(`  │`);
+  console.log(`  │ ${pc.bold("1. Import it:")}`);
+  console.log(`  │    import { ${selected === "navbar" ? "Navbar" : selected === "hero-section" ? "HeroSection" : "PricingTable"} } from "@/components/${componentData.filename.replace(".tsx", "")}";`);
+  console.log(`  │`);
+  console.log(`  │ ${pc.bold("2. Render it:")}`);
+  console.log(`  │    <${selected === "navbar" ? "Navbar" : selected === "hero-section" ? "HeroSection" : "PricingTable"} />`);
+  console.log(`  └──────────────────────────────────────────────────────────\n`);
+}
+
 async function main() {
-  const cli = parseArgs(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  if (args[0] === "add") {
+    await handleAddCommand(args[1]);
+    return;
+  }
+
+  const cli = parseArgs(args);
 
   if (cli.help) {
     printHelp();

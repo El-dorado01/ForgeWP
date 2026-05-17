@@ -22,6 +22,7 @@ export interface ForgeWPThemeConfig {
   version: string;
   description: string;
   textDomain: string;
+  style?: "forgewp" | "shadcn";
   settings?: {
     layout?: {
       contentSize?: string;

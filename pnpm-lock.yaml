@@ -18,49 +18,6 @@ importers:
         specifier: ^6.4.2
         version: 6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.0)
 
-  my-forgewp-theme:
-    dependencies:
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      react:
-        specifier: ^19.1.0
-        version: 19.2.6
-      react-dom:
-        specifier: ^19.1.0
-        version: 19.2.6(react@19.2.6)
-      tailwind-merge:
-        specifier: ^3.3.0
-        version: 3.6.0
-    devDependencies:
-      '@forgewp/compiler':
-        specifier: workspace:*
-        version: link:../packages/compiler
-      '@tailwindcss/vite':
-        specifier: ^4.1.7
-        version: 4.3.0(vite@6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.0))
-      '@types/node':
-        specifier: ^22.15.21
-        version: 22.19.19
-      '@types/react':
-        specifier: ^19.1.4
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.1.5
-        version: 19.2.3(@types/react@19.2.14)
-      '@vitejs/plugin-react':
-        specifier: ^4.4.1
-        version: 4.7.0(vite@6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.0))
-      tailwindcss:
-        specifier: ^4.1.7
-        version: 4.3.0
-      typescript:
-        specifier: ^5.8.3
-        version: 5.9.3
-      vite:
-        specifier: ^6.4.2
-        version: 6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.0)
-
   packages/compiler:
     dependencies:
       '@forgewp/registry':
@@ -92,7 +49,23 @@ importers:
         specifier: ^2.4.2
         version: 2.4.2
 
-  packages/registry: {}
+  packages/registry:
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.4
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.1.5
+        version: 19.2.3(@types/react@19.2.14)
+      react:
+        specifier: ^19.1.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.1.0
+        version: 19.2.6(react@19.2.6)
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
 
   packages/starter:
     dependencies:

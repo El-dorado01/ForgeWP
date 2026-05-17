@@ -20,7 +20,10 @@ export async function addComponent(component, options) {
     registryPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../registry/components");
   }
   
-  const localComponentFile = path.join(registryPath, component, `${style}.tsx`);
+  let localComponentFile = path.join(registryPath, component, `${style}.tsx`);
+  if (!existsSync(localComponentFile)) {
+    localComponentFile = path.join(registryPath, component, "forgewp.tsx");
+  }
 
   if (existsSync(localComponentFile)) {
     console.log(pc.dim(`  Found ${component} in ForgeWP local registry...`));

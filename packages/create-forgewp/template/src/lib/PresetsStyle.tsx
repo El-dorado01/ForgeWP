@@ -10,11 +10,27 @@ const IS_DEV =
  *
  * Dynamically injects WordPress-preset CSS Custom Properties and enqueues Google Fonts
  * during local Vite development, keeping your styles perfectly in sync with WordPress.
- * In production builds, this returns null and is completely skipped since WordPress
- * native styles are enqueued automatically.
+ * In production builds, this returns only the registry-aesthetic design tokens (like --radius)
+ * to keep shadcn components and theme variables responsive to your config.
  */
 export function PresetsStyle() {
-  if (!IS_DEV) return null;
+  const themeStyle = wpConfig.style || "forgewp";
+
+  // Production build: only inject custom registry-aesthetic design properties
+  if (!IS_DEV) {
+    const prodCss = `
+:root {
+  --radius: ${themeStyle === "forgewp" ? "0px" : "0.5rem"};
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --border-width: ${themeStyle === "forgewp" ? "2px" : "1px"};
+  --border-color: ${themeStyle === "forgewp" ? "#09090b" : "#e4e4e7"};
+  --shadow-offset: ${themeStyle === "forgewp" ? "4px" : "0px"};
+}
+    `;
+    return <style dangerouslySetInnerHTML={{ __html: prodCss }} />;
+  }
 
   // Local development fallbacks for WordPress CSS presets
   const colors = wpConfig.settings?.color?.palette || [];
@@ -30,20 +46,29 @@ export function PresetsStyle() {
        <link href="https://fonts.googleapis.com/css2?family=${googleFonts.map(f => encodeURIComponent(f)).join("&family=")}&display=swap" rel="stylesheet">`
     : "";
 
-  const css = `
+  const devCss = `
 :root {
   ${colors.map((c) => `--wp--preset--color--${c.slug}: ${c.color};`).join("\n  ")}
   ${fontSizes.map((f) => `--wp--preset--font-size--${f.slug}: ${f.size};`).join("\n  ")}
   ${fontFamilies.map((f) => `--wp--preset--font-family--${f.slug}: ${f.fontFamily};`).join("\n  ")}
   ${layout.contentSize ? `--wp--style--global--content-size: ${layout.contentSize};` : ""}
   ${layout.wideSize ? `--wp--style--global--wide-size: ${layout.wideSize};` : ""}
+
+  /* Registry Aesthetic Mode Custom Properties */
+  --radius: ${themeStyle === "forgewp" ? "0px" : "0.5rem"};
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --border-width: ${themeStyle === "forgewp" ? "2px" : "1px"};
+  --border-color: ${themeStyle === "forgewp" ? "#09090b" : "#e4e4e7"};
+  --shadow-offset: ${themeStyle === "forgewp" ? "4px" : "0px"};
 }
   `;
 
   return (
     <>
       {fontsHtml && <span dangerouslySetInnerHTML={{ __html: fontsHtml }} />}
-      <style dangerouslySetInnerHTML={{ __html: css }} />
+      <style dangerouslySetInnerHTML={{ __html: devCss }} />
     </>
   );
 }

@@ -154,6 +154,102 @@ export function WpLoop({ children }: { children: React.ReactNode }) {
     </>
   );
 }
+
+// ── Custom Field Mapping (ACF / Meta Fields) ──────────────────────────────────
+
+/**
+ * Returns a WordPress post custom field value.
+ * Maps to get_post_meta(get_the_ID(), $fieldName, true) in WordPress production.
+ * In development, returns the default value or mock placeholder.
+ */
+export function useWpCustomField(fieldName: string, defaultValue: string = ""): string {
+  if (IS_DEV) {
+    return defaultValue || "[Mock custom field: " + fieldName + "]";
+  }
+  return "__FORGEWP_CUSTOM_FIELD__" + fieldName + "__";
+}
+
+// ── Navigation Menu Component ──────────────────────────────────────────────────
+
+export interface WpMenuProps {
+  location?: string;
+  className?: string;
+  linkClassName?: string;
+}
+
+/**
+ * \`<WpMenu>\` — Dynamic WordPress Nav Menu.
+ * 
+ * In development: renders mock links (Home, Blog, Archive) for visual design.
+ * On export: compiles to a native PHP dynamic nav loop pulling registered WP menus.
+ */
+export function WpMenu({ location = "primary", className = "", linkClassName = "" }: WpMenuProps) {
+  if (IS_DEV) {
+    const mockItems = [
+      { title: "Home", url: "/" },
+      { title: "Blog", url: "/post" },
+      { title: "Archive", url: "/archive" },
+    ];
+    return (
+      <nav className={className}>
+        {mockItems.map((item, idx) => (
+          <a key={idx} href={item.url} className={linkClassName}>
+            {item.title}
+          </a>
+        ))}
+      </nav>
+    );
+  }
+
+  return (
+    // @ts-ignore
+    <forgewp-menu location={location} className={className} linkClassName={linkClassName} />
+  );
+}
+
+// ── Custom Query Loop Component ───────────────────────────────────────────────
+
+export interface WpQueryLoopProps {
+  postType?: string;
+  postsPerPage?: number;
+  categoryName?: string;
+  children: React.ReactNode;
+}
+
+/**
+ * \`<WpQueryLoop>\` — Custom WordPress query loop (WP_Query).
+ * 
+ * Allows querying specific types, sizes, or category-filtered post collections.
+ * 
+ * In development: renders children 3 times.
+ * On export: wraps children in a dynamic WP_Query PHP template block.
+ */
+export function WpQueryLoop({
+  postType = "post",
+  postsPerPage = 3,
+  categoryName = "",
+  children
+}: WpQueryLoopProps) {
+  if (IS_DEV) {
+    return (
+      <>
+        {children}
+        {children}
+        {children}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {/* @ts-ignore */}
+      <forgewp-query-loop-start postType={postType} postsPerPage={postsPerPage} categoryName={categoryName} />
+      {children}
+      {/* @ts-ignore */}
+      <forgewp-query-loop-end />
+    </>
+  );
+}
 `,
 
   "src/lib/SEO.tsx": `import * as ReactHelmetAsync from "react-helmet-async";
@@ -275,11 +371,27 @@ const IS_DEV =
  *
  * Dynamically injects WordPress-preset CSS Custom Properties and enqueues Google Fonts
  * during local Vite development, keeping your styles perfectly in sync with WordPress.
- * In production builds, this returns null and is completely skipped since WordPress
- * native styles are enqueued automatically.
+ * In production builds, this returns only the registry-aesthetic design tokens (like --radius)
+ * to keep shadcn components and theme variables responsive to your config.
  */
 export function PresetsStyle() {
-  if (!IS_DEV) return null;
+  const themeStyle = wpConfig.style || "forgewp";
+
+  // Production build: only inject custom registry-aesthetic design properties
+  if (!IS_DEV) {
+    const prodCss = \`
+:root {
+  --radius: \${themeStyle === "forgewp" ? "0px" : "0.5rem"};
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --border-width: \${themeStyle === "forgewp" ? "2px" : "1px"};
+  --border-color: \${themeStyle === "forgewp" ? "#09090b" : "#e4e4e7"};
+  --shadow-offset: \${themeStyle === "forgewp" ? "4px" : "0px"};
+}
+    \`;
+    return <style dangerouslySetInnerHTML={{ __html: prodCss }} />;
+  }
 
   // Local development fallbacks for WordPress CSS presets
   const colors = wpConfig.settings?.color?.palette || [];
@@ -292,23 +404,32 @@ export function PresetsStyle() {
   const fontsHtml = googleFonts.length > 0
     ? \`<link rel="preconnect" href="https://fonts.googleapis.com">
        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-       <link href="https://fonts.googleapis.com/css2?family=\${googleFonts.map(f => encodeURIComponent(f)).join("&family=")}&display=swap" rel="stylesheet">\`
+       <link href="https://fonts.googleapis.com/css2?family=\&{googleFonts.map(f => encodeURIComponent(f)).join("&family=")}&display=swap" rel="stylesheet">\`
     : "";
 
-  const css = \`
+  const devCss = \`
 :root {
-  \${colors.map((c) => \`--wp--preset--color--\${c.slug}: \${c.color};\`).join("\\n  ")}
-  \${fontSizes.map((f) => \`--wp--preset--font-size--\${f.slug}: \${f.size};\`).join("\\n  ")}
-  \${fontFamilies.map((f) => \`--wp--preset--font-family--\${f.slug}: \${f.fontFamily};\`).join("\\n  ")}
-  \${layout.contentSize ? \`--wp--style--global--content-size: \${layout.contentSize};\` : ""}
-  \${layout.wideSize ? \`--wp--style--global--wide-size: \${layout.wideSize};\` : ""}
+  \${colors.map((c) => \\\`--wp--preset--color--\\\${c.slug}: \\\${c.color};\\\`).join("\\\\n  ")}
+  \${fontSizes.map((f) => \\\`--wp--preset--font-size--\\\${f.slug}: \\\${f.size};\\\`).join("\\\\n  ")}
+  \${fontFamilies.map((f) => \\\`--wp--preset--font-family--\\\${f.slug}: \\\${f.fontFamily};\\\`).join("\\\\n  ")}
+  \${layout.contentSize ? \\\`--wp--style--global--content-size: \\\${layout.contentSize};\\\` : ""}
+  \${layout.wideSize ? \\\`--wp--style--global--wide-size: \\\${layout.wideSize};\\\` : ""}
+
+  /* Registry Aesthetic Mode Custom Properties */
+  --radius: \${themeStyle === "forgewp" ? "0px" : "0.5rem"};
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --border-width: \${themeStyle === "forgewp" ? "2px" : "1px"};
+  --border-color: \${themeStyle === "forgewp" ? "#09090b" : "#e4e4e7"};
+  --shadow-offset: \${themeStyle === "forgewp" ? "4px" : "0px"};
 }
   \`;
 
   return (
     <>
       {fontsHtml && <span dangerouslySetInnerHTML={{ __html: fontsHtml }} />}
-      <style dangerouslySetInnerHTML={{ __html: css }} />
+      <style dangerouslySetInnerHTML={{ __html: devCss }} />
     </>
   );
 }

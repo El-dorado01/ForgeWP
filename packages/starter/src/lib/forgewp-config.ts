@@ -22,6 +22,8 @@ export interface ForgeWPThemeConfig {
   version: string;
   description: string;
   textDomain: string;
+  /** Design aesthetic style — "forgewp" (sharp edges, high-contrast) or "shadcn" (smooth rounded modern) */
+  style?: "forgewp" | "shadcn";
   // Design Tokens (Phase 5)
   settings?: {
     layout?: {

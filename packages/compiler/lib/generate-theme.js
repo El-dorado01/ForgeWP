@@ -263,6 +263,31 @@ function processMarkup(html) {
     ''
   );
 
+  // ── Custom Meta Fields (ACF / metadata support) ──
+  processed = processed.replace(
+    /__FORGEWP_CUSTOM_FIELD__([a-zA-Z0-9_-]+)__/g,
+    "<?php echo esc_html( get_post_meta( get_the_ID(), '$1', true ) ); ?>"
+  );
+
+  // ── Dynamic Custom Menus ──
+  processed = processed.replace(
+    /<forgewp-menu\s+[^>]*location="([^"]+)"\s+[^>]*className="([^"]*)"\s+[^>]*linkClassName="([^"]*)"\s*\/?>/g,
+    '<?php\n  $locations = get_nav_menu_locations();\n  $menu_id = isset($locations[\'$1\']) ? $locations[\'$1\'] : null;\n  $menu_items = $menu_id ? wp_get_nav_menu_items($menu_id) : array();\n  if (!empty($menu_items)) {\n      echo \'<nav class="$2">\';\n      foreach ($menu_items as $item) {\n          echo \'<a href="\' . esc_url($item->url) . \'" class="$3">\' . esc_html($item->title) . \'</a>\';\n      }\n      echo \'</nav>\';\n  } else {\n      echo \'<nav class="$2"><a href="\' . esc_url(home_url(\'/\')) . \'" class="$3">Home</a></nav>\';\n  }\n  ?>'
+  );
+  processed = processed.replace(/<\/forgewp-menu>/g, '');
+
+  // ── Custom WP_Query Loop Blocks ──
+  processed = processed.replace(
+    /<forgewp-query-loop-start\s+[^>]*post[Tt]ype="([^"]+)"\s+[^>]*posts[Pp]er[Pp]age="([^"]+)"\s*(?:[^>]*category[Nn]ame="([^"]*)")?\s*\/?>/g,
+    '<?php\n  $query_args = array(\n      \'post_type\' => \'$1\',\n      \'posts_per_page\' => $2,\n  );\n  if (\'$3\' !== \'\') {\n      $query_args[\'category_name\'] = \'$3\';\n  }\n  $custom_query = new WP_Query($query_args);\n  if ($custom_query->have_posts()) : while ($custom_query->have_posts()) : $custom_query->the_post();\n  ?>'
+  );
+  processed = processed.replace(/<\/forgewp-query-loop-start>/g, '');
+  processed = processed.replace(
+    /<forgewp-query-loop-end\s*\/?>/g,
+    '<?php\n  endwhile;\n  wp_reset_postdata();\n  endif;\n  ?>'
+  );
+  processed = processed.replace(/<\/forgewp-query-loop-end>/g, '');
+
   return processed;
 }
 

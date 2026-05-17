@@ -145,3 +145,100 @@ export function WpLoop({ children }: { children: React.ReactNode }) {
     </>
   );
 }
+
+// ── Custom Field Mapping (ACF / Meta Fields) ──────────────────────────────────
+
+/**
+ * Returns a WordPress post custom field value.
+ * Maps to get_post_meta(get_the_ID(), $fieldName, true) in WordPress production.
+ * In development, returns the default value or mock placeholder.
+ */
+export function useWpCustomField(fieldName: string, defaultValue: string = ""): string {
+  if (IS_DEV) {
+    return defaultValue || `[Mock custom field: ${fieldName}]`;
+  }
+  return `__FORGEWP_CUSTOM_FIELD__${fieldName}__`;
+}
+
+// ── Navigation Menu Component ──────────────────────────────────────────────────
+
+export interface WpMenuProps {
+  location?: string;
+  className?: string;
+  linkClassName?: string;
+}
+
+/**
+ * `<WpMenu>` — Dynamic WordPress Nav Menu.
+ * 
+ * In development: renders mock links (Home, Blog, Archive) for visual design.
+ * On export: compiles to a native PHP dynamic nav loop pulling registered WP menus.
+ */
+export function WpMenu({ location = "primary", className = "", linkClassName = "" }: WpMenuProps) {
+  if (IS_DEV) {
+    const mockItems = [
+      { title: "Home", url: "/" },
+      { title: "Blog", url: "/post" },
+      { title: "Archive", url: "/archive" },
+    ];
+    return (
+      <nav className={className}>
+        {mockItems.map((item, idx) => (
+          <a key={idx} href={item.url} className={linkClassName}>
+            {item.title}
+          </a>
+        ))}
+      </nav>
+    );
+  }
+
+  return (
+    // @ts-ignore
+    <forgewp-menu location={location} className={className} linkClassName={linkClassName} />
+  );
+}
+
+// ── Custom Query Loop Component ───────────────────────────────────────────────
+
+export interface WpQueryLoopProps {
+  postType?: string;
+  postsPerPage?: number;
+  categoryName?: string;
+  children: React.ReactNode;
+}
+
+/**
+ * `<WpQueryLoop>` — Custom WordPress query loop (WP_Query).
+ * 
+ * Allows querying specific types, sizes, or category-filtered post collections.
+ * 
+ * In development: renders children 3 times.
+ * On export: wraps children in a dynamic WP_Query PHP template block.
+ */
+export function WpQueryLoop({
+  postType = "post",
+  postsPerPage = 3,
+  categoryName = "",
+  children
+}: WpQueryLoopProps) {
+  if (IS_DEV) {
+    return (
+      <>
+        {children}
+        {children}
+        {children}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {/* @ts-ignore */}
+      <forgewp-query-loop-start postType={postType} postsPerPage={postsPerPage} categoryName={categoryName} />
+      {children}
+      {/* @ts-ignore */}
+      <forgewp-query-loop-end />
+    </>
+  );
+}
+

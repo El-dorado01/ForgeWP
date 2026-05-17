@@ -6,6 +6,7 @@ const config: ForgeWPThemeConfig = {
   version: "0.1.1",
   description: "A premium block-theme built with React, Tailwind CSS, and ForgeWP.",
   textDomain: "forgewp-starter",
+  style: "forgewp", // "forgewp" (sharp neo-brutalist) or "shadcn" (smooth modern curves)
 
   settings: {
     layout: {

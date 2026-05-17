@@ -1,5 +1,6 @@
 import { SEO } from "../lib/SEO";
 import wpConfig from "../../wp.config";
+import { useWpCustomField, WpMenu, WpQueryLoop } from "../lib/wordpress";
 
 export default function HomePage() {
   const colors = wpConfig.settings?.color?.palette || [];
@@ -173,6 +174,89 @@ export default function HomePage() {
                       </span>
                     ))}
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* WordPress Dynamic Data Layer Console Section */}
+        <section id="data-layer" className="p-8 md:p-12 border-t-4 border-zinc-950 bg-zinc-50">
+          <div className="border-2 border-zinc-950 p-6 md:p-8 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <div className="flex items-center gap-3 border-b-2 border-zinc-950 pb-4 mb-8">
+              <div className="w-4 h-4 bg-brand"></div>
+              <h2 className="text-lg md:text-xl font-bold uppercase tracking-wider text-zinc-950">
+                WordPress Data Layer & Compiler Sandbox
+              </h2>
+            </div>
+
+            <div className="grid gap-8 lg:grid-cols-3">
+              {/* Dynamic Menus Console */}
+              <div className="border border-zinc-200 bg-zinc-50 p-6">
+                <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                  Hook: &lt;WpMenu&gt;
+                </span>
+                <h3 className="font-serif font-black text-base text-zinc-900 mb-2">
+                  Navigation Menu
+                </h3>
+                <p className="text-zinc-500 text-xs mb-4">
+                  Compiles into dynamic WP site menus (`wp_nav_menu`) managed in the WP Dashboard.
+                </p>
+                <div className="border border-zinc-300 p-4 bg-white">
+                  <span className="block font-mono text-[9px] text-zinc-400 font-bold uppercase tracking-wider mb-2">
+                    Rendered Header Navigation:
+                  </span>
+                  <WpMenu
+                    location="primary"
+                    className="flex flex-col gap-2"
+                    linkClassName="font-mono text-xs font-bold uppercase tracking-wide text-zinc-700 hover:text-brand transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Custom Meta Fields */}
+              <div className="border border-zinc-200 bg-zinc-50 p-6">
+                <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                  Hook: useWpCustomField()
+                </span>
+                <h3 className="font-serif font-black text-base text-zinc-900 mb-2">
+                  Metadata & Custom Fields
+                </h3>
+                <p className="text-zinc-500 text-xs mb-4">
+                  Bridges WordPress metadata and ACF (Advanced Custom Fields) directly to your React markup.
+                </p>
+                <div className="border border-zinc-300 p-4 bg-white font-mono text-xs">
+                  <div className="mb-3">
+                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Field: "author_bio"</span>
+                    <span className="text-zinc-800 font-bold">{useWpCustomField("author_bio", "React Developer & WP theme engineer")}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Field: "article_rating"</span>
+                    <span className="text-zinc-800 font-bold">{useWpCustomField("article_rating", "⭐️⭐️⭐️⭐️⭐️")}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom Query Loop */}
+              <div className="border border-zinc-200 bg-zinc-50 p-6">
+                <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                  Hook: &lt;WpQueryLoop&gt;
+                </span>
+                <h3 className="font-serif font-black text-base text-zinc-900 mb-2">
+                  Custom WP_Query Loop
+                </h3>
+                <p className="text-zinc-500 text-xs mb-4">
+                  Fetches specialized collections of posts (like category grids or sidebars).
+                </p>
+                <div className="border border-zinc-300 p-3 bg-white space-y-2.5 max-h-[140px] overflow-y-auto">
+                  <WpQueryLoop postType="post" postsPerPage={3}>
+                    <div className="border border-zinc-100 p-2 hover:bg-zinc-50 transition-colors">
+                      <h4 className="font-mono text-xs font-black text-zinc-950 uppercase tracking-tight truncate">
+                        ⚡ Recent Block Post
+                      </h4>
+                      <span className="text-[9px] text-zinc-400 font-mono">Date: {new Date().toLocaleDateString()}</span>
+                    </div>
+                  </WpQueryLoop>
                 </div>
               </div>
             </div>
