@@ -1,5 +1,8 @@
-import { Helmet } from "react-helmet-async";
+import * as ReactHelmetAsync from "react-helmet-async";
 import { useWpTitle } from "./wordpress";
+
+// Support both ESM and CommonJS exports of react-helmet-async across Vite and TSX compiler
+const Helmet = (ReactHelmetAsync.Helmet || (ReactHelmetAsync as any)["default"]?.Helmet || ReactHelmetAsync) as any;
 
 /**
  * ForgeWP SEO — Internal system file. Do not delete.

@@ -33,55 +33,56 @@ try {
   console.warn("RootLayout not found, using Fragment fallback");
 }
 
-// ── Render a page to static markup ───────────────────────────────────────────
+// ── Render a page inside RootLayout ──────────────────────────────────────────
 function renderPage(PageComponent: any): string {
   return renderToStaticMarkup(
     React.createElement(RootLayout, null, React.createElement(PageComponent))
   );
 }
 
-// ── Extract SEO props from layout.tsx source (React 19 SSR-safe) ─────────────
-// react-helmet-async v3 disabled SSR context for React 19 — HelmetProvider
-// is just a Fragment in React 19 mode. We parse props from source instead.
+// ── SEO extraction from source files (React 19 SSR-safe) ─────────────────────
+// react-helmet-async v3 disabled server-side context for React 19 —
+// HelmetProvider is a Fragment at SSR time so helmetContext.helmet is never set.
+// Instead we parse <SEO .../> props directly from the source TSX file.
 
 function extractSeoPropsFromSource(filePath: string): Record<string, string> {
   if (!existsSync(filePath)) return {};
 
   let src = readFileSync(filePath, "utf8");
 
-  // Strip JSX block comments {/* ... */} so we don't match <SEO /> inside them
+  // Strip JSX block comments so we don't match <SEO /> mentions inside them
   src = src.replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
 
-  // Find <SEO ... /> — use multiline match (s flag) to capture props across lines
+  // Find the first <SEO ... /> (multiline, s flag)
   const seoMatch = src.match(/<SEO\b([\s\S]*?)\/>/s);
   if (!seoMatch) return {};
 
   const attribsStr = seoMatch[1];
   const props: Record<string, string> = {};
 
-  // Match double-quoted props: propName="value with & and other chars"
+  // Double-quoted values: prop="value with & and spaces"
   let m: RegExpExecArray | null;
   const dqPattern = /(\w+)\s*=\s*"([^"]*)"/g;
-  while ((m = dqPattern.exec(attribsStr)) !== null) {
-    props[m[1]] = m[2];
-  }
+  while ((m = dqPattern.exec(attribsStr)) !== null) props[m[1]] = m[2];
 
-  // Match single-quoted props: propName='value'
+  // Single-quoted values: prop='value'
   const sqPattern = /(\w+)\s*=\s*'([^']*)'/g;
-  while ((m = sqPattern.exec(attribsStr)) !== null) {
-    if (!props[m[1]]) props[m[1]] = m[2];
-  }
+  while ((m = sqPattern.exec(attribsStr)) !== null) if (!props[m[1]]) props[m[1]] = m[2];
 
-  // Match JSX string expression props: propName={"value"} or propName={'value'}
+  // JSX string expressions: prop={"value"} or prop={'value'}
   const jsxPattern = /(\w+)\s*=\s*\{["']([^"']*)["']\}/g;
-  while ((m = jsxPattern.exec(attribsStr)) !== null) {
-    if (!props[m[1]]) props[m[1]] = m[2];
-  }
+  while ((m = jsxPattern.exec(attribsStr)) !== null) if (!props[m[1]]) props[m[1]] = m[2];
 
   return props;
 }
 
-function buildHeadHtml(seoProps: Record<string, string>): string {
+function buildHeadHtml(
+  base: Record<string, string>,
+  override: Record<string, string> = {}
+): string {
+  // Merge: per-page overrides win over layout defaults
+  const p = { ...base, ...override };
+
   const {
     title,
     description,
@@ -93,14 +94,11 @@ function buildHeadHtml(seoProps: Record<string, string>): string {
     twitterCard = "summary_large_image",
     twitterCreator,
     canonical,
-  } = seoProps;
+  } = p;
 
   const tags: string[] = [];
 
-  // Primary — only add a static title if it's a real value (not WP token)
-  if (title && !title.includes("FORGEWP")) {
-    tags.push(`<title>${title}</title>`);
-  }
+  if (title && !title.includes("FORGEWP")) tags.push(`<title>${title}</title>`);
   if (description) tags.push(`<meta name="description" content="${description}">`);
   if (keywords) tags.push(`<meta name="keywords" content="${keywords}">`);
   if (canonical) tags.push(`<link rel="canonical" href="${canonical}">`);
@@ -127,7 +125,7 @@ function buildHeadHtml(seoProps: Record<string, string>): string {
   return tags.join("\n");
 }
 
-// ── Render header and footer ──────────────────────────────────────────────────
+// ── Render header / footer fragments ─────────────────────────────────────────
 let headerHtml = "";
 try {
   const { SiteHeader } = await import(headerUrl);
@@ -147,6 +145,7 @@ try {
 // ── Render pages ──────────────────────────────────────────────────────────────
 const appHtml = renderPage(App);
 
+// single.tsx
 const singlePath = path.join(themeRoot, "src", "app", "single.tsx");
 let singleHtml = "";
 if (existsSync(singlePath)) {
@@ -154,17 +153,35 @@ if (existsSync(singlePath)) {
   singleHtml = renderPage(SinglePage);
 }
 
+// 404.tsx — rendered bare, no RootLayout (WP 404.php calls get_header/get_footer)
 const notFoundPath = path.join(themeRoot, "src", "app", "404.tsx");
 let notFoundHtml = "";
 if (existsSync(notFoundPath)) {
   const { default: NotFoundPage } = await import(pathToFileURL(notFoundPath).href);
-  // 404 is standalone — no RootLayout. WordPress 404.php calls get_header/get_footer.
   notFoundHtml = renderToStaticMarkup(React.createElement(NotFoundPage));
 }
 
-// ── Extract SEO from layout.tsx source ───────────────────────────────────────
-const seoProps = extractSeoPropsFromSource(layoutPath);
-const headHtml = buildHeadHtml(seoProps);
+// archive.tsx
+const archivePath = path.join(themeRoot, "src", "app", "archive.tsx");
+let archiveHtml = "";
+if (existsSync(archivePath)) {
+  const { default: ArchivePage } = await import(pathToFileURL(archivePath).href);
+  archiveHtml = renderPage(ArchivePage);
+}
+
+// ── Extract SEO from source files ─────────────────────────────────────────────
+// Global defaults come from layout.tsx <SEO> props.
+// Per-page overrides come from the individual page file's <SEO> props.
+const layoutSeo = extractSeoPropsFromSource(layoutPath);
+const singleSeo = existsSync(singlePath)
+  ? extractSeoPropsFromSource(singlePath)
+  : {};
+
+// Global head.html (used on all pages that don't have a per-page override)
+const headHtml = buildHeadHtml(layoutSeo);
+
+// Per-page head HTML for single.html (merged: layout defaults + single overrides)
+const singleHeadHtml = buildHeadHtml(layoutSeo, singleSeo);
 
 // ── Write outputs ─────────────────────────────────────────────────────────────
 const outDir = path.join(themeRoot, ".forgewp");
@@ -174,8 +191,10 @@ writeFileSync(path.join(outDir, "header.html"), headerHtml, "utf8");
 writeFileSync(path.join(outDir, "footer.html"), footerHtml, "utf8");
 writeFileSync(path.join(outDir, "app.html"), appHtml, "utf8");
 writeFileSync(path.join(outDir, "head.html"), headHtml, "utf8");
+writeFileSync(path.join(outDir, "single-head.html"), singleHeadHtml, "utf8");
 
 if (singleHtml) writeFileSync(path.join(outDir, "single.html"), singleHtml, "utf8");
 if (notFoundHtml) writeFileSync(path.join(outDir, "404.html"), notFoundHtml, "utf8");
+if (archiveHtml) writeFileSync(path.join(outDir, "archive.html"), archiveHtml, "utf8");
 
 process.stdout.write(outDir);

@@ -9,7 +9,10 @@
     "forgewp-add": "./bin/add.js"
   },
   "exports": {
-    ".": "./lib/index.js"
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
   },
   "files": [
     "bin",

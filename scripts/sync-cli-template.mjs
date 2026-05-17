@@ -27,6 +27,7 @@ const REQUIRED_FILES = [
   "wp.config.ts",
   "src/main.tsx",
   "src/app/page.tsx",
+  "src/app/routes.tsx",
 ];
 
 if (!existsSync(starterDir)) {

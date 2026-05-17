@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
 import { SEO } from "../lib/SEO";
+import { PresetsStyle } from "../lib/PresetsStyle";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <div className="forgewp-root">
+      {/* Dev-only preset variables and font enqueues (no-op in production) */}
+      <PresetsStyle />
+
       {/*
         ── Global SEO defaults ──────────────────────────────────────────────────
         These apply to every page in your theme. Edit freely.

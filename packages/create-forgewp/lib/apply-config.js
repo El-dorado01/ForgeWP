@@ -63,15 +63,4 @@ export default config;
   replaceInFile(path.join(targetDir, "index.html"), [
     ["ForgeWP Starter", themeName],
   ]);
-
-  replaceInFile(path.join(targetDir, "src", "components", "SiteHeader.tsx"), [
-    ["ForgeWP Starter", themeName],
-  ]);
-
-  replaceInFile(path.join(targetDir, "src", "components", "SiteFooter.tsx"), [
-    [
-      "ForgeWP — dev preview. WordPress export comes in Step 2.",
-      `${themeName} — built with ForgeWP.`,
-    ],
-  ]);
 }

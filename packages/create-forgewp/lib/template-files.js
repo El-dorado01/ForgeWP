@@ -6,5 +6,7 @@ export const REQUIRED_TEMPLATE_FILES = [
   "tsconfig.json",
   "wp.config.ts",
   "src/main.tsx",
-  "src/App.tsx",
+  "src/app/layout.tsx",
+  "src/app/page.tsx",
+  "src/app/routes.tsx",
 ];

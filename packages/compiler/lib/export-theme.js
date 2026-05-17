@@ -6,6 +6,8 @@ import { loadConfig } from "./load-config.js";
 import { renderStaticMarkup } from "./render-static.js";
 import { assertZipCreated, zipTheme } from "./zip-theme.js";
 
+import { validateCriticalFiles } from "./validate.js";
+
 /**
  * @param {Object} options
  * @param {string} options.themeRoot
@@ -15,6 +17,10 @@ import { assertZipCreated, zipTheme } from "./zip-theme.js";
  */
 export async function exportTheme(options) {
   const themeRoot = path.resolve(options.themeRoot);
+  
+  // Run Preflight Safeguards and Self-Healing checks
+  validateCriticalFiles(themeRoot);
+
   const config = await loadConfig(themeRoot);
 
   console.log(pc.cyan(`\n  ForgeWP export — ${config.name}\n`));
@@ -38,8 +44,10 @@ export async function exportTheme(options) {
     headerHtml: markup.headerHtml,
     footerHtml: markup.footerHtml,
     headHtml: markup.headHtml,
+    singleHeadHtml: markup.singleHeadHtml,
     singleHtml: markup.singleHtml,
     notFoundHtml: markup.notFoundHtml,
+    archiveHtml: markup.archiveHtml,
     assets,
   });
 

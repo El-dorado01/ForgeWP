@@ -22,7 +22,6 @@ export interface ForgeWPThemeConfig {
   version: string;
   description: string;
   textDomain: string;
-  // Design Tokens (Phase 5)
   settings?: {
     layout?: {
       contentSize?: string;
@@ -39,3 +38,23 @@ export interface ForgeWPThemeConfig {
     };
   };
 }
+
+export interface ForgeWPBuildAssets {
+  cssFile: string;
+}
+
+export function exportTheme(options: {
+  themeRoot: string;
+  skipBuild?: boolean;
+  zip?: boolean;
+  packageManager?: string;
+}): Promise<{
+  config: ForgeWPThemeConfig;
+  outDir: string;
+  zipPath: string | null;
+  assets: ForgeWPBuildAssets;
+}>;
+
+export function loadConfig(themeRoot: string): Promise<ForgeWPThemeConfig>;
+
+export function validateCriticalFiles(themeRoot: string): void;

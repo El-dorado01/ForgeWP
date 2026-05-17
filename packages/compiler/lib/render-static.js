@@ -55,7 +55,9 @@ export async function renderStaticMarkup(themeRoot) {
   const footerHtmlPath = path.join(outDir, "footer.html");
   const headHtmlPath = path.join(outDir, "head.html");
   const singleHtmlPath = path.join(outDir, "single.html");
+  const singleHeadHtmlPath = path.join(outDir, "single-head.html");
   const notFoundHtmlPath = path.join(outDir, "404.html");
+  const archiveHtmlPath = path.join(outDir, "archive.html");
 
   return {
     appHtml: readFileSync(appHtmlPath, "utf8"),
@@ -71,8 +73,14 @@ export async function renderStaticMarkup(themeRoot) {
     singleHtml: existsSync(singleHtmlPath)
       ? readFileSync(singleHtmlPath, "utf8")
       : "",
+    singleHeadHtml: existsSync(singleHeadHtmlPath)
+      ? readFileSync(singleHeadHtmlPath, "utf8")
+      : "",
     notFoundHtml: existsSync(notFoundHtmlPath)
       ? readFileSync(notFoundHtmlPath, "utf8")
+      : "",
+    archiveHtml: existsSync(archiveHtmlPath)
+      ? readFileSync(archiveHtmlPath, "utf8")
       : "",
   };
 }

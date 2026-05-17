@@ -1,4 +1,4 @@
-import { copyFileSync, cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 /**
@@ -19,8 +19,10 @@ export function generateTheme({
   headerHtml = "",
   footerHtml = "",
   headHtml = "",
+  singleHeadHtml = "",
   singleHtml = "",
   notFoundHtml = "",
+  archiveHtml = "",
   assets,
 }) {
   if (existsSync(outDir)) {
@@ -90,11 +92,23 @@ export function generateTheme({
   if (headHtml) {
     writeFileSync(path.join(staticDir, "head.html"), headHtml, "utf8");
   }
+  if (singleHeadHtml) {
+    writeFileSync(path.join(staticDir, "single-head.html"), singleHeadHtml, "utf8");
+  }
   if (processedSingle) {
     writeFileSync(path.join(staticDir, "single.html"), processedSingle, "utf8");
   }
   if (processedNotFound) {
     writeFileSync(path.join(staticDir, "404.html"), processedNotFound, "utf8");
+  }
+
+  // Archive page (category / tag / date archives)
+  let processedArchive = "";
+  if (archiveHtml) {
+    processedArchive = processMarkup(archiveHtml);
+    if (processedHeader) processedArchive = processedArchive.replace(processedHeader, "");
+    if (processedFooter) processedArchive = processedArchive.replace(processedFooter, "");
+    writeFileSync(path.join(staticDir, "archive.html"), processedArchive, "utf8");
   }
 
   writeFileSync(path.join(outDir, "style.css"), buildStyleCss(config), "utf8");
@@ -109,11 +123,61 @@ export function generateTheme({
   writeFileSync(path.join(outDir, "single.php"), buildSinglePhp(), "utf8");
   writeFileSync(path.join(outDir, "404.php"), build404Php(), "utf8");
   writeFileSync(path.join(outDir, "front-page.php"), buildIndexPhp(), "utf8");
+  writeFileSync(path.join(outDir, "archive.php"), buildArchivePhp(), "utf8");
+  writeFileSync(path.join(outDir, "page.php"), buildPagePhp(), "utf8");
 
+  // Dynamic theme.json compiler (Phase 5)
   const themeJsonSrc = path.join(themeRoot, "wordpress", "theme.json");
+  let themeJson = {
+    "$schema": "https://schemas.wp.org/trunk/theme.json",
+    "version": 3,
+    "settings": {
+      "appearanceTools": true,
+    },
+  };
+
   if (existsSync(themeJsonSrc)) {
-    copyFileSync(themeJsonSrc, path.join(outDir, "theme.json"));
+    try {
+      themeJson = JSON.parse(readFileSync(themeJsonSrc, "utf8"));
+    } catch (e) {
+      console.warn("Failed to parse theme.json template:", e.message);
+    }
   }
+
+  // Merge tokens from wp.config.ts
+  if (config.settings) {
+    if (!themeJson.settings) themeJson.settings = {};
+
+    // Layout (contentSize, wideSize)
+    if (config.settings.layout) {
+      themeJson.settings.layout = {
+        ...themeJson.settings.layout,
+        ...config.settings.layout,
+      };
+    }
+
+    // Colors (custom, palette)
+    if (config.settings.color) {
+      themeJson.settings.color = {
+        ...themeJson.settings.color,
+        ...config.settings.color,
+      };
+    }
+
+    // Typography (fontSizes, fontFamilies)
+    if (config.settings.typography) {
+      themeJson.settings.typography = {
+        ...themeJson.settings.typography,
+        ...config.settings.typography,
+      };
+    }
+  }
+
+  writeFileSync(
+    path.join(outDir, "theme.json"),
+    JSON.stringify(themeJson, null, 2),
+    "utf8"
+  );
 
   const screenshot = path.join(themeRoot, "wordpress", "screenshot.png");
   if (existsSync(screenshot)) {
@@ -155,8 +219,38 @@ function processMarkup(html) {
   );
 
   processed = processed.replace(
+    /__FORGEWP_THE_DATE__/g,
+    "<?php echo esc_html( get_the_date() ); ?>"
+  );
+
+  processed = processed.replace(
+    /__FORGEWP_THE_AUTHOR__/g,
+    "<?php echo esc_html( get_the_author() ); ?>"
+  );
+
+  processed = processed.replace(
+    /__FORGEWP_THE_POST_THUMBNAIL_URL__/g,
+    "<?php echo esc_url( get_the_post_thumbnail_url( null, 'large' ) ); ?>"
+  );
+
+  processed = processed.replace(
+    /__FORGEWP_THE_CATEGORY_LIST__/g,
+    "<?php the_category( ', ' ); ?>"
+  );
+
+  processed = processed.replace(
+    /__FORGEWP_THE_ARCHIVE_TITLE__/g,
+    "<?php the_archive_title(); ?>"
+  );
+
+  processed = processed.replace(
     /<forgewp-loop-start\s*\/?>/g,
     '<?php if (have_posts()) : while (have_posts()) : the_post(); ?>'
+  );
+
+  processed = processed.replace(
+    /<\/forgewp-loop-start>/g,
+    ''
   );
 
   processed = processed.replace(
@@ -164,8 +258,14 @@ function processMarkup(html) {
     '<?php endwhile; else : echo "<p>No posts found.</p>"; endif; ?>'
   );
 
+  processed = processed.replace(
+    /<\/forgewp-loop-end>/g,
+    ''
+  );
+
   return processed;
 }
+
 
 /**
  * @param {import('./types.js').ForgeWPThemeConfig} config
@@ -196,6 +296,42 @@ Text Domain: ${config.textDomain}
 function buildFunctionsPhp(config, assets) {
   const css = assets.cssFile.replace(/^assets\//, "");
   const version = config.version.replace(/'/g, "\\'");
+  const googleFonts = config.settings?.typography?.googleFonts || [];
+  
+  let fontsEnqueue = "";
+  let preconnectFilter = "";
+
+  if (googleFonts.length > 0) {
+    const fontsParam = googleFonts.map(f => encodeURIComponent(f)).join("&family=");
+    fontsEnqueue = `
+    // Enqueue Google Fonts (dynamic preset via wp.config.ts)
+    wp_enqueue_style(
+        '${config.textDomain}-google-fonts',
+        'https://fonts.googleapis.com/css2?family=${fontsParam}&display=swap',
+        array(),
+        null
+    );`;
+
+    preconnectFilter = `
+/**
+ * Add preconnect resource hints for Google Fonts performance.
+ */
+function forgewp_google_fonts_resource_hints(array $urls, string $relation_type): array {
+    if (wp_style_is('${config.textDomain}-google-fonts', 'queue') && 'preconnect' === $relation_type) {
+        $urls[] = array(
+            'href' => 'https://fonts.googleapis.com',
+            'crossorigin' => 'anonymous',
+        );
+        $urls[] = array(
+            'href' => 'https://fonts.gstatic.com',
+            'crossorigin' => 'anonymous',
+        );
+    }
+    return $urls;
+}
+add_filter('wp_resource_hints', 'forgewp_google_fonts_resource_hints', 10, 2);
+`;
+  }
 
   return `<?php
 /**
@@ -211,11 +347,12 @@ if (! defined('ABSPATH')) {
 define('FORGEWP_THEME_VERSION', '${version}');
 
 /**
- * Enqueue compiled theme assets (CSS only in v1 — static HTML, no hydration).
+ * Enqueue compiled theme assets.
  */
 function forgewp_enqueue_assets(): void {
     $theme_uri = get_template_directory_uri();
     $css_path = get_template_directory() . '/assets/${css}';
+${fontsEnqueue}
 
     if (file_exists($css_path)) {
         wp_enqueue_style(
@@ -239,7 +376,7 @@ function forgewp_theme_setup(): void {
     add_theme_support('editor-styles');
 }
 add_action('after_setup_theme', 'forgewp_theme_setup');
-`;
+${preconnectFilter}`;
 }
 
 function buildHeaderPhp(config) {
@@ -255,8 +392,11 @@ function buildHeaderPhp(config) {
   <meta charset="<?php bloginfo('charset'); ?>">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <?php
+  $single_head = get_template_directory() . '/forgewp-static/single-head.html';
   $head_file = get_template_directory() . '/forgewp-static/head.html';
-  if (file_exists($head_file)) {
+  if (is_single() && file_exists($single_head)) {
+      include $single_head;
+  } elseif (file_exists($head_file)) {
       include $head_file;
   }
   ?>
@@ -385,6 +525,87 @@ if (file_exists($notFound_file)) {
     echo '<h1 class="mt-4 text-3xl font-bold tracking-tight text-zinc-900 sm:text-5xl">Page not found</h1>';
     echo '<p class="mt-6 text-base leading-7 text-zinc-600">Sorry, we couldn’t find the page you’re looking for.</p>';
     echo '</main>';
+}
+
+get_footer();
+`;
+}
+
+function buildArchivePhp() {
+  return `<?php
+/**
+ * Archive template — category, tag, date, and author archives.
+ * Loads the ForgeWP compiled archive.html which contains the WpLoop.
+ *
+ * @package forgewp
+ */
+
+get_header();
+
+$archive_file = get_template_directory() . '/forgewp-static/archive.html';
+
+if (file_exists($archive_file)) {
+    include $archive_file;
+} else {
+    echo '<main class="mx-auto max-w-3xl px-6 py-12">';
+    the_archive_title('<h1 class="text-3xl font-bold mb-8">', '</h1>');
+    if (have_posts()) {
+        echo '<div class="space-y-8">';
+        while (have_posts()) {
+            the_post();
+            echo '<article>';
+            echo '<h2 class="text-xl font-bold"><a href="' . get_permalink() . '">' . get_the_title() . '</a></h2>';
+            echo '<div class="text-sm text-zinc-500 mt-1">' . get_the_date() . ' by ' . get_the_author() . '</div>';
+            echo '<div class="mt-3 text-zinc-600">';
+            the_excerpt();
+            echo '</div>';
+            echo '</article>';
+        }
+        echo '</div>';
+    } else {
+        echo '<p>No posts found.</p>';
+    }
+    echo '</main>';
+}
+
+get_footer();
+`;
+}
+
+function buildPagePhp() {
+  return `<?php
+/**
+ * Static page template — WordPress pages (e.g. About, Contact).
+ * Reuses single.html since static pages share the same title+content structure.
+ *
+ * @package forgewp
+ */
+
+get_header();
+
+$page_file = get_template_directory() . '/forgewp-static/single.html';
+
+if (file_exists($page_file)) {
+    if (have_posts()) {
+        while (have_posts()) {
+            the_post();
+            include $page_file;
+        }
+    }
+} else {
+    if (have_posts()) {
+        while (have_posts()) {
+            the_post();
+            echo '<main class="mx-auto max-w-3xl px-6 py-12">';
+            echo '<article>';
+            echo '<h1 class="text-4xl font-bold mb-6">' . get_the_title() . '</h1>';
+            echo '<div class="prose prose-zinc max-w-none">';
+            the_content();
+            echo '</div>';
+            echo '</article>';
+            echo '</main>';
+        }
+    }
 }
 
 get_footer();
