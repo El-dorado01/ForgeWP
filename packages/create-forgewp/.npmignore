@@ -1,0 +1,6 @@
+# Ignore local template node_modules and build artifacts from npm bundle
+template/node_modules
+template/.vite
+template/.forgewp
+template/dist
+template/package-lock.json
