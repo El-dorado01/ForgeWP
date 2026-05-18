@@ -1,4 +1,113 @@
-import { SEO } from "../.forgewp/SEO";
+#!/usr/bin/env node
+
+import { rmSync, existsSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import pc from "picocolors";
+import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
+
+console.log(`\n🧹 ${pc.bold(pc.bgRed(pc.black("  FORGEWP FACTORY RESET (FRESH CANVAS)  ")))}\n`);
+
+const projectRoot = process.cwd();
+
+// 1. Clean Build Caches & Artifacts
+const foldersToClean = [".forgewp", "dist", ".vite"];
+for (const folder of foldersToClean) {
+  const target = path.join(projectRoot, folder);
+  if (existsSync(target)) {
+    try {
+      rmSync(target, { recursive: true, force: true });
+      console.log(`  ${pc.green("✅ Cleared cache folder")}: ${pc.cyan(folder)}`);
+    } catch (err) {
+      console.log(pc.red(`  ❌ Failed to clear ${folder}: ${err.message}`));
+    }
+  }
+}
+
+// 2. Prune Scaffolded Directories (pages, blocks, components/ui)
+const directoriesToPrune = [
+  { dir: "src/app/pages", label: "Pages (src/app/pages/)" },
+  { dir: "src/blocks", label: "Gutenberg Blocks (src/blocks/)" },
+  { dir: "src/components/ui", label: "UI Components (src/components/ui/)" }
+];
+
+for (const targetPrune of directoriesToPrune) {
+  const fullPath = path.join(projectRoot, targetPrune.dir);
+  if (existsSync(fullPath)) {
+    try {
+      rmSync(fullPath, { recursive: true, force: true });
+      console.log(`  ${pc.green("✅ Removed folder")}: ${pc.cyan(targetPrune.label)}`);
+    } catch (err) {
+      console.log(pc.red(`  ❌ Failed to remove ${targetPrune.label}: ${err.message}`));
+    }
+  }
+}
+
+// 3. Restore Standard Database & Sitemap Menus from Core Blueprints
+const coreFilesToReset = ["wordpress/menus.json", "wordpress/mock-data.json"];
+for (const relPath of coreFilesToReset) {
+  const fullPath = path.join(projectRoot, relPath);
+  const blueprintContent = SYSTEM_BLUEPRINTS[relPath];
+  if (blueprintContent) {
+    try {
+      const dirPath = path.dirname(fullPath);
+      if (!existsSync(dirPath)) {
+        mkdirSync(dirPath, { recursive: true });
+      }
+      writeFileSync(fullPath, blueprintContent, "utf8");
+      console.log(`  ${pc.green("✅ Reset database schema")}: ${pc.cyan(relPath)}`);
+    } catch (err) {
+      console.log(pc.red(`  ❌ Failed to reset ${relPath}: ${err.message}`));
+    }
+  }
+}
+
+// 4. Restore Pristine App Routes (src/app/routes.tsx)
+const routesPath = path.join(projectRoot, "src/app/routes.tsx");
+const routesContent = `import { Route, Switch } from "wouter";
+import HomePage from "./page";
+
+/**
+ * Local Developer Routes — ForgeWP.
+ *
+ * Edit this file to add new routes/components for your local Vite preview server.
+ *
+ * @example
+ * // 1. Create a component in src/app/about.tsx
+ * // 2. Import it here: import AboutPage from "./about";
+ * // 3. Add the Route: <Route path="/about" component={AboutPage} />
+ */
+export default function AppRoutes() {
+  return (
+    <Switch>
+      {/* Home preview */}
+      <Route path="/" component={HomePage} />
+
+      {/* Fallback route */}
+      <Route>
+        <div className="flex min-h-[60vh] flex-col items-center justify-center text-center p-6">
+          <h1 className="text-4xl font-bold font-serif text-zinc-950">404</h1>
+          <p className="mt-2 text-zinc-600">Page not found locally.</p>
+          <a href="/" className="mt-4 text-brand font-semibold hover:underline">
+            Go back home
+          </a>
+        </div>
+      </Route>
+    </Switch>
+  );
+}
+`;
+
+try {
+  writeFileSync(routesPath, routesContent, "utf8");
+  console.log(`  ${pc.green("✅ Reset routes definition")}: src/app/routes.tsx`);
+} catch (err) {
+  console.log(pc.red(`  ❌ Failed to reset src/app/routes.tsx: ${err.message}`));
+}
+
+// 5. Restore Pristine Home Page (src/app/page.tsx)
+const pagePath = path.join(projectRoot, "src/app/page.tsx");
+const pageContent = `import { SEO } from "../.forgewp/SEO";
 import wpConfig from "../../wp.config";
 import { useWpCustomField, WpMenu, WpQueryLoop } from "../.forgewp/wordpress";
 
@@ -200,7 +309,7 @@ export default function HomePage() {
                   Navigation Menu
                 </h3>
                 <p className="text-zinc-500 text-xs mb-4">
-                  Compiles into dynamic WP site menus (`wp_nav_menu`) managed in the WP Dashboard.
+                  Compiles into dynamic WP site menus (\`wp_nav_menu\`) managed in the WP Dashboard.
                 </p>
                 <div className="border border-zinc-300 p-4 bg-white">
                   <span className="block font-mono text-[9px] text-zinc-400 font-bold uppercase tracking-wider mb-2">
@@ -277,3 +386,35 @@ export default function HomePage() {
     </div>
   );
 }
+`;
+
+try {
+  writeFileSync(pagePath, pageContent, "utf8");
+  console.log(`  ${pc.green("✅ Reset core template")}: src/app/page.tsx`);
+} catch (err) {
+  console.log(pc.red(`  ❌ Failed to reset src/app/page.tsx: err.message`));
+}
+
+// 6. Automatically Trigger Monorepo CLI Template Synchronization
+// If running inside the monorepo starter, sync the template as well!
+const monorepoSyncScript = path.join(projectRoot, "..", "..", "scripts", "sync-cli-template.mjs");
+if (existsSync(monorepoSyncScript)) {
+  console.log(`\n📦 ${pc.bold("MONOREPO CONTEXT DETECTED")} — Syncing CLI Template...`);
+  try {
+    const result = spawnSync("node", [monorepoSyncScript], {
+      stdio: "inherit",
+      shell: process.platform === "win32"
+    });
+    if (result.status === 0) {
+      console.log(`\n🎉 ${pc.green("Successfully synced factory-fresh canvas directly to create-forgewp CLI template!")}`);
+    } else {
+      console.log(`\n⚠️  CLI sync template script returned non-zero status code: ${result.status}`);
+    }
+  } catch (err) {
+    console.log(pc.red(`\n❌ Failed to sync CLI template: ${err.message}`));
+  }
+}
+
+console.log("\n" + "─".repeat(60));
+console.log(pc.green(`\n🎉 ${pc.bold("CANVAS RESET COMPLETE:")} Reverted workspace back to standard empty blueprints.`));
+console.log(pc.cyan("   Your ForgeWP canvas is now factory-fresh, clean, and perfectly synced!\n"));

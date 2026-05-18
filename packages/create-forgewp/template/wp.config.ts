@@ -3,7 +3,7 @@ import type { ForgeWPThemeConfig } from "./src/.forgewp/forgewp-config";
 const config: ForgeWPThemeConfig = {
   name: "ForgeWP Starter",
   slug: "forgewp-starter",
-  version: "0.1.1",
+  version: "0.1.2",
   description: "A premium block-theme built with React, Tailwind CSS, and ForgeWP.",
   textDomain: "forgewp-starter",
   style: "forgewp", // "forgewp" (sharp neo-brutalist) or "shadcn" (smooth modern curves)

@@ -1,7 +1,7 @@
 {
   "name": "forgewp-scaffold-template",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,8 @@
     "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
     "preview": "vite preview",
     "export": "forgewp export",
+    "fresh": "forgewp fresh",
+    "reset": "forgewp fresh",
     "forgewp": "forgewp"
   },
   "dependencies": {
@@ -23,7 +25,7 @@
     "wouter": "^3.9.0"
   },
   "devDependencies": {
-    "@forgewp/compiler": "^0.1.8",
+    "@forgewp/compiler": "^0.1.9",
     "@tailwindcss/vite": "^4.1.7",
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.4",

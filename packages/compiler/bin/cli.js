@@ -17,6 +17,7 @@ const subcommands = {
   doctor: path.join(__dirname, "doctor.js"),
   repair: path.join(__dirname, "repair.js"),
   clean: path.join(__dirname, "clean.js"),
+  fresh: path.join(__dirname, "fresh.js"),
 };
 
 const args = process.argv.slice(2);
@@ -39,6 +40,8 @@ if (!targetScript) {
     targetScript = subcommands["make:component"];
   } else if (command === "sync-routes" || command === "sync" || command === "sync:routes") {
     targetScript = subcommands["sync:routes"];
+  } else if (command === "reset") {
+    targetScript = subcommands["fresh"];
   }
 }
 
@@ -77,6 +80,7 @@ function printHelp() {
     ${pc.cyan("doctor")}                  Perform diagnostic check on project health
     ${pc.cyan("repair")}                  Force-repair/auto-heal system internals
     ${pc.cyan("clean")}                   Clear all build caches and temporary artifacts
+    ${pc.cyan("fresh")}                   Reset workspace completely to factory-clean canvas
 
   ${pc.bold("Examples:")}
     pnpm forgewp add navbar
@@ -87,6 +91,7 @@ function printHelp() {
     pnpm forgewp doctor
     pnpm forgewp repair
     pnpm forgewp clean
+    pnpm forgewp fresh
     pnpm forgewp export
   `);
 }

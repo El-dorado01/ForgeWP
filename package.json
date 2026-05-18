@@ -12,6 +12,7 @@
     "typecheck": "node scripts/run-workspace.mjs typecheck",
     "preview": "node scripts/run-workspace.mjs preview",
     "export": "node scripts/run-workspace.mjs export",
+    "fresh": "node scripts/run-workspace.mjs fresh",
     "sync:template": "node scripts/sync-cli-template.mjs",
     "install:template": "npm install --prefix packages/create-forgewp/template",
     "test:create": "node packages/create-forgewp/index.js"
