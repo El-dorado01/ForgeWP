@@ -24,11 +24,12 @@ for (const folder of foldersToClean) {
   }
 }
 
-// 2. Prune Scaffolded Directories (pages, blocks, components/ui)
+// 2. Prune Scaffolded Directories (pages, blocks, components/ui, components)
 const directoriesToPrune = [
   { dir: "src/app/pages", label: "Pages (src/app/pages/)" },
   { dir: "src/blocks", label: "Gutenberg Blocks (src/blocks/)" },
-  { dir: "src/components/ui", label: "UI Components (src/components/ui/)" }
+  { dir: "src/components/ui", label: "UI Components (src/components/ui/)" },
+  { dir: "src/components", label: "Components (src/components/)" }
 ];
 
 for (const targetPrune of directoriesToPrune) {
