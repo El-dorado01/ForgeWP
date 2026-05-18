@@ -35,11 +35,12 @@ packages:
   - 'packages/*'
 ```
 
-### The 4 Pillars of the Workspace:
-1.  **`packages/create-forgewp`**: The bootstrapping CLI tool published to npm under `create-forgewp`. This scaffolds new projects on developer machines via `npx create-forgewp`.
-2.  **`packages/compiler`**: The framework's engine. Exposes the `forgewp` binary. It handles theme compilation, dynamic Gutenberg block transpilation, and registry additions.
-3.  **`packages/registry`**: The component warehouse. Holds visual UI layouts and WordPress query layer components.
-4.  **`packages/starter`**: The local testbed theme. It acts as an active workspace theme for developers to build and preview, using the compiler directly in the same monorepo.
+### The 5 Pillars of the Workspace:
+1.  **`@forgewp/cli` (`packages/create-forgewp`)**: The bootstrapping CLI tool published to npm under `create-forgewp`. This scaffolds new projects on developer machines via `npx create-forgewp`.
+2.  **`@forgewp/compiler` (`packages/compiler`)**: The framework's engine. Exposes the `forgewp` binary. It handles theme compilation, dynamic Gutenberg block transpilation, and registry additions.
+3.  **`@forgewp/react` (`packages/react`)**: The lightweight, primitive data layer. Contains the pure WordPress React hooks, types, and context logic. It contains zero file-system access or runtime dependencies.
+4.  **`packages/registry`**: The component warehouse. Holds visual UI layouts and WordPress query layer components.
+5.  **`@forgewp/starter` (`packages/starter`)**: The local testbed theme. It acts as an active workspace theme for developers to build and preview, using the compiler directly in the same monorepo.
 
 ### Dynamic Linking via Workspace Symlinks (`workspace:*`)
 Monorepo packages references each other dynamically. For example, `packages/starter/package.json` imports the compiler like this:
@@ -437,27 +438,30 @@ This JSON file acts as your local MySQL tables:
 }
 ```
 
-### Context-Aware Query Hooks
-Inside `src/lib/wordpress.tsx`, every data hook is fully context-aware during local development. When placed inside a `<WpLoop>` or `<WpQueryLoop postType="project">`, the hook dynamically looks up the active post context from the local JSON database:
+### The Data Bridge Architecture (`src/.forgewp/wordpress.tsx`)
+In a traditional setup, tying generic npm packages to local mock files is complex and rigid. ForgeWP solves this using the **Data Bridge Pattern**:
+
+1. **`@forgewp/react` (NPM Package)**: Exposes generic, primitive hooks (`useWpTitle()`) that blindly read from a React context. It knows nothing about your local filesystem.
+2. **`src/.forgewp/wordpress.tsx` (Local Blueprint)**: This compiler-generated file acts as the glue. It explicitly imports your local `wordpress/mock-data.json` and bridges it to the generic `@forgewp/react` package via `<WpQueryLoop>`.
+
+This hybrid architecture gives you the speed and purity of a standard npm package, with the seamless "magic" of a zero-config local development environment.
+
 ```typescript
-export function useWpTitle() {
-  if (IS_DEV) {
-    const post = useContext(WpPostContext);
-    return post?.title || "Sample WordPress Post Title";
-  }
+// The Data Bridge seamlessly degrades for the compiler in production:
+import { useWpTitle as _useWpTitle } from "@forgewp/react";
+
+export function useWpTitle(): string {
+  // During local Vite dev: it reads from the mocked @forgewp/react context
+  if (IS_DEV) return _useWpTitle();
+  // During production build: it returns a regex token for the PHP compiler to swap
   return "__FORGEWP_THE_TITLE__";
 }
 ```
 
-This means:
-1. You can define any arbitrary post type in `wordpress/mock-data.json` (e.g. `"portfolio"`, `"event"`).
-2. Populate custom fields inside its `customFields` object.
-3. Fetch them dynamically inside React loops using `useWpCustomField("client_name")`!
-
 ### Bulletproof Fail-safe Handling
-ForgeWP enforces maximum application stability through smart safety defaults:
-* **Undefined Custom Fields**: If `useWpCustomField("non_existent_field", "Default Value")` is invoked, it will gracefully fallback to returning your `"Default Value"`. If no default was specified, it renders a clean developer placeholder `[Mock custom field: non_existent_field]` instead of crashing.
-* **Missing Post Types**: If `<WpQueryLoop postType="portfolio">` is rendered but `"portfolio"` table doesn't exist in `wordpress/mock-data.json`, the query engine automatically scaffolds and maps dynamic, beautifully formatted dummy records (with identifiers like `Mock portfolio 1`) on the fly.
+ForgeWP enforces maximum application stability through smart safety defaults in the `@forgewp/react` package:
+* **Undefined Custom Fields**: If `useWpCustomField("non_existent_field", "Default Value")` is invoked, it gracefully falls back to returning your `"Default Value"`.
+* **Missing Post Types**: If `<WpQueryLoop postType="portfolio">` is rendered but `"portfolio"` doesn't exist in your mock data, it automatically scaffolds beautifully formatted dummy records (e.g. `Mock portfolio 1`) so your layout never breaks during design.
 
 ---
 

@@ -1,4 +1,4 @@
-import { useWpTitle } from "../../lib/wordpress";
+import { useWpTitle } from "@/.forgewp/wordpress";
 
 export function Navbar() {
   const siteTitle = useWpTitle();

@@ -20,9 +20,9 @@ importers:
 
   packages/compiler:
     dependencies:
-      '@forgewp/registry':
+      '@forgewp/ui':
         specifier: workspace:*
-        version: link:../registry
+        version: link:../ui
       archiver:
         specifier: ^7.0.1
         version: 7.0.1
@@ -49,75 +49,30 @@ importers:
         specifier: ^2.4.2
         version: 2.4.2
 
-  packages/nike-skims:
+  packages/react:
     dependencies:
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
       react:
-        specifier: ^19.1.0
+        specifier: '>=17.0.0'
         version: 19.2.6
-      react-dom:
-        specifier: ^19.1.0
-        version: 19.2.6(react@19.2.6)
-      react-helmet-async:
-        specifier: ^3.0.0
-        version: 3.0.0(react@19.2.6)
-      tailwind-merge:
-        specifier: ^3.3.0
-        version: 3.6.0
-      wouter:
-        specifier: ^3.9.0
-        version: 3.9.0(react@19.2.6)
-    devDependencies:
-      '@forgewp/compiler':
-        specifier: ^0.1.7
-        version: 0.1.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@tailwindcss/vite':
-        specifier: ^4.1.7
-        version: 4.3.0(vite@6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.0))
-      '@types/node':
-        specifier: ^22.15.21
-        version: 22.19.19
-      '@types/react':
-        specifier: ^19.1.4
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.1.5
-        version: 19.2.3(@types/react@19.2.14)
-      '@vitejs/plugin-react':
-        specifier: ^4.4.1
-        version: 4.7.0(vite@6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.0))
-      tailwindcss:
-        specifier: ^4.1.7
-        version: 4.3.0
-      typescript:
-        specifier: ^5.8.3
-        version: 5.9.3
-      vite:
-        specifier: ^6.4.2
-        version: 6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.0)
-
-  packages/registry:
     devDependencies:
       '@types/react':
         specifier: ^19.1.4
         version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.1.5
-        version: 19.2.3(@types/react@19.2.14)
-      react:
-        specifier: ^19.1.0
-        version: 19.2.6
-      react-dom:
-        specifier: ^19.1.0
-        version: 19.2.6(react@19.2.6)
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
 
   packages/starter:
     dependencies:
+      '@forgewp/react':
+        specifier: workspace:*
+        version: link:../react
+      '@radix-ui/react-slot':
+        specifier: ^1.2.4
+        version: 1.2.4(@types/react@19.2.14)(react@19.2.6)
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -164,6 +119,24 @@ importers:
       vite:
         specifier: ^6.4.2
         version: 6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.0)
+
+  packages/ui:
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.4
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.1.5
+        version: 19.2.3(@types/react@19.2.14)
+      react:
+        specifier: ^19.1.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.1.0
+        version: 19.2.6(react@19.2.6)
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
 
 packages:
 
@@ -562,17 +535,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@forgewp/compiler@0.1.8':
-    resolution: {integrity: sha512-B7HWovu9rGSyYekMSfaPpSibZYG6fxYRavD3PoM1WESMTCY88eKdSV1lQZMGzYcjbU+3Ao+jjtc0wWlTMjj6yw==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  '@forgewp/registry@0.1.8':
-    resolution: {integrity: sha512-F9yUB7Yg0X/lxFqQsbbNsds36j2ZebX6WnIwo2WLe7qrXI/1VlQugImu7v18eMONWnI8OM2Fa8mbpiPR8SJt4Q==}
-    peerDependencies:
-      react: ^19.1.0
-      react-dom: ^19.1.0
-
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
     engines: {node: '>=12'}
@@ -596,6 +558,24 @@ packages:
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
+
+  '@radix-ui/react-compose-refs@1.1.2':
+    resolution: {integrity: sha512-z4eqJvfiNnFMHIIvXP3CY57y2WJs5g2v3X0zm9mEJkrkNv4rDxu+sg9Jh8EkXyeqBkB7SOcboo9dMVqhyrACIg==}
+    peerDependencies:
+      '@types/react': '*'
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
+  '@radix-ui/react-slot@1.2.4':
+    resolution: {integrity: sha512-Jl+bCv8HxKnlTLVrcDE8zTMJ09R9/ukw4qBs/oZClOfoQk/cOTbDn+NceXfV7j09YPVQUryJPHurafcSg6EVKA==}
+    peerDependencies:
+      '@types/react': '*'
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   '@rolldown/pluginutils@1.0.0-beta.27':
     resolution: {integrity: sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==}
@@ -972,6 +952,9 @@ packages:
 
   caniuse-lite@1.0.30001792:
     resolution: {integrity: sha512-hVLMUZFgR4JJ6ACt1uEESvQN1/dBVqPAKY0hgrV70eN3391K6juAfTjKZLKvOMsx8PxA7gsY1/tLMMTcfFLLpw==}
+
+  class-variance-authority@0.7.1:
+    resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==}
 
   clsx@2.1.1:
     resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
@@ -1786,25 +1769,6 @@ snapshots:
   '@esbuild/win32-x64@0.28.0':
     optional: true
 
-  '@forgewp/compiler@0.1.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
-    dependencies:
-      '@forgewp/registry': 0.1.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      archiver: 7.0.1
-      jiti: 2.7.0
-      picocolors: 1.1.1
-      react-helmet-async: 3.0.0(react@19.2.6)
-    transitivePeerDependencies:
-      - bare-abort-controller
-      - bare-buffer
-      - react
-      - react-dom
-      - react-native-b4a
-
-  '@forgewp/registry@0.1.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
-    dependencies:
-      react: 19.2.6
-      react-dom: 19.2.6(react@19.2.6)
-
   '@isaacs/cliui@8.0.2':
     dependencies:
       string-width: 5.1.2
@@ -1835,6 +1799,19 @@ snapshots:
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
+
+  '@radix-ui/react-compose-refs@1.1.2(@types/react@19.2.14)(react@19.2.6)':
+    dependencies:
+      react: 19.2.6
+    optionalDependencies:
+      '@types/react': 19.2.14
+
+  '@radix-ui/react-slot@1.2.4(@types/react@19.2.14)(react@19.2.6)':
+    dependencies:
+      '@radix-ui/react-compose-refs': 1.1.2(@types/react@19.2.14)(react@19.2.6)
+      react: 19.2.6
+    optionalDependencies:
+      '@types/react': 19.2.14
 
   '@rolldown/pluginutils@1.0.0-beta.27': {}
 
@@ -2128,6 +2105,10 @@ snapshots:
       ieee754: 1.2.1
 
   caniuse-lite@1.0.30001792: {}
+
+  class-variance-authority@0.7.1:
+    dependencies:
+      clsx: 2.1.1
 
   clsx@2.1.1: {}
 

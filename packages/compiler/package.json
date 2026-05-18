@@ -21,7 +21,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@forgewp/registry": "workspace:*",
+    "@forgewp/ui": "workspace:*",
     "archiver": "^7.0.1",
     "jiti": "^2.6.1",
     "picocolors": "^1.1.1",

@@ -126,222 +126,97 @@ export interface ForgeWPThemeConfig {
  * When the theme is exported, the ForgeWP compiler replaces every token
  * with the equivalent WordPress PHP function call.
  */
-import React, { createContext, useContext } from "react";
+import React from "react";
 
 // @ts-ignore
 import mockData from "../../wordpress/mock-data.json";
 // @ts-ignore
 import menusData from "../../wordpress/menus.json";
 
+import {
+  WpQueryLoop as _WpQueryLoop,
+  WpMenu as _WpMenu,
+  WpShortcode,
+  useWpTitle as _useWpTitle,
+  useWpContent as _useWpContent,
+  useWpExcerpt as _useWpExcerpt,
+  useWpPermalink as _useWpPermalink,
+  useWpDate as _useWpDate,
+  useWpAuthor as _useWpAuthor,
+  useWpFeaturedImage as _useWpFeaturedImage,
+  useWpCustomField as _useWpCustomField,
+} from "@forgewp/react";
+import type { WpQueryLoopProps, WpMenuProps } from "@forgewp/react";
+
 const IS_DEV =
   typeof import.meta !== "undefined" &&
   // @ts-ignore
   import.meta.env?.DEV === true;
 
-// React context to support database-like query loops during local development
-const WpPostContext = createContext<any>(null);
+// ── Re-export pure hooks with compiler token fallbacks ────────────────────────
+// In dev: @forgewp/react hook returns the mock value from WpPostContext.
+// In prod: compiler replaces the call with the PHP equivalent below.
 
-// ── Post content ─────────────────────────────────────────────────────────────
-
-export function useWpTitle() {
-  if (IS_DEV) {
-    const post = useContext(WpPostContext);
-    return post?.title || "Sample WordPress Post Title";
-  }
+export function useWpTitle(): string {
+  if (IS_DEV) return _useWpTitle();
   return "__FORGEWP_THE_TITLE__";
 }
-
-export function useWpContent() {
-  if (IS_DEV) {
-    const post = useContext(WpPostContext);
-    return post?.content || "<p>This is sample post content rendered locally so you can design your theme. In WordPress, this is replaced by the actual content from the Gutenberg editor — including blocks, shortcodes, and embeds.</p>";
-  }
+export function useWpContent(): string {
+  if (IS_DEV) return _useWpContent();
   return "__FORGEWP_THE_CONTENT__";
 }
-
-export function useWpExcerpt() {
-  if (IS_DEV) {
-    const post = useContext(WpPostContext);
-    return post?.excerpt || "A short excerpt that gives readers a quick preview of what to expect in the full post.";
-  }
+export function useWpExcerpt(): string {
+  if (IS_DEV) return _useWpExcerpt();
   return "__FORGEWP_THE_EXCERPT__";
 }
-
-export function useWpPermalink() {
-  if (IS_DEV) {
-    const post = useContext(WpPostContext);
-    return post ? \`/post/\${post.id}\` : "/post";
-  }
+export function useWpPermalink(): string {
+  if (IS_DEV) return _useWpPermalink();
   return "__FORGEWP_THE_PERMALINK__";
 }
-
-// ── Post meta ─────────────────────────────────────────────────────────────────
-
-export function useWpDate() {
-  if (IS_DEV) {
-    const post = useContext(WpPostContext);
-    return post?.date || new Date().toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  }
+export function useWpDate(): string {
+  if (IS_DEV) return _useWpDate();
   return "__FORGEWP_THE_DATE__";
 }
-
-export function useWpAuthor() {
-  if (IS_DEV) {
-    const post = useContext(WpPostContext);
-    return post?.author || "Jane Doe";
-  }
+export function useWpAuthor(): string {
+  if (IS_DEV) return _useWpAuthor();
   return "__FORGEWP_THE_AUTHOR__";
 }
-
-export function useWpFeaturedImage() {
-  if (IS_DEV) {
-    const post = useContext(WpPostContext);
-    return post?.featuredImage || "https://picsum.photos/seed/forgewp/1200/630";
-  }
+export function useWpFeaturedImage(): string {
+  if (IS_DEV) return _useWpFeaturedImage();
   return "__FORGEWP_THE_POST_THUMBNAIL_URL__";
 }
-
-export function useWpCategories() {
-  if (IS_DEV) {
-    return '<a href="#">Technology</a>, <a href="#">Design</a>';
-  }
-  return "__FORGEWP_THE_CATEGORY_LIST__";
+export function useWpCustomField(fieldName: string, defaultValue = ""): string {
+  if (IS_DEV) return _useWpCustomField(fieldName, defaultValue);
+  return "__FORGEWP_CUSTOM_FIELD__" + fieldName + "__";
 }
 
-export function useWpArchiveTitle() {
+export function useWpCategories(): string {
+  if (IS_DEV) return '<a href="#">Technology</a>, <a href="#">Design</a>';
+  return "__FORGEWP_THE_CATEGORY_LIST__";
+}
+export function useWpArchiveTitle(): string {
   if (IS_DEV) return "Category: Technology";
   return "__FORGEWP_THE_ARCHIVE_TITLE__";
 }
 
-// ── Loop ──────────────────────────────────────────────────────────────────────
-
-export function WpLoop({ children }: { children: React.ReactNode }) {
-  if (IS_DEV) {
-    const posts = mockData?.post || [
-      { id: 1, title: "Mock Post 1" },
-      { id: 2, title: "Mock Post 2" },
-      { id: 3, title: "Mock Post 3" }
-    ];
-    
-    return (
-      <>
-        {posts.map((post: any) => (
-          <WpPostContext.Provider key={post.id} value={post}>
-            {children}
-          </WpPostContext.Provider>
-        ))}
-      </>
-    );
-  }
-
-  return (
-    <>
-      {/* @ts-ignore */}
-      <forgewp-loop-start />
-      {children}
-      {/* @ts-ignore */}
-      <forgewp-loop-end />
-    </>
-  );
-}
-
-// ── Custom Field Mapping (ACF / Meta Fields) ──────────────────────────────────
-
-export function useWpCustomField(fieldName: string, defaultValue: string = ""): string {
-  if (IS_DEV) {
-    const post = useContext(WpPostContext);
-    if (post && post.customFields && typeof post.customFields[fieldName] !== "undefined") {
-      return post.customFields[fieldName];
-    }
-    return defaultValue || "[Mock custom field: " + fieldName + "]";
-  }
-  return "__FORGEWP_CUSTOM_FIELD__" + fieldName + "__";
-}
-
-// ── Navigation Menu Component ──────────────────────────────────────────────────
-
-export interface WpMenuProps {
-  location?: "primary" | "footer" | "sidebar" | string;
-  className?: string;
-  linkClassName?: string;
-}
-
-export function WpMenu({ location = "primary", className = "", linkClassName = "" }: WpMenuProps) {
-  if (IS_DEV) {
-    const mockItems =
-      (menusData as any)?.[location] ||
-      (mockData as any).menu?.[location] || [
-        { title: "Home", url: "/" },
-        { title: "Blog", url: "/post" },
-        { title: "Archive", url: "/archive" },
-      ];
-    return (
-      <nav className={className}>
-        {mockItems.map((item: any, idx: number) => (
-          <a key={idx} href={item.url} className={linkClassName}>
-            {item.title}
-          </a>
-        ))}
-      </nav>
-    );
-  }
-
-  return (
-    // @ts-ignore
-    <forgewp-menu location={location} className={className} linkClassName={linkClassName} />
-  );
-}
-
-// ── Custom Query Loop Component ───────────────────────────────────────────────
-
-export interface WpQueryLoopProps {
-  postType?: string;
-  postsPerPage?: number;
-  categoryName?: string;
-  children: React.ReactNode;
-}
+// ── WpQueryLoop — data bridge wraps @forgewp/react with mock data ─────────────
 
 export function WpQueryLoop({
   postType = "post",
   postsPerPage = 3,
   categoryName = "",
-  children
+  children,
 }: WpQueryLoopProps) {
   if (IS_DEV) {
-    const allPosts = (mockData as any)?.[postType] || [];
-    const posts = allPosts.slice(0, postsPerPage);
-
-    if (posts.length === 0) {
-      const fallbacks = Array.from({ length: postsPerPage }).map((_, i) => ({
-        id: i + 1,
-        title: \`Mock \${postType} \${i + 1}\`,
-      }));
-      return (
-        <>
-          {fallbacks.map((post: any) => (
-            <WpPostContext.Provider key={post.id} value={post}>
-              {children}
-            </WpPostContext.Provider>
-          ))}
-        </>
-      );
-    }
-
+    const posts = (mockData as any)?.[postType] || [];
     return (
-      <>
-        {posts.map((post: any) => (
-          <WpPostContext.Provider key={post.id} value={post}>
-            {children}
-          </WpPostContext.Provider>
-        ))}
-      </>
+      <_WpQueryLoop posts={posts} postType={postType} postsPerPage={postsPerPage} categoryName={categoryName}>
+        {children}
+      </_WpQueryLoop>
     );
   }
 
+  // Production: compiler transforms these custom elements into WordPress loop PHP
   return (
     <>
       {/* @ts-ignore */}
@@ -353,26 +228,50 @@ export function WpQueryLoop({
   );
 }
 
-// ── Shortcodes Component ────────────────────────────────────────────────────────
+// ── WpLoop — simple all-posts loop (no postType arg) ─────────────────────────
 
-export interface WpShortcodeProps {
-  code: string;
-}
-
-export function WpShortcode({ code }: WpShortcodeProps) {
+export function WpLoop({ children }: { children: React.ReactNode }) {
   if (IS_DEV) {
+    const posts = (mockData as any)?.post || [];
     return (
-      <div className="p-4 bg-zinc-100 border-2 border-dashed border-zinc-400 font-mono text-xs text-zinc-600 rounded-none my-4">
-        <span className="font-bold text-zinc-800">WordPress Shortcode Preview:</span> {code}
-      </div>
+      <_WpQueryLoop posts={posts}>
+        {children}
+      </_WpQueryLoop>
     );
   }
-
   return (
-    // @ts-ignore
-    <forgewp-shortcode code={code} />
+    <>
+      {/* @ts-ignore */}
+      <forgewp-loop-start />
+      {children}
+      {/* @ts-ignore */}
+      <forgewp-loop-end />
+    </>
   );
 }
+
+// ── WpMenu — data bridge wraps @forgewp/react with menus.json ────────────────
+
+export function WpMenu({ location = "primary", className = "", linkClassName = "" }: WpMenuProps) {
+  if (IS_DEV) {
+    const items =
+      (menusData as any)?.[location] ||
+      (mockData as any).menu?.[location] ||
+      [{ title: "Home", url: "/" }, { title: "Blog", url: "/post" }];
+    return <_WpMenu items={items} location={location} className={className} linkClassName={linkClassName} />;
+  }
+
+  // Production: compiler transforms this into wp_nav_menu()
+  return (
+    // @ts-ignore
+    <forgewp-menu location={location} className={className} linkClassName={linkClassName} />
+  );
+}
+
+// ── WpShortcode — pass-through, no data bridging needed ──────────────────────
+export { WpShortcode };
+
+// ── Compiler custom element JSX declarations ──────────────────────────────────
 
 declare global {
   namespace React {
@@ -394,6 +293,14 @@ declare global {
           HTMLElement
         >;
         "forgewp-query-loop-end": React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement>,
+          HTMLElement
+        >;
+        "forgewp-loop-start": React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement>,
+          HTMLElement
+        >;
+        "forgewp-loop-end": React.DetailedHTMLProps<
           React.HTMLAttributes<HTMLElement>,
           HTMLElement
         >;

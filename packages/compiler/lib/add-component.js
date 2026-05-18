@@ -14,10 +14,10 @@ export async function addComponent(component, options) {
   try {
     const { createRequire } = await import("node:module");
     const require = createRequire(import.meta.url);
-    registryPath = path.join(path.dirname(require.resolve("@forgewp/registry/package.json")), "components");
+    registryPath = path.join(path.dirname(require.resolve("@forgewp/ui/package.json")), "components");
   } catch (e) {
     // Fallback for development/local execution
-    registryPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../registry/components");
+    registryPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../ui/components");
   }
   
   let localComponentFile = path.join(registryPath, component, `${style}.tsx`);
@@ -41,8 +41,20 @@ export async function addComponent(component, options) {
   // 2. Run shadcn add (fallback)
   console.log(pc.dim(`  Fetching ${component} from shadcn/ui...`));
   try {
+    // Auto-detect the package manager being used by the developer
+    const userAgent = process.env.npm_config_user_agent || "";
+    let shadcnCmd = "npx shadcn@latest"; // Default fallback
+
+    if (userAgent.includes("pnpm")) {
+      shadcnCmd = "pnpm dlx shadcn@latest";
+    } else if (userAgent.includes("bun")) {
+      shadcnCmd = "bunx --bun shadcn@latest";
+    } else if (userAgent.includes("yarn")) {
+      shadcnCmd = "yarn dlx shadcn@latest";
+    }
+
     // We use --yes to skip prompts
-    execSync(`npx shadcn@latest add ${component} --yes`, {
+    execSync(`${shadcnCmd} add ${component} --yes`, {
       stdio: "inherit",
       cwd: projectRoot,
       shell: process.platform === "win32",

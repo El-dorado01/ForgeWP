@@ -9,8 +9,7 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "../../lib/wordpress": ["../starter/src/lib/wordpress"]
+      "@/*": ["../starter/src/*"]
     }
   },
   "include": ["components/**/*"]

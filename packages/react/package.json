@@ -1,0 +1,24 @@
+{
+  "name": "@forgewp/react",
+  "version": "0.1.0",
+  "description": "Lightweight WordPress data hooks and primitives for React — ForgeWP",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "react": ">=17.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.4",
+    "typescript": "^5.8.3"
+  },
+  "keywords": ["wordpress", "react", "forgewp", "headless", "hooks"],
+  "license": "MIT"
+}
