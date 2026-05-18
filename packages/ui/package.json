@@ -9,13 +9,17 @@
   ],
   "peerDependencies": {
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "@forgewp/react": "workspace:*",
+    "framer-motion": "^11.0.0 || ^12.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "@forgewp/react": "workspace:*",
+    "framer-motion": "^11.11.17"
   }
 }

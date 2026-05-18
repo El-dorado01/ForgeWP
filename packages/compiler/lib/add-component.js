@@ -34,6 +34,13 @@ export async function addComponent(component, options) {
     const content = readFileSync(localComponentFile, "utf8");
     writeFileSync(targetFile, content, "utf8");
     
+    // Auto-detect and install missing third-party dependencies from imported component files
+    autoInstallMissingDependencies(targetFile, projectRoot);
+
+    if (style === "forgewp") {
+      sharpenFile(targetFile);
+    }
+
     console.log(pc.green(`\n  Success! ${component} added to src/components/ui/\n`));
     return;
   }
@@ -111,3 +118,75 @@ function sharpenFile(filePath) {
     console.log(pc.dim(`    Sharpened ${path.basename(filePath)}`));
   }
 }
+
+function autoInstallMissingDependencies(filePath, projectRoot) {
+  const content = readFileSync(filePath, "utf8");
+  
+  // Find all import statements
+  const importRegex = /import\s+(?:[a-zA-Z0-9_*$,{}\s]+from\s+)?['"]([^'"]+)['"]/g;
+  const foundImports = new Set();
+  let match;
+  
+  while ((match = importRegex.exec(content)) !== null) {
+    const importPath = match[1];
+    // Filter out local imports, React, and standard framework packages
+    if (
+      !importPath.startsWith(".") &&
+      !importPath.startsWith("/") &&
+      importPath !== "react" &&
+      importPath !== "react-dom" &&
+      importPath !== "@forgewp/react"
+    ) {
+      // Extract the base package name (e.g. framer-motion or @radix-ui/react-slot)
+      let basePkg = importPath;
+      if (importPath.startsWith("@")) {
+        const parts = importPath.split("/");
+        basePkg = `${parts[0]}/${parts[1]}`;
+      } else {
+        basePkg = importPath.split("/")[0];
+      }
+      foundImports.add(basePkg);
+    }
+  }
+
+  if (foundImports.size === 0) return;
+
+  const pkgJsonPath = path.join(projectRoot, "package.json");
+  if (!existsSync(pkgJsonPath)) return;
+
+  const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
+  const currentDeps = {
+    ...(pkg.dependencies || {}),
+    ...(pkg.devDependencies || {})
+  };
+
+  const missingDeps = Array.from(foundImports).filter(dep => !currentDeps[dep]);
+
+  if (missingDeps.length > 0) {
+    console.log(pc.yellow(`\n  ⚡ Detected missing dependencies: ${missingDeps.join(", ")}`));
+    console.log(pc.dim("  Automatically installing dependencies..."));
+
+    // Detect Package Manager
+    let installCmd = "npm install --save";
+    if (existsSync(path.join(projectRoot, "pnpm-lock.yaml"))) {
+      installCmd = "pnpm add";
+    } else if (existsSync(path.join(projectRoot, "yarn.lock"))) {
+      installCmd = "yarn add";
+    } else if (existsSync(path.join(projectRoot, "bun.lockb"))) {
+      installCmd = "bun add";
+    }
+
+    try {
+      execSync(`${installCmd} ${missingDeps.join(" ")}`, {
+        stdio: "inherit",
+        cwd: projectRoot,
+        shell: process.platform === "win32"
+      });
+      console.log(pc.green(`  ✅ Successfully installed: ${missingDeps.join(", ")}\n`));
+    } catch (err) {
+      console.log(pc.red(`  ❌ Auto-installation failed: ${err.message}`));
+      console.log(pc.yellow(`  Please manually install: ${missingDeps.join(", ")}`));
+    }
+  }
+}
+
