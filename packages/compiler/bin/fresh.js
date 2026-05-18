@@ -3,12 +3,15 @@
 import { rmSync, existsSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import readline from "node:readline";
 import pc from "picocolors";
 import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
 
 console.log(`\n🧹 ${pc.bold(pc.bgRed(pc.black("  FORGEWP FACTORY RESET (FRESH CANVAS)  ")))}\n`);
 
 const projectRoot = process.cwd();
+
+function runReset() {
 
 // 1. Clean Build Caches & Artifacts
 const foldersToClean = [".forgewp", "dist", ".vite"];
@@ -419,3 +422,55 @@ if (existsSync(monorepoSyncScript)) {
 console.log("\n" + "─".repeat(60));
 console.log(pc.green(`\n🎉 ${pc.bold("CANVAS RESET COMPLETE:")} Reverted workspace back to standard empty blueprints.`));
 console.log(pc.cyan("   Your ForgeWP canvas is now factory-fresh, clean, and perfectly synced!\n"));
+}
+
+function hasWorkBeenDone() {
+  const dirsToCheck = [
+    "src/app/pages",
+    "src/blocks",
+    "src/components"
+  ];
+  for (const dir of dirsToCheck) {
+    const fullPath = path.join(projectRoot, dir);
+    if (existsSync(fullPath)) {
+      try {
+        const files = readdirSync(fullPath);
+        if (files.length > 0) {
+          return true;
+        }
+      } catch (e) {
+        // Directory exists but failed to read or is empty
+      }
+    }
+  }
+  return false;
+}
+
+const isForce = process.argv.includes("--force") || process.argv.includes("-f") || process.argv.includes("-y");
+
+if (hasWorkBeenDone() && !isForce) {
+  if (!process.stdin.isTTY) {
+    console.log(pc.red(`❌ Non-interactive environment detected. Please use the --force flag to reset active work.`));
+    process.exit(1);
+  }
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  console.log(pc.yellow(`⚠️  ${pc.bold("WARNING:")} Existing custom pages, blocks, or components detected in your canvas!`));
+  console.log(pc.yellow(`   Continuing will permanently delete all custom work and reset back to factory default.`));
+
+  rl.question(`\n   Are you sure you want to proceed? (y/N): `, (answer) => {
+    rl.close();
+    const confirmed = answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes";
+    if (!confirmed) {
+      console.log(pc.blue(`\n❌ Reset aborted. No changes were made.\n`));
+      process.exit(0);
+    }
+    runReset();
+  });
+} else {
+  runReset();
+}
