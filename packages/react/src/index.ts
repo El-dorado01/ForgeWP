@@ -26,7 +26,7 @@ export type { WpShortcodeProps } from "./components/WpShortcode";
 export { Hydrate } from "./components/Hydrate";
 export type { HydrateProps } from "./components/Hydrate";
 
-// Hooks
+// Hooks & Utilities
 export {
   useWpTitle,
   useWpContent,
@@ -36,6 +36,8 @@ export {
   useWpAuthor,
   useWpFeaturedImage,
   useWpCustomField,
+  useReducedMotion,
+  getStaticMotionStyle,
 } from "./hooks";
 
 // Types

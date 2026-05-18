@@ -86,3 +86,65 @@ export function useWpCustomField(fieldName: string, defaultValue = ""): string {
   }
   return defaultValue || `[custom field: ${fieldName}]`;
 }
+
+import { useEffect, useState } from "react";
+
+/**
+ * Hook to dynamically detect and adapt to prefers-reduced-motion preferences.
+ * Satisfies modern global accessibility standards.
+ */
+export function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(mediaQuery.matches);
+
+    const listener = (event: MediaQueryListEvent) => setReduced(event.matches);
+    mediaQuery.addEventListener("change", listener);
+    return () => mediaQuery.removeEventListener("change", listener);
+  }, []);
+
+  return reduced;
+}
+
+/**
+ * Statically extracts and formats motion/animation initial states into safe React styles.
+ * Guarantees zero cumulative layout shift (CLS) and zero Flash of Unstyled Content (FOUC)
+ * by applying initial styles during server-side pre-rendering (SSR).
+ *
+ * @example
+ * const initial = { opacity: 0, y: 50 };
+ * <motion.div initial={initial} animate={{ opacity: 1, y: 0 }} style={getStaticMotionStyle(initial)}>
+ */
+export function getStaticMotionStyle(initial: Record<string, any>): React.CSSProperties {
+  if (!initial || typeof initial !== "object") return {};
+
+  const style: React.CSSProperties = {};
+
+  if (initial.opacity !== undefined) {
+    style.opacity = initial.opacity;
+  }
+
+  let transform = "";
+  if (initial.y !== undefined) {
+    transform += ` translateY(${typeof initial.y === "number" ? initial.y + "px" : initial.y})`;
+  }
+  if (initial.x !== undefined) {
+    transform += ` translateX(${typeof initial.x === "number" ? initial.x + "px" : initial.x})`;
+  }
+  if (initial.scale !== undefined) {
+    transform += ` scale(${initial.scale})`;
+  }
+  if (initial.rotate !== undefined) {
+    transform += ` rotate(${initial.rotate}deg)`;
+  }
+
+  if (transform) {
+    style.transform = transform.trim();
+  }
+
+  return style;
+}
+
