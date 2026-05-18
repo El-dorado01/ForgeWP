@@ -31,25 +31,6 @@ export function generateTheme({
 
   mkdirSync(outDir, { recursive: true });
 
-  // Gather compiled custom page templates for auto-creation
-  const pagesToAutoCreate = [];
-  const forgewpDir = path.join(themeRoot, ".forgewp");
-  if (existsSync(forgewpDir)) {
-    const templateFiles = readdirSync(forgewpDir);
-    for (const file of templateFiles) {
-      if (file.startsWith("template-") && file.endsWith(".html") && !file.includes("-head")) {
-        const slug = file.replace(".html", "");
-        const pageSlug = slug.replace("template-", "");
-        const templateName = pageSlug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-        pagesToAutoCreate.push({
-          title: templateName,
-          slug: pageSlug,
-          template: `page-${pageSlug}.php`
-        });
-      }
-    }
-  }
-
   // Load menus configuration for auto-registration and setup
   let menus = {};
   const menusJsonSrc = path.join(themeRoot, "wordpress", "menus.json");
@@ -58,6 +39,72 @@ export function generateTheme({
       menus = JSON.parse(readFileSync(menusJsonSrc, "utf8"));
     } catch (e) {
       console.warn("Failed to parse menus.json:", e.message);
+    }
+  }
+
+  // Gather compiled custom page templates for auto-creation with smart slug mapping
+  const pagesToAutoCreate = [];
+  const forgewpDir = path.join(themeRoot, ".forgewp");
+  if (existsSync(forgewpDir)) {
+    const templateFiles = readdirSync(forgewpDir);
+    for (const file of templateFiles) {
+      if (file.startsWith("template-") && file.endsWith(".html") && !file.includes("-head")) {
+        const slug = file.replace(".html", "");
+        const pageTemplateSlug = slug.replace("template-", "");
+        
+        let matchedSlug = null;
+        let matchedTitle = null;
+
+        const toKebabTemplateSlug = (str) => {
+          const compName = str
+            .replace(/[^a-zA-Z0-9]/g, " ")
+            .trim()
+            .split(/\s+/)
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+            .join("") + "Page";
+          return compName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+        };
+
+        const targetKebab = pageTemplateSlug;
+
+        // Search in menus to find matching target URL slugs defined by the developer
+        for (const [location, items] of Object.entries(menus)) {
+          if (!Array.isArray(items)) continue;
+          for (const item of items) {
+            if (!item.url || !item.url.startsWith("/")) continue;
+            const menuUrlSlug = item.url.replace(/^\//, "");
+            
+            if (
+              toKebabTemplateSlug(item.title) === targetKebab ||
+              toKebabTemplateSlug(menuUrlSlug) === targetKebab
+            ) {
+              matchedSlug = menuUrlSlug;
+              matchedTitle = item.title;
+              break;
+            }
+          }
+          if (matchedSlug) break;
+        }
+
+        // Fallback 1: Strip trailing "-page" from template slug
+        if (!matchedSlug) {
+          matchedSlug = pageTemplateSlug.endsWith("-page")
+            ? pageTemplateSlug.slice(0, -5)
+            : pageTemplateSlug;
+        }
+
+        // Fallback 2: Generate clean human-readable title
+        if (!matchedTitle) {
+          const cleanName = pageTemplateSlug.endsWith("-page") ? pageTemplateSlug.slice(0, -5) : pageTemplateSlug;
+          matchedTitle = cleanName.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        }
+
+        pagesToAutoCreate.push({
+          title: matchedTitle,
+          slug: matchedSlug,
+          template: `page-${pageTemplateSlug}.php`
+        });
+      }
     }
   }
 
