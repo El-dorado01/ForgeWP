@@ -41,7 +41,10 @@ export function useWpExcerpt(): string {
 
 export function useWpPermalink(): string {
   const post = useContext(WpPostContext);
-  return post ? `/post/${post.id}` : "/post";
+  if (!post) return "/post";
+  if (post.permalink) return post.permalink;
+  const type = post.__postType && post.__postType !== "post" ? post.__postType : "post";
+  return `/${type}/${post.id}`;
 }
 
 // ── Meta ──────────────────────────────────────────────────────────────────────
@@ -72,6 +75,9 @@ export function useWpFeaturedImage(): string {
 
 export function useWpCustomField(fieldName: string, defaultValue = ""): string {
   const post = useContext(WpPostContext);
+  console.log(`[ForgeWP Debug] useWpCustomField requested: ${fieldName}`);
+  console.log(`[ForgeWP Debug] Context post:`, post);
+  
   if (
     post?.customFields &&
     typeof post.customFields[fieldName] !== "undefined"

@@ -13,6 +13,7 @@ if (!themeRoot) {
 // Use the theme's own node_modules for ALL packages (React 19)
 const require = createRequire(path.join(themeRoot, "package.json"));
 const React = require("react");
+globalThis.React = React; // Polyfill for classic JSX transform in Node.js
 const { renderToStaticMarkup } = require("react-dom/server");
 
 const appUrl = pathToFileURL(path.join(themeRoot, "src", "app", "page.tsx")).href;
@@ -196,5 +197,36 @@ writeFileSync(path.join(outDir, "single-head.html"), singleHeadHtml, "utf8");
 if (singleHtml) writeFileSync(path.join(outDir, "single.html"), singleHtml, "utf8");
 if (notFoundHtml) writeFileSync(path.join(outDir, "404.html"), notFoundHtml, "utf8");
 if (archiveHtml) writeFileSync(path.join(outDir, "archive.html"), archiveHtml, "utf8");
+
+// ── Compile Custom Page Templates ──────────────────────────────────────────────
+const pagesDir = path.join(themeRoot, "src", "app", "pages");
+console.warn("CHECKING PAGES DIR: " + pagesDir + " EXISTS: " + existsSync(pagesDir));
+if (existsSync(pagesDir)) {
+  const { readdirSync } = require("node:fs");
+  const pages = readdirSync(pagesDir).filter(f => f.endsWith(".tsx"));
+  
+  for (const pageFile of pages) {
+    const pagePath = path.join(pagesDir, pageFile);
+    console.warn(`Attempting to compile template: ${pageFile}`);
+    try {
+      const module = await import(pathToFileURL(pagePath).href);
+      const CustomPage = module.default || Object.values(module)[0];
+      if (CustomPage) {
+        const customHtml = renderPage(CustomPage);
+        const pageName = pageFile.replace(".tsx", "");
+        const slug = pageName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+        writeFileSync(path.join(outDir, `template-${slug}.html`), customHtml, "utf8");
+        console.warn(`WROTE template-${slug}.html to ${outDir}`);
+        
+        const customSeo = extractSeoPropsFromSource(pagePath);
+        const customHeadHtml = buildHeadHtml(layoutSeo, customSeo);
+        writeFileSync(path.join(outDir, `template-${slug}-head.html`), customHeadHtml, "utf8");
+        console.warn(`WROTE template-${slug}-head.html to ${outDir}`);
+      }
+    } catch (e) {
+      console.warn(`Failed to render custom page ${pageFile}:`, e.message);
+    }
+  }
+}
 
 process.stdout.write(outDir);

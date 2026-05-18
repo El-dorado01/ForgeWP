@@ -43,6 +43,10 @@ export async function renderStaticMarkup(themeRoot) {
     const detail = result.stderr?.trim() || result.stdout?.trim() || "Unknown error";
     throw new Error(`Static render failed:\n${detail}`);
   }
+  
+  if (result.stderr) {
+    console.warn(result.stderr);
+  }
 
   const outDir = result.stdout?.trim() || path.join(themeRoot, ".forgewp");
   const appHtmlPath = path.join(outDir, "app.html");

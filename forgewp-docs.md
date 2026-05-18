@@ -611,6 +611,11 @@ ForgeWP completely shifts this paradigm:
 
 When a client inserts your block and edits a text field inside the WordPress Gutenberg editor, WordPress executes the dynamic PHP rendering server-side on page load. You get full visual customizability, blisteringly fast database execution, and zero frontend JS overhead!
 
+### The Editor JS Bridge (`forgewp-editor.js`)
+To ensure blocks are perfectly selectable and controllable within the Gutenberg visual editor, the compiler also generates a client-side bridge script (`forgewp-editor.js`). 
+This script dynamically registers your blocks on the client-side using `wp.blocks.registerBlockType`. It automatically maps your React `settings.attributes` to native `InspectorControls` inputs (like text boxes) in the WordPress sidebar. 
+Crucially, it utilizes Gutenberg's `useBlockProps` hook to inject critical metadata into your block's preview wrapper, guaranteeing that complex CSS transforms (like `hover:-translate-y-2`) do not intercept or break block selection within the editor!
+
 ---
 
 ## 2. Block Scaffolding via CLI (`forgewp make:block`)
@@ -737,14 +742,60 @@ To verify that you have mastered the Gutenberg Block Compilation Pipeline:
 
 ---
 
+# Phase 6 — Custom Page Templates Compiler
+
+Phase 6 introduces the ability to seamlessly compile isolated, full-page React layouts into standalone native WordPress **Custom Page Templates**. 
+
+```mermaid
+graph TD
+    A[src/app/pages/AboutUsPage.tsx] -->|Compiler Scanner| B(SSR Template Engine)
+    B -->|Strips Header/Footer| C[forgewp-static/template-about-us-page.html]
+    C -->|Wraps in WordPress Header| D[page-about-us-page.php]
+    D --> E[WordPress Theme ZIP]
+    E -->|Template Name: About Us Page| F[WordPress Page Editor Dropdown]
+```
+
+## 1. The Directory Scanner
+During compilation (`pnpm export`), the compiler scans the `src/app/pages/` directory for any `.tsx` files. 
+You can build full static layouts (like `ContactPage.tsx` or `PrivacyPolicyPage.tsx`) using standard React components, Tailwind styling, and standard imports.
+
+## 2. SSR Compilation and Dynamic Resolution
+The compiler uses the native Node.js dynamic `import()` function to load each page. It smartly resolves both **default exports** and **named exports** (e.g. `export function AboutUsPage()`), ensuring your components are always found.
+It then server-side renders (SSR) your entire React tree into a `.html` template file.
+
+## 3. Template Generation
+Finally, the compiler reads the SSR HTML, strips out the redundant global `headerHtml` and `footerHtml` sections, and generates a dedicated native WordPress PHP file (e.g. `page-about-us-page.php`). 
+It automatically formats the filename into a readable string and injects the official WordPress Template Header:
+```php
+<?php
+/**
+ * Template Name: About Us Page
+ *
+ * @package forgewp-starter
+ */
+
+get_header();
+
+$markup_file = get_template_directory() . '/forgewp-static/template-about-us-page.html';
+if (file_exists($markup_file)) {
+    include $markup_file;
+}
+
+get_footer();
+```
+When you upload the compiled ZIP, WordPress instantly reads these headers. You can then navigate to **Pages → Add New** and select "About Us Page" directly from the native **Template** dropdown in the right sidebar!
+
+---
+
 # Congratulations! 🏆🎉
 
-You have successfully walked through, engineered, and mastered all 5 core development phases of **ForgeWP**!
+You have successfully walked through, engineered, and mastered all 6 core development phases of **ForgeWP**!
 
 1. **Phase 1 — Foundation**: Workspace orchestration, hot-reloading Vite dev pipeline, dynamic validation plugins, and Tailwind v4 themes.
 2. **Phase 2 — Compiler Architecture**: Template routing hierarchies, dynamic header/footer splitting, and automated zip enqueuing.
 3. **Phase 3 — Component CLI**: Fallback component proxying, local registries, and the Auto-Sharpen CSS v4 brutalist engine.
 4. **Phase 4 — WordPress Data Layer**: Dynamic context-aware JSON DB mocking, ACF dynamic meta fields, and dynamic CLI scaffolding.
 5. **Phase 5 — Gutenberg Integration**: Seamless JSX transpilation, auto-registering dynamic block json layers, and dynamic server-rendered block packages.
+6. **Phase 6 — Custom Page Templates**: Dynamic directory scanning, named export resolution, and auto-generated WordPress Page Template headers.
 
 You are now equipped with full engineering mastery of the ForgeWP visual frameworks compiler! Build stunning visual sites, pack them up, and upload them to any standard WordPress installation. Happy coding! 🚀⚒️⚡

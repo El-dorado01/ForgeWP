@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 function forgewpValidationPlugin(): PluginOption {
   return {
     name: "forgewp-validation",
-    configureServer() {
+    configureServer(server) {
       try {
         validateCriticalFiles(__dirname);
       } catch (err) {
@@ -21,6 +21,14 @@ function forgewpValidationPlugin(): PluginOption {
           }\n`
         );
       }
+
+      // Automatically watch the local database and trigger a reload
+      server.watcher.add(path.resolve(__dirname, "wordpress/*.json"));
+      server.watcher.on("change", (file) => {
+        if (file.includes("wordpress") && file.endsWith(".json")) {
+          server.ws.send({ type: "full-reload" });
+        }
+      });
     },
   };
 }

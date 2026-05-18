@@ -9,6 +9,8 @@ export interface WpQueryLoopProps {
   postsPerPage?: number;
   /** Optional category filter (reserved for compiler) */
   categoryName?: string;
+  /** Optional ID filter for single views */
+  postId?: number;
   /**
    * Posts data — injected by the data bridge in src/.forgewp/wordpress.tsx.
    * You do not need to pass this yourself; WpQueryLoop in your project handles it.
@@ -30,11 +32,13 @@ export interface WpQueryLoopProps {
 export function WpQueryLoop({
   postType = "post",
   postsPerPage = 3,
+  postId,
   posts = [],
   children,
 }: WpQueryLoopProps) {
-  // Slice to the requested limit
-  const items = posts.slice(0, postsPerPage);
+  // Filter by ID if requested (for local single views), then slice and inject __postType
+  const filteredPosts = postId ? posts.filter(p => p.id === postId) : posts;
+  const items = filteredPosts.slice(0, postsPerPage).map(p => ({ ...p, __postType: postType }));
 
   if (items.length === 0) {
     // Fallback placeholders so the layout is always visible during dev
@@ -46,6 +50,7 @@ export function WpQueryLoop({
       date: new Date().toLocaleDateString("en-US"),
       author: "Author",
       featuredImage: `https://picsum.photos/seed/${postType}${i}/1200/630`,
+      __postType: postType,
     }));
 
     return (

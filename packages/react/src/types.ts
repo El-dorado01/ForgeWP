@@ -16,6 +16,7 @@ export interface WpPost {
   featuredImage: string;
   permalink?: string;
   customFields?: Record<string, string | number | boolean>;
+  __postType?: string;
 }
 
 export interface WpMenuItem {

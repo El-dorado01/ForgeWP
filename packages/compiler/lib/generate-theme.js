@@ -37,14 +37,12 @@ export function generateTheme({
   cpSync(distAssets, assetsOut, { recursive: true });
 
   // Drop unused JS from the theme ZIP
-  import("node:fs").then(({ readdirSync, unlinkSync }) => {
-    const files = readdirSync(assetsOut);
-    for (const file of files) {
-      if (file.endsWith(".js") || file.endsWith(".js.map")) {
-        unlinkSync(path.join(assetsOut, file));
-      }
+  const files = readdirSync(assetsOut);
+  for (const file of files) {
+    if ((file.endsWith(".js") || file.endsWith(".js.map")) && file !== "forgewp-editor.js") {
+      rmSync(path.join(assetsOut, file), { force: true });
     }
-  });
+  }
 
   // Fix nav links and split markup
   const processedApp = processMarkup(appHtml);
@@ -114,10 +112,56 @@ export function generateTheme({
   // Dynamic Gutenberg blocks compilation (Phase 5)
   const compiledBlocks = compileBlocks(themeRoot, outDir);
 
+  const editorScriptContent = `
+const { registerBlockType } = wp.blocks;
+const { createElement } = wp.element;
+const { InspectorControls, useBlockProps } = wp.blockEditor;
+const { PanelBody, TextControl } = wp.components;
+const ServerSideRender = wp.serverSideRender;
+
+if (window.forgeWpBlocks) {
+    window.forgeWpBlocks.forEach(block => {
+        registerBlockType(block.name, {
+            title: block.title,
+            icon: block.icon,
+            category: block.category,
+            attributes: block.attributes,
+            edit: function(props) {
+                const { attributes, setAttributes } = props;
+                const blockProps = useBlockProps();
+                
+                // Build inspector controls dynamically from attributes
+                const controls = Object.keys(block.attributes).map(key => {
+                    return createElement(TextControl, {
+                        label: key.charAt(0).toUpperCase() + key.slice(1),
+                        value: attributes[key],
+                        onChange: (val) => setAttributes({ [key]: val })
+                    });
+                });
+
+                return createElement('div', blockProps,
+                    createElement(InspectorControls, null,
+                        createElement(PanelBody, { title: 'Block Settings', initialOpen: true }, controls)
+                    ),
+                    createElement(ServerSideRender, {
+                        block: block.name,
+                        attributes: attributes
+                    })
+                );
+            },
+            save: function() {
+                return null; // Dynamic blocks return null in save
+            }
+        });
+    });
+}
+`;
+  writeFileSync(path.join(outDir, "assets", "forgewp-editor.js"), editorScriptContent, "utf8");
+
   writeFileSync(path.join(outDir, "style.css"), buildStyleCss(config), "utf8");
   writeFileSync(
     path.join(outDir, "functions.php"),
-    buildFunctionsPhp(config, assets, compiledBlocks),
+    buildFunctionsPhp(config, assets, compiledBlocks, themeRoot),
     "utf8",
   );
   writeFileSync(path.join(outDir, "header.php"), buildHeaderPhp(config), "utf8");
@@ -128,6 +172,49 @@ export function generateTheme({
   writeFileSync(path.join(outDir, "front-page.php"), buildIndexPhp(), "utf8");
   writeFileSync(path.join(outDir, "archive.php"), buildArchivePhp(), "utf8");
   writeFileSync(path.join(outDir, "page.php"), buildPagePhp(), "utf8");
+
+  // Dynamic Custom Page Templates Compiler
+  const forgewpDir = path.join(themeRoot, ".forgewp");
+  if (existsSync(forgewpDir)) {
+    const templateFiles = readdirSync(forgewpDir);
+    for (const file of templateFiles) {
+      if (file.startsWith("template-") && file.endsWith(".html") && !file.includes("-head")) {
+        const slug = file.replace(".html", "");
+        const rawHtml = readFileSync(path.join(forgewpDir, file), "utf8");
+        
+        let processedHtml = processMarkup(rawHtml);
+        if (processedHeader) processedHtml = processedHtml.replace(processedHeader, "");
+        if (processedFooter) processedHtml = processedHtml.replace(processedFooter, "");
+        
+        writeFileSync(path.join(staticDir, file), processedHtml, "utf8");
+        
+        const headFile = file.replace(".html", "-head.html");
+        if (existsSync(path.join(forgewpDir, headFile))) {
+          writeFileSync(path.join(staticDir, headFile), readFileSync(path.join(forgewpDir, headFile), "utf8"), "utf8");
+        }
+
+        // Generate the native WordPress PHP Custom Page Template
+        const templateName = slug.replace("template-", "").split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        const phpContent = `<?php
+/**
+ * Template Name: ${templateName}
+ *
+ * @package ${config.textDomain}
+ */
+
+get_header();
+
+$markup_file = get_template_directory() . '/forgewp-static/${file}';
+if (file_exists($markup_file)) {
+    include $markup_file;
+}
+
+get_footer();
+`;
+        writeFileSync(path.join(outDir, `page-${slug.replace("template-", "")}.php`), phpContent, "utf8");
+      }
+    }
+  }
 
   // Dynamic theme.json compiler (Phase 5)
   const themeJsonSrc = path.join(themeRoot, "wordpress", "theme.json");
@@ -331,11 +418,51 @@ Text Domain: ${config.textDomain}
  * @param {import('./types.js').ForgeWPThemeConfig} config
  * @param {import('./types.js').ForgeWPBuildAssets} assets
  */
-function buildFunctionsPhp(config, assets, blockSlugs = []) {
+function buildFunctionsPhp(config, assets, blockSlugs = [], themeRoot = "") {
   const css = assets.cssFile.replace(/^assets\//, "");
   const version = config.version.replace(/'/g, "\\'");
   const googleFonts = config.settings?.typography?.googleFonts || [];
   
+  let cptRegistration = "";
+  try {
+    const mockDataPath = path.join(themeRoot, "wordpress", "mock-data.json");
+    if (existsSync(mockDataPath)) {
+      const mockData = JSON.parse(readFileSync(mockDataPath, "utf8"));
+      const postTypes = Object.keys(mockData).filter(k => k !== "posts" && k !== "pages" && k !== "post" && k !== "page" && k !== "menus");
+      if (postTypes.length > 0) {
+        cptRegistration = `
+/**
+ * Register dynamic Custom Post Types inferred from local mock data.
+ */
+function forgewp_register_custom_post_types() {
+${postTypes.map(pt => `    register_post_type('${pt}', array(
+        'labels'      => array(
+            'name'               => '${pt.charAt(0).toUpperCase() + pt.slice(1)}s',
+            'singular_name'      => '${pt.charAt(0).toUpperCase() + pt.slice(1)}',
+            'menu_name'          => '${pt.charAt(0).toUpperCase() + pt.slice(1)}s',
+            'name_admin_bar'     => '${pt.charAt(0).toUpperCase() + pt.slice(1)}',
+            'add_new'            => 'Add New',
+            'add_new_item'       => 'Add New ${pt.charAt(0).toUpperCase() + pt.slice(1)}',
+            'new_item'           => 'New ${pt.charAt(0).toUpperCase() + pt.slice(1)}',
+            'edit_item'          => 'Edit ${pt.charAt(0).toUpperCase() + pt.slice(1)}',
+            'view_item'          => 'View ${pt.charAt(0).toUpperCase() + pt.slice(1)}',
+            'all_items'          => 'All ${pt.charAt(0).toUpperCase() + pt.slice(1)}s',
+            'search_items'       => 'Search ${pt.charAt(0).toUpperCase() + pt.slice(1)}s',
+            'not_found'          => 'No ${pt.charAt(0).toUpperCase() + pt.slice(1)}s found.',
+        ),
+        'public'      => true,
+        'has_archive' => true,
+        'show_in_rest'=> true,
+        'supports'    => array('title', 'editor', 'thumbnail', 'custom-fields', 'excerpt'),
+        'menu_icon'   => 'dashicons-admin-post',
+    ));`).join("\n")}
+}
+add_action('init', 'forgewp_register_custom_post_types');
+`;
+      }
+    }
+  } catch (e) {}
+
   let fontsEnqueue = "";
   let preconnectFilter = "";
 
@@ -379,12 +506,32 @@ add_filter('wp_resource_hints', 'forgewp_google_fonts_resource_hints', 10, 2);
  * Register dynamic Gutenberg blocks compiled by ForgeWP.
  */
 function forgewp_register_dynamic_blocks(): void {
-    $blocks = array(${blocksArray});
+    $blocks = array(${blockSlugs.map(s => `'${s.name.replace("forgewp/", "")}'`).join(", ")});
     foreach ($blocks as $block) {
         register_block_type(__DIR__ . '/blocks/' . $block);
     }
 }
 add_action('init', 'forgewp_register_dynamic_blocks');
+
+/**
+ * Enqueue Block Editor JavaScript to dynamically render block interfaces.
+ */
+function forgewp_enqueue_block_editor_assets(): void {
+    wp_enqueue_script(
+        'forgewp-editor-script',
+        get_template_directory_uri() . '/assets/forgewp-editor.js',
+        array('wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-server-side-render'),
+        FORGEWP_THEME_VERSION,
+        true
+    );
+
+    wp_localize_script(
+        'forgewp-editor-script',
+        'forgeWpBlocks',
+        json_decode('${JSON.stringify(blockSlugs)}')
+    );
+}
+add_action('enqueue_block_editor_assets', 'forgewp_enqueue_block_editor_assets');
 `;
   }
 
@@ -434,7 +581,7 @@ function forgewp_theme_setup(): void {
     add_editor_style('assets/${css}');
 }
 add_action('after_setup_theme', 'forgewp_theme_setup');
-${preconnectFilter}${blocksRegistration}`;
+${preconnectFilter}${blocksRegistration}${cptRegistration}`;
 }
 
 function buildHeaderPhp(config) {
@@ -784,7 +931,7 @@ ${phpMarkup}
         writeFileSync(path.join(blockOutDir, "block.json"), JSON.stringify(settings, null, 2), "utf8");
         writeFileSync(path.join(blockOutDir, "render.php"), renderPhpContent, "utf8");
 
-        blockSlugs.push(blockSlug);
+        blockSlugs.push(settings);
       } catch (e) {
         console.error(`[Gutenberg Block Compiler] Failed to compile block ${blockSlug}:`, e.message);
       }
