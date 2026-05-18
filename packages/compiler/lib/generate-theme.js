@@ -168,25 +168,28 @@ export function generateTheme({
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
       if (entry.isIntersecting) {
-        hydrateElement(entry.target);
+        const hydrate = entry.target.__forgewpHydrate;
+        if (typeof hydrate === "function") hydrate();
         observer.unobserve(entry.target);
       }
     });
   }, { rootMargin: "200px" });
 
-  islands.forEach((el) => {
-    const trigger = el.getAttribute("data-forgewp-trigger");
-    if (trigger === "load") {
+  const StrategyRegistry = {
+    load: (el, hydrate) => {
       if (document.readyState === "complete") {
-        hydrateElement(el);
+        hydrate();
       } else {
-        window.addEventListener("load", () => hydrateElement(el));
+        window.addEventListener("load", hydrate);
       }
-    } else if (trigger === "visible") {
+    },
+    visible: (el, hydrate) => {
+      el.__forgewpHydrate = hydrate;
       observer.observe(el);
-    } else if (trigger === "interaction") {
+    },
+    interaction: (el, hydrate) => {
       const run = () => {
-        hydrateElement(el);
+        hydrate();
         el.removeEventListener("click", run);
         el.removeEventListener("mouseenter", run);
         el.removeEventListener("focusin", run);
@@ -194,6 +197,26 @@ export function generateTheme({
       el.addEventListener("click", run);
       el.addEventListener("mouseenter", run);
       el.addEventListener("focusin", run);
+    },
+    // Modern extensible triggers (e.g. idle trigger for low priority activation)
+    idle: (el, hydrate) => {
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(hydrate);
+      } else {
+        setTimeout(hydrate, 200);
+      }
+    }
+  };
+
+  islands.forEach((el) => {
+    const trigger = el.getAttribute("data-forgewp-trigger") || "visible";
+    const runHydration = () => hydrateElement(el);
+
+    const strategy = StrategyRegistry[trigger];
+    if (strategy) {
+      strategy(el, runHydration);
+    } else {
+      StrategyRegistry.visible(el, runHydration);
     }
   });
 
@@ -219,8 +242,15 @@ export function generateTheme({
         }
 
         if (window.ReactDOM && window.React) {
-          const root = window.ReactDOM.createRoot(el);
-          root.render(window.React.createElement(Component, props));
+          const isClientOnly = el.hasAttribute("data-forgewp-client-only");
+          if (isClientOnly) {
+            // No SSR markup present: clean render
+            const root = window.ReactDOM.createRoot(el);
+            root.render(window.React.createElement(Component, props));
+          } else {
+            // Highly optimized hydration of server-side visual markup
+            window.ReactDOM.hydrateRoot(el, window.React.createElement(Component, props));
+          }
         } else {
           console.error("[ForgeWP Hydration Error] React or ReactDOM not found on window object.");
         }
