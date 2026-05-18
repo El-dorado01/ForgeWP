@@ -31,6 +31,36 @@ export function generateTheme({
 
   mkdirSync(outDir, { recursive: true });
 
+  // Gather compiled custom page templates for auto-creation
+  const pagesToAutoCreate = [];
+  const forgewpDir = path.join(themeRoot, ".forgewp");
+  if (existsSync(forgewpDir)) {
+    const templateFiles = readdirSync(forgewpDir);
+    for (const file of templateFiles) {
+      if (file.startsWith("template-") && file.endsWith(".html") && !file.includes("-head")) {
+        const slug = file.replace(".html", "");
+        const pageSlug = slug.replace("template-", "");
+        const templateName = pageSlug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        pagesToAutoCreate.push({
+          title: templateName,
+          slug: pageSlug,
+          template: `page-${pageSlug}.php`
+        });
+      }
+    }
+  }
+
+  // Load menus configuration for auto-registration and setup
+  let menus = {};
+  const menusJsonSrc = path.join(themeRoot, "wordpress", "menus.json");
+  if (existsSync(menusJsonSrc)) {
+    try {
+      menus = JSON.parse(readFileSync(menusJsonSrc, "utf8"));
+    } catch (e) {
+      console.warn("Failed to parse menus.json:", e.message);
+    }
+  }
+
   const assetsOut = path.join(outDir, "assets");
   const distAssets = path.join(themeRoot, "dist", "assets");
   mkdirSync(assetsOut, { recursive: true });
@@ -161,7 +191,7 @@ if (window.forgeWpBlocks) {
   writeFileSync(path.join(outDir, "style.css"), buildStyleCss(config), "utf8");
   writeFileSync(
     path.join(outDir, "functions.php"),
-    buildFunctionsPhp(config, assets, compiledBlocks, themeRoot),
+    buildFunctionsPhp(config, assets, compiledBlocks, themeRoot, pagesToAutoCreate, menus),
     "utf8",
   );
   writeFileSync(path.join(outDir, "header.php"), buildHeaderPhp(config), "utf8");
@@ -174,7 +204,6 @@ if (window.forgeWpBlocks) {
   writeFileSync(path.join(outDir, "page.php"), buildPagePhp(), "utf8");
 
   // Dynamic Custom Page Templates Compiler
-  const forgewpDir = path.join(themeRoot, ".forgewp");
   if (existsSync(forgewpDir)) {
     const templateFiles = readdirSync(forgewpDir);
     for (const file of templateFiles) {
@@ -418,7 +447,7 @@ Text Domain: ${config.textDomain}
  * @param {import('./types.js').ForgeWPThemeConfig} config
  * @param {import('./types.js').ForgeWPBuildAssets} assets
  */
-function buildFunctionsPhp(config, assets, blockSlugs = [], themeRoot = "") {
+function buildFunctionsPhp(config, assets, blockSlugs = [], themeRoot = "", pagesToAutoCreate = [], menus = {}) {
   const css = assets.cssFile.replace(/^assets\//, "");
   const version = config.version.replace(/'/g, "\\'");
   const googleFonts = config.settings?.typography?.googleFonts || [];
@@ -535,6 +564,129 @@ add_action('enqueue_block_editor_assets', 'forgewp_enqueue_block_editor_assets')
 `;
   }
 
+  let registerMenusPhp = "";
+  const menuLocations = Object.keys(menus).filter(k => !k.startsWith("_"));
+  if (menuLocations.length > 0) {
+    registerMenusPhp = `
+    // Register custom navigation menus from sitemap config
+    register_nav_menus(array(
+${menuLocations.map(loc => `        '${loc}' => __('${loc.charAt(0).toUpperCase() + loc.slice(1)} Navigation', '${config.textDomain}'),`).join("\n")}
+    ));`;
+  }
+
+  const pagesPhpArray = pagesToAutoCreate.map(p => {
+    return `        array(
+            'title'    => '${p.title.replace(/'/g, "\\'")}',
+            'slug'     => '${p.slug.replace(/'/g, "\\'")}',
+            'template' => '${p.template.replace(/'/g, "\\'")}',
+        )`;
+  }).join(",\n");
+
+  const menuItemsPhpArray = Object.entries(menus)
+    .filter(([loc]) => !loc.startsWith("_"))
+    .map(([loc, items]) => {
+      const itemsPhp = items.map(item => {
+        return `            array(
+                'title' => '${item.title.replace(/'/g, "\\'")}',
+                'url'   => '${item.url.replace(/'/g, "\\'")}',
+            )`;
+      }).join(",\n");
+      return `        '${loc}' => array(
+${itemsPhp}
+        )`;
+    }).join(",\n");
+
+  const autoCreationPhp = `
+/**
+ * Automatically create routes defined in menus.json and assign custom page templates upon theme activation.
+ */
+function forgewp_auto_create_pages_and_menus(): void {
+    $activated_option = '${config.textDomain}_activated_' . str_replace('.', '_', FORGEWP_THEME_VERSION);
+    if (get_option($activated_option) === 'yes') {
+        return;
+    }
+
+    $pages = array(
+${pagesPhpArray}
+    );
+
+    foreach ($pages as $p) {
+        $existing_page = get_page_by_path($p['slug']);
+        if (!$existing_page) {
+            $page_id = wp_insert_post(array(
+                'post_title'    => $p['title'],
+                'post_name'     => $p['slug'],
+                'post_status'   => 'publish',
+                'post_type'     => 'page',
+            ));
+            if (!is_wp_error($page_id) && $page_id > 0) {
+                update_post_meta($page_id, '_wp_page_template', $p['template']);
+            }
+        } else {
+            update_post_meta($existing_page->ID, '_wp_page_template', $p['template']);
+        }
+    }
+
+    $menu_structure = array(
+${menuItemsPhpArray}
+    );
+
+    foreach ($menu_structure as $location => $items) {
+        $menu_name = ucfirst($location) . ' Navigation';
+        $menu_exists = wp_get_nav_menu_object($menu_name);
+        
+        if (!$menu_exists) {
+            $menu_id = wp_create_nav_menu($menu_name);
+            if (!is_wp_error($menu_id)) {
+                $locations = get_theme_mod('nav_menu_locations');
+                if (!is_array($locations)) {
+                    $locations = array();
+                }
+                $locations[$location] = $menu_id;
+                set_theme_mod('nav_menu_locations', $locations);
+                
+                foreach ($items as $item) {
+                    $item_title = $item['title'];
+                    $item_url = $item['url'];
+                    
+                    $object_id = 0;
+                    $object_type = 'custom';
+                    $target_url = $item_url;
+                    
+                    if (strpos($item_url, '/') === 0) {
+                        $slug = trim($item_url, '/');
+                        if ($slug === '') {
+                            $target_url = home_url('/');
+                        } else {
+                            $page = get_page_by_path($slug);
+                            if ($page) {
+                                $object_id = $page->ID;
+                                $object_type = 'page';
+                                $target_url = get_permalink($page->ID);
+                            } else {
+                                $target_url = home_url($item_url);
+                            }
+                        }
+                    }
+                    
+                    wp_update_nav_menu_item($menu_id, 0, array(
+                        'menu-item-title'     => $item_title,
+                        'menu-item-url'       => $target_url,
+                        'menu-item-object-id' => $object_id,
+                        'menu-item-object'    => $object_type === 'page' ? 'page' : '',
+                        'menu-item-type'      => $object_type === 'page' ? 'post_type' : 'custom',
+                        'menu-item-status'    => 'publish',
+                    ));
+                }
+            }
+        }
+    }
+
+    update_option($activated_option, 'yes');
+}
+add_action('after_switch_theme', 'forgewp_auto_create_pages_and_menus');
+`;
+
   return `<?php
 /**
  * ${config.name} — generated by ForgeWP
@@ -579,9 +731,10 @@ function forgewp_theme_setup(): void {
 
     // Load compiled theme stylesheet inside Gutenberg Block Editor
     add_editor_style('assets/${css}');
+${registerMenusPhp}
 }
 add_action('after_setup_theme', 'forgewp_theme_setup');
-${preconnectFilter}${blocksRegistration}${cptRegistration}`;
+${preconnectFilter}${blocksRegistration}${cptRegistration}${autoCreationPhp}`;
 }
 
 function buildHeaderPhp(config) {

@@ -6,13 +6,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
 const packagesDir = path.join(root, "packages");
 
-// Set exact target versions to recover from npm version split-state
 const targetVersions = {
-  "compiler": "0.1.9",
-  "create-forgewp": "0.1.9",
-  "ui": "0.1.9",
-  "react": "0.1.1",
-  "starter": "0.1.2"
+  "compiler": "0.2.0",
+  "create-forgewp": "0.2.0",
+  "ui": "0.2.0",
+  "react": "0.2.0",
+  "starter": "0.2.0"
 };
 
 console.log("🚀 Setting precise aligned package versions...");
