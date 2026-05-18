@@ -59,3 +59,9 @@ export function exportTheme(options: {
 export function loadConfig(themeRoot: string): Promise<ForgeWPThemeConfig>;
 
 export function validateCriticalFiles(themeRoot: string): void;
+
+export function scanForHydrationIslands(themeRoot: string): string[];
+
+export function findComponentPath(themeRoot: string, kebabName: string): string | null;
+
+export function getHydrationRollupInputs(themeRoot: string): Record<string, string>;

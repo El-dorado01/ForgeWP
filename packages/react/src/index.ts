@@ -23,6 +23,9 @@ export type { WpMenuProps } from "./components/WpMenu";
 export { WpShortcode } from "./components/WpShortcode";
 export type { WpShortcodeProps } from "./components/WpShortcode";
 
+export { Hydrate } from "./components/Hydrate";
+export type { HydrateProps } from "./components/Hydrate";
+
 // Hooks
 export {
   useWpTitle,
