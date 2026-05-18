@@ -399,23 +399,17 @@ try {
   console.log(pc.red(`  ❌ Failed to reset src/app/page.tsx: err.message`));
 }
 
-// 6. Automatically Trigger Monorepo CLI Template Synchronization
-// If running inside the monorepo starter, sync the template as well!
+// 6. Automatically Trigger Monorepo CLI Template Synchronization Silently
+// If running inside the monorepo starter, sync the template as well in the background!
 const monorepoSyncScript = path.join(projectRoot, "..", "..", "scripts", "sync-cli-template.mjs");
 if (existsSync(monorepoSyncScript)) {
-  console.log(`\n📦 ${pc.bold("MONOREPO CONTEXT DETECTED")} — Syncing CLI Template...`);
   try {
-    const result = spawnSync("node", [monorepoSyncScript], {
-      stdio: "inherit",
+    spawnSync("node", [monorepoSyncScript], {
+      stdio: "ignore",
       shell: process.platform === "win32"
     });
-    if (result.status === 0) {
-      console.log(`\n🎉 ${pc.green("Successfully synced factory-fresh canvas directly to create-forgewp CLI template!")}`);
-    } else {
-      console.log(`\n⚠️  CLI sync template script returned non-zero status code: ${result.status}`);
-    }
   } catch (err) {
-    console.log(pc.red(`\n❌ Failed to sync CLI template: ${err.message}`));
+    // Fail silently in development background sync
   }
 }
 
