@@ -421,7 +421,12 @@ if (existsSync(monorepoSyncScript)) {
 
 console.log("\n" + "─".repeat(60));
 console.log(pc.green(`\n🎉 ${pc.bold("CANVAS RESET COMPLETE:")} Reverted workspace back to standard empty blueprints.`));
-console.log(pc.cyan("   Your ForgeWP canvas is now factory-fresh, clean, and perfectly synced!\n"));
+console.log(pc.cyan(`   Your ForgeWP canvas is now factory-fresh, clean, and perfectly synced.`));
+console.log(`\n🚀 ${pc.bold("NEXT STEPS:")}`);
+console.log(`   1. Start the Vite Dev Server:    ${pc.cyan("pnpm dev")} or ${pc.cyan("npm run dev")}`);
+console.log(`   2. Add dynamic UI components:    ${pc.cyan("pnpm forgewp add fade-reveal")}`);
+console.log(`   3. Customize your entry page:    ${pc.cyan("src/app/page.tsx")}`);
+console.log(`   4. Compile to WordPress theme:  ${pc.cyan("pnpm export")} or ${pc.cyan("npm run export")}\n`);
 }
 
 function hasWorkBeenDone() {
