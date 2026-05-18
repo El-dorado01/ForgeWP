@@ -1,5 +1,6 @@
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { scanForHydrationIslands } from "./hydration-scanner.js";
 
 /**
  * @param {Object} options
@@ -108,16 +109,142 @@ export function generateTheme({
     }
   }
 
+  const hydrationIslands = scanForHydrationIslands(themeRoot);
+  const hasHydration = hydrationIslands.length > 0;
+
   const assetsOut = path.join(outDir, "assets");
   const distAssets = path.join(themeRoot, "dist", "assets");
   mkdirSync(assetsOut, { recursive: true });
   cpSync(distAssets, assetsOut, { recursive: true });
 
+  let hydrationManifestJson = "{}";
+  if (hasHydration) {
+    const manifestPath = path.join(themeRoot, "dist", ".vite", "manifest.json");
+    let viteManifest = {};
+    if (existsSync(manifestPath)) {
+      try {
+        viteManifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+      } catch (e) {
+        console.warn("Failed to parse Vite manifest.json:", e.message);
+      }
+    }
+
+    const mapping = {};
+    let mainJsFile = "";
+    const entryChunk = viteManifest["index.html"] || Object.values(viteManifest).find(c => c.isEntry);
+    if (entryChunk) {
+      mainJsFile = entryChunk.file;
+    }
+
+    for (const island of hydrationIslands) {
+      const pascalName = island
+        .split("-")
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join("");
+
+      let resolvedChunk = null;
+      for (const [key, value] of Object.entries(viteManifest)) {
+        if (
+          key.endsWith(`${pascalName}.tsx`) || 
+          key.endsWith(`${pascalName}.ts`) || 
+          key.endsWith(`${island}.tsx`) || 
+          key.endsWith(`${island}.ts`) ||
+          (value.file && value.file.includes(island))
+        ) {
+          resolvedChunk = value.file;
+          break;
+        }
+      }
+
+      if (resolvedChunk) {
+        mapping[island] = resolvedChunk;
+      }
+    }
+
+    const hydratorScript = `(function () {
+  const config = window.forgeWpHydration || { themeUri: "", manifest: {} };
+  const islands = document.querySelectorAll("[data-forgewp-hydrate]");
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        hydrateElement(entry.target);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { rootMargin: "200px" });
+
+  islands.forEach((el) => {
+    const trigger = el.getAttribute("data-forgewp-trigger");
+    if (trigger === "load") {
+      if (document.readyState === "complete") {
+        hydrateElement(el);
+      } else {
+        window.addEventListener("load", () => hydrateElement(el));
+      }
+    } else if (trigger === "visible") {
+      observer.observe(el);
+    } else if (trigger === "interaction") {
+      const run = () => {
+        hydrateElement(el);
+        el.removeEventListener("click", run);
+        el.removeEventListener("mouseenter", run);
+        el.removeEventListener("focusin", run);
+      };
+      el.addEventListener("click", run);
+      el.addEventListener("mouseenter", run);
+      el.addEventListener("focusin", run);
+    }
+  });
+
+  function hydrateElement(el) {
+    const islandName = el.getAttribute("data-forgewp-hydrate");
+    const rawProps = el.getAttribute("data-forgewp-props") || "{}";
+    const props = JSON.parse(rawProps);
+
+    const chunkPath = config.manifest[islandName];
+    if (!chunkPath) {
+      console.error("[ForgeWP Hydrator] Could not find compiled chunk for island " + islandName);
+      return;
+    }
+
+    const scriptUrl = config.themeUri + "/assets/" + chunkPath.replace(/^assets\\//, "").replace(/^assets\\/, "");
+
+    import(scriptUrl)
+      .then((module) => {
+        const Component = module.default || Object.values(module)[0];
+        if (typeof Component !== "function") {
+          console.error("[ForgeWP Hydrator] Chunk for " + islandName + " does not export a valid React component");
+          return;
+        }
+
+        if (window.ReactDOM && window.React) {
+          const root = window.ReactDOM.createRoot(el);
+          root.render(window.React.createElement(Component, props));
+        } else {
+          console.error("[ForgeWP Hydration Error] React or ReactDOM not found on window object.");
+        }
+      })
+      .catch((err) => {
+        console.error("[ForgeWP Hydrator] Failed to load chunk for " + islandName + ":", err);
+      });
+  }
+})();`;
+
+    writeFileSync(path.join(assetsOut, "forgewp-hydrator.js"), hydratorScript, "utf8");
+    hydrationManifestJson = JSON.stringify({
+      mainJsFile,
+      mapping
+    });
+  }
+
   // Drop unused JS from the theme ZIP
   const files = readdirSync(assetsOut);
   for (const file of files) {
-    if ((file.endsWith(".js") || file.endsWith(".js.map")) && file !== "forgewp-editor.js") {
-      rmSync(path.join(assetsOut, file), { force: true });
+    if ((file.endsWith(".js") || file.endsWith(".js.map")) && file !== "forgewp-editor.js" && file !== "forgewp-hydrator.js") {
+      if (!hasHydration) {
+        rmSync(path.join(assetsOut, file), { force: true });
+      }
     }
   }
 
@@ -236,9 +363,17 @@ if (window.forgeWpBlocks) {
   writeFileSync(path.join(outDir, "assets", "forgewp-editor.js"), editorScriptContent, "utf8");
 
   writeFileSync(path.join(outDir, "style.css"), buildStyleCss(config), "utf8");
+
+  let hydrationData = null;
+  if (hasHydration) {
+    try {
+      hydrationData = JSON.parse(hydrationManifestJson);
+    } catch {}
+  }
+
   writeFileSync(
     path.join(outDir, "functions.php"),
-    buildFunctionsPhp(config, assets, compiledBlocks, themeRoot, pagesToAutoCreate, menus),
+    buildFunctionsPhp(config, assets, compiledBlocks, themeRoot, pagesToAutoCreate, menus, hydrationData),
     "utf8",
   );
   writeFileSync(path.join(outDir, "header.php"), buildHeaderPhp(config), "utf8");
@@ -494,7 +629,7 @@ Text Domain: ${config.textDomain}
  * @param {import('./types.js').ForgeWPThemeConfig} config
  * @param {import('./types.js').ForgeWPBuildAssets} assets
  */
-function buildFunctionsPhp(config, assets, blockSlugs = [], themeRoot = "", pagesToAutoCreate = [], menus = {}) {
+function buildFunctionsPhp(config, assets, blockSlugs = [], themeRoot = "", pagesToAutoCreate = [], menus = {}, hydrationData = null) {
   const css = assets.cssFile.replace(/^assets\//, "");
   const version = config.version.replace(/'/g, "\\'");
   const googleFonts = config.settings?.typography?.googleFonts || [];
@@ -734,6 +869,49 @@ ${menuItemsPhpArray}
 add_action('after_switch_theme', 'forgewp_auto_create_pages_and_menus');
 `;
 
+  let hydrationEnqueue = "";
+  if (hydrationData && hydrationData.mapping) {
+    const mainJs = hydrationData.mainJsFile.replace(/^assets\//, "").replace(/^assets\\/, "");
+    const manifestPairs = Object.entries(hydrationData.mapping).map(([key, val]) => {
+      const cleanVal = val.replace(/^assets\//, "").replace(/^assets\\/, "");
+      return `                    '${key}' => 'assets/${cleanVal}'`;
+    }).join(",\n");
+
+    hydrationEnqueue = `
+    // Enqueue React runtime entrypoint and dynamic Selective Hydration assets
+    $js_path = get_template_directory() . '/assets/${mainJs}';
+    if (file_exists($js_path)) {
+        wp_enqueue_script(
+            '${config.textDomain}-react-runtime',
+            $theme_uri . '/assets/${mainJs}',
+            array(),
+            FORGEWP_THEME_VERSION,
+            true
+        );
+
+        // Inject hydration manifest mappings dynamically
+        wp_localize_script(
+            '${config.textDomain}-react-runtime',
+            'forgeWpHydration',
+            array(
+                'themeUri' => $theme_uri,
+                'manifest' => array(
+${manifestPairs}
+                )
+            )
+        );
+
+        // Enqueue Micro-Hydrator orchestrator script
+        wp_enqueue_script(
+            '${config.textDomain}-hydrator',
+            $theme_uri . '/assets/forgewp-hydrator.js',
+            array('${config.textDomain}-react-runtime'),
+            FORGEWP_THEME_VERSION,
+            true
+        );
+    }`;
+  }
+
   return `<?php
 /**
  * ${config.name} — generated by ForgeWP
@@ -763,6 +941,7 @@ ${fontsEnqueue}
             FORGEWP_THEME_VERSION
         );
     }
+${hydrationEnqueue}
 }
 add_action('wp_enqueue_scripts', 'forgewp_enqueue_assets');
 
