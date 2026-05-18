@@ -68,6 +68,50 @@ export function scanForHydrationIslands(themeRoot) {
     }
   }
 
+  // 3. Smart Component Discovery: scan src/components/ for interactive/animated components
+  const compDir = path.join(themeRoot, "src", "components");
+  const interactiveComponents = new Set();
+
+  function scanComponentsRecursive(dir) {
+    if (!existsSync(dir)) return;
+    try {
+      const items = readdirSync(dir, { withFileTypes: true });
+      for (const item of items) {
+        const fullPath = path.join(dir, item.name);
+        if (item.isDirectory()) {
+          scanComponentsRecursive(fullPath);
+        } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+          try {
+            const fileContent = readFileSync(fullPath, "utf8");
+            const hasState = fileContent.includes("useState") || fileContent.includes("useEffect") || fileContent.includes("useRef");
+            const hasMotion = fileContent.includes("framer-motion") || fileContent.includes("gsap") || fileContent.includes("animate") || fileContent.includes("motion.");
+            if (hasState || hasMotion) {
+              const compName = path.basename(item.name, path.extname(item.name));
+              interactiveComponents.add(compName);
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  scanComponentsRecursive(compDir);
+
+  for (const filePath of filesToScan) {
+    try {
+      const content = readFileSync(filePath, "utf8");
+      for (const compName of interactiveComponents) {
+        if (content.includes(`<${compName}`)) {
+          const kebabName = compName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+          if (!islands.has(kebabName)) {
+            islands.add(kebabName);
+            console.log(`\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected "${compName}" uses interactive hooks/animations. Auto-enforcing code-splitting chunk. Wrap it in <Hydrate> in page markup for dynamic browser activation!\x1b[0m`);
+          }
+        }
+      }
+    } catch {}
+  }
+
   return Array.from(islands);
 }
 

@@ -7,7 +7,7 @@ export interface HydrateProps {
    * - 'visible': Hydrates lazily when the component enters the viewport.
    * - 'interaction': Hydrates only when a click, hover, or focus event occurs.
    */
-  trigger: "load" | "visible" | "interaction";
+  trigger?: "load" | "visible" | "interaction";
   /**
    * Optional custom bundle identifier. If omitted, ForgeWP automatically
    * resolves the dynamic chunk name using the child's Component name in kebab-case.
@@ -19,7 +19,7 @@ export interface HydrateProps {
   children: React.ReactElement;
 }
 
-export function Hydrate({ trigger, id, children }: HydrateProps) {
+export function Hydrate({ trigger = "visible", id, children }: HydrateProps) {
   // Enforce single children constraint
   if (!children || typeof children !== "object") {
     return null;
