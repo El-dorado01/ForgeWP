@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
+import readline from "node:readline";
 import pc from "picocolors";
 
 export async function addComponent(component, options) {
@@ -35,7 +36,7 @@ export async function addComponent(component, options) {
     writeFileSync(targetFile, content, "utf8");
     
     // Auto-detect and install missing third-party dependencies from imported component files
-    autoInstallMissingDependencies(targetFile, projectRoot);
+    await autoInstallMissingDependencies(targetFile, projectRoot);
 
     if (style === "forgewp") {
       sharpenFile(targetFile);
@@ -120,73 +121,111 @@ function sharpenFile(filePath) {
 }
 
 function autoInstallMissingDependencies(filePath, projectRoot) {
-  const content = readFileSync(filePath, "utf8");
-  
-  // Find all import statements
-  const importRegex = /import\s+(?:[a-zA-Z0-9_*$,{}\s]+from\s+)?['"]([^'"]+)['"]/g;
-  const foundImports = new Set();
-  let match;
-  
-  while ((match = importRegex.exec(content)) !== null) {
-    const importPath = match[1];
-    // Filter out local imports, React, and standard framework packages
-    if (
-      !importPath.startsWith(".") &&
-      !importPath.startsWith("/") &&
-      importPath !== "react" &&
-      importPath !== "react-dom" &&
-      importPath !== "@forgewp/react"
-    ) {
-      // Extract the base package name (e.g. framer-motion or @radix-ui/react-slot)
-      let basePkg = importPath;
-      if (importPath.startsWith("@")) {
-        const parts = importPath.split("/");
-        basePkg = `${parts[0]}/${parts[1]}`;
-      } else {
-        basePkg = importPath.split("/")[0];
+  return new Promise((resolve) => {
+    const content = readFileSync(filePath, "utf8");
+    
+    // Find all import statements
+    const importRegex = /import\s+(?:[a-zA-Z0-9_*$,{}\s]+from\s+)?['"]([^'"]+)['"]/g;
+    const foundImports = new Set();
+    let match;
+    
+    while ((match = importRegex.exec(content)) !== null) {
+      const importPath = match[1];
+      // Filter out local imports, React, and standard framework packages
+      if (
+        !importPath.startsWith(".") &&
+        !importPath.startsWith("/") &&
+        importPath !== "react" &&
+        importPath !== "react-dom" &&
+        importPath !== "@forgewp/react"
+      ) {
+        // Extract the base package name (e.g. framer-motion or @radix-ui/react-slot)
+        let basePkg = importPath;
+        if (importPath.startsWith("@")) {
+          const parts = importPath.split("/");
+          basePkg = `${parts[0]}/${parts[1]}`;
+        } else {
+          basePkg = importPath.split("/")[0];
+        }
+        foundImports.add(basePkg);
       }
-      foundImports.add(basePkg);
-    }
-  }
-
-  if (foundImports.size === 0) return;
-
-  const pkgJsonPath = path.join(projectRoot, "package.json");
-  if (!existsSync(pkgJsonPath)) return;
-
-  const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
-  const currentDeps = {
-    ...(pkg.dependencies || {}),
-    ...(pkg.devDependencies || {})
-  };
-
-  const missingDeps = Array.from(foundImports).filter(dep => !currentDeps[dep]);
-
-  if (missingDeps.length > 0) {
-    console.log(pc.yellow(`\n  ⚡ Detected missing dependencies: ${missingDeps.join(", ")}`));
-    console.log(pc.dim("  Automatically installing dependencies..."));
-
-    // Detect Package Manager
-    let installCmd = "npm install --save";
-    if (existsSync(path.join(projectRoot, "pnpm-lock.yaml"))) {
-      installCmd = "pnpm add";
-    } else if (existsSync(path.join(projectRoot, "yarn.lock"))) {
-      installCmd = "yarn add";
-    } else if (existsSync(path.join(projectRoot, "bun.lockb"))) {
-      installCmd = "bun add";
     }
 
-    try {
-      execSync(`${installCmd} ${missingDeps.join(" ")}`, {
-        stdio: "inherit",
-        cwd: projectRoot,
-        shell: process.platform === "win32"
+    if (foundImports.size === 0) {
+      resolve();
+      return;
+    }
+
+    const pkgJsonPath = path.join(projectRoot, "package.json");
+    if (!existsSync(pkgJsonPath)) {
+      resolve();
+      return;
+    }
+
+    const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
+    const currentDeps = {
+      ...(pkg.dependencies || {}),
+      ...(pkg.devDependencies || {})
+    };
+
+    const missingDeps = Array.from(foundImports).filter(dep => !currentDeps[dep]);
+
+    if (missingDeps.length > 0) {
+      console.log(pc.yellow(`\n  ⚡ Detected missing dependencies: ${missingDeps.join(", ")}`));
+
+      // Detect Package Manager
+      let installCmd = "npm install --save";
+      let managerName = "npm";
+      if (existsSync(path.join(projectRoot, "pnpm-lock.yaml"))) {
+        installCmd = "pnpm add";
+        managerName = "pnpm";
+      } else if (existsSync(path.join(projectRoot, "yarn.lock"))) {
+        installCmd = "yarn add";
+        managerName = "yarn";
+      } else if (existsSync(path.join(projectRoot, "bun.lockb"))) {
+        installCmd = "bun add";
+        managerName = "bun";
+      }
+
+      // Check if environment is interactive
+      if (!process.stdin.isTTY) {
+        console.log(pc.dim(`  Non-interactive environment detected. Skipping auto-install.`));
+        console.log(pc.yellow(`  Please manually install: ${installCmd} ${missingDeps.join(" ")}\n`));
+        resolve();
+        return;
+      }
+
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
       });
-      console.log(pc.green(`  ✅ Successfully installed: ${missingDeps.join(", ")}\n`));
-    } catch (err) {
-      console.log(pc.red(`  ❌ Auto-installation failed: ${err.message}`));
-      console.log(pc.yellow(`  Please manually install: ${missingDeps.join(", ")}`));
+
+      rl.question(`  ? Would you like to install them via ${pc.bold(managerName)}? (Y/n): `, (answer) => {
+        rl.close();
+        const confirmed = answer.trim().toLowerCase() !== "n";
+        
+        if (confirmed) {
+          console.log(pc.dim("  Automatically installing dependencies..."));
+          try {
+            execSync(`${installCmd} ${missingDeps.join(" ")}`, {
+              stdio: "inherit",
+              cwd: projectRoot,
+              shell: process.platform === "win32"
+            });
+            console.log(pc.green(`  ✅ Successfully installed: ${missingDeps.join(", ")}\n`));
+          } catch (err) {
+            console.log(pc.red(`  ❌ Auto-installation failed: ${err.message}`));
+            console.log(pc.yellow(`  Please manually install: ${installCmd} ${missingDeps.join(" ")}\n`));
+          }
+        } else {
+          console.log(pc.blue("  Skipped installation."));
+          console.log(pc.yellow(`  Please manually install: ${installCmd} ${missingDeps.join(" ")}\n`));
+        }
+        resolve();
+      });
+    } else {
+      resolve();
     }
-  }
+  });
 }
 
