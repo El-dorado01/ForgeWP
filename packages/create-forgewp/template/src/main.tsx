@@ -1,25 +1,31 @@
+import * as React from "react";
+import * as ReactDOM from "react-dom/client";
 import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
 import { HelmetProvider } from "react-helmet-async";
 import { Router } from "wouter";
 import RootLayout from "./app/layout";
 import AppRoutes from "./app/routes";
 import "./app/globals.css";
 
-const root = document.getElementById("root");
-
-if (!root) {
-  throw new Error("Root element #root not found");
+// Expose React and ReactDOM globally for dynamic hydration runtime
+if (typeof window !== "undefined") {
+  (window as any).React = React;
+  (window as any).ReactDOM = ReactDOM;
 }
 
-createRoot(root).render(
-  <StrictMode>
-    <HelmetProvider>
-      <Router>
-        <RootLayout>
-          <AppRoutes />
-        </RootLayout>
-      </Router>
-    </HelmetProvider>
-  </StrictMode>,
-);
+const root = document.getElementById("root");
+
+if (root) {
+  ReactDOM.createRoot(root).render(
+    <StrictMode>
+      <HelmetProvider>
+        <Router>
+          <RootLayout>
+            <AppRoutes />
+          </RootLayout>
+        </Router>
+      </HelmetProvider>
+    </StrictMode>,
+  );
+}
+

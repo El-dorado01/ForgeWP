@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type PluginOption } from "vite";
-import { validateCriticalFiles } from "@forgewp/compiler";
+import { validateCriticalFiles, getHydrationRollupInputs } from "@forgewp/compiler";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,5 +48,8 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     manifest: true,
+    rollupOptions: {
+      input: getHydrationRollupInputs(__dirname),
+    },
   },
 });
