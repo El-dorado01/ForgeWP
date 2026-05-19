@@ -42,6 +42,8 @@ The ForgeWP ecosystem consists of three core pillars:
 | **`add`** | Add shadcn or registry elements. | `pnpm forgewp add navbar` |
 | **`export`** | Compile and package into production ZIP. | `pnpm forgewp export` |
 
+Note: The export command supports `--validate` to run post-export validation and `--strict` to treat warnings as failures.
+
 ---
 
 ## 📄 License

@@ -87,6 +87,10 @@ async function main() {
       zip: options.zip,
       validate: options.validate,
       strict: options.strict,
+      onProgress: (evt) => {
+        // Minimal CLI progress line (stage label)
+        console.log(pc.dim(`  [${evt.stage}] ${evt.message}`));
+      },
     });
 
     console.log(pc.green("\n  Export complete\n"));

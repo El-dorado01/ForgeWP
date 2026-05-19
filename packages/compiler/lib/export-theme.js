@@ -24,19 +24,32 @@ export async function exportTheme(options) {
 
   const config = await loadConfig(themeRoot);
 
+  function report(stage, message, level = 'dim') {
+    if (options.onProgress && typeof options.onProgress === 'function') {
+      try {
+        options.onProgress({ stage, message });
+      } catch (e) {
+        // swallow errors from callbacks
+      }
+    }
+    const fn = level === 'dim' ? pc.dim : level === 'yellow' ? pc.yellow : level === 'red' ? pc.red : level === 'green' ? pc.green : pc.white;
+    console.log(fn(`  ${message}`));
+  }
+
   console.log(pc.cyan(`\n  ForgeWP export — ${config.name}\n`));
 
+  report('build', options.skipBuild ? 'Using existing build (skipBuild)' : 'Building assets with Vite…');
   const assets = options.skipBuild
     ? (await import("./build-assets.js")).readBuildManifest(themeRoot)
     : buildAssets(themeRoot, { packageManager: options.packageManager });
 
-  console.log(pc.dim("  Rendering React app to static HTML…"));
+  report('render', 'Rendering React app to static HTML…');
   const markup = await renderStaticMarkup(themeRoot);
 
   const outDir = path.join(themeRoot, ".forgewp", "out", config.slug);
   const zipPath = path.join(themeRoot, ".forgewp", `${config.slug}.zip`);
 
-  console.log(pc.dim("  Generating WordPress theme files…"));
+  report('generate', 'Generating WordPress theme files…');
   generateTheme({
     themeRoot,
     outDir,
@@ -54,27 +67,28 @@ export async function exportTheme(options) {
 
   // Optional export validation
   if (options.validate) {
-    console.log(pc.dim('  Validating exported theme package…'));
+    report('validate', 'Validating exported theme package…');
     const validation = await validateExport({ themeRoot, outDir, assets, config, strict: !!options.strict });
 
     if (validation.warnings && validation.warnings.length > 0) {
-      console.log(pc.yellow('  Validation warnings:'));
-      for (const w of validation.warnings) console.log(pc.dim('   - ' + w));
+      report('validate-warnings', 'Validation warnings:', 'yellow');
+      for (const w of validation.warnings) report('validate-warnings-item', ' - ' + w, 'dim');
     }
 
     if (validation.missing && validation.missing.length > 0) {
-      console.log(pc.red('  Validation failed — missing files:'));
-      for (const m of validation.missing) console.log(pc.dim('   - ' + m));
+      report('validate-failed', 'Validation failed — missing files:', 'red');
+      for (const m of validation.missing) report('validate-failed-item', ' - ' + m, 'dim');
       throw new Error('Export validation failed — missing required files or assets');
     }
 
-    console.log(pc.green('  Validation passed'));
+    report('validate-passed', 'Validation passed', 'green');
   }
 
   if (options.zip !== false) {
-    console.log(pc.dim("  Creating ZIP…"));
+    report('zip', 'Creating ZIP…');
     await zipTheme(outDir, zipPath);
     assertZipCreated(zipPath);
+    report('zip-done', 'ZIP created', 'green');
   }
 
   return { config, outDir, zipPath: options.zip !== false ? zipPath : null, assets };
