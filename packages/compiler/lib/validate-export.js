@@ -68,6 +68,58 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
       if (!fs.existsSync(assetPath)) summary.missing.push(assetPath.replace(process.cwd() + path.sep, ''));
     }
 
+    const hydrationManifestCandidates = [
+      path.join(themeRoot, 'dist', '.vite', 'manifest.json'),
+      path.join(themeRoot, 'dist', 'manifest.json'),
+    ];
+    const hydrationManifestPath = hydrationManifestCandidates.find((candidate) => fs.existsSync(candidate));
+    let viteManifest = null;
+
+    if (islands.length > 0) {
+      if (!hydrationManifestPath) {
+        summary.missing.push('dist/.vite/manifest.json');
+      } else {
+        try {
+          viteManifest = JSON.parse(fs.readFileSync(hydrationManifestPath, 'utf8'));
+        } catch (err) {
+          summary.missing.push(`${hydrationManifestPath.replace(process.cwd() + path.sep, '')} (invalid JSON)`);
+        }
+      }
+    }
+
+    if (viteManifest && islands.length > 0) {
+      for (const island of islands) {
+        const pascalName = island
+          .split('-')
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join('');
+
+        let resolvedChunk = null;
+        for (const [key, value] of Object.entries(viteManifest)) {
+          if (
+            key.endsWith(`${pascalName}.tsx`) ||
+            key.endsWith(`${pascalName}.ts`) ||
+            key.endsWith(`${island}.tsx`) ||
+            key.endsWith(`${island}.ts`) ||
+            (value.file && value.file.includes(island))
+          ) {
+            resolvedChunk = value.file;
+            break;
+          }
+        }
+
+        if (!resolvedChunk) {
+          summary.missing.push(`hydration asset for ${island}`);
+          continue;
+        }
+
+        const assetFile = path.join(assetsDir, path.basename(resolvedChunk));
+        if (!fs.existsSync(assetFile)) {
+          summary.missing.push(assetFile.replace(process.cwd() + path.sep, ''));
+        }
+      }
+    }
+
     // functions.php should reference compiled assets when present
     const functionsPhpPath = path.join(outDir, 'functions.php');
     if (fs.existsSync(functionsPhpPath)) {
@@ -75,6 +127,7 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
       if (assets?.cssFile && !functionsPhp.includes(path.basename(assets.cssFile))) summary.warnings.push(`${functionsPhpPath.replace(process.cwd() + path.sep, '')} (missing CSS asset reference)`);
       if (islands.length > 0 && assets?.jsFile && !functionsPhp.includes(path.basename(assets.jsFile))) summary.warnings.push(`${functionsPhpPath.replace(process.cwd() + path.sep, '')} (missing JS asset reference)`);
       if (islands.length > 0 && !functionsPhp.includes('forgewp-hydrator.js')) summary.warnings.push(`${functionsPhpPath.replace(process.cwd() + path.sep, '')} (missing forgewp-hydrator enqueue)`);
+      if (islands.length > 0 && !functionsPhp.includes('forgeWpHydration')) summary.warnings.push(`${functionsPhpPath.replace(process.cwd() + path.sep, '')} (missing hydration manifest localization)`);
     }
   }
 

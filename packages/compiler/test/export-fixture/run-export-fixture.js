@@ -33,6 +33,7 @@ async function main() {
       themeRoot: starterPath,
       skipBuild: true,
       zip: false,
+      validate: true,
       packageManager: 'pnpm',
     });
 

@@ -127,11 +127,13 @@ export function generateTheme({
       } catch (e) {
         console.warn("Failed to parse Vite manifest.json:", e.message);
       }
+    } else {
+      console.warn("Hydration manifest not found at dist/.vite/manifest.json. Hydration asset generation may be incomplete.");
     }
 
     const mapping = {};
     let mainJsFile = "";
-    const entryChunk = viteManifest["index.html"] || Object.values(viteManifest).find(c => c.isEntry);
+    const entryChunk = viteManifest["index.html"] || Object.values(viteManifest).find((c) => c.isEntry);
     if (entryChunk) {
       mainJsFile = entryChunk.file;
     }
@@ -139,15 +141,15 @@ export function generateTheme({
     for (const island of hydrationIslands) {
       const pascalName = island
         .split("-")
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join("");
 
       let resolvedChunk = null;
       for (const [key, value] of Object.entries(viteManifest)) {
         if (
-          key.endsWith(`${pascalName}.tsx`) || 
-          key.endsWith(`${pascalName}.ts`) || 
-          key.endsWith(`${island}.tsx`) || 
+          key.endsWith(`${pascalName}.tsx`) ||
+          key.endsWith(`${pascalName}.ts`) ||
+          key.endsWith(`${island}.tsx`) ||
           key.endsWith(`${island}.ts`) ||
           (value.file && value.file.includes(island))
         ) {
@@ -159,6 +161,20 @@ export function generateTheme({
       if (resolvedChunk) {
         mapping[island] = resolvedChunk;
       }
+    }
+
+    if (!mainJsFile) {
+      throw new Error(
+        "Hydration generation failed: could not resolve the React runtime entry chunk. Ensure Vite emitted a valid manifest and the theme entry is present."
+      );
+    }
+
+    const missingIslands = hydrationIslands.filter((island) => !(island in mapping));
+    if (missingIslands.length > 0) {
+      throw new Error(
+        `Hydration generation failed: missing compiled chunk for island(s): ${missingIslands.join(", ")}. ` +
+        "Verify the Hydrate component children and the corresponding Vite input files."
+      );
     }
 
     const hydratorScript = `(function () {
