@@ -238,12 +238,26 @@ export function generateTheme({
 
   function hydrateElement(el) {
     const islandName = el.getAttribute("data-forgewp-hydrate");
-    const rawProps = el.getAttribute("data-forgewp-props") || "{}";
-    const props = JSON.parse(rawProps);
+    if (!islandName) {
+      console.error("[ForgeWP Hydrator] Missing data-forgewp-hydrate attribute on hydration boundary.");
+      return;
+    }
 
-    const chunkPath = config.manifest[islandName];
+    const rawProps = el.getAttribute("data-forgewp-props") || "{}";
+    let props = {};
+    try {
+      props = JSON.parse(rawProps);
+    } catch (err) {
+      console.error("[ForgeWP Hydrator] Failed to parse props for island " + islandName + ":", err);
+    }
+
+    const chunkPath = config.manifest?.[islandName];
     if (!chunkPath) {
-      console.error("[ForgeWP Hydrator] Could not find compiled chunk for island " + islandName);
+      const available = config.manifest ? Object.keys(config.manifest).join(", ") : "<none>";
+      console.error(
+        "[ForgeWP Hydrator] Could not find compiled chunk for island " + islandName + ". " +
+        "Available manifest keys: " + available
+      );
       return;
     }
 
@@ -253,7 +267,11 @@ export function generateTheme({
       .then((module) => {
         const Component = module.default || Object.values(module)[0];
         if (typeof Component !== "function") {
-          console.error("[ForgeWP Hydrator] Chunk for " + islandName + " does not export a valid React component");
+          const exportsList = Object.keys(module).join(", ");
+          console.error(
+            "[ForgeWP Hydrator] Chunk for " + islandName + " does not export a valid React component. " +
+            "Available exports: " + exportsList
+          );
           return;
         }
 

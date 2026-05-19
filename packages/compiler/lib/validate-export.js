@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { scanForHydrationIslands } from './hydration-scanner.js';
 
 /**
  * Validate exported theme package output.
@@ -51,13 +52,7 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
     if (assets?.cssFile) expectedAssets.push(path.join(assetsDir, path.basename(assets.cssFile)));
 
     // Hydration-related expectations
-    let islands = [];
-    try {
-      const mod = await import('./index.js');
-      if (mod?.scanForHydrationIslands) islands = mod.scanForHydrationIslands(themeRoot) || [];
-    } catch (e) {
-      islands = [];
-    }
+    const islands = scanForHydrationIslands(themeRoot);
 
     if (islands.length > 0 && assets?.jsFile) {
       expectedAssets.push(path.join(assetsDir, path.basename(assets.jsFile)));

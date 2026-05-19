@@ -33,18 +33,18 @@ export function Hydrate({ trigger = "visible", id, clientOnly = false, children 
 
   // Resolve component name automatically
   const type = children.type as any;
-  const componentName = id || type?.displayName || type?.name;
+  const inferredName = type?.displayName || type?.name;
+  const componentName = id || inferredName;
 
   if (!componentName) {
     console.warn(
-      "ForgeWP <Hydrate> warning: Direct child must be a named React component to resolve bundle name automatically, or provide an explicit 'id' prop."
+      "ForgeWP <Hydrate> warning: Unable to infer a chunk identifier for the hydrated component. " +
+      "Provide an explicit `id` prop or wrap a named React component so the compiler can resolve the chunk name."
     );
   }
 
-  // Format to clean kebab-case chunk name
-  const kebabName = componentName
-    ? componentName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()
-    : "dynamic-island";
+  const resolvedName = componentName ?? "dynamic-island";
+  const kebabName = resolvedName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 
   // Serialize initial props so the client Micro-Hydrator can supply them upon dynamic import mount
   const propsData = children.props ? JSON.stringify(children.props) : "{}";
