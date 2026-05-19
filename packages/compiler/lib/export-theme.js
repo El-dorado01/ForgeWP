@@ -7,6 +7,7 @@ import { renderStaticMarkup } from "./render-static.js";
 import { assertZipCreated, zipTheme } from "./zip-theme.js";
 
 import { validateCriticalFiles } from "./validate.js";
+import { validateExport } from "./validate-export.js";
 
 /**
  * @param {Object} options
@@ -50,6 +51,25 @@ export async function exportTheme(options) {
     archiveHtml: markup.archiveHtml,
     assets,
   });
+
+  // Optional export validation
+  if (options.validate) {
+    console.log(pc.dim('  Validating exported theme package…'));
+    const validation = await validateExport({ themeRoot, outDir, assets, config, strict: !!options.strict });
+
+    if (validation.warnings && validation.warnings.length > 0) {
+      console.log(pc.yellow('  Validation warnings:'));
+      for (const w of validation.warnings) console.log(pc.dim('   - ' + w));
+    }
+
+    if (validation.missing && validation.missing.length > 0) {
+      console.log(pc.red('  Validation failed — missing files:'));
+      for (const m of validation.missing) console.log(pc.dim('   - ' + m));
+      throw new Error('Export validation failed — missing required files or assets');
+    }
+
+    console.log(pc.green('  Validation passed'));
+  }
 
   if (options.zip !== false) {
     console.log(pc.dim("  Creating ZIP…"));

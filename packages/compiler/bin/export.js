@@ -12,6 +12,8 @@ Usage: forgewp-export [options] [theme-directory]
 Options:
   --skip-build    Use existing dist/ (skip Vite build)
   --no-zip        Output folder only, no ZIP file
+  --validate      Run export validation checks after generation
+  --strict        Treat validation warnings as failures
   -h, --help      Show help
 
 Examples:
@@ -26,6 +28,8 @@ function parseArgs(argv) {
     themeRoot: cwd(),
     skipBuild: false,
     zip: true,
+    validate: false,
+    strict: false,
     help: false,
   };
 
@@ -44,6 +48,16 @@ function parseArgs(argv) {
 
     if (arg === "--no-zip") {
       options.zip = false;
+      continue;
+    }
+
+    if (arg === "--validate") {
+      options.validate = true;
+      continue;
+    }
+
+    if (arg === "--strict") {
+      options.strict = true;
       continue;
     }
 
@@ -71,6 +85,8 @@ async function main() {
       themeRoot: options.themeRoot,
       skipBuild: options.skipBuild,
       zip: options.zip,
+      validate: options.validate,
+      strict: options.strict,
     });
 
     console.log(pc.green("\n  Export complete\n"));

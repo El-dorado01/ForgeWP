@@ -7,7 +7,7 @@
  */
 
 export const SYSTEM_BLUEPRINTS = {
-  "wordpress/menus.json": `{
+  'wordpress/menus.json': `{
   "_comment": "⚡ ForgeWP Navigation Menus — Edit this file to add/remove links in local dev. Run 'pnpm forgewp sync:routes' to auto-scaffold corresponding React pages!",
   "primary": [
     { "title": "Home", "url": "/" },
@@ -21,7 +21,7 @@ export const SYSTEM_BLUEPRINTS = {
   ]
 }`,
 
-  "wordpress/mock-data.json": `{
+  'wordpress/mock-data.json': `{
   "post": [
     {
       "id": 1,
@@ -74,7 +74,7 @@ export const SYSTEM_BLUEPRINTS = {
   ]
 }`,
 
-  "src/.forgewp/forgewp-config.ts": `export interface ColorPreset {
+  'src/.forgewp/forgewp-config.ts': `export interface ColorPreset {
   name: string;
   slug: string;
   color: string;
@@ -119,7 +119,7 @@ export interface ForgeWPThemeConfig {
 }
 `,
 
-  "src/.forgewp/wordpress.tsx": `/**
+  'src/.forgewp/wordpress.tsx': `/**
  * ForgeWP WordPress Data Hooks
  *
  * These hooks provide mock data during local development (Vite dev server).
@@ -316,11 +316,15 @@ declare global {
 }
 `,
 
-  "src/.forgewp/SEO.tsx": `import * as ReactHelmetAsync from "react-helmet-async";
+  'src/.forgewp/SEO.tsx': `import * as React from "react";
+import * as ReactHelmetAsync from "react-helmet-async";
 import { useWpTitle } from "./wordpress";
 
-// Support both ESM and CommonJS exports of react-helmet-async across Vite and TSX compiler
-const Helmet = (ReactHelmetAsync.Helmet || (ReactHelmetAsync as any)["default"]?.Helmet || ReactHelmetAsync) as any;
+const defaultKey = "default";
+const ReactHelmetLib = (ReactHelmetAsync as any).Helmet
+  ? ReactHelmetAsync
+  : (ReactHelmetAsync as any)[defaultKey] ?? ReactHelmetAsync;
+const Helmet = (ReactHelmetLib as any).Helmet || React.Fragment;
 
 /**
  * ForgeWP SEO — Internal system file. Do not delete.
@@ -423,7 +427,7 @@ export function SEO({
 }
 `,
 
-  "src/.forgewp/PresetsStyle.tsx": `import wpConfig from "../../wp.config";
+  'src/.forgewp/PresetsStyle.tsx': `import wpConfig from "../../wp.config";
 
 const IS_DEV =
   typeof import.meta !== "undefined" &&
@@ -497,5 +501,5 @@ export function PresetsStyle() {
     </>
   );
 }
-`
+`,
 };
