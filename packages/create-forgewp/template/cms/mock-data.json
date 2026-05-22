@@ -1,0 +1,125 @@
+{
+  "post": [
+    {
+      "id": 1,
+      "title": "Welcome to ForgeWP: The Headless Revolution",
+      "excerpt": "Discover how ForgeWP bridges standard WordPress themes with blistering fast React architectures.",
+      "content": "<p>This is the first mock post. In local dev, you can modify <code>cms/mock-data.json</code> to test layout content changes.</p>",
+      "date": "May 10, 2026",
+      "author": "Antigravity",
+      "featuredImage": {
+        "id": 101,
+        "url": "https://picsum.photos/seed/forgewp/1200/630",
+        "alt": "ForgeWP Logo and Brand Artwork",
+        "title": "ForgeWP Logo",
+        "caption": "A high-fidelity minimalist logo graphic.",
+        "width": 1200,
+        "height": 630,
+        "sizes": {
+          "thumbnail": {
+            "url": "https://picsum.photos/seed/forgewp/150/150",
+            "width": 150,
+            "height": 150
+          },
+          "medium": {
+            "url": "https://picsum.photos/seed/forgewp/300/300",
+            "width": 300,
+            "height": 300
+          },
+          "large": {
+            "url": "https://picsum.photos/seed/forgewp/1024/768",
+            "width": 1024,
+            "height": 768
+          }
+        }
+      },
+      "customFields": {}
+    },
+    {
+      "id": 2,
+      "title": "Unlocking Brutalist Web Design Aesthetics",
+      "excerpt": "A deep dive into high-contrast grids, sharp corners, and premium flat shadows in modern interfaces.",
+      "content": "<p>This is the second mock post. Style these grids using beautiful Tailwind utilities.</p>",
+      "date": "May 12, 2026",
+      "author": "DeepMind Partner",
+      "featuredImage": "https://picsum.photos/seed/brutalist/1200/630",
+      "customFields": {}
+    }
+  ],
+  "project": [
+    {
+      "id": 1,
+      "title": "ForgeWP Scaffolding Platform",
+      "excerpt": "Building a custom compiler framework to transpile React elements into standard PHP themes.",
+      "content": "<p>Detailed description of the ForgeWP compiler pipeline project.</p>",
+      "date": "May 15, 2026",
+      "author": "Lead Architect",
+      "featuredImage": "https://picsum.photos/seed/platform/1200/630",
+      "customFields": {
+        "client_name": "El Dorado",
+        "project_budget": "$45,000"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Brutalist Starter Theme",
+      "excerpt": "A clean, responsive, and robust high-contrast interface leveraging Tailwind CSS v4.",
+      "content": "<p>A brutalist theme showcasing raw black borders and vivid accent colors.</p>",
+      "date": "May 16, 2026",
+      "author": "Theme Engineer",
+      "featuredImage": "https://picsum.photos/seed/starter/1200/630",
+      "customFields": {
+        "client_name": "ForgeWP Community",
+        "project_budget": "Open Source"
+      }
+    }
+  ],
+  "attachment": [
+    {
+      "id": 101,
+      "url": "https://picsum.photos/seed/forgewp/1200/630",
+      "alt": "ForgeWP Logo and Brand Artwork",
+      "title": "ForgeWP Logo",
+      "caption": "A high-fidelity minimalist logo graphic.",
+      "width": 1200,
+      "height": 630,
+      "sizes": {
+        "thumbnail": {
+          "url": "https://picsum.photos/seed/forgewp/150/150",
+          "width": 150,
+          "height": 150
+        },
+        "medium": {
+          "url": "https://picsum.photos/seed/forgewp/300/300",
+          "width": 300,
+          "height": 300
+        },
+        "large": {
+          "url": "https://picsum.photos/seed/forgewp/1024/768",
+          "width": 1024,
+          "height": 768
+        }
+      }
+    },
+    {
+      "id": 102,
+      "url": "https://picsum.photos/seed/layout/1200/800",
+      "alt": "Brutalist Layout Preview",
+      "title": "Layout Preview",
+      "width": 1200,
+      "height": 800,
+      "sizes": {
+        "thumbnail": {
+          "url": "https://picsum.photos/seed/layout/150/150",
+          "width": 150,
+          "height": 150
+        },
+        "medium": {
+          "url": "https://picsum.photos/seed/layout/300/300",
+          "width": 300,
+          "height": 300
+        }
+      }
+    }
+  ]
+}

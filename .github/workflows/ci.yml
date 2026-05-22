@@ -2,31 +2,37 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'pnpm'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
 
-    - name: Install pnpm
-      run: npm install -g pnpm@10
+      - name: Install pnpm
+        run: npm install -g pnpm@10
 
-    - name: Install dependencies
-      run: pnpm install
+      - name: Install dependencies
+        run: pnpm install
 
-    - name: Typecheck
-      run: pnpm typecheck
+      - name: Typecheck
+        run: pnpm typecheck
 
-    - name: Export smoke test
-      run: pnpm export
+      - name: Compiler adapter runtime tests
+        run: pnpm --filter @forgewp/compiler run test:adapter-runtime
+
+      - name: Compiler adapter type tests
+        run: pnpm --filter @forgewp/compiler run test:adapter-types
+
+      - name: Export smoke test
+        run: pnpm export

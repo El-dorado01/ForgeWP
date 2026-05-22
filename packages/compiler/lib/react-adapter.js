@@ -1,0 +1,1249 @@
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import {
+  scanForHydrationIslands,
+  findComponentPath,
+  getHydrationRollupInputs,
+} from './hydration-scanner.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+
+/**
+ * Server-render the theme App to static HTML.
+ * @param {string} themeRoot
+ */
+export async function renderStaticMarkup(themeRoot) {
+  const renderScript = path.join(__dirname, 'render-theme.mts');
+  const tsconfig = path.join(themeRoot, 'tsconfig.json');
+
+  let tsxCli = 'tsx';
+  try {
+    tsxCli = require.resolve('tsx/cli');
+  } catch {
+    // fallback to PATH
+  }
+
+  const args = [tsxCli];
+  if (existsSync(tsconfig)) {
+    args.push('--tsconfig', tsconfig);
+  }
+  args.push(renderScript, themeRoot);
+
+  const result = spawnSync(process.execPath, args, {
+    cwd: themeRoot,
+    env: {
+      ...process.env,
+      INIT_CWD: themeRoot,
+    },
+    encoding: 'utf8',
+    shell: false,
+  });
+
+  if (result.status !== 0) {
+    const detail =
+      result.stderr?.trim() || result.stdout?.trim() || 'Unknown error';
+    throw new Error(`Static render failed:\n${detail}`);
+  }
+
+  if (result.stderr) {
+    console.warn(result.stderr);
+  }
+
+  const outDir = result.stdout?.trim() || path.join(themeRoot, '.forgewp');
+  const appHtmlPath = path.join(outDir, 'app.html');
+
+  if (!existsSync(appHtmlPath)) {
+    throw new Error(`Render output not found: ${appHtmlPath}`);
+  }
+
+  const headerHtmlPath = path.join(outDir, 'header.html');
+  const footerHtmlPath = path.join(outDir, 'footer.html');
+  const headHtmlPath = path.join(outDir, 'head.html');
+  const singleHtmlPath = path.join(outDir, 'single.html');
+  const singleHeadHtmlPath = path.join(outDir, 'single-head.html');
+  const notFoundHtmlPath = path.join(outDir, '404.html');
+  const archiveHtmlPath = path.join(outDir, 'archive.html');
+
+  return {
+    appHtml: readFileSync(appHtmlPath, 'utf8'),
+    headerHtml: existsSync(headerHtmlPath)
+      ? readFileSync(headerHtmlPath, 'utf8')
+      : '',
+    footerHtml: existsSync(footerHtmlPath)
+      ? readFileSync(footerHtmlPath, 'utf8')
+      : '',
+    headHtml: existsSync(headHtmlPath)
+      ? readFileSync(headHtmlPath, 'utf8')
+      : '',
+    singleHtml: existsSync(singleHtmlPath)
+      ? readFileSync(singleHtmlPath, 'utf8')
+      : '',
+    singleHeadHtml: existsSync(singleHeadHtmlPath)
+      ? readFileSync(singleHeadHtmlPath, 'utf8')
+      : '',
+    notFoundHtml: existsSync(notFoundHtmlPath)
+      ? readFileSync(notFoundHtmlPath, 'utf8')
+      : '',
+    archiveHtml: existsSync(archiveHtmlPath)
+      ? readFileSync(archiveHtmlPath, 'utf8')
+      : '',
+  };
+}
+
+/**
+ * Generate the hydration runtime loader and manifest mappings for React hydration islands.
+ * @param {string} themeRoot
+ * @param {string} assetsOut
+ * @param {string} distAssets
+ * @param {string[]} hydrationIslands
+ * @returns {string}
+ */
+export function generateHydrationRuntime(
+  themeRoot,
+  assetsOut,
+  distAssets,
+  hydrationIslands,
+) {
+  const manifestPath = path.join(themeRoot, 'dist', '.vite', 'manifest.json');
+  let viteManifest = {};
+  if (existsSync(manifestPath)) {
+    try {
+      viteManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    } catch (e) {
+      console.warn('Failed to parse Vite manifest.json:', e.message);
+    }
+  } else {
+    console.warn(
+      'Hydration manifest not found at dist/.vite/manifest.json. Hydration asset generation may be incomplete.',
+    );
+  }
+
+  const mapping = {};
+  let mainJsFile = '';
+  const entryChunk =
+    viteManifest['index.html'] ||
+    Object.values(viteManifest).find((c) => c.isEntry);
+  if (entryChunk) {
+    mainJsFile = entryChunk.file;
+  }
+
+  for (const island of hydrationIslands) {
+    const pascalName = island
+      .split('-')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join('');
+
+    let resolvedChunk = null;
+    for (const [key, value] of Object.entries(viteManifest)) {
+      if (
+        key.endsWith(`${pascalName}.tsx`) ||
+        key.endsWith(`${pascalName}.ts`) ||
+        key.endsWith(`${island}.tsx`) ||
+        key.endsWith(`${island}.ts`) ||
+        (value.file && value.file.includes(island))
+      ) {
+        resolvedChunk = value.file;
+        break;
+      }
+    }
+
+    if (resolvedChunk) {
+      mapping[island] = resolvedChunk;
+    }
+  }
+
+  if (!mainJsFile) {
+    throw new Error(
+      `\n[ForgeWP Compiler Error] Hydration generation failed: could not resolve the React runtime entry chunk.\n` +
+      `This usually happens if Vite failed to compile the entry file (e.g. src/main.tsx) or did not emit a manifest.json.\n` +
+      `Ensure that you have run 'pnpm run build' inside your theme directory and that 'dist/.vite/manifest.json' exists.\n`
+    );
+  }
+
+  const missingIslands = hydrationIslands.filter(
+    (island) => !(island in mapping),
+  );
+  if (missingIslands.length > 0) {
+    const formattedComponents = missingIslands.map(island => {
+      return island.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') + '.tsx';
+    }).join(', ');
+    throw new Error(
+      `\n[ForgeWP Compiler Error] Hydration generation failed: missing compiled chunk for island(s): ${missingIslands.join(', ')}.\n` +
+      `Vite was unable to locate these hydration islands in its compilation manifest.\n` +
+      `Verification Steps:\n` +
+      ` 1. Ensure the React component(s) exist under 'src/components/' (e.g., ${formattedComponents}).\n` +
+      ` 2. Ensure they are correctly exported and referenced via <Hydrate island="..."> in your page layout/components.\n` +
+      ` 3. Check for syntax or import errors in these files that might have caused Vite compilation to skip or fail.\n`
+    );
+  }
+
+  const hydratorScript = `(function () {
+  const config = window.forgeWpHydration || { themeUri: "", manifest: {} };
+  const islands = document.querySelectorAll("[data-forgewp-hydrate]");
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        const hydrate = entry.target.__forgewpHydrate;
+        if (typeof hydrate === "function") hydrate();
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { rootMargin: "200px" });
+
+  // Predictive preloading observer with larger viewport margin (600px)
+  const preloadObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        const el = entry.target;
+        preloadElement(el);
+        preloadObserver.unobserve(el);
+      }
+    });
+  }, { rootMargin: "600px" });
+
+  // Helper: checks if an element's bounding box overlaps the extended viewport (with rootMargin).
+  // Used as an immediate fallback for IntersectionObserver's async nature.
+  function isNearViewport(el, margin) {
+    var rect = el.getBoundingClientRect();
+    var vw = window.innerWidth || document.documentElement.clientWidth;
+    var vh = window.innerHeight || document.documentElement.clientHeight;
+    return (
+      rect.bottom >= -margin &&
+      rect.right >= -margin &&
+      rect.top <= vh + margin &&
+      rect.left <= vw + margin
+    );
+  }
+
+  const StrategyRegistry = {
+    load: (el, hydrate) => {
+      if (document.readyState === "complete") {
+        hydrate();
+      } else {
+        window.addEventListener("load", hydrate);
+      }
+    },
+    visible: (el, hydrate) => {
+      // Immediate check: if already in/near viewport, hydrate right away.
+      // IO fires asynchronously so this prevents missed hydrations on page load.
+      if (isNearViewport(el, 200)) {
+        hydrate();
+        return;
+      }
+      el.__forgewpHydrate = hydrate;
+      observer.observe(el);
+    },
+    interaction: (el, hydrate) => {
+      const run = () => {
+        hydrate();
+        el.removeEventListener("click", run);
+        el.removeEventListener("mouseenter", run);
+        el.removeEventListener("focusin", run);
+      };
+      el.addEventListener("click", run);
+      el.addEventListener("mouseenter", run);
+      el.addEventListener("focusin", run);
+    },
+    click: (el, hydrate) => {
+      const run = () => {
+        hydrate();
+        el.removeEventListener("click", run);
+      };
+      el.addEventListener("click", run);
+    },
+    hover: (el, hydrate) => {
+      const run = () => {
+        hydrate();
+        el.removeEventListener("mouseenter", run);
+      };
+      el.addEventListener("mouseenter", run);
+    },
+    idle: (el, hydrate) => {
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(hydrate);
+      } else {
+        setTimeout(hydrate, 200);
+      }
+    }
+  };
+
+  islands.forEach((el) => {
+    const islandName = el.getAttribute("data-forgewp-hydrate");
+
+    // 1. Network-Aware Check: Restrict/skip hydration on slow 2G/3G connections if requested
+    const connection = el.getAttribute("data-forgewp-connection");
+    if (connection === "fast") {
+      const conn = navigator.connection;
+      if (conn && (conn.saveData || /2g|3g/.test(conn.effectiveType))) {
+        console.warn("[ForgeWP Hydrator] Deferring hydration of island '" + islandName + "' due to slow 2G/3G network conditions.");
+        return;
+      }
+    }
+
+    // 2. Predictive Preloading Setup
+    const preload = el.getAttribute("data-forgewp-preload");
+    if (preload === "near-visible") {
+      preloadObserver.observe(el);
+    }
+
+    const runHydration = () => hydrateElement(el);
+
+    // 3. Media-Query Check: Gated by target device dimensions
+    const media = el.getAttribute("data-forgewp-media");
+    if (media) {
+      const mql = window.matchMedia(media);
+      const setupMediaHydration = () => {
+        const trigger = el.getAttribute("data-forgewp-trigger") || "visible";
+        const strategy = StrategyRegistry[trigger];
+        if (strategy) {
+          strategy(el, runHydration);
+        } else {
+          StrategyRegistry.visible(el, runHydration);
+        }
+      };
+
+      if (mql.matches) {
+        setupMediaHydration();
+      } else {
+        const listener = (e) => {
+          if (e.matches) {
+            setupMediaHydration();
+            mql.removeEventListener("change", listener);
+          }
+        };
+        mql.addEventListener("change", listener);
+      }
+      return;
+    }
+
+    // Standard trigger registration
+    const trigger = el.getAttribute("data-forgewp-trigger") || "visible";
+    const strategy = StrategyRegistry[trigger];
+    if (strategy) {
+      strategy(el, runHydration);
+    } else {
+      StrategyRegistry.visible(el, runHydration);
+    }
+  });
+
+  function preloadElement(el) {
+    const islandName = el.getAttribute("data-forgewp-hydrate");
+    const chunkPath = config.manifest?.[islandName];
+    if (!chunkPath) return;
+    const scriptUrl = config.themeUri + "/assets/" + chunkPath.replace("assets/", "").replace("assets\\\\", "");
+    
+    // Inject link[rel=modulepreload]
+    if (document.querySelector("link[href='" + scriptUrl + "']")) return;
+    const link = document.createElement("link");
+    link.rel = "modulepreload";
+    link.href = scriptUrl;
+    document.head.appendChild(link);
+  }
+
+  function hydrateElement(el) {
+    const islandName = el.getAttribute("data-forgewp-hydrate");
+    if (!islandName) {
+      console.error("[ForgeWP Hydrator] Missing data-forgewp-hydrate attribute on hydration boundary.");
+      return;
+    }
+
+    const rawProps = el.getAttribute("data-forgewp-props") || "{}";
+    let props = {};
+    try {
+      props = JSON.parse(rawProps);
+    } catch (err) {
+      console.error("[ForgeWP Hydrator] Failed to parse props for island " + islandName + ":", err);
+    }
+
+    const chunkPath = config.manifest?.[islandName];
+    if (!chunkPath) {
+      const available = config.manifest ? Object.keys(config.manifest).join(", ") : "<none>";
+      console.error(
+        "[ForgeWP Hydrator] Could not find compiled chunk for island " + islandName + ". " +
+        "Available manifest keys: " + available
+      );
+      return;
+    }
+
+    const scriptUrl = config.themeUri + "/assets/" + chunkPath.replace("assets/", "").replace("assets\\\\", "");
+
+    import(scriptUrl)
+      .then((module) => {
+        const Component = module.default || Object.values(module)[0];
+        if (typeof Component !== "function") {
+          const exportsList = Object.keys(module).join(", ");
+          console.error(
+            "[ForgeWP Hydrator] Chunk for " + islandName + " does not export a valid React component. " +
+            "Available exports: " + exportsList
+          );
+          return;
+        }
+
+        // Resolve ReactDOM/React — prefer window globals set by main.tsx.
+        // Always use createRoot (not hydrateRoot): island chunks bundle their
+        // own React via Vite code-splitting, so hydrateRoot from window.ReactDOM
+        // (a different instance) causes a silent Fiber reconciler failure.
+        // createRoot takes full ownership of the container, bypassing this issue.
+        const ReactDOM = window.ReactDOM;
+        const React = window.React;
+
+        if (ReactDOM && React) {
+          const root = ReactDOM.createRoot(el);
+          root.render(React.createElement(Component, props));
+        } else {
+          console.error("[ForgeWP Hydration Error] React or ReactDOM not found on window. Ensure main.tsx exposes window.React and window.ReactDOM.");
+        }
+      })
+      .catch((err) => {
+        console.error("[ForgeWP Hydrator] Failed to load chunk for " + islandName + ":", err);
+      });
+  }
+})();`;
+
+  writeFileSync(
+    path.join(assetsOut, 'forgewp-hydrator.js'),
+    hydratorScript,
+    'utf8',
+  );
+  return JSON.stringify({
+    mainJsFile,
+    mapping,
+  });
+}
+
+export function getCriticalFiles(themeRoot) {
+  return ['src/main.tsx'];
+}
+
+export async function onFresh(themeRoot) {
+  const routesPath = path.join(themeRoot, 'src', 'app', 'routes.tsx');
+  const pagePath = path.join(themeRoot, 'src', 'app', 'page.tsx');
+
+  const routesContent = `import { Route, Switch } from "wouter";
+import HomePage from "./page";
+
+/**
+ * Local Developer Routes — ForgeWP.
+ *
+ * Edit this file to add new routes/components for your local Vite preview server.
+ *
+ * @example
+ * // 1. Create a component in src/app/about.tsx
+ * // 2. Import it here: import AboutPage from "./about";
+ * // 3. Add the Route: <Route path="/about" component={AboutPage} />
+ */
+export default function AppRoutes() {
+  return (
+    <Switch>
+      {/* Home preview */}
+      <Route path="/" component={HomePage} />
+
+      {/* Fallback route */}
+      <Route>
+        <div className="flex min-h-[60vh] flex-col items-center justify-center text-center p-6">
+          <h1 className="text-4xl font-bold font-serif text-zinc-950">404</h1>
+          <p className="mt-2 text-zinc-600">Page not found locally.</p>
+          <a href="/" className="mt-4 text-brand font-semibold hover:underline">
+            Go back home
+          </a>
+        </div>
+      </Route>
+    </Switch>
+  );
+}
+`;
+
+  const pageContent = `import wpConfig from "../../wp.config";
+import { useWpCustomField, WpMenu, WpQueryLoop, WpHead, WpImage } from "../.forgewp/wordpress";
+import { Hydrate } from "@forgewp/react";
+import { Counter } from "../components/Counter";
+
+export default function HomePage() {
+  const colors = wpConfig.settings?.color?.palette || [];
+  const fontFamilies = wpConfig.settings?.typography?.fontFamilies || [];
+  const googleFonts = wpConfig.settings?.typography?.googleFonts || [];
+  const layout = wpConfig.settings?.layout || {};
+
+  return (
+    <div className="min-h-screen bg-bg-light p-6 md:p-12 font-sans selection:bg-brand selection:text-white">
+      <WpHead
+        title="ForgeWP Starter — React & Tailwind CSS for WordPress"
+        description="A premium, sharp-edge developer framework for creating modern block-themes using React."
+        ogType="website"
+      />
+
+      {/* Main Container — Sharp brutalist outer grid */}
+      <main className="mx-auto max-w-6xl border-4 border-zinc-950 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+        {/* Header Grid Bar */}
+        <header className="flex flex-col sm:flex-row items-stretch border-b-4 border-zinc-950">
+          <div className="bg-brand text-white px-6 py-6 flex items-center border-b-4 sm:border-b-0 sm:border-r-4 border-zinc-950 font-black tracking-wider text-xl uppercase select-none">
+            ⚡ FORGEWP
+          </div>
+          <div className="flex-1 px-6 py-4 flex items-center text-xs md:text-sm font-semibold text-zinc-600 font-mono tracking-tight bg-zinc-50">
+            theme-compiler://v{wpConfig.version} // status: online
+          </div>
+          <div className="px-6 py-4 border-t-4 sm:border-t-0 sm:border-l-4 border-zinc-950 flex items-center bg-accent font-black text-sm uppercase tracking-wide text-zinc-950 select-none">
+            Developer Console
+          </div>
+        </header>
+
+        {/* Hero Section */}
+        <section className="grid md:grid-cols-12 border-b-4 border-zinc-950">
+          <div className="md:col-span-8 p-8 md:p-12 flex flex-col justify-center border-b-4 md:border-b-0 md:border-r-4 border-zinc-950">
+            <span className="inline-block bg-zinc-950 text-white text-xs font-bold font-mono tracking-widest px-3 py-1 uppercase max-w-fit mb-6 select-none">
+              v{wpConfig.version} Active
+            </span>
+            <h1 className="text-4xl md:text-6xl font-serif font-black tracking-tight leading-none text-zinc-950">
+              React structure.<br />
+              Tailwind speed.<br />
+              WordPress power.
+            </h1>
+            <p className="mt-6 text-base md:text-lg text-zinc-700 leading-relaxed font-sans font-medium max-w-xl">
+              Welcome to the next generation of WordPress theme development. Build your layout dynamically using standard React components, mock hooks, and modern utilities. 
+            </p>
+            <div className="mt-8 flex flex-wrap gap-4">
+              <a
+                href="https://forgewp.dev/docs"
+                target="_blank"
+                rel="noreferrer"
+                className="group relative inline-flex items-center justify-center border-2 border-zinc-950 bg-zinc-950 text-white font-bold text-sm tracking-wider uppercase px-6 py-3 transition-colors hover:bg-brand hover:text-white"
+              >
+                Read Framework Docs
+              </a>
+              <a
+                href="#tokens"
+                className="group relative inline-flex items-center justify-center border-2 border-zinc-950 bg-white text-zinc-950 font-bold text-sm tracking-wider uppercase px-6 py-3 transition-all hover:bg-zinc-100"
+              >
+                Inspect Config Settings
+              </a>
+            </div>
+          </div>
+
+          {/* Quick Stats sidebar */}
+          <div className="md:col-span-4 bg-zinc-50 p-8 flex flex-col justify-between font-mono text-xs">
+            <div className="space-y-6">
+              <div className="border-b-2 border-zinc-200 pb-4">
+                <span className="block text-zinc-400 font-bold uppercase tracking-wider mb-1">Theme Name</span>
+                <span className="text-sm font-black text-zinc-900">{wpConfig.name}</span>
+              </div>
+              <div className="border-b-2 border-zinc-200 pb-4">
+                <span className="block text-zinc-400 font-bold uppercase tracking-wider mb-1">Theme Slug</span>
+                <span className="text-sm font-black text-zinc-900">{wpConfig.slug}</span>
+              </div>
+              <div className="border-b-2 border-zinc-200 pb-4">
+                <span className="block text-zinc-400 font-bold uppercase tracking-wider mb-1">Text Domain</span>
+                <span className="text-sm font-black text-zinc-900">{wpConfig.textDomain}</span>
+              </div>
+              <div>
+                <span className="block text-zinc-400 font-bold uppercase tracking-wider mb-1">PHP Engine Target</span>
+                <span className="text-sm font-black text-zinc-900">PHP 7.4+ // WP 6.0+</span>
+              </div>
+            </div>
+
+            <div className="mt-8 border-t-2 border-zinc-950 pt-4 text-[10px] text-zinc-500 font-bold uppercase">
+              ⚡ Generated via @forgewp/compiler
+            </div>
+          </div>
+        </section>
+
+        {/* Dynamic Tokens Section */}
+        <section id="tokens" className="p-8 md:p-12">
+          <div className="border-2 border-zinc-950 p-6 md:p-8 bg-zinc-50">
+            <div className="flex items-center gap-3 border-b-2 border-zinc-950 pb-4 mb-8">
+              <div className="w-4 h-4 bg-secondary"></div>
+              <h2 className="text-lg md:text-xl font-bold uppercase tracking-wider text-zinc-950">
+                Design Tokens Synchronization Check
+              </h2>
+            </div>
+
+            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+              {/* Color Presets */}
+              <div className="border border-zinc-300 bg-white p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <h3 className="font-serif font-black text-lg text-zinc-900 mb-4 border-b border-zinc-200 pb-2 uppercase tracking-wide">
+                  Color Palette
+                </h3>
+                <div className="space-y-3 font-mono text-xs">
+                  {colors.map((c) => (
+                    <div key={c.slug} className="flex items-center gap-3">
+                      <div
+                        className="w-6 h-6 border border-zinc-950"
+                        style={{ backgroundColor: c.color }}
+                      ></div>
+                      <div className="flex-1">
+                        <span className="block font-black text-zinc-800">{c.name}</span>
+                        <span className="text-zinc-500">{c.color} // {c.slug}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Typography Presets */}
+              <div className="border border-zinc-300 bg-white p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <h3 className="font-serif font-black text-lg text-zinc-900 mb-4 border-b border-zinc-200 pb-2 uppercase tracking-wide">
+                  Font Families
+                </h3>
+                <div className="space-y-4">
+                  {fontFamilies.map((f) => (
+                    <div key={f.slug} className="font-mono text-xs">
+                      <span className="block font-black text-zinc-800 uppercase">{f.name}</span>
+                      <span className="text-zinc-500 block mb-2">{f.fontFamily}</span>
+                      <span
+                        className="text-lg block font-semibold text-zinc-950 border border-zinc-200 p-2 bg-zinc-50"
+                        style={{ fontFamily: f.fontFamily }}
+                      >
+                        The quick brown fox
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Layout Presets */}
+              <div className="border border-zinc-300 bg-white p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
+                <div>
+                  <h3 className="font-serif font-black text-lg text-zinc-900 mb-4 border-b border-zinc-200 pb-2 uppercase tracking-wide">
+                    Layout Bounds
+                  </h3>
+                  <div className="space-y-4 font-mono text-xs">
+                    <div>
+                      <span className="block font-black text-zinc-800">CONTENT SIZE</span>
+                      <span className="text-zinc-500 text-lg font-black">{layout.contentSize || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="block font-black text-zinc-800">WIDE SIZE</span>
+                      <span className="text-zinc-500 text-lg font-black">{layout.wideSize || "N/A"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8 border-t border-zinc-200 pt-4">
+                  <span className="block font-mono text-[10px] text-zinc-400 font-bold uppercase tracking-wider mb-2">
+                    Synced Google Fonts
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {googleFonts.map((font) => (
+                      <span
+                        key={font}
+                        className="inline-block bg-zinc-900 text-white text-[10px] font-mono px-2 py-1 uppercase"
+                      >
+                        {font.split(":")[0]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* WordPress Dynamic Data Layer Console Section */}
+        <section id="data-layer" className="p-8 md:p-12 border-t-4 border-zinc-950 bg-zinc-50">
+          <div className="border-2 border-zinc-950 p-6 md:p-8 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <div className="flex items-center gap-3 border-b-2 border-zinc-950 pb-4 mb-8">
+              <div className="w-4 h-4 bg-brand"></div>
+              <h2 className="text-lg md:text-xl font-bold uppercase tracking-wider text-zinc-950">
+                WordPress Data Layer & Compiler Sandbox
+              </h2>
+            </div>
+
+            <div className="grid gap-8 lg:grid-cols-2 xl:grid-cols-4">
+              {/* Dynamic Menus Console */}
+              <div className="border border-zinc-200 bg-zinc-50 p-6">
+                <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                  Hook: &lt;WpMenu&gt;
+                </span>
+                <h3 className="font-serif font-black text-base text-zinc-900 mb-2">
+                  Navigation Menu
+                </h3>
+                <p className="text-zinc-500 text-xs mb-4">
+                  Compiles into dynamic WP site menus (\`wp_nav_menu\`) managed in the WP Dashboard.
+                </p>
+                <div className="border border-zinc-300 p-4 bg-white">
+                  <span className="block font-mono text-[9px] text-zinc-400 font-bold uppercase tracking-wider mb-2">
+                    Rendered Header Navigation:
+                  </span>
+                  <WpMenu
+                    location="primary"
+                    className="flex flex-col gap-2"
+                    linkClassName="font-mono text-xs font-bold uppercase tracking-wide text-zinc-700 hover:text-brand transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Custom Meta Fields + WpImage */}
+              <div className="border border-zinc-200 bg-zinc-50 p-6">
+                <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                  Hook: useWpCustomField()
+                </span>
+                <h3 className="font-serif font-black text-base text-zinc-900 mb-2">
+                  Metadata & Custom Fields
+                </h3>
+                <p className="text-zinc-500 text-xs mb-4">
+                  Bridges WordPress metadata and ACF (Advanced Custom Fields) directly to your React markup.
+                </p>
+                <div className="border border-zinc-300 p-4 bg-white font-mono text-xs space-y-3">
+                  <div>
+                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Field: "author_bio"</span>
+                    <span className="text-zinc-800 font-bold">{useWpCustomField("author_bio", "React Developer & WP theme engineer")}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Field: "media_lookup" (ID 102)</span>
+                    <WpImage id={102} size="medium" className="w-full h-20 object-cover border border-zinc-950 mt-1" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom Query Loop + WpImage featured image */}
+              <div className="border border-zinc-200 bg-zinc-50 p-6">
+                <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                  Hook: &lt;WpQueryLoop&gt;
+                </span>
+                <h3 className="font-serif font-black text-base text-zinc-900 mb-2">
+                  Custom WP_Query Loop
+                </h3>
+                <p className="text-zinc-500 text-xs mb-4">
+                  Fetches collections of posts and resolves featured media objects.
+                </p>
+                <div className="border border-zinc-300 p-3 bg-white space-y-2.5 max-h-[160px] overflow-y-auto">
+                  <WpQueryLoop postType="post" postsPerPage={3}>
+                    <div className="border border-zinc-100 p-2 hover:bg-zinc-50 transition-colors flex items-center gap-2.5">
+                      <WpImage field="featuredImage" size="thumbnail" className="w-8 h-8 object-cover border border-zinc-950 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-mono text-[10px] font-black text-zinc-950 uppercase tracking-tight truncate">
+                          ⚡ Recent Block Post
+                        </h4>
+                        <span className="text-[9px] text-zinc-400 font-mono">Date: {new Date().toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </WpQueryLoop>
+                </div>
+              </div>
+
+              {/* Interactive Selective Hydration Island */}
+              <div className="border border-zinc-200 bg-zinc-50 p-6 flex flex-col justify-between">
+                <div>
+                  <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                    Component: &lt;Hydrate&gt;
+                  </span>
+                  <h3 className="font-serif font-black text-base text-zinc-900 mb-2">
+                    Selective Hydration
+                  </h3>
+                  <p className="text-zinc-500 text-xs mb-4">
+                    Splits React code into dynamic chunks loaded lazily with advanced triggers.
+                  </p>
+                </div>
+                <Hydrate trigger="visible" preload="near-visible">
+                  <Counter />
+                </Hydrate>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer info console bar */}
+        <footer className="border-t-4 border-zinc-950 bg-zinc-950 text-white p-6 font-mono text-xs flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 bg-green-500 animate-pulse"></span>
+            <span>Vite Dev Environment active on port 5173</span>
+          </div>
+          <div>
+            <span>Press <kbd className="bg-zinc-800 px-1 py-0.5 border border-zinc-700">Ctrl + C</kbd> to exit console</span>
+          </div>
+        </footer>
+      </main>
+    </div>
+  );
+}
+`;
+
+  try {
+    writeFileSync(routesPath, routesContent, 'utf8');
+    console.log(`  ${pc.green('✅ Reset routes definition')}: src/app/routes.tsx`);
+  } catch (err) {
+    console.log(pc.red(`  ❌ Failed to reset src/app/routes.tsx: ${err.message}`));
+  }
+
+  try {
+    writeFileSync(pagePath, pageContent, 'utf8');
+    console.log(`  ${pc.green('✅ Reset core template')}: src/app/page.tsx`);
+  } catch (err) {
+    console.log(pc.red(`  ❌ Failed to reset src/app/page.tsx: ${err.message}`));
+  }
+}
+
+export function onMakeBlock(themeRoot, { pascalCase, readableTitle, attributesList, pc }) {
+  const blocksDir = path.join(themeRoot, 'src', 'blocks');
+  if (!existsSync(blocksDir)) {
+    mkdirSync(blocksDir, { recursive: true });
+  }
+
+  const targetFile = path.join(blocksDir, `${pascalCase}.tsx`);
+  if (existsSync(targetFile)) {
+    console.error(pc.red(`\n❌ Error: Block "${pascalCase}.tsx" already exists at src/blocks/\n`));
+    process.exit(1);
+  }
+
+  const nameSlug = pascalCase.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+
+  const attributesRegistry = attributesList
+    .map(a => `    ${a}: { type: "string", default: "Customize ${a} here" }`)
+    .join(',\n');
+
+  const editFields = attributesList
+    .map(a => {
+      const cleanLabel = a
+        .replace(/_/g, ' ')
+        .replace(/(?:^\w|[A-Z]|\b\w)/g, word => word.toUpperCase());
+      
+      if (a === 'content' || a === 'description' || a === 'body') {
+        return `<div className="border-2 border-zinc-950 p-4 bg-zinc-50 rounded-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <label className="block text-xs font-mono font-bold uppercase text-zinc-950 mb-1">${cleanLabel}</label>
+            <textarea 
+              value={attributes.${a}} 
+              onChange={(e) => setAttributes({ ${a}: e.target.value })}
+              className="w-full p-2 border-2 border-zinc-950 bg-white font-mono text-xs focus:ring-0 focus:outline-none focus:border-brand rounded-none"
+              rows={3}
+              placeholder="Enter ${cleanLabel} content..."
+            />
+          </div>`;
+      }
+      return `<div className="border-2 border-zinc-950 p-4 bg-zinc-50 rounded-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <label className="block text-xs font-mono font-bold uppercase text-zinc-950 mb-1">${cleanLabel}</label>
+            <input 
+              type="text" 
+              value={attributes.${a}} 
+              onChange={(e) => setAttributes({ ${a}: e.target.value })}
+              className="w-full p-2 border-2 border-zinc-950 bg-white font-mono text-xs focus:ring-0 focus:outline-none focus:border-brand rounded-none" 
+              placeholder="Enter ${cleanLabel}..."
+            />
+          </div>`;
+    })
+    .join('\n          ');
+
+  const saveLayout = attributesList
+    .map((attr, index) => {
+      if (index === 0) {
+        return `<h3 className="text-2xl font-black text-zinc-950 uppercase tracking-tight leading-none mb-3">
+          {attributes.${attr}}
+        </h3>`;
+      }
+      if (
+        attr.toLowerCase().includes('image') ||
+        attr.toLowerCase().includes('pic') ||
+        attr.toLowerCase().includes('img')
+      ) {
+        return `<img src={attributes.${attr}} alt="Block Media" className="w-full border-2 border-zinc-950 mb-3" />`;
+      }
+      return `<p className="text-sm text-zinc-600 font-medium font-sans leading-relaxed mb-3">
+          {attributes.${attr}}
+        </p>`;
+    })
+    .join('\n        ');
+
+  const blockTemplate = `import { defineBlock } from "@forgewp/react";
+
+/**
+ * ⚡ ForgeWP Custom Gutenberg Block — "Sharp ${readableTitle}"
+ * 
+ * HOW TO PREVIEW LOCALLY INSIDE REACT:
+ * This block is defined using standard React structures. You can import this block and
+ * preview its visitor/frontend layout locally in any React page or component without running
+ * WordPress, by invoking its `.save()` component with mock attributes:
+ * 
+ * \`\`\`tsx
+ * import ${pascalCase} from "@/blocks/${pascalCase}";
+ * 
+ * <${pascalCase}.save attributes={{
+ *   ${attributesList.map((a, i) => `${a}: "Mock Value ${i + 1}"`).join(',\n   ')}
+ * }} />
+ * \`\`\`
+ */
+export default defineBlock({
+  name: "${nameSlug}",
+  title: "Sharp ${readableTitle}",
+  category: "design",
+  icon: "admin-post", // Choose icons from: https://developer.wordpress.org/resource/dashicons/
+  attributes: {
+${attributesRegistry}
+  },
+  edit: ({ attributes, setAttributes }) => {
+    return (
+      <div className="p-8 bg-white border-4 border-zinc-950 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-none my-6 selection:bg-brand selection:text-white">
+        <span className="inline-block bg-brand text-white text-xs font-mono font-bold uppercase tracking-wider px-2 py-0.5 mb-4 border-2 border-zinc-950 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          Gutenberg Custom Block (Edit Mode)
+        </span>
+        <div className="space-y-4">
+          ${editFields}
+        </div>
+      </div>
+    );
+  },
+  save: ({ attributes }) => {
+    return (
+      <div className="p-8 bg-white border-4 border-zinc-950 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-none my-6 selection:bg-brand selection:text-white">
+        <span className="inline-block bg-brand text-white text-xs font-mono font-bold uppercase tracking-wider px-2 py-0.5 mb-3 border-2 border-zinc-950">
+          Gutenberg Custom Block
+        </span>
+        ${saveLayout}
+      </div>
+    );
+  }
+});
+`;
+
+  writeFileSync(targetFile, blockTemplate, 'utf8');
+
+  console.log(pc.green(`\n⚡ Modern Block "${pascalCase}" successfully created!`));
+  console.log(`   Location: ${pc.cyan(`src/blocks/${pascalCase}.tsx`)}`);
+  console.log(`   Gutenberg Title: ${pc.yellow(`Sharp ${readableTitle}`)}`);
+  console.log(`\n🎉 Run ${pc.cyan('pnpm export')} to automatically register it inside your WordPress theme!\n`);
+}
+
+export function onMakeTemplate(themeRoot, { pascalCase, postType, customFields, automaticallySeeded, pc }) {
+  const templatesDir = path.join(themeRoot, 'src', 'templates');
+  if (!existsSync(templatesDir)) {
+    mkdirSync(templatesDir, { recursive: true });
+  }
+
+  const targetFile = path.join(templatesDir, `${pascalCase}.tsx`);
+  if (existsSync(targetFile)) {
+    console.error(pc.red(`\n❌ Error: Template "${pascalCase}.tsx" already exists at src/templates/\n`));
+    process.exit(1);
+  }
+
+  let customFieldsMarkup = '';
+  if (customFields.length > 0) {
+    customFieldsMarkup = customFields
+      .map(f => {
+        const cleanLabel = f
+          .replace(/_/g, ' ')
+          .replace(/(?:^\w|[A-Z]|\b\w)/g, word => word.toUpperCase());
+        return `<div className="flex justify-between border-t border-zinc-950 pt-2 text-xs font-mono text-zinc-700">
+              <span>${cleanLabel}:</span>
+              <span className="font-bold">{useWpCustomField("${f}")}</span>
+            </div>`;
+      })
+      .join('\n            ');
+  } else {
+    customFieldsMarkup = `{/* No custom fields registered in mock-data.json. Add fields by running forgewp make:post-type */}\n            <p className="text-xs text-zinc-500 font-mono italic">No custom fields configured for post type: ${postType}</p>`;
+  }
+
+  const templateTemplate = `import { WpQueryLoop, useWpTitle, useWpFeaturedImage, useWpExcerpt, useWpPermalink, useWpCustomField } from "@/.forgewp/wordpress";
+
+/**
+ * ⚡ ForgeWP Custom Post Type Template — "${pascalCase}"
+ * 
+ * This loop template dynamically queries and renders records of the "${postType}" post type.
+ * In local development, the post data and custom fields are fetched dynamically from
+ * your local JSON database file at: \`cms/mock-data.json\`.
+ */
+export default function ${pascalCase}() {
+  return (
+    <div className="min-h-screen bg-zinc-50 selection:bg-brand selection:text-white py-12">
+      <div className="max-w-6xl mx-auto px-4">
+        {/* Brutalist Header Banner */}
+        <div className="mb-12 border-4 border-zinc-950 bg-white p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+          <span className="inline-block bg-brand text-white text-xs font-mono font-bold uppercase tracking-wider px-3 py-1 mb-4 border-2 border-zinc-950">
+            Loop Template
+          </span>
+          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight text-zinc-950">
+            Latest ${postType.charAt(0).toUpperCase() + postType.slice(1)} Feed
+          </h1>
+          <p className="text-sm font-mono font-medium text-zinc-600 mt-2">
+            Dynamic Post-Type Template &bull; Querying: "${postType}"
+          </p>
+        </div>
+
+        {/* Post Grid Loop */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <WpQueryLoop postType="${postType}" postsPerPage={6}>
+            <article className="bg-white border-4 border-zinc-950 p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-none flex flex-col justify-between hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] transition-all">
+              <div>
+                <div className="relative aspect-video w-full border-2 border-zinc-950 overflow-hidden mb-4 bg-zinc-100">
+                  <img 
+                    src={useWpFeaturedImage()} 
+                    alt={useWpTitle()} 
+                    className="object-cover w-full h-full"
+                  />
+                </div>
+                <h3 className="text-2xl font-black text-zinc-950 uppercase tracking-tight leading-none mb-3 hover:text-brand transition-colors">
+                  <a href={useWpPermalink()}>{useWpTitle()}</a>
+                </h3>
+                <p className="text-sm text-zinc-600 font-sans leading-relaxed mb-6">
+                  {useWpExcerpt()}
+                </p>
+              </div>
+
+              <div className="space-y-2 mt-auto">
+            ${customFieldsMarkup}
+              </div>
+            </article>
+          </WpQueryLoop>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+
+  writeFileSync(targetFile, templateTemplate, 'utf8');
+
+  if (automaticallySeeded) {
+    console.log(pc.yellow(`\n⚠️  Post type "${postType}" was missing from local database (mock-data.json).`));
+    console.log(`   We have automatically registered it and seeded default custom fields for you!`);
+  }
+
+  console.log(pc.green(`\n⚡ Loop Template "${pascalCase}" successfully created!`));
+  console.log(`   Location: ${pc.cyan(`src/templates/${pascalCase}.tsx`)}`);
+  console.log(`   Target Post Type: ${pc.yellow(postType)}`);
+  if (customFields.length > 0) {
+    console.log(`   Seeded Custom Fields: ${pc.yellow(customFields.join(', '))}`);
+  }
+  console.log(`\n🎉 You can now import it directly inside your pages:`);
+  console.log(`   ${pc.cyan(`import ${pascalCase} from "@/templates/${pascalCase}";`)}\n`);
+}
+
+// Backward compatible proxy forwarding make:component parameters straight to onMakeTemplate
+export function onMakeComponent(themeRoot, options) {
+  return onMakeTemplate(themeRoot, options);
+}
+
+export function onMakeIsland(themeRoot, { pascalCase, pc }) {
+  const componentsDir = path.join(themeRoot, 'src', 'components');
+  if (!existsSync(componentsDir)) {
+    mkdirSync(componentsDir, { recursive: true });
+  }
+
+  const targetFile = path.join(componentsDir, `${pascalCase}.tsx`);
+  if (existsSync(targetFile)) {
+    console.error(pc.red(`\n❌ Error: Island "${pascalCase}.tsx" already exists at src/components/\n`));
+    process.exit(1);
+  }
+
+  const islandTemplate = `import { useState, useEffect } from "react";
+
+/**
+ * ⚡ ForgeWP Selective Hydration Island Component — "${pascalCase}"
+ * 
+ * IMPORTANT FOR INTERACTIVITY:
+ * This component runs client-side React state hooks (useState, useEffect). To enable
+ * interactivity on the WordPress frontend, you MUST wrap this component in the `<Hydrate>`
+ * controller when rendering it in your page layout.
+ * 
+ * Example:
+ * import ${pascalCase} from "@/components/${pascalCase}";
+ * import { Hydrate } from "@forgewp/react";
+ * 
+ * <Hydrate trigger="visible" preload="near-visible">
+ *   <${pascalCase} />
+ * </Hydrate>
+ */
+export interface ${pascalCase}Props {
+  label?: string;
+}
+
+export default function ${pascalCase}({ label = "React State Island (${pascalCase})" }: ${pascalCase}Props) {
+  const [count, setCount] = useState(0);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  return (
+    <div className="p-6 border-4 border-zinc-950 bg-white font-mono text-zinc-950 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] transition-all">
+      <div className="flex items-center justify-between gap-4 mb-4 border-b-2 border-zinc-950 pb-2">
+        <span className="block text-sm font-bold uppercase tracking-wider">
+          {label}
+        </span>
+        <span
+          className={\`text-[10px] font-bold px-2 py-0.5 uppercase tracking-widest border-2 border-zinc-950 transition-all duration-300 \${
+            isHydrated
+              ? "bg-green-400 text-zinc-950 font-black"
+              : "bg-amber-400 text-zinc-950 font-black animate-pulse"
+          }\`}
+        >
+          {isHydrated ? "● Hydrated" : "○ Static (SSR)"}
+        </span>
+      </div>
+      
+      <div className="flex items-center gap-4 mt-2">
+        <span className="text-2xl font-black">Counter: {count}</span>
+        <button
+          onClick={() => setCount((c) => c + 1)}
+          className="border-2 border-zinc-950 bg-brand text-white px-4 py-2 font-black text-sm uppercase tracking-wide shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-[0px] active:translate-y-[0px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
+        >
+          Increment Value
+        </button>
+      </div>
+    </div>
+  );
+}
+`;
+
+  writeFileSync(targetFile, islandTemplate, 'utf8');
+
+  console.log(pc.green(`\n⚡ Selective Hydration Island "${pascalCase}" successfully created!`));
+  console.log(`   Location: ${pc.cyan(`src/components/${pascalCase}.tsx`)}`);
+  console.log(`\n🎉 To render this island with selective hydration triggers:`);
+  console.log(`   Inside any page, wrap it with:`);
+  console.log(`   ${pc.cyan(`<Hydrate trigger="visible" preload="near-visible">\n     <${pascalCase} />\n   </Hydrate>`)}\n`);
+}
+
+export function onSyncRoutes(themeRoot, { routesToScaffold, isForce, pc }) {
+  function toPascalCase(str) {
+    return str
+      .replace(/[^a-zA-Z0-9]/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join('') + 'Page';
+  }
+
+  const pagesDir = path.join(themeRoot, 'src', 'app', 'pages');
+  if (!existsSync(pagesDir)) {
+    mkdirSync(pagesDir, { recursive: true });
+  }
+
+  let scaffoldedCount = 0;
+  let skippedCount = 0;
+
+  for (const route of routesToScaffold) {
+    const componentName = toPascalCase(route.title);
+    const componentPath = path.join(pagesDir, `${componentName}.tsx`);
+
+    const componentContent = `/**
+ * ⚡ Auto-Generated Page Component by ForgeWP
+ * 
+ * This file was generated automatically from your sitemap configuration (cms/menus.json).
+ * You can safely edit this file to customize the visual layout, styles, and logic.
+ * Subsequent runs of 'pnpm forgewp sync:routes' will NOT overwrite your changes.
+ * 
+ * To force reset this page back to boilerplate defaults, run:
+ * 'pnpm forgewp sync:routes --force'
+ */
+import { WpHead } from "../../.forgewp/wordpress";
+import { WpQueryLoop, useWpTitle, useWpExcerpt, useWpFeaturedImage } from "../../.forgewp/wordpress";
+
+export function ${componentName}() {
+  return (
+    <main className="container mx-auto px-6 py-12">
+      {/* WordPress SEO — compiles to native <meta> tags in your theme header */}
+      <WpHead 
+        title="${route.title}" 
+        description="Explore our exclusive ${route.title} section, dynamically loaded in Headless React." 
+      />
+
+      {/* Hero Header Area */}
+      <header className="border-b-4 border-black pb-6 mb-12">
+        <h1 className="text-5xl font-black tracking-tight uppercase">${route.title}</h1>
+        <p className="text-zinc-500 mt-2 text-lg">
+          Auto-generated template. Edit <code className="bg-zinc-100 px-1 py-0.5 rounded text-sm text-red-600 font-mono">src/app/pages/${componentName}.tsx</code> to customize this page.
+        </p>
+      </header>
+
+      {/* Grid Starter - WordPress Mock Loop */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <WpQueryLoop postType="post" postsPerPage={3}>
+          <article className="border-2 border-black p-6 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all">
+            <div className="w-full h-48 bg-zinc-100 mb-4 border border-zinc-200 overflow-hidden">
+              <img 
+                src={useWpFeaturedImage()} 
+                alt={useWpTitle()} 
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <h2 className="text-xl font-bold uppercase tracking-tight mb-2">
+              {useWpTitle()}
+            </h2>
+            <p className="text-zinc-600 text-sm mb-4">
+              {useWpExcerpt()}
+            </p>
+            <a 
+              href="#" 
+              className="inline-block px-4 py-2 border-2 border-black bg-zinc-100 font-bold uppercase text-xs hover:bg-black hover:text-white transition-colors"
+            >
+              Read More
+            </a>
+          </article>
+        </WpQueryLoop>
+      </section>
+    </main>
+  );
+}
+`;
+
+    if (existsSync(componentPath) && !isForce) {
+      console.log(`  ${pc.gray('ℹ️ [Skip] Component already exists:')} src/app/pages/${componentName}.tsx`);
+      skippedCount++;
+    } else {
+      writeFileSync(componentPath, componentContent, 'utf8');
+      console.log(`  ${pc.green('✅ Scaffolded component')}: src/app/pages/${componentName}.tsx`);
+      scaffoldedCount++;
+    }
+  }
+
+  const routesFilePath = path.join(themeRoot, 'src', 'app', 'routes.tsx');
+  if (existsSync(routesFilePath)) {
+    let routesContent = readFileSync(routesFilePath, 'utf8');
+    let modified = false;
+
+    for (const route of routesToScaffold) {
+      const componentName = toPascalCase(route.title);
+
+      const importRegex = new RegExp(`import\\s+\\{\\s*${componentName}\\s*\\}\\s+from\\s+["']\\./pages/${componentName}["']`);
+      if (!importRegex.test(routesContent)) {
+        const defaultExportIndex = routesContent.indexOf('export default function');
+        if (defaultExportIndex !== -1) {
+          routesContent =
+            routesContent.slice(0, defaultExportIndex) +
+            `import { ${componentName} } from "./pages/${componentName}";\n` +
+            routesContent.slice(defaultExportIndex);
+          modified = true;
+        }
+      }
+
+      const routeRegex = new RegExp(`path\\s*=\\s*["']${route.path}["']`);
+      if (!routeRegex.test(routesContent)) {
+        const fallbackMarker = '{/* Fallback route */}';
+        const fallbackIndex = routesContent.indexOf(fallbackMarker);
+        if (fallbackIndex !== -1) {
+          routesContent =
+            routesContent.slice(0, fallbackIndex) +
+            `<Route path="${route.path}" component={${componentName}} />\n\n      ` +
+            routesContent.slice(fallbackIndex);
+          modified = true;
+        } else {
+          const switchCloseIndex = routesContent.indexOf('</Switch>');
+          if (switchCloseIndex !== -1) {
+            routesContent =
+              routesContent.slice(0, switchCloseIndex) +
+              `  <Route path="${route.path}" component={${componentName}} />\n      ` +
+              routesContent.slice(switchCloseIndex);
+            modified = true;
+          }
+        }
+      }
+    }
+
+    if (modified) {
+      writeFileSync(routesFilePath, routesContent, 'utf8');
+      console.log(`  ${pc.green('✅ Synced routing paths in')}: src/app/routes.tsx`);
+    } else {
+      console.log(`  ${pc.gray('ℹ️  Routes are already fully up to date in')}: src/app/routes.tsx`);
+    }
+  } else {
+    console.log(pc.yellow(`  ⚠️  Warning: routes.tsx not found. Skipped route linking.`));
+  }
+
+  console.log('\n' + '─'.repeat(60));
+  console.log(pc.green(`\n🎉 ${pc.bold('SITEMAP SYNC COMPLETE:')} Generated ${scaffoldedCount} new pages (skipped ${skippedCount}).\n`));
+}
+
+export { scanForHydrationIslands, findComponentPath, getHydrationRollupInputs };

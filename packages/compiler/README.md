@@ -5,7 +5,9 @@ The core engine of the ForgeWP ecosystem. It transforms modern React application
 ## 📦 Features
 
 ### 1. Theme Export
+
 Compiles your React components into `header.php`, `footer.php`, and `index.php`. It automatically:
+
 - Resolves asset paths.
 - Injects standard WordPress PHP hooks (`wp_head()`, `wp_footer()`).
 - Replaces relative links with dynamic WordPress routing (`home_url()`).
@@ -15,6 +17,7 @@ pnpm export
 ```
 
 ### 2. Smart Component Adder
+
 A powerful utility that pulls components from the ForgeWP Registry or shadcn/ui and applies the signature **Sharpness Transformer**.
 
 ```bash
@@ -24,6 +27,7 @@ pnpm forgewp add --name navbar
 ```
 
 ### 3. Native Gutenberg Block Generator
+
 Dynamically scaffolds dynamic WordPress blocks authored in React with options for custom attributes:
 
 ```bash
@@ -31,14 +35,17 @@ pnpm forgewp make:block HeroBlock --attributes=heading,text,image,buttonText
 ```
 
 ### 4. Post-Type Loop Component Scaffolder
+
 Instantly scaffolds beautifully designed React loop grid components bound to custom WordPress post types (ACF-like integration):
 
 ```bash
 pnpm forgewp make:component PortfolioGrid --postType=portfolio
 ```
-*Note: If the requested post type does not exist in `wordpress/mock-data.json`, the compiler will automatically register and seed it for you!*
+
+_Note: If the requested post type does not exist in `cms/mock-data.json`, the compiler will automatically register and seed it for you!_
 
 ### 5. Resilient Framework Immunity & Diagnostics
+
 Keep your monorepo perfectly healthy, clean, and self-healing:
 
 ```bash
@@ -53,13 +60,25 @@ ForgeWP is controlled via `wp.config.ts` in your project root:
 
 ```typescript
 export default {
-  themeName: "My Sharp Theme",
-  slug: "my-sharp-theme",
-  style: "forgewp" // or "shadcn"
+  themeName: 'My Sharp Theme',
+  slug: 'my-sharp-theme',
+  style: 'forgewp', // or "shadcn"
 };
 ```
+
+## 🧩 Framework Adapters
+
+The compiler is adapter-driven. React is the default adapter today, but the adapter boundary is designed to support other renderers in the future.
+
+Read more in [ADAPTERS.md](./ADAPTERS.md).
+
+### Adapter test coverage
+
+The compiler package now includes dedicated adapter validation scripts:
+
+- `pnpm --filter @forgewp/compiler run test:adapter-runtime`
+- `pnpm --filter @forgewp/compiler run test:adapter-types`
 
 ---
 
 Maintainable, Resilient, WordPress-native.
-

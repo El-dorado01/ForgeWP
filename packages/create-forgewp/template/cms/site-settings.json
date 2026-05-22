@@ -1,0 +1,18 @@
+{
+  "options": {
+    "blogname": "ForgeWP Developer Hub",
+    "blogdescription": "A compiler-first React + WordPress theme engine",
+    "admin_email": "dev@forgewp.local",
+    "posts_per_page": "10",
+    "blogurl": "http://forgewp.local",
+    "home": "http://forgewp.local",
+    "siteurl": "http://forgewp.local",
+    "users_can_register": "0"
+  },
+  "theme_mods": {
+    "custom_logo": "",
+    "header_textcolor": "#18181b",
+    "footer_text": "Proudly powered by ForgeWP & React 19",
+    "nav_menu_locations": {}
+  }
+}

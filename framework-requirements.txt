@@ -574,3 +574,45 @@ You’re actually on a promising trajectory if you’re already thinking in term
 * framework integrity
 
 That’s the kind of thinking that separates “starter kits” from real frameworks.
+
+
+| Theme Type         | Why                  |
+| ------------------ | -------------------- |
+| agency site        | layout complexity    |
+| ecommerce frontend | WooCommerce stress   |
+| blog/magazine      | content scaling      |
+| SaaS landing page  | animation testing    |
+| portfolio          | motion-heavy UI      |
+| documentation site | routing/content      |
+| multilingual site  | WP integration       |
+| membership site    | plugin compatibility |
+
+
+testing will reveal
+
+| Area                  | What You Learn         |
+| --------------------- | ---------------------- |
+| hydration problems    | runtime edge cases     |
+| compiler gaps         | export failures        |
+| DX friction           | repetitive pain points |
+| performance issues    | bundle inefficiencies  |
+| routing weaknesses    | architecture flaws     |
+| WP incompatibilities  | plugin conflicts       |
+| API bloat risks       | abstraction failures   |
+| animation constraints | rendering issues       |
+
+
+| Feature                                     | Category          | Complexity (1–10) | Learning Opportunity     |
+| ------------------------------------------- | ----------------- | ----------------- | ------------------------ |
+| **Component Architecture**                  | DX                | 5                 | Routing, data flow       |
+| **Hydration Islands**                       | Performance       | 8                 | React streaming        |
+| **Compiler-Based Routing**                  | Compiler          | 7                 | Build-time optimization  |
+| **WP Data Hooks (usePosts, useContent, etc.)** | WP Abstraction    | 6                 | WP Query replacement     |
+| **Asset Splitting**                         | Performance       | 7                 | Module federation        |
+| **Tailwind Integration**                  | Ecosystem         | 4                 | Config management        |
+| **Shortcode Renderer**                      | WP Compatibility  | 5                 | Legacy integration       |
+| **Theme.json Generator**                  | WP Compatibility  | 3                 | Gutenberg signals      |
+| **Export Pipeline**                         | Build             | 7                 | Package management       |
+| **Hot Module Replacement (HMR)**          | Performance       | 8                 | Vite internals           |
+| **Type Safety (TS interfaces for WP data)** | DX                | 6                 | WP schema mapping      |
+| **Error Recovery System**                 | Reliability       | 8                 | File system, CLI         |

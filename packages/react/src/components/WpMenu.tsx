@@ -6,7 +6,7 @@ export interface WpMenuProps {
    * You do not need to pass this yourself; use the location prop instead.
    */
   items?: WpMenuItem[];
-  /** Menu location key — matches a key in your wordpress/menus.json */
+  /** Menu location key — matches a key in your cms/menus.json */
   location?: WpMenuLocation;
   className?: string;
   linkClassName?: string;

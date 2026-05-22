@@ -1,90 +1,17 @@
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const require = createRequire(import.meta.url);
+import { loadFrameworkAdapter } from './framework-adapter.js';
 
 /**
  * Server-render the theme App to static HTML (no client JS in WordPress for v1).
  * @param {string} themeRoot
- * @returns {Promise<string>}
+ * @param {string} [adapterName]
  */
-export async function renderStaticMarkup(themeRoot) {
-  const renderScript = path.join(__dirname, "render-theme.mts");
-  const tsconfig = path.join(themeRoot, "tsconfig.json");
-
-  let tsxCli = "tsx";
-  try {
-    tsxCli = require.resolve("tsx/cli");
-  } catch {
-    // fallback to PATH
+export async function renderStaticMarkup(themeRoot, adapterName) {
+  const adapter = await loadFrameworkAdapter(adapterName);
+  if (typeof adapter.renderStaticMarkup !== 'function') {
+    throw new Error(
+      `Framework adapter must expose renderStaticMarkup() - adapter=${adapterName}`,
+    );
   }
 
-  const args = [tsxCli];
-  if (existsSync(tsconfig)) {
-    args.push("--tsconfig", tsconfig);
-  }
-  args.push(renderScript, themeRoot);
-
-  const result = spawnSync(process.execPath, args, {
-    cwd: themeRoot,
-    env: {
-      ...process.env,
-      INIT_CWD: themeRoot,
-    },
-    encoding: "utf8",
-    shell: false,
-  });
-
-  if (result.status !== 0) {
-    const detail = result.stderr?.trim() || result.stdout?.trim() || "Unknown error";
-    throw new Error(`Static render failed:\n${detail}`);
-  }
-  
-  if (result.stderr) {
-    console.warn(result.stderr);
-  }
-
-  const outDir = result.stdout?.trim() || path.join(themeRoot, ".forgewp");
-  const appHtmlPath = path.join(outDir, "app.html");
-
-  if (!existsSync(appHtmlPath)) {
-    throw new Error(`Render output not found: ${appHtmlPath}`);
-  }
-
-  const headerHtmlPath = path.join(outDir, "header.html");
-  const footerHtmlPath = path.join(outDir, "footer.html");
-  const headHtmlPath = path.join(outDir, "head.html");
-  const singleHtmlPath = path.join(outDir, "single.html");
-  const singleHeadHtmlPath = path.join(outDir, "single-head.html");
-  const notFoundHtmlPath = path.join(outDir, "404.html");
-  const archiveHtmlPath = path.join(outDir, "archive.html");
-
-  return {
-    appHtml: readFileSync(appHtmlPath, "utf8"),
-    headerHtml: existsSync(headerHtmlPath)
-      ? readFileSync(headerHtmlPath, "utf8")
-      : "",
-    footerHtml: existsSync(footerHtmlPath)
-      ? readFileSync(footerHtmlPath, "utf8")
-      : "",
-    headHtml: existsSync(headHtmlPath)
-      ? readFileSync(headHtmlPath, "utf8")
-      : "",
-    singleHtml: existsSync(singleHtmlPath)
-      ? readFileSync(singleHtmlPath, "utf8")
-      : "",
-    singleHeadHtml: existsSync(singleHeadHtmlPath)
-      ? readFileSync(singleHeadHtmlPath, "utf8")
-      : "",
-    notFoundHtml: existsSync(notFoundHtmlPath)
-      ? readFileSync(notFoundHtmlPath, "utf8")
-      : "",
-    archiveHtml: existsSync(archiveHtmlPath)
-      ? readFileSync(archiveHtmlPath, "utf8")
-      : "",
-  };
+  return adapter.renderStaticMarkup(themeRoot);
 }

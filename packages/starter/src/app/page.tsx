@@ -1,6 +1,26 @@
-import { SEO } from "../.forgewp/SEO";
 import wpConfig from "../../wp.config";
-import { useWpCustomField, WpMenu, WpQueryLoop } from "../.forgewp/wordpress";
+import {
+  useWpCustomField,
+  WpMenu,
+  WpQueryLoop,
+  WpHead,
+  WpImage,
+  WpShortcode,
+  useWpTitle,
+  useWpContent,
+  useWpExcerpt,
+  useWpPermalink,
+  useWpDate,
+  useWpAuthor,
+  useWpFeaturedImage,
+  useWpOption,
+  useWpThemeMod,
+  useWpCategories,
+  useWpArchiveTitle,
+} from "../.forgewp/wordpress";
+import { Hydrate, useReducedMotion, getStaticMotionStyle } from "@forgewp/react";
+import { Counter } from "../components/Counter";
+import { QuerySandbox } from "../components/QuerySandbox";
 
 export default function HomePage() {
   const colors = wpConfig.settings?.color?.palette || [];
@@ -10,10 +30,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-bg-light p-6 md:p-12 font-sans selection:bg-brand selection:text-white">
-      <SEO
-        title="ForgeWP Starter — React & Tailwind CSS for WordPress"
-        description="A premium, sharp-edge developer framework for creating modern block-themes using React."
-      />
+      <WpHead title="ForgeWP Starter Theme" description="A highly optimized Selective Hydration WordPress theme built with React." />
 
       {/* Main Container — Sharp brutalist outer grid */}
       <main className="mx-auto max-w-6xl border-4 border-zinc-950 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
@@ -190,7 +207,7 @@ export default function HomePage() {
               </h2>
             </div>
 
-            <div className="grid gap-8 lg:grid-cols-3">
+            <div className="grid gap-8 lg:grid-cols-2 xl:grid-cols-4">
               {/* Dynamic Menus Console */}
               <div className="border border-zinc-200 bg-zinc-50 p-6">
                 <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
@@ -225,14 +242,14 @@ export default function HomePage() {
                 <p className="text-zinc-500 text-xs mb-4">
                   Bridges WordPress metadata and ACF (Advanced Custom Fields) directly to your React markup.
                 </p>
-                <div className="border border-zinc-300 p-4 bg-white font-mono text-xs">
-                  <div className="mb-3">
+                <div className="border border-zinc-300 p-4 bg-white font-mono text-xs space-y-3">
+                  <div>
                     <span className="block text-[9px] text-zinc-400 font-bold uppercase">Field: "author_bio"</span>
                     <span className="text-zinc-800 font-bold">{useWpCustomField("author_bio", "React Developer & WP theme engineer")}</span>
                   </div>
                   <div>
-                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Field: "article_rating"</span>
-                    <span className="text-zinc-800 font-bold">{useWpCustomField("article_rating", "⭐️⭐️⭐️⭐️⭐️")}</span>
+                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Field: "media_lookup"</span>
+                    <WpImage field="media_lookup" size="medium" className="w-full h-20 object-cover border border-zinc-950 mt-1" />
                   </div>
                 </div>
               </div>
@@ -246,18 +263,281 @@ export default function HomePage() {
                   Custom WP_Query Loop
                 </h3>
                 <p className="text-zinc-500 text-xs mb-4">
-                  Fetches specialized collections of posts (like category grids or sidebars).
+                  Fetches collections of posts and resolves featured media objects.
                 </p>
-                <div className="border border-zinc-300 p-3 bg-white space-y-2.5 max-h-[140px] overflow-y-auto">
+                <div className="border border-zinc-300 p-3 bg-white space-y-2.5 max-h-[160px] overflow-y-auto">
                   <WpQueryLoop postType="post" postsPerPage={3}>
-                    <div className="border border-zinc-100 p-2 hover:bg-zinc-50 transition-colors">
-                      <h4 className="font-mono text-xs font-black text-zinc-950 uppercase tracking-tight truncate">
-                        ⚡ Recent Block Post
-                      </h4>
-                      <span className="text-[9px] text-zinc-400 font-mono">Date: {new Date().toLocaleDateString()}</span>
+                    <div className="border border-zinc-100 p-2 hover:bg-zinc-50 transition-colors flex items-center gap-2.5">
+                      <WpImage field="featuredImage" size="thumbnail" className="w-8 h-8 object-cover border border-zinc-950 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-mono text-[10px] font-black text-zinc-950 uppercase tracking-tight truncate">
+                          ⚡ Recent Block Post
+                        </h4>
+                        <span className="text-[9px] text-zinc-400 font-mono">Date: {new Date().toLocaleDateString()}</span>
+                      </div>
                     </div>
                   </WpQueryLoop>
                 </div>
+              </div>
+
+              {/* Interactive Selective Hydration Island */}
+              <div className="border border-zinc-200 bg-zinc-50 p-6 flex flex-col justify-between">
+                <div>
+                  <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                    Component: &lt;Hydrate&gt;
+                  </span>
+                  <h3 className="font-serif font-black text-base text-zinc-900 mb-2">
+                    Selective Hydration
+                  </h3>
+                  <p className="text-zinc-500 text-xs mb-4">
+                    Splits React code into dynamic chunks loaded lazily with advanced triggers.
+                  </p>
+                </div>
+                <Hydrate trigger="visible" preload="near-visible">
+                  <Counter />
+                </Hydrate>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Phase 2: State Hooks & Isomorphic Hydration Engine Simulator */}
+        <section className="p-8 md:p-12 border-t-4 border-zinc-950 bg-zinc-100">
+          <div className="mx-auto max-w-4xl">
+            <div className="flex items-center gap-3 border-b-2 border-zinc-950 pb-4 mb-8">
+              <div className="w-4 h-4 bg-accent"></div>
+              <h2 className="text-lg md:text-xl font-bold uppercase tracking-wider text-zinc-950">
+                Phase 2: Isomorphic Hydration & State Hooks Sandbox
+              </h2>
+            </div>
+            <p className="text-sm font-medium text-zinc-700 leading-relaxed mb-6 font-sans">
+              This interactive widget demonstrates Tier 2 stateful orchestration. In local dev, it loads mock data offline from <code>cms/mock-data.json</code> and mock settings from <code>cms/site-settings.json</code>. When exported, the compiler converts options to PHP calls and packages the search engine as a hydrated interactive selective component fetching from the real WordPress REST API.
+            </p>
+            <Hydrate trigger="visible" preload="near-visible">
+              <QuerySandbox />
+            </Hydrate>
+          </div>
+        </section>
+
+        {/* Phase 3: Deep Engine Integration Showcase (Advanced Hooks & Core APIs) */}
+        <section className="p-8 md:p-12 border-t-4 border-zinc-950 bg-zinc-50">
+          <div className="mx-auto max-w-4xl">
+            <div className="flex items-center gap-3 border-b-2 border-zinc-950 pb-4 mb-8">
+              <div className="w-4 h-4 bg-brand"></div>
+              <h2 className="text-lg md:text-xl font-bold uppercase tracking-wider text-zinc-950">
+                Phase 3: Deep Engine Integration Showcase (Advanced Hooks & Core APIs)
+              </h2>
+            </div>
+            <p className="text-sm font-medium text-zinc-700 leading-relaxed mb-8 font-sans">
+              This terminal showcases Tier 3 advanced framework capabilities. Below, you can test WordPress shortcode compiler transformations, meta custom field lookups, multi-trigger selective hydration islands, and our hardware-adaptive animation framework.
+            </p>
+
+            <div className="grid gap-8 md:grid-cols-2 mb-8">
+              {/* Shortcode Compilation Sandbox */}
+              <div className="border-4 border-zinc-950 p-6 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
+                <div>
+                  <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                    Feature: Shortcode Compiler
+                  </span>
+                  <h3 className="font-serif font-black text-base text-zinc-900 mb-2 uppercase">
+                    WordPress Shortcodes
+                  </h3>
+                  <p className="text-zinc-500 text-xs mb-4">
+                    Compiles directly into dynamic native PHP <code>do_shortcode()</code> execution.
+                  </p>
+                </div>
+                <div className="border border-zinc-200 p-2 bg-zinc-50 rounded">
+                  <WpShortcode code="[gallery size='medium' columns='3' ids='42,50,51']" />
+                </div>
+              </div>
+
+              {/* Dynamic Image & ACF Media Lookup */}
+              <div className="border-4 border-zinc-950 p-6 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
+                <div>
+                  <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                    Feature: Responsive Media
+                  </span>
+                  <h3 className="font-serif font-black text-base text-zinc-900 mb-2 uppercase">
+                    WpImage Media Attachments
+                  </h3>
+                  <p className="text-zinc-500 text-xs mb-4">
+                    Resolves WordPress media library attachments responsive <code>srcset</code> arrays.
+                  </p>
+                </div>
+                <div className="border border-zinc-200 p-4 bg-zinc-50 font-mono text-xs">
+                  <span className="block text-[9px] text-zinc-400 font-bold uppercase mb-1">
+                    Image Hook (ID: 42):
+                  </span>
+                  <WpImage id={42} size="medium" className="w-full h-24 object-cover border-2 border-zinc-950" />
+                </div>
+              </div>
+            </div>
+
+            {/* Hydration Triggers Island Suite */}
+            <div className="border-4 border-zinc-950 p-6 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-8">
+              <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                Feature: Selective Hydration Triggers
+              </span>
+              <h3 className="font-serif font-black text-base text-zinc-900 mb-2 uppercase">
+                Hydration Triggers Suite
+              </h3>
+              <p className="text-zinc-500 text-xs mb-6">
+                Test multi-trigger lazy bundles. Compare how mouse interactions, scrolls, and actions hydrate islands instantly.
+              </p>
+              
+              <div className="grid gap-6 sm:grid-cols-2">
+                {/* Hover trigger card */}
+                <div className="border-2 border-dashed border-zinc-300 p-4 hover:border-zinc-950 transition-colors">
+                  <span className="block text-[9px] font-mono font-black uppercase tracking-widest text-zinc-400 mb-2">
+                    Trigger: "hover" (Hover card to activate)
+                  </span>
+                  <Hydrate trigger="hover">
+                    <Counter label="Hover Hydrated Counter" />
+                  </Hydrate>
+                </div>
+
+                {/* Click trigger card */}
+                <div className="border-2 border-dashed border-zinc-300 p-4 hover:border-zinc-950 transition-colors">
+                  <span className="block text-[9px] font-mono font-black uppercase tracking-widest text-zinc-400 mb-2">
+                    Trigger: "click" (Click card to activate)
+                  </span>
+                  <Hydrate trigger="click">
+                    <Counter label="Click Hydrated Counter" />
+                  </Hydrate>
+                </div>
+              </div>
+            </div>
+
+            {/* Hardware-Adaptive Accessibility & CLS Engine */}
+            <div className="border-4 border-zinc-950 p-6 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+              <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                Feature: Hardware-Adaptive Motion Engine
+              </span>
+              <h3 className="font-serif font-black text-base text-zinc-900 mb-2 uppercase">
+                Zero-CLS Accessibility & Animation
+              </h3>
+              <p className="text-zinc-500 text-xs mb-4">
+                Reads system-level reduced motion settings (<code>prefers-reduced-motion</code>) to disable expensive layouts, while using static styles to eliminate cumulative layout shifts.
+              </p>
+              
+              <MotionShowcase />
+            </div>
+          </div>
+        </section>
+
+        {/* Phase 4: Unified Isomorphic State & Loop Showcase (Full Core API Coverage) */}
+        <section className="p-8 md:p-12 border-t-4 border-zinc-950 bg-zinc-50">
+          <div className="mx-auto max-w-4xl">
+            <div className="flex items-center gap-3 border-b-2 border-zinc-950 pb-4 mb-8">
+              <div className="w-4 h-4 bg-brand"></div>
+              <h2 className="text-lg md:text-xl font-bold uppercase tracking-wider text-zinc-950">
+                Phase 4: Unified Isomorphic State & Loop Showcase
+              </h2>
+            </div>
+            
+            <p className="text-sm font-medium text-zinc-700 leading-relaxed mb-8 font-sans">
+              This panel showcases the complete WordPress state hooks, isomorphic loops, option lookups, and theme customizer mod variables. In offline React dev, they instantly pull from standard mock schemas. When compiled, the compiler transforms them into raw dynamic theme hooks.
+            </p>
+
+            <div className="grid gap-8 md:grid-cols-2 mb-8">
+              {/* Options & Theme Mods Control Panel */}
+              <div className="border-4 border-zinc-950 p-6 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                  Feature: Options & Theme Customizer
+                </span>
+                <h3 className="font-serif font-black text-base text-zinc-900 mb-2 uppercase">
+                  Site Options & Mods Registry
+                </h3>
+                <p className="text-zinc-500 text-xs mb-4">
+                  Read standard dynamic site configuration, identity modifications, custom options and settings dynamically.
+                </p>
+
+                <div className="border-2 border-zinc-950 p-4 bg-zinc-50 font-mono text-xs space-y-4">
+                  <div>
+                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Blog Name (Option: "blogname")</span>
+                    <span className="text-sm font-black text-zinc-900">{useWpOption("blogname", "ForgeWP Dev Server")}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Blog Tagline (Option: "blogdescription")</span>
+                    <span className="text-zinc-700 font-medium">{useWpOption("blogdescription", "Offline mock environment")}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Footer Credits (Theme Mod: "footer_text")</span>
+                    <span className="text-zinc-700 font-medium">{useWpThemeMod("footer_text", "Theme mods offline fallback.")}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Theme Accent Color (Theme Mod: "accent_color")</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span 
+                        className="w-4 h-4 border border-zinc-950 inline-block" 
+                        style={{ backgroundColor: useWpThemeMod("accent_color", "#ff6b6b") }}
+                      ></span>
+                      <span className="font-bold text-zinc-900">{useWpThemeMod("accent_color", "#ff6b6b")}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Archive Context Header (Archive Title)</span>
+                    <span className="text-sm font-black text-zinc-900 italic">"{useWpArchiveTitle()}"</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Multi-Location Menus Sandbox */}
+              <div className="border-4 border-zinc-950 p-6 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
+                <div>
+                  <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                    Feature: Menus Pipeline
+                  </span>
+                  <h3 className="font-serif font-black text-base text-zinc-900 mb-2 uppercase">
+                    Multi-Location WordPress Menus
+                  </h3>
+                  <p className="text-zinc-500 text-xs mb-4">
+                    Render dynamic navigation setups by binding diverse registered locations.
+                  </p>
+                  
+                  <div className="space-y-4">
+                    <div className="border border-zinc-300 p-3 bg-zinc-50">
+                      <span className="block font-mono text-[9px] text-zinc-400 font-bold uppercase tracking-wider mb-2">
+                        Location: "primary" (Header Menu)
+                      </span>
+                      <WpMenu
+                        location="primary"
+                        className="flex flex-wrap gap-x-4 gap-y-1"
+                        linkClassName="font-mono text-xs font-bold uppercase tracking-wide text-zinc-700 hover:text-brand transition-colors"
+                      />
+                    </div>
+
+                    <div className="border border-zinc-300 p-3 bg-zinc-50">
+                      <span className="block font-mono text-[9px] text-zinc-400 font-bold uppercase tracking-wider mb-2">
+                        Location: "utility" (Utility Menu)
+                      </span>
+                      <WpMenu
+                        location="utility"
+                        className="flex flex-wrap gap-x-4 gap-y-1"
+                        linkClassName="font-mono text-xs font-bold uppercase tracking-wide text-zinc-700 hover:text-brand transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Standalone Isomorphic Loop Component Bridge */}
+            <div className="border-4 border-zinc-950 p-6 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+              <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
+                Component: &lt;WpLoop&gt; & State Hooks Loop Context
+              </span>
+              <h3 className="font-serif font-black text-base text-zinc-900 mb-2 uppercase">
+                Standard WordPress Main Loop Abstraction
+              </h3>
+              <p className="text-zinc-500 text-xs mb-6">
+                Iterating over the standard WP main query database via <code>&lt;WpLoop&gt;</code>. Inside, hooks like <code>useWpTitle()</code>, <code>useWpAuthor()</code>, <code>useWpCategories()</code>, and <code>useWpExcerpt()</code> dynamically lock onto the current item context.
+              </p>
+
+              <div className="grid gap-6 sm:grid-cols-2">
+                <WpQueryLoop postType="post" postsPerPage={6}>
+                  <PostCard />
+                </WpQueryLoop>
               </div>
             </div>
           </div>
@@ -274,6 +554,93 @@ export default function HomePage() {
           </div>
         </footer>
       </main>
+    </div>
+  );
+}
+
+function MotionShowcase() {
+  const isReduced = useReducedMotion();
+
+  // SSR Initial static styles to guarantee zero FOUC/CLS
+  const initialStyles = getStaticMotionStyle({ opacity: 0.1, scale: 0.95 });
+
+  return (
+    <div className="border border-zinc-200 p-6 bg-zinc-50 font-mono text-xs flex flex-col md:flex-row justify-between items-center gap-4">
+      <div className="flex-1">
+        <span className="block text-[9px] text-zinc-400 font-bold uppercase mb-1">
+          Accessibility Status:
+        </span>
+        <div className="flex items-center gap-2">
+          <span className={`inline-block w-2.5 h-2.5 rounded-full ${isReduced ? "bg-amber-500" : "bg-green-500 animate-pulse"}`}></span>
+          <span className="font-bold text-zinc-900">
+            {isReduced ? "Reduced Motion Enabled (Animations Safe/Disabled)" : "Full Motion Active (Fluid Micro-Animations)"}
+          </span>
+        </div>
+      </div>
+      <div 
+        style={isReduced ? {} : initialStyles}
+        className={`w-full md:w-48 border-2 border-zinc-950 p-3 text-center font-bold text-white uppercase select-none transition-all duration-700 bg-brand ${
+          isReduced 
+            ? "translate-y-0 opacity-100 scale-100" 
+            : "hover:scale-105 hover:bg-zinc-950 hover:shadow-[4px_4px_0px_0px_rgba(255,107,107,1)]"
+        }`}
+      >
+        ✨ Isomorphic Card ✨
+      </div>
+    </div>
+  );
+}
+
+function PostCard() {
+  const title = useWpTitle();
+  const content = useWpContent();
+  const excerpt = useWpExcerpt();
+  const permalink = useWpPermalink();
+  const date = useWpDate();
+  const author = useWpAuthor();
+  const featuredImage = useWpFeaturedImage();
+  const categories = useWpCategories();
+
+  return (
+    <div className="border-4 border-zinc-950 p-6 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap justify-between items-center gap-2 text-[10px] font-mono font-bold text-zinc-500 uppercase border-b border-zinc-200 pb-2">
+          <span>By {author}</span>
+          <span>{date}</span>
+        </div>
+        
+        {featuredImage && (
+          <img 
+            src={featuredImage} 
+            alt={title}
+            className="w-full h-40 object-cover border-2 border-zinc-950" 
+          />
+        )}
+        
+        <div>
+          <h4 className="font-serif font-black text-xl text-zinc-950 uppercase hover:text-brand">
+            <a href={permalink}>{title}</a>
+          </h4>
+          <div className="mt-1 flex items-center gap-1 font-mono text-[9px] font-black text-zinc-400 uppercase">
+            <span>In: </span>
+            <span dangerouslySetInnerHTML={{ __html: categories }} />
+          </div>
+        </div>
+
+        <p className="text-xs text-zinc-600 leading-relaxed font-sans font-medium">
+          {excerpt}
+        </p>
+
+        <div className="border border-zinc-200 bg-zinc-50 p-3 mt-2 rounded">
+          <span className="block text-[8px] font-mono text-zinc-400 uppercase tracking-widest mb-1">
+            Raw PHP Content Bridge (Compiled &lt;?php the_content() ?&gt;)
+          </span>
+          <div 
+            className="text-[11px] text-zinc-500 font-mono line-clamp-3 leading-snug"
+            dangerouslySetInnerHTML={{ __html: content }}
+          />
+        </div>
+      </div>
     </div>
   );
 }

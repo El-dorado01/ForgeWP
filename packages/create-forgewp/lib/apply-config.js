@@ -1,34 +1,34 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 
 function readJson(filePath) {
-  return JSON.parse(readFileSync(filePath, "utf8"));
+  return JSON.parse(readFileSync(filePath, 'utf8'));
 }
 
 function writeJson(filePath, data) {
-  writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
 }
 
 function replaceInFile(filePath, replacements) {
   if (!existsSync(filePath)) {
     throw new Error(
       `Missing ${path.basename(filePath)} in scaffold.\n` +
-        "The CLI template may be out of date — run pnpm sync:template in the ForgeWP repo.",
+        'The CLI template may be out of date — run pnpm sync:template in the ForgeWP repo.',
     );
   }
 
-  let content = readFileSync(filePath, "utf8");
+  let content = readFileSync(filePath, 'utf8');
   for (const [from, to] of replacements) {
     content = content.split(from).join(to);
   }
-  writeFileSync(filePath, content, "utf8");
+  writeFileSync(filePath, content, 'utf8');
 }
 
 export function applyProjectConfig(targetDir, config) {
   const { packageName, themeName, slug, description, textDomain, version } =
     config;
 
-  const pkgPath = path.join(targetDir, "package.json");
+  const pkgPath = path.join(targetDir, 'package.json');
   const pkg = readJson(pkgPath);
   pkg.name = packageName;
   pkg.private = true;
@@ -36,13 +36,16 @@ export function applyProjectConfig(targetDir, config) {
 
   // If we are inside the ForgeWP monorepo, use workspace:* for the compiler dependency
   // to ensure pnpm links it locally instead of trying to fetch from the registry.
-  if (pkg.devDependencies?.["@forgewp/compiler"] && existsSync(path.join(targetDir, "..", "pnpm-workspace.yaml"))) {
-    pkg.devDependencies["@forgewp/compiler"] = "workspace:*";
+  if (
+    pkg.devDependencies?.['@forgewp/compiler'] &&
+    existsSync(path.join(targetDir, '..', 'pnpm-workspace.yaml'))
+  ) {
+    pkg.devDependencies['@forgewp/compiler'] = 'workspace:*';
   }
 
   writeJson(pkgPath, pkg);
 
-  const wpConfigPath = path.join(targetDir, "wp.config.ts");
+  const wpConfigPath = path.join(targetDir, 'wp.config.ts');
   writeFileSync(
     wpConfigPath,
     `import type { ForgeWPThemeConfig } from "./src/lib/forgewp-config";
@@ -53,14 +56,16 @@ const config: ForgeWPThemeConfig = {
   version: ${JSON.stringify(version)},
   description: ${JSON.stringify(description)},
   textDomain: ${JSON.stringify(textDomain)},
+  frameworkAdapter: ${JSON.stringify(config.adapter || 'react')},
 };
 
 export default config;
 `,
-    "utf8",
+    'utf8',
   );
 
-  replaceInFile(path.join(targetDir, "index.html"), [
-    ["ForgeWP Starter", themeName],
+  replaceInFile(path.join(targetDir, 'index.html'), [
+    ['ForgeWP Starter', themeName],
+    ['ForgeWP HTML Starter', themeName],
   ]);
 }

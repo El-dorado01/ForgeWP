@@ -1,32 +1,41 @@
-import { cpSync, existsSync, mkdirSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { REQUIRED_TEMPLATE_FILES } from "./template-files.js";
+import { cpSync, existsSync, mkdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { REQUIRED_TEMPLATE_FILES } from './template-files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const COPY_EXCLUDE = new Set([
-  "node_modules",
-  "dist",
-  ".vite",
-  ".forgewp",
-  "package-lock.json",
+  'node_modules',
+  'dist',
+  '.vite',
+  '.forgewp',
+  'package-lock.json',
 ]);
 
-export function resolveTemplateDir() {
-  const bundled = path.join(__dirname, "..", "template");
+export function resolveTemplateDir(adapter = 'react') {
+  const bundled = path.join(
+    __dirname,
+    '..',
+    adapter === 'html' ? 'template-html' : 'template',
+  );
   if (existsSync(bundled)) {
     validateTemplateDir(bundled);
     return bundled;
   }
 
-  const fromStarter = path.join(__dirname, "..", "..", "starter");
+  const fromStarter = path.join(
+    __dirname,
+    '..',
+    '..',
+    adapter === 'html' ? 'html-starter' : 'starter',
+  );
   if (existsSync(fromStarter)) {
     return fromStarter;
   }
 
   throw new Error(
-    "ForgeWP template not found. Run: pnpm sync:template from the ForgeWP repo.",
+    'ForgeWP template not found. Run: pnpm sync:template from the ForgeWP repo.',
   );
 }
 
@@ -40,14 +49,14 @@ export function validateTemplateDir(templateDir) {
 
   if (missing.length > 0) {
     throw new Error(
-      `CLI template is incomplete (missing: ${missing.join(", ")}).\n` +
-        "From the ForgeWP repo root, run: pnpm sync:template",
+      `CLI template is incomplete (missing: ${missing.join(', ')}).\n` +
+        'From the ForgeWP repo root, run: pnpm sync:template',
     );
   }
 }
 
-export function copyTemplate(targetDir) {
-  const templateDir = resolveTemplateDir();
+export function copyTemplate(targetDir, adapter = 'react') {
+  const templateDir = resolveTemplateDir(adapter);
 
   mkdirSync(targetDir, { recursive: true });
 

@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["lib/**/*", "bin/**/*", "test/**/*"],
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM"],
+    "allowJs": true,
+    "checkJs": false,
+    "types": ["node"]
+  }
+}

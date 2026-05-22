@@ -330,6 +330,37 @@ Compiler sophistication should always exceed runtime sophistication.
 
 ---
 
+# Strategic Beta Alignment Decisions (Developer Approved)
+
+During our Beta Review phase, we aligned on the final strategic answers to the three core identity-defining decisions. These choices solidify ForgeWP as a high-fidelity, compiler-first DX platform.
+
+---
+
+## 1. Gutenberg In-Canvas Editing vs Sidebar Controls
+* **The Decision**: **Structured Hybrid Editing.**
+  * **Text/Content Primitives**: High-frequency editorial fields (headings, paragraph blocks, buttons) compile to inline Gutenberg `<RichText>` fields, parsed directly from developer tags (e.g., `<h2 editable>Hello World</h2>`). This preserves visual immediacy for content managers.
+  * **Layout/Styles**: Advanced spacings, background classes, animation frames, and custom alignment schemes live strictly in the Gutenberg right-hand Settings panel (`InspectorControls`), preventing virtual DOM rendering overhead and compilation fragility.
+
+---
+
+## 2. Standard Shortcode & Legacy Block Normalization
+* **The Decision**: **Layered Overridable Typography Normalization.**
+  * **Opinionated Baseline**: Under `@forgewp/ui`, we bundle a normalized, lightweight, and opt-out CSS layer (modeled after the Tailwind Typography plugin) targeting native WordPress legacy elements (like `.gallery`, `.wp-block-columns`, `.gallery-item`).
+  * **Overridable Classes**: This normalization serves as a baseline default rather than a hardcoded design system lock-in. Developers preserve 100% markup ownership, meaning these layers can be easily disabled or customized inside `wp.config.ts`.
+
+---
+
+## 3. High-Fidelity Query Simulation Engine
+* **The Decision**: **JSON-First by Default, SQLite by Intention.**
+  * **Default (Offline Prototyping)**: Themes start out completely serverless, Git-friendly, and portable by running queries directly against `mock-data.json`. This provides immediate startup with zero database friction.
+  * **Advanced (SQLite Upgrade)**: For large archives, complex meta relation queries, eCommerce catalog tests, or multi-faceted taxonomy searches, developers execute:
+    ```bash
+    pnpm forgewp db:init
+    ```
+    This seamlessly provisions an embeddable, light SQLite simulation file on the local disk, keeping the system portable while mimicking complex SQL relationships without a running WordPress database.
+
+---
+
 # Recommended Core Architecture
 
 ---
@@ -543,6 +574,172 @@ pnpm forgewp analyze
 ```bash
 pnpm forgewp add button
 pnpm forgewp add hero-section
+```
+
+---
+
+# The Declarative API Framework (ForgeWP DX Core)
+
+To graduate ForgeWP into an industry-grade framework, we must completely eliminate the fragmented config files, dynamic PHP setups, and reliance on database configurations (like ACF settings). The solution is a **unified, isomorphic, declarative API** written in pure TypeScript. 
+
+The compiler intercepts these calls during compilation, statically extracting metadata and compiling them down into native PHP registrations, `theme.json` schemas, assets, and React bundles.
+
+---
+
+## 1. `defineTheme()`
+
+### Purpose
+Consolidates WordPress global configurations (features, layout controls, stylesheet links, navigation menus, and color palettes) into a unified, version-controlled TypeScript definition.
+
+### Compile-Time Behavior
+Transpiles directly into the native WordPress `theme.json` config, automatically calls `register_nav_menus()` via PHP filters, enqueues global layouts, and sets up custom theme supports (`add_theme_support()`).
+
+### Strategic Specification
+```tsx
+import { defineTheme } from '@forgewp/react';
+
+export default defineTheme({
+  name: 'Forge Neo Brutalist',
+  slug: 'forge-neo-brutalist',
+  screenshot: './assets/screenshot.png',
+  features: {
+    alignWide: true,
+    editorStyles: true,
+    wpBlockStyles: true,
+  },
+  menus: {
+    primary: 'Primary Header Navigation',
+    footer: 'Footer Column Navigation',
+  },
+  settings: {
+    color: {
+      palette: [
+        { name: 'Neo Red', slug: 'neo-red', color: '#FF3366' },
+        { name: 'Pure Dark', slug: 'pure-dark', color: '#000000' }
+      ]
+    }
+  }
+});
+```
+
+---
+
+## 2. `definePage()`
+
+### Purpose
+Declares custom, dynamic page layouts and page templates, mapping query data structures directly to custom React view templates without forcing developers to remember the standard WordPress PHP template hierarchy.
+
+### Compile-Time Behavior
+Generates standard native WordPress page templates (e.g. `template-portfolio.php`) with compiled server-side PHP data-fetching bindings. It can also declare virtual rewrites and virtual endpoints for headless hybrid routing.
+
+### Strategic Specification
+```tsx
+import { definePage } from '@forgewp/react';
+import PortfolioPage from './templates/PortfolioPage';
+import BaseLayout from './components/BaseLayout';
+
+export default definePage({
+  name: 'Portfolio Showcase',
+  template: 'portfolio-template',
+  postType: 'portfolio',
+  query: {
+    limit: 12,
+    orderby: 'date',
+    order: 'DESC'
+  },
+  layout: BaseLayout,
+  component: PortfolioPage
+});
+```
+
+---
+
+## 3. `defineHydration()`
+
+### Purpose
+Standardizes reusable hydration profiles, scheduling mechanisms, loading thresholds, and fallbacks. Enables fine-grained interaction strategies to keep client-side bundles minimal and highly performant.
+
+### Compile-Time Behavior
+Compiles definitions directly into the `hydration-manifest.json` asset map, telling the runtime loader when, how, and under what constraints to fetch and evaluate dynamic React island chunks.
+
+### Strategic Specification
+```tsx
+import { defineHydration } from '@forgewp/react';
+
+export const AdaptiveHydration = defineHydration({
+  name: 'network-aware-island',
+  trigger: 'visible',
+  connection: 'fast-3g', // Hydrates only on fast connections
+  preload: 'near-visible',
+  fallback: (element) => {
+    element.innerHTML = '<div class="p-4 bg-yellow-100 border-2 border-black shadow-[4px_4px_0_#000]">Loading...</div>';
+  }
+});
+```
+
+---
+
+## 4. `defineBlock()`
+
+### Purpose
+Bridges the gap between modern local React block components and native Gutenberg editor block instances. Completely eliminates database-configured page builder dependencies.
+
+### Compile-Time Behavior
+Compiles the React source code into Gutenberg-compliant files: exports structural schemas into standard `block.json`, registers dynamic inspector controls in the Gutenberg sidebar, compiles the `edit` JSX for the admin canvas, and binds the `save` component to static markup or server-rendered PHP.
+
+### Strategic Specification
+```tsx
+import { defineBlock } from '@forgewp/react';
+import HeroEditor from './HeroEditor';
+import HeroFront from './HeroFront';
+
+export default defineBlock({
+  name: 'hero-banner',
+  title: 'Neo Hero Banner',
+  category: 'design',
+  icon: 'megaphone',
+  attributes: {
+    titleText: { type: 'string', default: 'Revolutionizing WordPress' },
+    accentColor: { type: 'string', default: '#FF3366' }
+  },
+  edit: ({ attributes, setAttributes }) => (
+    <HeroEditor attributes={attributes} onChange={setAttributes} />
+  ),
+  save: ({ attributes }) => (
+    <HeroFront attributes={attributes} />
+  )
+});
+```
+
+---
+
+## 5. `defineAdminPanel()`
+
+### Purpose
+Gives frontend developers the power to design modern, isolated React-based custom administration pages, dashboards, options tables, and plugin manager forms directly inside `wp-admin`.
+
+### Compile-Time Behavior
+Statically maps settings schemas to PHP options database tables, registers WordPress menu routing hooks (`add_menu_page()`), enqueues decoupled standalone React settings bundles inside `wp-admin`, and securely binds form interactions to the built-in WordPress REST API settings endpoints.
+
+### Strategic Specification
+```tsx
+import { defineAdminPanel } from '@forgewp/react';
+import AdminDashboard from './components/AdminDashboard';
+
+export default defineAdminPanel({
+  id: 'forge-settings',
+  title: 'ForgeWP Settings Panel',
+  menuTitle: 'Forge Settings',
+  icon: 'admin-settings',
+  position: 60,
+  fields: {
+    apiToken: { type: 'password', label: 'Cloud API Key' },
+    analyticsEnabled: { type: 'boolean', default: false, label: 'Enable Metrics' }
+  },
+  component: ({ settings, saveSettings }) => (
+    <AdminDashboard settings={settings} onSave={saveSettings} />
+  )
+});
 ```
 
 ---
@@ -778,6 +975,63 @@ It sharply separates ForgeWP from:
 - overhydrated SPAs
 - legacy theme frameworks
 - runtime-heavy frontend systems
+
+---
+
+# Production Readiness & Safeguards Evaluation
+
+To build a platform that developers can confidently trust for mission-critical client work, the framework's architecture must proactively mitigate the chaotic realities of production WordPress environments. Here is our strategic evaluation and mitigation blueprint:
+
+---
+
+## A. Isolated Failure Domains (Error Boundaries)
+* **The Strategic Challenge**: In standard client-side SPAs (like headless React apps), a single runtime JavaScript exception or hydration mismatch will completely break the page, presenting a blank white screen.
+* **ForgeWP Mitigation**:
+  1. **Web Component Sandboxing**: Every React dynamic island compiled via `<Hydrate>` is wrapped in a native, decoupled custom element (`<forgewp-island>`).
+  2. **Self-Healing Boundaries**: The framework runtime automatically registers a global React `ErrorBoundary` wrapper for each island. If the client component crashes during hydration or interaction, the error is isolated inside that specific container.
+  3. **Static Graceful Degradation**: The boundary immediately falls back to displaying the server-pre-rendered static HTML markup. The visitor's experience remains intact, and other islands continue running without interruption.
+
+---
+
+## B. Cache Invalidation & Optimized Delivery
+* **The Strategic Challenge**: Long-term asset caching is critical for performance, but theme updates must immediately invalidate cached client scripts/stylesheets without requiring complex database purge commands.
+* **ForgeWP Mitigation**:
+  1. **Content-Addressed Asset Hashing**: Vite generates production-ready client bundles using secure, content-addressed cryptographic hashes in their filenames (e.g. `main.a4f10c89.js`).
+  2. **Isomorphic Manifest Compilation**: During the `export` pipeline, the compiler compiles an `assets-manifest.json` map binding component ids to their hashed paths.
+  3. **WordPress Registry Synchronization**: The generated `functions.php` file automatically loads this manifest during the `wp_enqueue_scripts` hook. It enqueues scripts using the content hash as both the filename and the version parameter, enabling permanent edge caching while guaranteeing instant invalidation upon new exports.
+
+---
+
+## C. WordPress Plugin Coexistence & Yielding Engine
+* **The Strategic Challenge**: Native WordPress plugins (Yoast, Gravity Forms, WooCommerce, members-only walls) expect traditional hooks and server-rendered HTML. Completely headless systems break these, making adoption extremely painful.
+* **ForgeWP Mitigation**:
+  1. **Native SEO Hijacking**: The `<WpHead>` component is designed to check for the presence of standard SEO plugins. In production, it gracefully yields tag rendering to hooks like `wp_head()` or `document_title_parts` filters, allowing Yoast/RankMath to control headers seamlessly.
+  2. **Isomorphic Filtering**: Instead of writing raw database contents, transpiled content-fetching statements wrap outputs in native filters:
+     ```php
+     <?php echo apply_filters('the_content', get_the_content()); ?>
+     ```
+     This keeps shortcodes, dynamic translate plugins, and core block renderers functioning natively.
+  3. **Visual Builder Fallbacks**: If an administrative user accidentally activates an on-page visual builder (like Elementor or Divi), our template routing intercepts the page state and dynamically serves a traditional fallback layout template (`page.php`), coexisting peacefully instead of crashing.
+
+---
+
+## D. Isomorphic Router & Archive Hierarchy
+* **The Strategic Challenge**: Fighting WordPress's native routing or replacing the standard URL rewrite tree results in poor SEO, complex configurations, and severe plugin incompatibilities.
+* **ForgeWP Mitigation**:
+  1. **AST Folder-Structure Compiler**: The compiler transpiles React route structures directly to their corresponding native PHP file equivalents inside the theme package (e.g. `src/templates/Single.tsx` compiles to `single.php`, `Archive.tsx` to `archive.php`).
+  2. **Static-First Archive Loads**: Archive pages load instantaneous static-first markup on first request. If pagination, search, or active filter components are interacted with, the hydration islands execute lightweight client-side requests using standard WordPress `/wp-json/wp/v2/` REST endpoints.
+  3. **Declarative Rewrite Rules**: Dynamic custom parameters configured in `definePage()` compile down into standard WordPress PHP URL rules via `add_rewrite_rule()`.
+
+---
+
+## E. Dual-Layer Security & Escaping Layer
+* **The Strategic Challenge**: Security must be enforced natively to protect against cross-site scripting (XSS), custom database exploits, and injection vectors.
+* **ForgeWP Mitigation**:
+  1. **Compile-Time Escaping Wrappers**: The compiler automatically wraps dynamic TSX content statements in native sanitization routines during AST translation:
+     * `useWpTitle()` transpiles to `<?php echo esc_html(get_the_title()); ?>`
+     * `useWpPermalink()` transpiles to `<?php echo esc_url(get_permalink()); ?>`
+  2. **kses Context Filtering**: Outputting raw HTML markup from fields automatically triggers `wp_kses_post()` in the compiled PHP output, ensuring structural safety without breaking legitimate user formatting.
+  3. **Cryptographic REST Nonces**: Dynamic client-side modules that require authenticated server communication (like search or AJAX forms) receive native WordPress REST API nonces securely generated on the server and exposed through isolated React contexts, preventing Cross-Site Request Forgery (CSRF).
 
 ---
 

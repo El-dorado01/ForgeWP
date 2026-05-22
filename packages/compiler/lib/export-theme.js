@@ -1,13 +1,13 @@
-import path from "node:path";
-import pc from "picocolors";
-import { buildAssets } from "./build-assets.js";
-import { generateTheme } from "./generate-theme.js";
-import { loadConfig } from "./load-config.js";
-import { renderStaticMarkup } from "./render-static.js";
-import { assertZipCreated, zipTheme } from "./zip-theme.js";
+import path from 'node:path';
+import pc from 'picocolors';
+import { buildAssets } from './build-assets.js';
+import { generateTheme } from './generate-theme.js';
+import { loadConfig } from './load-config.js';
+import { renderStaticMarkup } from './render-static.js';
+import { assertZipCreated, zipTheme } from './zip-theme.js';
 
-import { validateCriticalFiles } from "./validate.js";
-import { validateExport } from "./validate-export.js";
+import { validateCriticalFiles } from './validate.js';
+import { validateExport } from './validate-export.js';
 
 /**
  * @param {Object} options
@@ -18,7 +18,7 @@ import { validateExport } from "./validate-export.js";
  */
 export async function exportTheme(options) {
   const themeRoot = path.resolve(options.themeRoot);
-  
+
   // Run Preflight Safeguards and Self-Healing checks
   validateCriticalFiles(themeRoot);
 
@@ -32,25 +32,39 @@ export async function exportTheme(options) {
         // swallow errors from callbacks
       }
     }
-    const fn = level === 'dim' ? pc.dim : level === 'yellow' ? pc.yellow : level === 'red' ? pc.red : level === 'green' ? pc.green : pc.white;
+    const fn =
+      level === 'dim'
+        ? pc.dim
+        : level === 'yellow'
+          ? pc.yellow
+          : level === 'red'
+            ? pc.red
+            : level === 'green'
+              ? pc.green
+              : pc.white;
     console.log(fn(`  ${message}`));
   }
 
   console.log(pc.cyan(`\n  ForgeWP export — ${config.name}\n`));
 
-  report('build', options.skipBuild ? 'Using existing build (skipBuild)' : 'Building assets with Vite…');
+  report(
+    'build',
+    options.skipBuild
+      ? 'Using existing build (skipBuild)'
+      : 'Building assets with Vite…',
+  );
   const assets = options.skipBuild
-    ? (await import("./build-assets.js")).readBuildManifest(themeRoot)
+    ? (await import('./build-assets.js')).readBuildManifest(themeRoot)
     : buildAssets(themeRoot, { packageManager: options.packageManager });
 
-  report('render', 'Rendering React app to static HTML…');
-  const markup = await renderStaticMarkup(themeRoot);
+  report('render', `Rendering ${config.frameworkAdapter || 'React'} app to static HTML…`);
+  const markup = await renderStaticMarkup(themeRoot, config.frameworkAdapter);
 
-  const outDir = path.join(themeRoot, ".forgewp", "out", config.slug);
-  const zipPath = path.join(themeRoot, ".forgewp", `${config.slug}.zip`);
+  const outDir = path.join(themeRoot, '.forgewp', 'out', config.slug);
+  const zipPath = path.join(themeRoot, '.forgewp', `${config.slug}.zip`);
 
   report('generate', 'Generating WordPress theme files…');
-  generateTheme({
+  await generateTheme({
     themeRoot,
     outDir,
     config,
@@ -68,17 +82,27 @@ export async function exportTheme(options) {
   // Optional export validation
   if (options.validate) {
     report('validate', 'Validating exported theme package…');
-    const validation = await validateExport({ themeRoot, outDir, assets, config, strict: !!options.strict });
+    const validation = await validateExport({
+      themeRoot,
+      outDir,
+      assets,
+      config,
+      strict: !!options.strict,
+    });
 
     if (validation.warnings && validation.warnings.length > 0) {
       report('validate-warnings', 'Validation warnings:', 'yellow');
-      for (const w of validation.warnings) report('validate-warnings-item', ' - ' + w, 'dim');
+      for (const w of validation.warnings)
+        report('validate-warnings-item', ' - ' + w, 'dim');
     }
 
     if (validation.missing && validation.missing.length > 0) {
       report('validate-failed', 'Validation failed — missing files:', 'red');
-      for (const m of validation.missing) report('validate-failed-item', ' - ' + m, 'dim');
-      throw new Error('Export validation failed — missing required files or assets');
+      for (const m of validation.missing)
+        report('validate-failed-item', ' - ' + m, 'dim');
+      throw new Error(
+        'Export validation failed — missing required files or assets',
+      );
     }
 
     report('validate-passed', 'Validation passed', 'green');
@@ -91,5 +115,10 @@ export async function exportTheme(options) {
     report('zip-done', 'ZIP created', 'green');
   }
 
-  return { config, outDir, zipPath: options.zip !== false ? zipPath : null, assets };
+  return {
+    config,
+    outDir,
+    zipPath: options.zip !== false ? zipPath : null,
+    assets,
+  };
 }

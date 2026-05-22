@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import pc from "picocolors";
+import { loadConfig } from "../lib/load-config.js";
+import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
 
 const args = process.argv.slice(2);
 let rawBlockName = args.find(a => !a.startsWith("-"));
@@ -44,22 +46,9 @@ const readableTitle = pascalCase
 
 // Ensure we are inside a ForgeWP theme workspace
 const projectRoot = process.cwd();
-const blocksDir = path.join(projectRoot, "src", "blocks");
 
 if (!existsSync(path.join(projectRoot, "src"))) {
   console.error(pc.red(`\n❌ Error: "src" folder not found. Are you in your theme's root directory?\n`));
-  process.exit(1);
-}
-
-// Ensure src/blocks directory exists
-if (!existsSync(blocksDir)) {
-  mkdirSync(blocksDir, { recursive: true });
-}
-
-const targetFile = path.join(blocksDir, `${pascalCase}.tsx`);
-
-if (existsSync(targetFile)) {
-  console.error(pc.red(`\n❌ Error: Block "${pascalCase}.tsx" already exists at src/blocks/\n`));
   process.exit(1);
 }
 
@@ -78,53 +67,31 @@ if (attrsArg) {
   }
 }
 
-const propSignature = attributesList.map(a => `${a}: string`).join("; ");
-const propDestructuring = attributesList.join(", ");
-
-const layoutMarkup = attributesList.map((attr, index) => {
-  if (index === 0) {
-    return `<h3 className="text-2xl font-black text-zinc-950 uppercase tracking-tight leading-none mb-3">
-        {${attr}}
-      </h3>`;
-  }
-  if (attr.toLowerCase().includes("image") || attr.toLowerCase().includes("pic") || attr.toLowerCase().includes("img")) {
-    return `<img src={${attr}} alt="Block Media" className="w-full border-2 border-zinc-950 mb-3" />`;
-  }
-  return `<p className="text-sm text-zinc-600 font-medium font-sans leading-relaxed mb-3">
-        {${attr}}
-      </p>`;
-}).join("\n      ");
-
-const attributesRegistry = attributesList.map(a => {
-  return `    ${a}: { type: "string", default: "Customize ${a} here" }`;
-}).join(",\n");
-
-// 3. Generate the beautiful Neo-Brutalist React block template
-const blockTemplate = `export default function ${pascalCase}({ ${propDestructuring} }: { ${propSignature} }) {
-  return (
-    <div className="p-8 bg-white border-4 border-zinc-950 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-none my-6 selection:bg-brand selection:text-white">
-      <span className="inline-block bg-brand text-white text-xs font-mono font-bold uppercase tracking-wider px-2 py-0.5 mb-3 border-2 border-zinc-950">
-        Gutenberg Custom Block
-      </span>
-      ${layoutMarkup}
-    </div>
-  );
+// Load configuration and invoke adapter
+let frameworkAdapter = "react";
+try {
+  const config = await loadConfig(projectRoot);
+  frameworkAdapter = config.frameworkAdapter || "react";
+} catch (err) {
+  // Use default
 }
 
-export const settings = {
-  title: "Sharp ${readableTitle}",
-  icon: "admin-post", // Choose icons from: https://developer.wordpress.org/resource/dashicons/
-  category: "design",
-  attributes: {
-${attributesRegistry}
+try {
+  const adapterModule = await loadFrameworkAdapter(frameworkAdapter);
+  const adapter = adapterModule.default || adapterModule;
+  if (typeof adapter.onMakeBlock === "function") {
+    await adapter.onMakeBlock(projectRoot, {
+      pascalCase,
+      readableTitle,
+      attributesList,
+      pc
+    });
+  } else {
+    console.error(pc.red(`\n❌ Error: Framework adapter "${frameworkAdapter}" does not support making Gutenberg blocks.`));
+    process.exit(1);
   }
-};
-`;
+} catch (err) {
+  console.error(pc.red(`\n❌ Failed to execute make:block: ${err.message}`));
+  process.exit(1);
+}
 
-// 4. Write template out to disk
-writeFileSync(targetFile, blockTemplate, "utf8");
-
-console.log(pc.green(`\n⚡ Block "${pascalCase}" successfully created!`));
-console.log(`   Location: ${pc.cyan(`src/blocks/${pascalCase}.tsx`)}`);
-console.log(`   Gutenberg Title: ${pc.yellow(`Sharp ${readableTitle}`)}`);
-console.log(`\n🎉 Run ${pc.cyan("pnpm export")} to automatically register it inside your WordPress theme!\n`);

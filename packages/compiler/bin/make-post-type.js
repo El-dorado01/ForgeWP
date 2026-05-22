@@ -33,10 +33,10 @@ if (!cleanName) {
 }
 
 const projectRoot = process.cwd();
-const wpDir = path.join(projectRoot, "wordpress");
+const wpDir = path.join(projectRoot, "cms");
 const mockDataPath = path.join(wpDir, "mock-data.json");
 
-// Ensure wordpress directory exists
+// Ensure cms directory exists
 if (!existsSync(wpDir)) {
   mkdirSync(wpDir, { recursive: true });
 }
@@ -47,13 +47,13 @@ if (existsSync(mockDataPath)) {
   try {
     mockData = JSON.parse(readFileSync(mockDataPath, "utf8"));
   } catch (err) {
-    console.error(pc.red(`\n❌ Error: Failed to parse wordpress/mock-data.json. Enforcing clean file.`));
+    console.error(pc.red(`\n❌ Error: Failed to parse cms/mock-data.json. Enforcing clean file.`));
     mockData = {};
   }
 }
 
 if (mockData[cleanName]) {
-  console.warn(pc.yellow(`\n⚠️  Post type "${cleanName}" already exists in wordpress/mock-data.json.`));
+  console.warn(pc.yellow(`\n⚠️  Post type "${cleanName}" already exists in cms/mock-data.json.`));
   console.log(`   You can open the file directly to view or edit existing fields.\n`);
   process.exit(0);
 }
@@ -97,7 +97,7 @@ mockData[cleanName] = [
     id: 1,
     title: `Sample ${cleanName.charAt(0).toUpperCase() + cleanName.slice(1)} Item 1`,
     excerpt: `This is a custom ${cleanName} post seeded dynamically via ForgeWP CLI.`,
-    content: `<p>Welcome to your new custom <strong>${cleanName}</strong> post template! Edit this in wordpress/mock-data.json.</p>`,
+    content: `<p>Welcome to your new custom <strong>${cleanName}</strong> post template! Edit this in cms/mock-data.json.</p>`,
     date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
     author: "ForgeWP CLI",
     featuredImage: `https://picsum.photos/seed/${cleanName}1/1200/630`,
@@ -121,7 +121,7 @@ writeFileSync(mockDataPath, JSON.stringify(mockData, null, 2), "utf8");
 const suggestedField = customFieldsList.length > 0 ? customFieldsList[0] : "client_name";
 
 console.log(pc.green(`\n⚡ Post Type "${cleanName}" successfully registered!`));
-console.log(`   Local DB: ${pc.cyan(`wordpress/mock-data.json`)}`);
+console.log(`   Local DB: ${pc.cyan(`cms/mock-data.json`)}`);
 console.log(`\n🎉 Query your seeded fields in React inside:`);
 console.log(`   ${pc.yellow(`<WpQueryLoop postType="${cleanName}" postsPerPage={2}>`)}`);
 console.log(`     ${pc.yellow(`<h3>{useWpTitle()}</h3>`)}`);

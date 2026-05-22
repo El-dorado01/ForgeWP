@@ -7,7 +7,7 @@
  */
 
 export const SYSTEM_BLUEPRINTS = {
-  'wordpress/menus.json': `{
+  'cms/menus.json': `{
   "_comment": "⚡ ForgeWP Navigation Menus — Edit this file to add/remove links in local dev. Run 'pnpm forgewp sync:routes' to auto-scaffold corresponding React pages!",
   "primary": [
     { "title": "Home", "url": "/" },
@@ -21,27 +21,60 @@ export const SYSTEM_BLUEPRINTS = {
   ]
 }`,
 
-  'wordpress/mock-data.json': `{
+  'cms/mock-data.json': `{
   "post": [
     {
       "id": 1,
       "title": "Welcome to ForgeWP: The Headless Revolution",
       "excerpt": "Discover how ForgeWP bridges standard WordPress themes with blistering fast React architectures.",
-      "content": "<p>This is the first mock post. In local dev, you can modify <code>wordpress/mock-data.json</code> to test layout content changes.</p>",
-      "date": "May 10, 2026",
+      "content": "<p>This is the first mock post. In local dev, you can modify <code>cms/mock-data.json</code> to test layout content changes.</p>",
+      "date": "2026-05-10T09:00:00Z",
       "author": "Antigravity",
-      "featuredImage": "https://picsum.photos/seed/forgewp/1200/630",
-      "customFields": {}
+      "featuredImage": {
+        "id": 101,
+        "url": "https://picsum.photos/seed/forgewp/1200/630",
+        "alt": "ForgeWP Logo and Brand Artwork",
+        "title": "ForgeWP Logo",
+        "caption": "A high-fidelity minimalist logo graphic.",
+        "width": 1200,
+        "height": 630,
+        "sizes": {
+          "thumbnail": { "url": "https://picsum.photos/seed/forgewp/150/150", "width": 150, "height": 150 },
+          "medium":    { "url": "https://picsum.photos/seed/forgewp/300/300", "width": 300, "height": 300 },
+          "large":     { "url": "https://picsum.photos/seed/forgewp/1024/768", "width": 1024, "height": 768 }
+        }
+      },
+      "customFields": { "read_time": "5" },
+      "_terms": {
+        "category": [
+          { "id": 1, "slug": "tutorials", "name": "Tutorials" },
+          { "id": 2, "slug": "framework",  "name": "Framework" }
+        ],
+        "post_tag": [
+          { "id": 10, "slug": "react",     "name": "React" },
+          { "id": 11, "slug": "wordpress", "name": "WordPress" }
+        ]
+      }
     },
     {
       "id": 2,
       "title": "Unlocking Brutalist Web Design Aesthetics",
       "excerpt": "A deep dive into high-contrast grids, sharp corners, and premium flat shadows in modern interfaces.",
       "content": "<p>This is the second mock post. Style these grids using beautiful Tailwind utilities.</p>",
-      "date": "May 12, 2026",
+      "date": "2026-05-12T14:30:00Z",
       "author": "DeepMind Partner",
       "featuredImage": "https://picsum.photos/seed/brutalist/1200/630",
-      "customFields": {}
+      "customFields": { "read_time": "8" },
+      "_terms": {
+        "category": [
+          { "id": 3, "slug": "design", "name": "Design" },
+          { "id": 4, "slug": "css",    "name": "CSS" }
+        ],
+        "post_tag": [
+          { "id": 12, "slug": "brutalism", "name": "Brutalism" },
+          { "id": 13, "slug": "tailwind",  "name": "Tailwind" }
+        ]
+      }
     }
   ],
   "project": [
@@ -50,12 +83,17 @@ export const SYSTEM_BLUEPRINTS = {
       "title": "ForgeWP Scaffolding Platform",
       "excerpt": "Building a custom compiler framework to transpile React elements into standard PHP themes.",
       "content": "<p>Detailed description of the ForgeWP compiler pipeline project.</p>",
-      "date": "May 15, 2026",
+      "date": "2026-05-15T12:00:00Z",
       "author": "Lead Architect",
       "featuredImage": "https://picsum.photos/seed/platform/1200/630",
       "customFields": {
         "client_name": "El Dorado",
-        "project_budget": "$45,000"
+        "project_budget": "45000",
+        "status": "active"
+      },
+      "_terms": {
+        "project_type": [{ "id": 20, "slug": "open-source", "name": "Open Source" }],
+        "technology":   [{ "id": 30, "slug": "react", "name": "React" }]
       }
     },
     {
@@ -63,12 +101,45 @@ export const SYSTEM_BLUEPRINTS = {
       "title": "Brutalist Starter Theme",
       "excerpt": "A clean, responsive, and robust high-contrast interface leveraging Tailwind CSS v4.",
       "content": "<p>A brutalist theme showcasing raw black borders and vivid accent colors.</p>",
-      "date": "May 16, 2026",
+      "date": "2026-05-16T16:00:00Z",
       "author": "Theme Engineer",
       "featuredImage": "https://picsum.photos/seed/starter/1200/630",
       "customFields": {
         "client_name": "ForgeWP Community",
-        "project_budget": "Open Source"
+        "project_budget": "0",
+        "status": "completed"
+      },
+      "_terms": {
+        "project_type": [{ "id": 20, "slug": "open-source", "name": "Open Source" }],
+        "technology":   [{ "id": 32, "slug": "tailwind", "name": "Tailwind CSS" }]
+      }
+    }
+  ],
+  "attachment": [
+    {
+      "id": 101,
+      "url": "https://picsum.photos/seed/forgewp/1200/630",
+      "alt": "ForgeWP Logo and Brand Artwork",
+      "title": "ForgeWP Logo",
+      "caption": "A high-fidelity minimalist logo graphic.",
+      "width": 1200,
+      "height": 630,
+      "sizes": {
+        "thumbnail": { "url": "https://picsum.photos/seed/forgewp/150/150", "width": 150, "height": 150 },
+        "medium":    { "url": "https://picsum.photos/seed/forgewp/300/300", "width": 300, "height": 300 },
+        "large":     { "url": "https://picsum.photos/seed/forgewp/1024/768", "width": 1024, "height": 768 }
+      }
+    },
+    {
+      "id": 102,
+      "url": "https://picsum.photos/seed/layout/1200/800",
+      "alt": "Brutalist Layout Preview",
+      "title": "Layout Preview",
+      "width": 1200,
+      "height": 800,
+      "sizes": {
+        "thumbnail": { "url": "https://picsum.photos/seed/layout/150/150", "width": 150, "height": 150 },
+        "medium":    { "url": "https://picsum.photos/seed/layout/300/300", "width": 300, "height": 300 }
       }
     }
   ]
@@ -129,14 +200,16 @@ export interface ForgeWPThemeConfig {
 import React from "react";
 
 // @ts-ignore
-import mockData from "../../wordpress/mock-data.json";
+import mockData from "../../cms/mock-data.json";
 // @ts-ignore
-import menusData from "../../wordpress/menus.json";
+import menusData from "../../cms/menus.json";
+// @ts-ignore
+import siteSettings from "../../cms/site-settings.json";
 
 import {
   WpQueryLoop as _WpQueryLoop,
   WpMenu as _WpMenu,
-  WpShortcode,
+  WpShortcode as _WpShortcode,
   useWpTitle as _useWpTitle,
   useWpContent as _useWpContent,
   useWpExcerpt as _useWpExcerpt,
@@ -145,13 +218,35 @@ import {
   useWpAuthor as _useWpAuthor,
   useWpFeaturedImage as _useWpFeaturedImage,
   useWpCustomField as _useWpCustomField,
+  useWpOption as _useWpOption,
+  useWpThemeMod as _useWpThemeMod,
+  useWpQuery as _useWpQuery,
+  WpHead as _WpHead,
+  WpImage as _WpImage,
 } from "@forgewp/react";
-import type { WpQueryLoopProps, WpMenuProps } from "@forgewp/react";
+import type {
+  WpQueryLoopProps,
+  WpMenuProps,
+  WpHeadProps,
+  WpImageProps,
+  WpAttachment,
+  WpQueryArgs,
+  WpQueryResults,
+  WpPost,
+  WpShortcodeProps,
+} from "@forgewp/react";
 
 const IS_DEV =
   typeof import.meta !== "undefined" &&
   // @ts-ignore
   import.meta.env?.DEV === true;
+
+if (IS_DEV) {
+  if (typeof window !== "undefined") {
+    (window as any)._forgeWpMockSiteSettings = siteSettings;
+    (window as any)._forgeWpMockPosts = mockData;
+  }
+}
 
 // ── Re-export pure hooks with compiler token fallbacks ────────────────────────
 // In dev: @forgewp/react hook returns the mock value from WpPostContext.
@@ -188,6 +283,276 @@ export function useWpFeaturedImage(): string {
 export function useWpCustomField(fieldName: string, defaultValue = ""): string {
   if (IS_DEV) return _useWpCustomField(fieldName, defaultValue);
   return "__FORGEWP_CUSTOM_FIELD__" + fieldName + "__";
+}
+
+export function useWpOption(optionName: string, defaultValue = ""): string {
+  if (IS_DEV) return _useWpOption(optionName, defaultValue);
+  return defaultValue
+    ? \`__FORGEWP_OPTION_\${optionName}_DEFAULT_\${encodeURIComponent(defaultValue)}__\`
+    : \`__FORGEWP_OPTION_\${optionName}__\`;
+}
+
+export function useWpThemeMod(modName: string, defaultValue = ""): string {
+  if (IS_DEV) return _useWpThemeMod(modName, defaultValue);
+  return defaultValue
+    ? \`__FORGEWP_THEME_MOD_\${modName}_DEFAULT_\${encodeURIComponent(defaultValue)}__\`
+    : \`__FORGEWP_THEME_MOD_\${modName}__\`;
+}
+
+export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
+  if (IS_DEV) {
+    return _useWpQuery(args);
+  }
+
+  // ── Node SSR (Compile-time static render) ─────────────────────────────────
+  // Runs a high-fidelity in-memory relational query against mock-data.json.
+  // Supports taxQuery, metaQuery, ISO date sorting, and correct page slicing.
+  if (typeof window === "undefined") {
+    const {
+      postType = "post",
+      postsPerPage = 10,
+      categoryName = "",
+      s = "",
+      paged = 1,
+      orderby = "date",
+      order = "DESC",
+      taxQuery = [],
+      metaQuery = [],
+      metaRelation = "AND",
+    } = args;
+
+    const mockDb = (mockData as any)?.[postType] || [];
+    let filtered = [...mockDb];
+
+    // 1. Full-text search
+    if (s) {
+      const q = s.toLowerCase();
+      filtered = filtered.filter(p =>
+        (p.title && p.title.toLowerCase().includes(q)) ||
+        (p.content && p.content.toLowerCase().includes(q)) ||
+        (p.excerpt && p.excerpt.toLowerCase().includes(q))
+      );
+    }
+
+    // 2. Legacy categoryName (slug match against _terms.category)
+    if (categoryName) {
+      const catSlug = categoryName.toLowerCase();
+      filtered = filtered.filter(p => {
+        if (p._terms?.category) {
+          return p._terms.category.some((c: any) =>
+            (typeof c === "string" && c.toLowerCase() === catSlug) ||
+            (typeof c === "object" && c.slug?.toLowerCase() === catSlug)
+          );
+        }
+        return JSON.stringify(p.customFields || {}).toLowerCase().includes(catSlug);
+      });
+    }
+
+    // 3. taxQuery — relational taxonomy/term joins
+    for (const tq of taxQuery) {
+      const { taxonomy, field = "slug", terms } = tq as any;
+      const termList: any[] = Array.isArray(terms) ? terms : [terms];
+      filtered = filtered.filter(p => {
+        const postTerms: any[] = p._terms?.[taxonomy] || [];
+        return termList.some(t =>
+          postTerms.some((pt: any) => {
+            if (typeof pt === "string") return pt === String(t);
+            return String(pt[field] ?? pt.slug ?? pt) === String(t);
+          })
+        );
+      });
+    }
+
+    // 4. metaQuery — custom field relational filters
+    if (metaQuery.length > 0) {
+      filtered = filtered.filter(p => {
+        const cf = p.customFields || {};
+        const check = (cond: any) => {
+          const { key, value, compare = "=" } = cond;
+          if (compare === "EXISTS") return key in cf;
+          if (compare === "NOT EXISTS") return !(key in cf);
+          if (!(key in cf)) return false;
+          const fv = cf[key];
+          if (compare === "LIKE") return String(fv).toLowerCase().includes(String(value ?? "").toLowerCase());
+          const a: any = isNaN(Number(fv)) ? String(fv) : Number(fv);
+          const b: any = isNaN(Number(value)) ? String(value ?? "") : Number(value ?? 0);
+          if (compare === "=")  return a == b;
+          if (compare === "!=") return a != b;
+          if (compare === ">")  return a > b;
+          if (compare === ">=") return a >= b;
+          if (compare === "<")  return a < b;
+          if (compare === "<=") return a <= b;
+          return false;
+        };
+        return metaRelation === "OR"
+          ? (metaQuery as any[]).some(check)
+          : (metaQuery as any[]).every(check);
+      });
+    }
+
+    // 5. Sort (UNIX timestamp for dates)
+    filtered.sort((a, b) => {
+      let valA: any = (a as any)[orderby] ?? "";
+      let valB: any = (b as any)[orderby] ?? "";
+      if (orderby === "date" || orderby === "modified") {
+        valA = new Date(a.date || 0).getTime();
+        valB = new Date(b.date || 0).getTime();
+      }
+      if (order === "DESC") return valA < valB ? 1 : valA > valB ? -1 : 0;
+      return valA > valB ? 1 : valA < valB ? -1 : 0;
+    });
+
+    // 6. Paginate (page-slice: only page N)
+    const total = filtered.length;
+    const start = (paged - 1) * postsPerPage;
+    const end = start + postsPerPage;
+    const pageItems = filtered.slice(start, end);
+
+    return {
+      posts: pageItems,
+      loading: false,
+      error: null,
+      hasMore: end < total,
+      loadMore: async () => {},
+      refetch: async () => {},
+    };
+  }
+
+  // ── Browser Production Client — fetch from WordPress REST API ────────────
+  const {
+    postType = "post",
+    postsPerPage = 10,
+    categoryName = "",
+    s = "",
+    paged = 1,
+    orderby = "date",
+    order = "DESC",
+  } = args;
+
+  const [posts, setPosts] = React.useState<WpPost[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [currentPage, setCurrentPage] = React.useState(paged);
+  const [hasMore, setHasMore] = React.useState(true);
+
+  // Track previous arguments to reset page and posts synchronously on change
+  const [prevParams, setPrevParams] = React.useState({
+    postType,
+    postsPerPage,
+    categoryName,
+    s,
+    orderby,
+    order,
+  });
+
+  const paramsChanged =
+    prevParams.postType !== postType ||
+    prevParams.postsPerPage !== postsPerPage ||
+    prevParams.categoryName !== categoryName ||
+    prevParams.s !== s ||
+    prevParams.orderby !== orderby ||
+    prevParams.order !== order;
+
+  if (paramsChanged) {
+    setPrevParams({ postType, postsPerPage, categoryName, s, orderby, order });
+    setCurrentPage(1);
+    setPosts([]);
+  }
+
+  const executeProdQuery = React.useCallback(async (page: number) => {
+    setLoading(true);
+    try {
+      const endpoint = postType === "post" ? "posts" : postType === "page" ? "pages" : postType;
+      const params = new URLSearchParams();
+      params.append("per_page", String(postsPerPage));
+      params.append("page", String(page));
+      params.append("_embed", "1");
+      if (s) {
+        params.append("search", s);
+      }
+      if (orderby) {
+        params.append("orderby", orderby === "date" ? "date" : orderby);
+      }
+      if (order) {
+        params.append("order", order.toLowerCase());
+      }
+      if (categoryName) {
+        params.append("category_name", categoryName);
+      }
+      
+      const response = await fetch(\`/wp-json/wp/v2/\${endpoint}?\${params.toString()}\`);
+      if (!response.ok) {
+        throw new Error(\`WordPress API returned \${response.status}: \${response.statusText}\`);
+      }
+      
+      const data = await response.json();
+      if (!Array.isArray(data)) {
+        throw new Error("Invalid response format from WordPress API");
+      }
+      
+      const mappedPosts: WpPost[] = data.map((wp: any) => {
+        let featuredImage = "https://picsum.photos/seed/forgewp/1200/630";
+        if (wp._embedded && wp._embedded["wp:featuredmedia"] && wp._embedded["wp:featuredmedia"][0]) {
+          const media = wp._embedded["wp:featuredmedia"][0];
+          featuredImage = media.source_url || featuredImage;
+        } else if (wp.featured_media_src_url) {
+          featuredImage = wp.featured_media_src_url;
+        }
+        
+        return {
+          id: wp.id,
+          title: typeof wp.title === "object" ? wp.title.rendered : wp.title || "",
+          excerpt: typeof wp.excerpt === "object" ? wp.excerpt.rendered : wp.excerpt || "",
+          content: typeof wp.content === "object" ? wp.content.rendered : wp.content || "",
+          date: wp.date ? new Date(wp.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "",
+          author: wp._embedded && wp._embedded["author"] && wp._embedded["author"][0] ? wp._embedded["author"][0].name : "Admin",
+          featuredImage,
+          permalink: wp.link,
+          customFields: wp.acf || wp.meta || {},
+          __postType: wp.type || postType
+        };
+      });
+      
+      const totalPagesHeader = response.headers.get("X-WP-TotalPages");
+      const totalPages = totalPagesHeader ? parseInt(totalPagesHeader, 10) : 1;
+      
+      if (page === 1) {
+        setPosts(mappedPosts);
+      } else {
+        setPosts(prev => [...prev, ...mappedPosts]);
+      }
+      setHasMore(page < totalPages && mappedPosts.length > 0);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || "Failed to fetch from WordPress API");
+    } finally {
+      setLoading(false);
+    }
+  }, [postType, postsPerPage, categoryName, s, orderby, order]);
+
+  React.useEffect(() => {
+    executeProdQuery(currentPage);
+  }, [executeProdQuery, currentPage]);
+
+  const loadMore = React.useCallback(async () => {
+    if (loading || !hasMore) return;
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+  }, [currentPage, loading, hasMore]);
+
+  const refetch = React.useCallback(async () => {
+    setCurrentPage(1);
+    executeProdQuery(1);
+  }, [executeProdQuery]);
+
+  return {
+    posts,
+    loading,
+    error,
+    hasMore,
+    loadMore,
+    refetch,
+  };
 }
 
 export function useWpCategories(): string {
@@ -268,8 +633,46 @@ export function WpMenu({ location = "primary", className = "", linkClassName = "
   );
 }
 
-// ── WpShortcode — pass-through, no data bridging needed ──────────────────────
-export { WpShortcode };
+// ── WpShortcode ──────────────────────────────────────────────────────────────
+export function WpShortcode({ code }: WpShortcodeProps) {
+  if (IS_DEV) {
+    return <_WpShortcode code={code} />;
+  }
+  return (
+    // @ts-ignore
+    <forgewp-shortcode code={code} />
+  );
+}
+
+export function WpHead(props: WpHeadProps) {
+  if (IS_DEV) {
+    return <_WpHead {...props} />;
+  }
+  return (
+    // @ts-ignore
+    <forgewp-head
+      data-title={props.title}
+      data-description={props.description}
+      data-keywords={props.keywords}
+      data-og-title={props.ogTitle}
+      data-og-description={props.ogDescription}
+      data-og-image={props.ogImage}
+      data-og-type={props.ogType}
+      data-twitter-card={props.twitterCard}
+      data-twitter-creator={props.twitterCreator}
+      data-canonical={props.canonical}
+    />
+  );
+}
+export type { WpHeadProps, WpImageProps, WpAttachment };
+
+export function WpImage(props: WpImageProps) {
+  if (IS_DEV) {
+    const attachments = (mockData as any)?.attachment || [];
+    return <_WpImage {...props} attachments={attachments} />;
+  }
+  return <_WpImage {...props} />;
+}
 
 // ── Compiler custom element JSX declarations ──────────────────────────────────
 
@@ -279,7 +682,7 @@ declare global {
       interface IntrinsicElements {
         "forgewp-menu": React.DetailedHTMLProps<
           React.HTMLAttributes<HTMLElement> & {
-            location?: "primary" | "footer" | "sidebar";
+            location?: "primary" | "footer" | "sidebar" | string;
             linkClassName?: string;
           },
           HTMLElement
@@ -307,6 +710,31 @@ declare global {
         "forgewp-shortcode": React.DetailedHTMLProps<
           React.HTMLAttributes<HTMLElement> & {
             code?: string;
+          },
+          HTMLElement
+        >;
+        "forgewp-head": React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement> & {
+            "data-title"?: string;
+            "data-description"?: string;
+            "data-keywords"?: string;
+            "data-og-title"?: string;
+            "data-og-description"?: string;
+            "data-og-image"?: string;
+            "data-og-type"?: string;
+            "data-twitter-card"?: string;
+            "data-twitter-creator"?: string;
+            "data-canonical"?: string;
+          },
+          HTMLElement
+        >;
+        "forgewp-image": React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement> & {
+            "data-id"?: string;
+            "data-field"?: string;
+            "data-size"?: string;
+            "data-class-name"?: string;
+            "data-alt"?: string;
           },
           HTMLElement
         >;

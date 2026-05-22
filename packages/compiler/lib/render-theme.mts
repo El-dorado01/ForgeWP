@@ -23,22 +23,52 @@ const layoutUrl = pathToFileURL(path.join(themeRoot, "src", "app", "layout.tsx")
 const layoutPath = path.join(themeRoot, "src", "app", "layout.tsx");
 
 // ── Load pages ────────────────────────────────────────────────────────────────
-const { default: App } = await import(appUrl);
+let App: any;
+try {
+  const module = await import(appUrl);
+  App = module.default;
+  if (!App) {
+    throw new Error("Page component lacks a default export.");
+  }
+} catch (err: any) {
+  console.error(`\n[ForgeWP Compiler Error] Failed to load the main Page component (src/app/page.tsx).`);
+  console.error(`Check for syntax errors, incorrect imports, or invalid references inside your page component.`);
+  console.error(`Error details: ${err.stack || err.message || err}\n`);
+  process.exit(1);
+}
 
 let RootLayout: (props: any) => any = ({ children }: any) =>
   React.createElement(React.Fragment, null, children);
-try {
-  const { default: LoadedLayout } = await import(layoutUrl);
-  RootLayout = LoadedLayout;
-} catch {
-  console.warn("RootLayout not found, using Fragment fallback");
+if (existsSync(layoutPath)) {
+  try {
+    const module = await import(layoutUrl);
+    RootLayout = module.default;
+    if (!RootLayout) {
+      throw new Error("Root layout component lacks a default export.");
+    }
+  } catch (err: any) {
+    console.error(`\n[ForgeWP Compiler Error] Failed to load the Root Layout component (src/app/layout.tsx).`);
+    console.error(`Check for syntax errors, incorrect imports, or invalid references inside your layout component.`);
+    console.error(`Error details: ${err.stack || err.message || err}\n`);
+    process.exit(1);
+  }
+} else {
+  console.warn("RootLayout (src/app/layout.tsx) not found, using Fragment fallback");
 }
 
 // ── Render a page inside RootLayout ──────────────────────────────────────────
 function renderPage(PageComponent: any): string {
-  return renderToStaticMarkup(
-    React.createElement(RootLayout, null, React.createElement(PageComponent))
-  );
+  try {
+    return renderToStaticMarkup(
+      React.createElement(RootLayout, null, React.createElement(PageComponent))
+    );
+  } catch (err: any) {
+    console.error(`\n[ForgeWP Compiler Error] Server-Side Rendering (SSR) failed for Page Component.`);
+    console.error(`This typically happens if you use browser-only globals (like 'window', 'document', 'localStorage') at render-time, or if a component throws during execution.`);
+    console.error(`Ensure browser-specific logic is placed inside useEffect() or is executed only in the client.`);
+    console.error(`Error details: ${err.stack || err.message || err}\n`);
+    process.exit(1);
+  }
 }
 
 // ── SEO extraction from source files (React 19 SSR-safe) ─────────────────────
@@ -54,8 +84,8 @@ function extractSeoPropsFromSource(filePath: string): Record<string, string> {
   // Strip JSX block comments so we don't match <SEO /> mentions inside them
   src = src.replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
 
-  // Find the first <SEO ... /> (multiline, s flag)
-  const seoMatch = src.match(/<SEO\b([\s\S]*?)\/>/s);
+  // Find the first <SEO ... /> or <WpHead ... /> (multiline, s flag)
+  const seoMatch = src.match(/<(?:SEO|WpHead)\b([^>]*?)(?:\/>|>)/s);
   if (!seoMatch) return {};
 
   const attribsStr = seoMatch[1];
@@ -127,20 +157,43 @@ function buildHeadHtml(
 }
 
 // ── Render header / footer fragments ─────────────────────────────────────────
+const headerPath = path.join(themeRoot, "src", "components", "SiteHeader.tsx");
+const footerPath = path.join(themeRoot, "src", "components", "SiteFooter.tsx");
+
 let headerHtml = "";
-try {
-  const { SiteHeader } = await import(headerUrl);
-  headerHtml = renderToStaticMarkup(React.createElement(SiteHeader));
-} catch {
-  console.warn("SiteHeader not found, skipping separate render");
+if (existsSync(headerPath)) {
+  try {
+    const module = await import(headerUrl);
+    const SiteHeader = module.SiteHeader || module.default;
+    if (!SiteHeader) {
+      throw new Error("SiteHeader component not found in export (expects named export 'SiteHeader' or default export).");
+    }
+    headerHtml = renderToStaticMarkup(React.createElement(SiteHeader));
+  } catch (err: any) {
+    console.error(`\n[ForgeWP Compiler Error] Failed to load or render the Site Header component (src/components/SiteHeader.tsx).`);
+    console.error(`Error details: ${err.stack || err.message || err}\n`);
+    process.exit(1);
+  }
+} else {
+  console.warn("SiteHeader (src/components/SiteHeader.tsx) not found, skipping separate render");
 }
 
 let footerHtml = "";
-try {
-  const { SiteFooter } = await import(footerUrl);
-  footerHtml = renderToStaticMarkup(React.createElement(SiteFooter));
-} catch {
-  console.warn("SiteFooter not found, skipping separate render");
+if (existsSync(footerPath)) {
+  try {
+    const module = await import(footerUrl);
+    const SiteFooter = module.SiteFooter || module.default;
+    if (!SiteFooter) {
+      throw new Error("SiteFooter component not found in export (expects named export 'SiteFooter' or default export).");
+    }
+    footerHtml = renderToStaticMarkup(React.createElement(SiteFooter));
+  } catch (err: any) {
+    console.error(`\n[ForgeWP Compiler Error] Failed to load or render the Site Footer component (src/components/SiteFooter.tsx).`);
+    console.error(`Error details: ${err.stack || err.message || err}\n`);
+    process.exit(1);
+  }
+} else {
+  console.warn("SiteFooter (src/components/SiteFooter.tsx) not found, skipping separate render");
 }
 
 // ── Render pages ──────────────────────────────────────────────────────────────
@@ -150,24 +203,51 @@ const appHtml = renderPage(App);
 const singlePath = path.join(themeRoot, "src", "app", "single.tsx");
 let singleHtml = "";
 if (existsSync(singlePath)) {
-  const { default: SinglePage } = await import(pathToFileURL(singlePath).href);
-  singleHtml = renderPage(SinglePage);
+  try {
+    const { default: SinglePage } = await import(pathToFileURL(singlePath).href);
+    if (!SinglePage) {
+      throw new Error("single.tsx component lacks a default export.");
+    }
+    singleHtml = renderPage(SinglePage);
+  } catch (err: any) {
+    console.error(`\n[ForgeWP Compiler Error] Failed to load or render the Single Post Page component (src/app/single.tsx).`);
+    console.error(`Error details: ${err.stack || err.message || err}\n`);
+    process.exit(1);
+  }
 }
 
 // 404.tsx — rendered bare, no RootLayout (WP 404.php calls get_header/get_footer)
 const notFoundPath = path.join(themeRoot, "src", "app", "404.tsx");
 let notFoundHtml = "";
 if (existsSync(notFoundPath)) {
-  const { default: NotFoundPage } = await import(pathToFileURL(notFoundPath).href);
-  notFoundHtml = renderToStaticMarkup(React.createElement(NotFoundPage));
+  try {
+    const { default: NotFoundPage } = await import(pathToFileURL(notFoundPath).href);
+    if (!NotFoundPage) {
+      throw new Error("404.tsx component lacks a default export.");
+    }
+    notFoundHtml = renderToStaticMarkup(React.createElement(NotFoundPage));
+  } catch (err: any) {
+    console.error(`\n[ForgeWP Compiler Error] Failed to load or render the 404 Not Found Page component (src/app/404.tsx).`);
+    console.error(`Error details: ${err.stack || err.message || err}\n`);
+    process.exit(1);
+  }
 }
 
 // archive.tsx
 const archivePath = path.join(themeRoot, "src", "app", "archive.tsx");
 let archiveHtml = "";
 if (existsSync(archivePath)) {
-  const { default: ArchivePage } = await import(pathToFileURL(archivePath).href);
-  archiveHtml = renderPage(ArchivePage);
+  try {
+    const { default: ArchivePage } = await import(pathToFileURL(archivePath).href);
+    if (!ArchivePage) {
+      throw new Error("archive.tsx component lacks a default export.");
+    }
+    archiveHtml = renderPage(ArchivePage);
+  } catch (err: any) {
+    console.error(`\n[ForgeWP Compiler Error] Failed to load or render the Archive Page component (src/app/archive.tsx).`);
+    console.error(`Error details: ${err.stack || err.message || err}\n`);
+    process.exit(1);
+  }
 }
 
 // ── Extract SEO from source files ─────────────────────────────────────────────

@@ -23,8 +23,17 @@ export type { WpMenuProps } from "./components/WpMenu";
 export { WpShortcode } from "./components/WpShortcode";
 export type { WpShortcodeProps } from "./components/WpShortcode";
 
+export { WpEditable } from "./components/WpEditable";
+export type { WpEditableProps } from "./components/WpEditable";
+
 export { Hydrate } from "./components/Hydrate";
 export type { HydrateProps } from "./components/Hydrate";
+
+export { WpHead } from "./components/WpHead";
+export type { WpHeadProps } from "./components/WpHead";
+
+export { WpImage } from "./components/WpImage";
+export type { WpImageProps } from "./components/WpImage";
 
 // Hooks & Utilities
 export {
@@ -38,10 +47,35 @@ export {
   useWpCustomField,
   useReducedMotion,
   getStaticMotionStyle,
+  useWpOption,
+  useWpThemeMod,
+  useWpQuery,
+  defineBlock,
+  defineTheme,
+} from "./hooks";
+
+export type {
+  BlockDefinition,
+  BlockAttributeDefinition,
+  ThemeSettings,
+  ColorPreset,
+  FontSizePreset,
+  FontFamilyPreset,
 } from "./hooks";
 
 // Types
-export type { WpPost, WpMenuItem, WpMenuData, WpMenuLocation } from "./types";
+export type {
+  WpPost,
+  WpAttachment,
+  WpMenuItem,
+  WpMenuData,
+  WpMenuLocation,
+  WpQueryArgs,
+  WpQueryResults,
+  WpTaxQuery,
+  WpMetaQuery,
+} from "./types";
+
 
 // Context (exposed for advanced integrations — use sparingly)
 export { WpPostContext } from "./context";

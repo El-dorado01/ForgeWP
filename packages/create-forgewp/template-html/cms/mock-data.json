@@ -1,0 +1,14 @@
+{
+  "post": [
+    {
+      "id": 1,
+      "title": "ForgeWP HTML Starter",
+      "excerpt": "A minimal static HTML theme powered by the ForgeWP compiler.",
+      "content": "<p>Edit <code>src/app/page.tsx</code> and your static HTML assets to customize the starter.</p>",
+      "date": "May 18, 2026",
+      "author": "ForgeWP",
+      "featuredImage": "https://picsum.photos/seed/html/1200/630",
+      "customFields": {}
+    }
+  ]
+}

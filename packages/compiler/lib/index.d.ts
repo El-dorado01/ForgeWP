@@ -22,7 +22,8 @@ export interface ForgeWPThemeConfig {
   version: string;
   description: string;
   textDomain: string;
-  style?: "forgewp" | "shadcn";
+  frameworkAdapter?: 'react' | 'html' | 'stub';
+  style?: 'forgewp' | 'shadcn';
   settings?: {
     layout?: {
       contentSize?: string;
@@ -42,7 +43,61 @@ export interface ForgeWPThemeConfig {
 
 export interface ForgeWPBuildAssets {
   cssFile: string;
+  jsFile?: string;
 }
+
+export interface ForgeWPStaticMarkup {
+  appHtml: string;
+  headerHtml?: string;
+  footerHtml?: string;
+  headHtml?: string;
+  singleHtml?: string;
+  singleHeadHtml?: string;
+  notFoundHtml?: string;
+  archiveHtml?: string;
+}
+
+export interface ForgeWPFrameworkAdapter {
+  renderStaticMarkup(
+    themeRoot: string,
+  ): Promise<ForgeWPStaticMarkup> | ForgeWPStaticMarkup;
+  scanForHydrationIslands(themeRoot: string): string[];
+  findComponentPath(themeRoot: string, kebabName: string): string | null;
+  getHydrationRollupInputs(themeRoot: string): Record<string, string>;
+  onFresh?(themeRoot: string): Promise<void> | void;
+  onMakeBlock?(
+    themeRoot: string,
+    options: {
+      pascalCase: string;
+      readableTitle: string;
+      attributesList: string[];
+      pc: any;
+    },
+  ): Promise<void> | void;
+  onMakeComponent?(
+    themeRoot: string,
+    options: {
+      pascalCase: string;
+      postType: string;
+      customFields: string[];
+      automaticallySeeded: boolean;
+      pc: any;
+    },
+  ): Promise<void> | void;
+  onSyncRoutes?(
+    themeRoot: string,
+    options: {
+      routesToScaffold: Array<{ path: string; title: string }>;
+      isForce: boolean;
+      pc: any;
+    },
+  ): Promise<void> | void;
+  getCriticalFiles?(themeRoot: string): string[];
+}
+
+export type ForgeWPFrameworkAdapterModule = ForgeWPFrameworkAdapter & {
+  default?: ForgeWPFrameworkAdapter;
+};
 
 export function exportTheme(options: {
   themeRoot: string;
@@ -62,6 +117,17 @@ export function validateCriticalFiles(themeRoot: string): void;
 
 export function scanForHydrationIslands(themeRoot: string): string[];
 
-export function findComponentPath(themeRoot: string, kebabName: string): string | null;
+export function findComponentPath(
+  themeRoot: string,
+  kebabName: string,
+): string | null;
 
-export function getHydrationRollupInputs(themeRoot: string): Record<string, string>;
+export function getHydrationRollupInputs(
+  themeRoot: string,
+): Record<string, string>;
+
+export function resolveFrameworkAdapter(adapterName?: string): string;
+
+export function loadFrameworkAdapter(
+  adapterName?: string,
+): Promise<ForgeWPFrameworkAdapterModule>;

@@ -208,6 +208,36 @@ The onboarding experience is orchestrated by `create-forgewp`.
     ```bash
     npx create-forgewp --projectName my-theme
     ```
+*   **HTML Adapter (Static HTML + Tailwind, no React runtime)**:
+    ```bash
+    npx create-forgewp my-html-theme --adapter html
+    # Or non-interactively:
+    npx create-forgewp my-html-theme --adapter html --yes
+    ```
+    This scaffolds from `packages/create-forgewp/template-html` (sourced from `packages/html-starter`) instead of the React template. The generated project is identical in structure but ships without React or JSX — ideal for lightweight static WordPress themes.
+
+### Adapter Flag Reference
+
+| Flag | Adapter | Template Source | Description |
+|---|---|---|---|
+| *(default)* | `react` | `template/` | React 19 + Tailwind CSS + WordPress hooks |
+| `--adapter html` | `html` | `template-html/` | Vanilla HTML + Tailwind CSS, no React runtime |
+
+### Syncing Templates (Repo Maintenance)
+Whenever you change either starter package, re-run the sync command to keep the CLI templates current:
+```bash
+# Syncs BOTH starters in one pass:
+pnpm sync:template
+# or equivalently:
+pnpm sync:template-html
+
+# Install template dev deps locally (for IDE support inside template dirs):
+pnpm install:template       # React scaffold
+pnpm install:template-html  # HTML scaffold
+
+# Smoke-test the HTML scaffold path without creating real deps:
+pnpm test:create-html
+```
 
 ---
 

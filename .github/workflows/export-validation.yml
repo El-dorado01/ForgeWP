@@ -21,3 +21,9 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Run export fixture validation
         run: pnpm --filter @forgewp/compiler test:export-fixture
+
+      - name: Run compiler adapter runtime tests
+        run: pnpm --filter @forgewp/compiler run test:adapter-runtime
+
+      - name: Run compiler adapter type tests
+        run: pnpm --filter @forgewp/compiler run test:adapter-types

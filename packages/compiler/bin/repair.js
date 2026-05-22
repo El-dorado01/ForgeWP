@@ -28,7 +28,7 @@ try {
   }
 
   // Ensure default mock data table is recreated if deleted
-  const mockDataPath = path.join(projectRoot, "wordpress", "mock-data.json");
+  const mockDataPath = path.join(projectRoot, "cms", "mock-data.json");
   if (!existsSync(mockDataPath)) {
     const defaultJson = {
       menu: {
@@ -56,7 +56,7 @@ try {
       mkdirSync(dirPath, { recursive: true });
     }
     writeFileSync(mockDataPath, JSON.stringify(defaultJson, null, 2), "utf8");
-    console.log(`  ${pc.green("✅ Seeded Default Database")}: wordpress/mock-data.json`);
+    console.log(`  ${pc.green("✅ Seeded Default Database")}: cms/mock-data.json`);
     repairedCount++;
   }
 

@@ -1,0 +1,9 @@
+{
+  "_comment": "ForgeWP navigation menus powered by the HTML starter.",
+  "primary": [
+    { "title": "Home", "url": "/" },
+    { "title": "About", "url": "/about" },
+    { "title": "Contact", "url": "/contact" }
+  ],
+  "utility": [{ "title": "Help", "url": "/help" }]
+}

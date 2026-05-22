@@ -6,8 +6,11 @@ export interface HydrateProps {
    * - 'load': Hydrates immediately after page load.
    * - 'visible': Hydrates lazily when the component enters the viewport.
    * - 'interaction': Hydrates only when a click, hover, or focus event occurs.
+   * - 'click': Hydrates only when a click event occurs.
+   * - 'hover': Hydrates only when a mouseenter/hover event occurs.
+   * - 'idle': Hydrates during browser idle periods using requestIdleCallback.
    */
-  trigger?: "load" | "visible" | "interaction";
+  trigger?: "load" | "visible" | "interaction" | "idle" | "click" | "hover";
   /**
    * Optional custom bundle identifier. If omitted, ForgeWP automatically
    * resolves the dynamic chunk name using the child's Component name in kebab-case.
@@ -20,12 +23,36 @@ export interface HydrateProps {
    */
   clientOnly?: boolean;
   /**
+   * Advanced predictive preloading strategy.
+   * - 'near-visible': Preloads the dynamic bundle script when the element is near the viewport
+   *   (e.g., 600px margin) before full intersection triggers hydration.
+   */
+  preload?: "near-visible" | "none";
+  /**
+   * Restricts hydration to devices matching a CSS Media Query.
+   * @example "(max-width: 768px)" (hydrate only on mobile/tablet)
+   */
+  media?: string;
+  /**
+   * Restricts hydration based on user connection speed.
+   * - 'fast': Skips or defers hydration entirely on slow 2G/3G networks or Save-Data mode.
+   */
+  connection?: "fast" | "any";
+  /**
    * The single interactive React Component to undergo selective hydration.
    */
   children: React.ReactElement;
 }
 
-export function Hydrate({ trigger = "visible", id, clientOnly = false, children }: HydrateProps) {
+export function Hydrate({
+  trigger = "visible",
+  id,
+  clientOnly = false,
+  preload = "none",
+  media,
+  connection = "any",
+  children,
+}: HydrateProps) {
   // Enforce single children constraint
   if (!children || typeof children !== "object") {
     return null;
@@ -59,9 +86,13 @@ export function Hydrate({ trigger = "visible", id, clientOnly = false, children 
       data-forgewp-trigger={trigger}
       data-forgewp-props={propsData}
       data-forgewp-client-only={clientOnly ? "true" : undefined}
-      style={{ display: "contents" }}
+      data-forgewp-preload={preload !== "none" ? preload : undefined}
+      data-forgewp-media={media || undefined}
+      data-forgewp-connection={connection !== "any" ? connection : undefined}
+      style={{ display: "block" }}
     >
       {shouldRender ? children : null}
     </div>
   );
 }
+

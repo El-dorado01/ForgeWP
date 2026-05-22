@@ -164,7 +164,7 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
   }
 
   // Screenshot copy
-  const screenshotSrc = path.join(themeRoot, 'wordpress', 'screenshot.png');
+  const screenshotSrc = path.join(themeRoot, 'cms', 'screenshot.png');
   if (fs.existsSync(screenshotSrc)) {
     const screenshotOut = path.join(outDir, 'screenshot.png');
     if (!fs.existsSync(screenshotOut)) summary.missing.push(screenshotOut.replace(process.cwd() + path.sep, ''));

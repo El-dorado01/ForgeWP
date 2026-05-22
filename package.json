@@ -14,8 +14,14 @@
     "export": "node scripts/run-workspace.mjs export",
     "fresh": "node scripts/run-workspace.mjs fresh",
     "sync:template": "node scripts/sync-cli-template.mjs",
+    "sync:template-html": "node scripts/sync-cli-template.mjs",
+    "sync": "node scripts/sync-to-wp.mjs",
+    "export:sync": "node scripts/sync-to-wp.mjs",
     "install:template": "npm install --prefix packages/create-forgewp/template",
-    "test:create": "node packages/create-forgewp/index.js"
+    "install:template-html": "npm install --prefix packages/create-forgewp/template-html",
+    "test:create": "node packages/create-forgewp/index.js",
+    "test:create-html": "node packages/create-forgewp/index.js --adapter html --yes --no-install",
+    "test:compiler-adapters": "pnpm --filter @forgewp/compiler run test:adapter-runtime && pnpm --filter @forgewp/compiler run test:adapter-types"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

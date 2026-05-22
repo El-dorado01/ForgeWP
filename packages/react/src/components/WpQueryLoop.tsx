@@ -3,7 +3,7 @@ import { WpPostContext } from "../context";
 import type { WpPost } from "../types";
 
 export interface WpQueryLoopProps {
-  /** Post type key — matches a key in your wordpress/mock-data.json */
+  /** Post type key — matches a key in your cms/mock-data.json */
   postType?: string;
   /** Number of posts to render */
   postsPerPage?: number;
@@ -45,7 +45,7 @@ export function WpQueryLoop({
     const fallbacks: WpPost[] = Array.from({ length: postsPerPage }, (_, i) => ({
       id: i + 1,
       title: `Mock ${postType} ${i + 1}`,
-      excerpt: "Placeholder excerpt — add entries to wordpress/mock-data.json.",
+      excerpt: "Placeholder excerpt — add entries to cms/mock-data.json.",
       content: "<p>Placeholder content.</p>",
       date: new Date().toLocaleDateString("en-US"),
       author: "Author",
