@@ -1,176 +1,255 @@
-# Implementation Plan: Hotelchecker24 Platform
+# Implementation Plan: Hotelchecker24 on ForgeWP
 
-This plan outlines the complete, step-by-step technical implementation roadmap for building **Hotelchecker24**, a bilingual (German + English) magazine-style hotel listicle platform, using the **ForgeWP** framework.
-
-This project will serve as the first comprehensive real-world validation of ForgeWP. We will build the platform while actively auditing, self-correcting, and improving the framework's compiler and runtime adapters as gaps are detected.
+Building a bilingual (German + English) premium hotel listicle platform using the ForgeWP framework as a real-world stress test.
 
 ---
 
-## ── 1. Architectural Strategy & Design System ─────────────────────────
+## Current State
 
-We will build the primary theme assets, templates, and blocks inside a new React theme workspace. The layout will adopt a clean, editorial magazine-style inspired by modern listings engines (Momondo/Trivago).
+The ForgeWP starter workspace is clean and functional:
+- `packages/starter/` — React/Vite dev environment
+- `src/.forgewp/wordpress.tsx` — full mock→WP adapter layer (hooks + components)
+- `src/app/` — routing via Wouter, layout, globals.css, page.tsx (ForgeWP splash)
+- `src/blocks/` — one block (`WpEditableArticle.tsx`)
+- `cms/` — `mock-data.json`, `menus.json`, `site-settings.json`
+- `packages/compiler/lib/` — `generate-theme.js`, `react-adapter.js`, etc.
+- `wp.config.ts` — currently set to `forgewp-starter` identity
 
-```mermaid
-graph TD
-    A[src/app/page.tsx] -->|React Router| B[Vite Local Dev]
-    C[cms/mock-data.json] -->|SQLite Seed| B
-    B -->|forgewp export| D[wp-content/themes/hotelchecker24]
-    
-    E[Custom Blocks: Quicklinks] -->|defineBlock| D
-    F[Templates: SingleHotel/SingleListicle/Taxonomy] -->|Compile| D
-    
-    G[shadcn/ui Components] -->|forgewp add| H[src/components/ui/]
-    H -->|Tailwind & HSL Color Tokens| F
+Everything compiles. `pnpm dev` is running. The framework is stable.
+
+---
+
+## Proposed Changes
+
+### Phase 1 — Identity & Design Tokens
+
+#### [MODIFY] `wp.config.ts`
+- Rename theme to `Hotelchecker24 / hotelchecker24`
+- Set palette to editorial warm-slate + amber accent
+- Keep `Space Grotesk` (headings) + `Outfit` (body) + add `Lora` (editorial pull-quotes)
+- Style mode: `shadcn`
+
+#### [MODIFY] `src/app/globals.css`
+- Add CSS custom properties for Hotelchecker24 brand tokens
+- Add editorial color palette (warm cream background, deep slate text, amber accent, soft emerald signal)
+- Keep Tailwind v4 `@theme` block pattern already established
+
+---
+
+### Phase 2 — Mock Data Schema (`cms/mock-data.json`)
+
+Extend the existing JSON structure to add two new post types and taxonomy support:
+
+```json
+{
+  "hotel": [...],       // 6 hotel profiles
+  "listicle": [...],    // 6 sample listicles
+  "page": [...],        // About + Legal pages
+  "post": [...],        // existing
+  "attachment": [...]   // existing
+}
 ```
 
-### UI & Styling Strategy (Tailwind + shadcn/ui)
-*   **Aesthetics:** Clean, card-based editorial design with sharp modern lines (`style: "shadcn"` configuration inside `wp.config.ts`).
-*   **Component Sourcing:** We will use `pnpm forgewp add <component>` to fetch standard shadcn/ui primitives.
-    *   The ForgeWP CLI will automatically download the components via `shadcn@latest add` and apply Tailwind styles.
-    *   We will style them using standard Tailwind utility classes and HSL variables mapped inside `src/index.css`.
+**`hotel` shape:**
+```json
+{
+  "id": 1,
+  "title": "Grand Ferdinand Vienna",
+  "excerpt": "A sophisticated five-star escape...",
+  "featuredImage": "https://...",
+  "permalink": "/hotel/grand-ferdinand-vienna",
+  "customFields": {
+    "address": "Schubertring 10-12, 1010 Vienna",
+    "website": "https://grandferdand.com",
+    "contact_email": "info@grandferdand.com",
+    "rating": 4.8,
+    "price_range": "$$$",
+    "rating_label": "Superb"
+  },
+  "_terms": {
+    "country": [{ "slug": "austria", "name": "Austria" }],
+    "region": [{ "slug": "vienna", "name": "Vienna" }],
+    "hotel_category": [{ "slug": "boutique", "name": "Boutique" }]
+  }
+}
+```
+
+**`listicle` shape:**
+```json
+{
+  "id": 10,
+  "title": "The 10 Best Boutique Hotels in Vienna",
+  "excerpt": "Vienna's boutique scene...",
+  "featuredImage": "https://...",
+  "permalink": "/listicle/best-boutique-hotels-vienna",
+  "customFields": {
+    "intro_text": "Vienna has long been...",
+    "related_hotels": [1, 2, 3]
+  },
+  "_terms": {
+    "country": [{ "slug": "austria", "name": "Austria" }],
+    "region": [{ "slug": "vienna", "name": "Vienna" }],
+    "hotel_category": [{ "slug": "boutique", "name": "Boutique" }]
+  }
+}
+```
+
+#### [MODIFY] `cms/menus.json`
+Add `primary` navigation: Home, Listicles, Hotels, Countries, About, Contact
+
+#### [MODIFY] `cms/site-settings.json`
+Update `blogname`, `blogdescription`, `url` to Hotelchecker24 values
 
 ---
 
-## ── 2. Data Structures & Mock Schema (`cms/mock-data.json`) ──────────
-
-Before building templates, we must model the custom posts, taxonomies, and meta fields in `cms/mock-data.json` to allow local visual development.
-
-### Custom Post Types
-1.  **`hotel` (Hotel Profiles):**
-    *   `title`: Hotel Name (e.g. *Grand Ferdinand*)
-    *   `excerpt`: Short marketing summary
-    *   `featuredImage`: High-res hero image URL
-    *   `acf`:
-        *   `address`: String
-        *   `website`: URL
-        *   `contact_email`: String
-        *   `rating`: Number (1–5)
-        *   `price_range`: String (e.g. *$$$*)
-        *   `rating_label`: String (e.g. *Superb*)
-2.  **`listicle` (Editorial Listicles):**
-    *   `title`: Article Title (e.g. *The 10 Best Boutique Hotels in Vienna*)
-    *   `excerpt`: Editorial introduction text
-    *   `featuredImage`: Header layout image
-    *   `acf`:
-        *   `intro_text`: Markdown / rich content
-        *   `related_hotels`: Array of hotel IDs (e.g. `[1, 2, 3]`) representing the connection
-
-### Custom Taxonomies
-*   `country`: `austria`, `germany`, `switzerland`, `italy`
-*   `region`: state/canton associations (e.g. `vienna`, `tyrol`, `bavaria`)
-*   `hotel_category`: categories (e.g. `boutique`, `wellness`, `family`, `adults-only`)
-
----
-
-## ── 3. Proposed Changes (Theme Components & Templates) ──────────────
-
-### A. Theme Settings & Design Tokens
-#### [MODIFY] [wp.config.ts](file:///c:/Users/hp/Desktop/ForgeWP/packages/starter/wp.config.ts)
-*   Update identity keys:
-    ```typescript
-    name: "Hotelchecker24",
-    slug: "hotelchecker24",
-    version: "1.0.0",
-    description: "Premium Hotel Directory & Listicle Theme",
-    textDomain: "hotelchecker24",
-    style: "shadcn"
-    ```
-*   Define brand-color presets (sleek slate, warm amber accent, emerald highlights).
-
----
-
-### B. Core Templates (`src/templates/`)
-
-#### [NEW] [SingleHotel.tsx](file:///c:/Users/hp/Desktop/ForgeWP/packages/starter/src/templates/SingleHotel.tsx)
-*   Renders a gorgeous editorial profile layout for individual hotels.
-*   Displays name, address, categories, ratings, contact fields, and an image grid.
-*   **Dynamic Relational Loop:** Under the profile, uses `<WpQueryLoop>` to fetch and render all listicles that mention this hotel, leveraging our new relational database filter engine:
-    ```tsx
-    <WpQueryLoop 
-      postType="listicle" 
-      metaQuery={[{ key: "related_hotels", value: useWpPostId(), compare: "LIKE" }]}
-    />
-    ```
-
-#### [NEW] [SingleListicle.tsx](file:///c:/Users/hp/Desktop/ForgeWP/packages/starter/src/templates/SingleListicle.tsx)
-*   Renders ranked, long-form editorial listicle articles.
-*   Displays headers, metadata, introduction, and the main editorial loop.
-*   Uses a secondary `<WpQueryLoop>` filtering hotels selected in the `related_hotels` field, rendering ranked hotel detail cards dynamically with their respective ratings and CTA buttons.
-
-#### [NEW] [TaxonomyLanding.tsx](file:///c:/Users/hp/Desktop/ForgeWP/packages/starter/src/templates/TaxonomyLanding.tsx)
-*   A unified template representing Country, Region, and Category landing pages.
-*   Queries and displays listicles matching the active taxonomy term.
-
-#### [NEW] [AboutTemplate.tsx](file:///c:/Users/hp/Desktop/ForgeWP/packages/starter/src/templates/AboutTemplate.tsx)
-*   Static-first page template representing the premium editorial profile of Hotelchecker24.
-*   Constructed by pre-assembling modular blocks (`EditorialHero`, `FeatureGrid`, `SplitContent`).
-*   Serves as a gorgeous, ready-to-go page layout on activation.
-
-#### [NEW] [LegalTemplate.tsx](file:///c:/Users/hp/Desktop/ForgeWP/packages/starter/src/templates/LegalTemplate.tsx)
-*   Static-first clean template for Terms of Service and Privacy Policy.
-*   Uses the modular `StandardContent` block to render readable, styled legally-compliant blocks.
-
----
-
-### C. Custom Editor Blocks (`src/blocks/`)
-
-We decompose our page segments into modular, reusable custom Gutenberg blocks. By sharing these components, we prevent code duplication and grant the client full structural agency.
-
-#### [NEW] [Quicklinks.tsx](file:///c:/Users/hp/Desktop/ForgeWP/packages/starter/src/blocks/Quicklinks.tsx)
-*   A Gutenberg block that auto-scans the listicle's connected hotels and renders a clean, sticky navigation quicklinks panel (table of contents) at the top of the article.
-*   Allows visitors to jump instantly to any hotel profile card.
-
-#### [NEW] [EditorialHero.tsx](file:///c:/Users/hp/Desktop/ForgeWP/packages/starter/src/blocks/EditorialHero.tsx)
-*   Visual header section with typography, background styling, and a search / action container.
-*   Exposes custom edit controls for the title, description, and accent details in the WordPress sidebar.
-
-#### [NEW] [FeatureGrid.tsx](file:///c:/Users/hp/Desktop/ForgeWP/packages/starter/src/blocks/FeatureGrid.tsx)
-*   Editorial card deck presenting highlight features (e.g. "Bespoke Curation", "Bilingual Support", "Vetted Hotels").
-*   Custom Gutenberg edit settings map to card count and content values.
-
-#### [NEW] [SplitContent.tsx](file:///c:/Users/hp/Desktop/ForgeWP/packages/starter/src/blocks/SplitContent.tsx)
-*   A gorgeous alternating 50/50 image and text narrative block for descriptive copy.
-
-#### [NEW] [StandardContent.tsx](file:///c:/Users/hp/Desktop/ForgeWP/packages/starter/src/blocks/StandardContent.tsx)
-*   A simplified editorial typography block with a rich editable field for standard terms and policies.
-
----
-
-### D. Framework Self-Correction / Co-Development Loop
-As we build templates, we will compile them frequently. If we detect compiler errors (e.g. with specific React features, nested layouts, or complex custom field types), we will:
-1.  Isolate the error inside `packages/compiler/lib/react-adapter.js` or `generate-theme.js`.
-2.  Patch the compiler parser immediately.
-3.  Re-run `pnpm build` to verify the theme outputs compile smoothly.
-
----
-
-## ── 4. Verification & Testing Plan ──────────────────────────────────
-
-### Local Visual Sandbox
-*   Launch local dev server:
-      ```bash
-      pnpm dev
-      ```
-*   Verify visual layout responsiveness, typography hierarchies, and dynamic queries against the mock seed data.
-
-### Production WordPress Compiling
-*   Build the theme package:
-      ```bash
-      pnpm build
-      ```
-*   Upload and activate `hotelchecker24.zip` in a local WordPress playground environment.
-*   **Integrity Asserts:**
-    *   Verify CPT records (`hotel`, `listicle`) load and render correctly.
-    *   Test Polylang / WPML switching on pages.
-    *   Verify that the standard static pages use the visual templates (`AboutTemplate.tsx` and `LegalTemplate.tsx`) out-of-the-box.
-    *   **The Page-Builder & Block Transition Test:** Disable the custom page template on the "About" page, switch to standard Gutenberg, and verify that the custom blocks (`EditorialHero`, `FeatureGrid`, `SplitContent`) are fully available in the Gutenberg sidebar and render their content flawlessly on save.
-
----
-
-## ── 5. Strategic Alignments Achieved ─────────────────────────────────
+### Phase 3 — Templates (`src/app/`)
 
 > [!IMPORTANT]
-> **1. Polylang vs WPML Choice:** Decided on a flexible, lightweight implementation structure that integrates seamlessly with Polylang (ideal for clean local setups and cost-free visual testing) or WPML in production.
->
-> **2. Static Page Hybrid Block Strategy:** Handled the "client control vs developer design" trade-off by compiling static pages as elegant pre-built React templates first, while simultaneous exporting their constituent layout blocks (`EditorialHero`, `FeatureGrid`, `SplitContent`) to Gutenberg. If the client decides to visual-edit, they simply switch to Gutenberg and drag-and-drop the pre-scaffolded visual blocks.
+> In ForgeWP, templates live in `src/app/` as route-based pages (or dedicated template files), not in a separate `templates/` folder. The router in `routes.tsx` maps URLs to components. We will follow the existing pattern.
+
+#### [NEW] `src/app/single-hotel.tsx`
+Hotel profile page. Displays:
+- Full-bleed hero image with overlay title
+- Rating stars + price range + category badges
+- Address, website, email (ACF fields via `useWpCustomField`)
+- Body content via `useWpContent`
+- **Relational loop:** `<WpQueryLoop postType="listicle">` filtered to listicles that reference this hotel via `metaQuery LIKE`
+
+#### [NEW] `src/app/single-listicle.tsx`
+Ranked editorial article page. Displays:
+- Sticky `<Quicklinks />` block (table of contents)
+- Hero + intro text
+- Numbered ranked hotel cards, each rendered via `<WpQueryLoop postType="hotel">` filtered to `related_hotels` IDs
+- Each hotel card shows: image, name, rating, excerpt, CTA button
+
+#### [NEW] `src/app/taxonomy.tsx`
+Unified landing page for Country / Region / Category terms. Displays:
+- Term title + description hero
+- Grid of listicle cards matching the active taxonomy
+
+#### [NEW] `src/app/about.tsx`
+About Hotelchecker24 — built from pre-assembled blocks:
+- `<EditorialHero>` with brand tagline
+- `<FeatureGrid>` with 3 editorial value propositions
+- `<SplitContent>` with image + narrative copy
+
+#### [NEW] `src/app/contact.tsx`
+Contact / Get Listed page:
+- Simple styled form (name, hotel name, email, message)
+- `<WpShortcode code="[contact-form-7 ...]">` for WordPress production
+
+#### [NEW] `src/app/homepage.tsx`  *(replaces `page.tsx`)*
+Magazine-style editorial homepage:
+- Large hero banner with animated headline + search placeholder
+- "Featured Listicles" section (`<WpQueryLoop postType="listicle" postsPerPage={4}>`)
+- "Browse by Country" taxonomy cards (Austria, Germany, Switzerland, Italy)
+- "Recently Added Hotels" section (`<WpQueryLoop postType="hotel" postsPerPage={3}>`)
+- Newsletter / Get Listed CTA strip
+
+---
+
+### Phase 4 — Custom Blocks (`src/blocks/`)
+
+#### [NEW] `src/blocks/Quicklinks.tsx`
+- Receives an array of hotel titles/anchors as props
+- Renders a sticky, numbered table of contents
+- In dev: reads from `WpPostContext` → `customFields.related_hotels`
+- Compiles to a server-side Gutenberg dynamic block via `defineBlock`
+
+#### [NEW] `src/blocks/EditorialHero.tsx`
+- Full-width section: background gradient + overlaid heading + subtext + optional CTA
+- Exposes Gutenberg sidebar controls for title, subtitle, CTA label/URL
+
+#### [NEW] `src/blocks/FeatureGrid.tsx`
+- 3-column card deck with icon, title, body text
+- Cards are editable in Gutenberg (count + content)
+
+#### [NEW] `src/blocks/SplitContent.tsx`
+- Alternating 50/50 image left/right + rich text
+- Gutenberg controls: image picker + RichText content
+
+#### [NEW] `src/blocks/StandardContent.tsx`
+- Clean editorial typography wrapper
+- Used in Legal/Terms templates
+
+---
+
+### Phase 5 — Navigation & Layout
+
+#### [MODIFY] `src/app/layout.tsx`
+Add a global `<Header>` and `<Footer>` component wrapping `{children}`:
+- Header: logo wordmark + `<WpMenu location="primary">` + language switcher placeholder
+- Footer: brand tagline, footer menus (Countries, Quick Links, Legal), copyright
+
+#### [MODIFY] `src/app/routes.tsx`
+Register all new routes:
+```tsx
+<Route path="/" component={HomepagePage} />
+<Route path="/hotel/:slug" component={SingleHotelPage} />
+<Route path="/listicle/:slug" component={SingleListiclePage} />
+<Route path="/taxonomy/:type/:term" component={TaxonomyPage} />
+<Route path="/about" component={AboutPage} />
+<Route path="/contact" component={ContactPage} />
+```
+
+---
+
+### Phase 6 — Framework Self-Correction Loop
+
+As we build and compile, we will watch for:
+1. **metaQuery `LIKE` / `IN`** — the `WpQueryLoop` mock bridge currently only handles basic meta comparisons. We need to verify the `related_hotels` array `LIKE` query compiles to valid WP_Query PHP.
+2. **`useWpPostId()`** — referenced in the plan but not yet in `wordpress.tsx`. We will add this hook.
+3. **Taxonomy queries in `WpQueryLoop`** — verify `taxQuery` prop passes through the compiler correctly.
+4. **Block registration** — ensure `defineBlock` export works for all new blocks.
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Homepage Direction:** Do you want the homepage to stay as the ForgeWP splash page (for framework dev purposes), or should we fully replace `page.tsx` with the Hotelchecker24 magazine homepage? I'll assume **full replacement** unless you say otherwise.
+
+> [!IMPORTANT]
+> **Mock Data Images:** Should I use real hotel placeholder image URLs (Unsplash/Picsum with seeds) for the mock data, or do you want to provide image URLs? I'll use **Unsplash/Picsum** seeded URLs by default.
+
+> [!IMPORTANT]
+> **Language Toggle (UI):** The multilingual structure (WPML/Polylang) is a WordPress-only concern. For local dev, should the UI show a DE/EN toggle as a visual placeholder, or skip it entirely?
+
+---
+
+## Execution Order
+
+| # | Task | Files Touched |
+|---|------|---------------|
+| 1 | Update `wp.config.ts` + `globals.css` identity | 2 files |
+| 2 | Extend `cms/mock-data.json` + menus + site-settings | 3 files |
+| 3 | Build Header + Footer components | 2 new files |
+| 4 | Update `layout.tsx` + `routes.tsx` | 2 files |
+| 5 | Build Homepage (`page.tsx` replacement) | 1 file |
+| 6 | Build `SingleHotel` template | 1 file |
+| 7 | Build `SingleListicle` template | 1 file |
+| 8 | Build `Taxonomy` landing template | 1 file |
+| 9 | Build `About` + `Contact` templates | 2 files |
+| 10 | Build all 5 custom blocks | 5 files |
+| 11 | Add `useWpPostId()` hook to `wordpress.tsx` | 1 file |
+| 12 | Verify compiler passes + framework patches | compiler files |
+
+**Total: ~22 file creates/edits**
+
+---
+
+## Verification Plan
+
+### Local Dev (`pnpm dev`)
+- All routes load without error
+- Mock data renders correctly in all templates
+- `WpQueryLoop` filters work (hotel→listicle + listicle→hotel)
+- `Quicklinks` renders correct hotel anchors
+- Responsive layout on mobile + desktop
+
+### Compiler (`pnpm build`)
+- Theme zip generates without errors
+- All PHP templates are valid
+- ACF field calls compile to correct `get_field()` PHP
+- `WpQueryLoop` compiles to `WP_Query` PHP loops
 

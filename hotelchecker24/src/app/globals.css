@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&family=Lora:ital,wght@0,400;0,500;1,400&display=swap');
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@theme {
+  /* Font Family Mappings */
+  --font-sans: var(--wp--preset--font-family--sans, "Ubuntu", "Segoe UI", system-ui, sans-serif);
+  --font-serif: var(--wp--preset--font-family--serif, "Lora", Georgia, serif);
+  --font-heading: var(--wp--preset--font-family--heading, "Ubuntu", var(--font-sans));
+
+  /* Color Palette Mappings */
+  --color-brand: var(--wp--preset--color--brand, #6d9bae);
+  --color-brand-foreground: #ffffff;
+  --color-secondary: var(--wp--preset--color--secondary, #334155);
+  --color-accent: var(--wp--preset--color--accent, #929f5d);
+  --color-bg-light: var(--wp--preset--color--background, #fafafa);
+  --color-text-slate: var(--wp--preset--color--text, #1e293b);
+
+  /* Shadcn Core Theme Compatibility (Tailwind v4) */
+  --color-background: var(--wp--preset--color--background, #fafafa);
+  --color-foreground: var(--wp--preset--color--text, #1e293b);
+  --color-primary: #6d9bae;
+  --color-primary-foreground: #ffffff;
+  --color-card: var(--wp--preset--color--background, #ffffff);
+  --color-card-foreground: var(--wp--preset--color--text, #1e293b);
+}
+
+@layer base {
+  html, body {
+    @apply antialiased;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply min-h-screen bg-bg-light font-sans text-text-slate;
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "options": {
+    "blogname": "Hotelchecker24",
+    "blogdescription": "Premium Hotel Directory & Listicles",
+    "admin_email": "admin@hotelchecker24.com",
+    "posts_per_page": "10",
+    "blogurl": "http://hotelchecker24.local",
+    "home": "http://hotelchecker24.local",
+    "siteurl": "http://hotelchecker24.local",
+    "users_can_register": "0",
+    "contact_phone": "+43 1 234 5678",
+    "contact_email": "office@hotelchecker24.com",
+    "social_facebook": "https://facebook.com/hotelchecker24",
+    "social_instagram": "https://instagram.com/hotelchecker24",
+    "social_twitter": "https://twitter.com/hotelchecker24",
+    "editor_note": "Hotelchecker24 Premium Core"
+  },
+  "theme_mods": {
+    "custom_logo": "",
+    "header_textcolor": "#1e293b",
+    "footer_text": "© 2026 Hotelchecker24. Kuratierte Premium-Hotels in Österreich, Deutschland, Schweiz & Italien.",
+    "nav_menu_locations": {}
+  }
+}

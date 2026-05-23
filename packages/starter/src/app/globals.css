@@ -1,11 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800;900&display=swap');
-@import "tailwindcss";
+@import 'tailwindcss';
+@plugin "tailwindcss-animate";
 
 @theme {
   /* Font Family Mappings */
-  --font-sans: var(--wp--preset--font-family--sans, "Segoe UI", system-ui, sans-serif);
+  --font-sans: var(
+    --wp--preset--font-family--sans,
+    'Segoe UI',
+    system-ui,
+    sans-serif
+  );
   --font-serif: var(--wp--preset--font-family--serif, Georgia, serif);
-  --font-heading: "Space Grotesk", var(--font-sans);
+  --font-heading: 'Space Grotesk', var(--font-sans);
 
   /* Color Palette Mappings */
   --color-brand: var(--wp--preset--color--brand, oklch(0.61 0.22 42.5));
@@ -25,7 +31,8 @@
 }
 
 @layer base {
-  html, body {
+  html,
+  body {
     @apply antialiased;
     -webkit-font-smoothing: antialiased !important;
     -moz-osx-font-smoothing: grayscale !important;
