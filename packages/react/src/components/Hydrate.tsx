@@ -39,6 +39,28 @@ export interface HydrateProps {
    */
   connection?: "fast" | "any";
   /**
+   * Optional CSS class name(s) to apply directly to the hydration island wrapper element.
+   * Use this to pass layout-critical styles such as `sticky`, `flex`, `grid`, etc.
+   * without needing global CSS attribute selector workarounds.
+   *
+   * @example
+   * <Hydrate className="sticky top-0 z-40 w-full">
+   *   <NavigationHeader />
+   * </Hydrate>
+   */
+  className?: string;
+  /**
+   * Optional inline styles to apply directly to the hydration island wrapper element.
+   * Merged with the mandatory `display: block` internal style.
+   * Use when Tailwind classes are unavailable or for dynamic style values.
+   *
+   * @example
+   * <Hydrate style={{ position: 'sticky', top: 0, zIndex: 40 }}>
+   *   <NavigationHeader />
+   * </Hydrate>
+   */
+  style?: React.CSSProperties;
+  /**
    * The single interactive React Component to undergo selective hydration.
    */
   children: React.ReactElement;
@@ -51,6 +73,8 @@ export function Hydrate({
   preload = "none",
   media,
   connection = "any",
+  className,
+  style,
   children,
 }: HydrateProps) {
   // Enforce single children constraint
@@ -89,7 +113,8 @@ export function Hydrate({
       data-forgewp-preload={preload !== "none" ? preload : undefined}
       data-forgewp-media={media || undefined}
       data-forgewp-connection={connection !== "any" ? connection : undefined}
-      style={{ display: "block" }}
+      className={className}
+      style={{ display: "block", ...style }}
     >
       {shouldRender ? children : null}
     </div>

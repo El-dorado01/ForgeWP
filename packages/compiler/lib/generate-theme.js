@@ -642,6 +642,68 @@ if (window.forgeWpBlocks) {
   writeFileSync(path.join(outDir, 'archive.php'), buildArchivePhp(), 'utf8');
   writeFileSync(path.join(outDir, 'page.php'), buildPagePhp(), 'utf8');
 
+  // Dynamic Custom WP hierarchy templates compiler (single-*, taxonomy-*, archive-*, etc.)
+  if (existsSync(forgewpDir)) {
+    const templateFiles = readdirSync(forgewpDir);
+    for (const file of templateFiles) {
+      const name = file.replace('.html', '');
+      const isHierarchyTemplate =
+        (name.startsWith('single-') ||
+         name.startsWith('archive-') ||
+         name.startsWith('taxonomy-') ||
+         name === 'taxonomy') &&
+        file.endsWith('.html') &&
+        !file.includes('-head');
+      
+      if (isHierarchyTemplate) {
+        const rawHtml = readFileSync(path.join(forgewpDir, file), 'utf8');
+        let processedHtml = processMarkup(rawHtml);
+        if (processedHeader)
+          processedHtml = processedHtml.replace(processedHeader, '');
+        if (processedFooter)
+          processedHtml = processedHtml.replace(processedFooter, '');
+
+        writeFileSync(path.join(staticDir, file), processedHtml, 'utf8');
+
+        const headFile = file.replace('.html', '-head.html');
+        if (existsSync(path.join(forgewpDir, headFile))) {
+          writeFileSync(
+            path.join(staticDir, headFile),
+            readFileSync(path.join(forgewpDir, headFile), 'utf8'),
+            'utf8',
+          );
+        }
+
+        // Generate the matching .php template file
+        const phpContent = `<?php
+/**
+ * Dynamic ${name} template
+ *
+ * @package ${config.textDomain}
+ */
+
+get_header();
+
+$markup_file = get_template_directory() . '/forgewp-static/${file}';
+if (file_exists($markup_file)) {
+    if (have_posts()) {
+        while (have_posts()) {
+            the_post();
+            include $markup_file;
+        }
+    } else {
+        include $markup_file;
+    }
+}
+
+get_footer();
+`;
+        writeFileSync(path.join(outDir, `${name}.php`), phpContent, 'utf8');
+        console.warn(`[ForgeWP Compiler] Wrote dynamic WP template ${name}.php`);
+      }
+    }
+  }
+
   // Dynamic Custom Page Templates Compiler
   if (existsSync(forgewpDir)) {
     const templateFiles = readdirSync(forgewpDir);
@@ -820,6 +882,11 @@ function processMarkup(html) {
   );
 
   processed = processed.replace(
+    /__FORGEWP_TAXONOMY_LIST_([a-zA-Z0-9_-]+)__/g,
+    "<?php echo get_the_term_list( get_the_ID(), '$1', '', ', ' ); ?>",
+  );
+
+  processed = processed.replace(
     /__FORGEWP_THE_ARCHIVE_TITLE__/g,
     '<?php the_archive_title(); ?>',
   );
@@ -913,15 +980,65 @@ function processMarkup(html) {
         getAttr('postsPerPage') || getAttr('postsperpage') || '10';
       const categoryName =
         getAttr('categoryName') || getAttr('categoryname') || '';
+      const metaKey = getAttr('metaKey') || getAttr('metakey') || '';
+      const metaValue = getAttr('metaValue') || getAttr('metavalue') || '';
+      const metaCompare = getAttr('metaCompare') || getAttr('metacompare') || '=';
+      const taxTaxonomy = getAttr('taxTaxonomy') || getAttr('taxtaxonomy') || '';
+      const taxTerms = getAttr('taxTerms') || getAttr('taxterms') || '';
+      const postIn = getAttr('postIn') || getAttr('postin') || '';
 
-      return `<?php
+      if (postIn !== '') {
+        return `<?php
+  $related_val = get_post_meta( get_the_ID(), '${postIn}', true );
+  $ids_arr = array_filter( array_map( 'intval', explode( ',', $related_val ) ) );
   $query_args = array(
       'post_type' => '${postType}',
       'posts_per_page' => ${postsPerPage},
+      'post__in' => !empty($ids_arr) ? $ids_arr : array(-1),
+      'orderby' => 'post__in',
   );
-  if ('${categoryName}' !== '') {
-      $query_args['category_name'] = '${categoryName}';
-  }
+  $custom_query = new WP_Query($query_args);
+  if ($custom_query->have_posts()) : while ($custom_query->have_posts()) : $custom_query->the_post();
+  ?>`;
+      }
+
+      let phpArgs = `      'post_type' => '${postType}',\n      'posts_per_page' => ${postsPerPage},`;
+      
+      if (categoryName !== '') {
+        phpArgs += `\n      'category_name' => '${categoryName}',`;
+      }
+      
+      if (metaKey !== '') {
+        let valExpr = `'${metaValue}'`;
+        if (metaValue === 'CURRENT_POST_ID') {
+          valExpr = 'get_the_ID()';
+        } else if (metaValue === ',CURRENT_POST_ID,') {
+          valExpr = "',' . get_the_ID() . ','";
+        }
+        
+        phpArgs += `\n      'meta_query' => array(
+          array(
+              'key' => '${metaKey}',
+              'value' => ${valExpr},
+              'compare' => '${metaCompare}'
+          )
+      ),`;
+      }
+      
+      if (taxTaxonomy !== '') {
+        phpArgs += `\n      'tax_query' => array(
+          array(
+              'taxonomy' => '${taxTaxonomy}',
+              'field' => 'slug',
+              'terms' => '${taxTerms}'
+          )
+      ),`;
+      }
+
+      return `<?php
+  $query_args = array(
+${phpArgs}
+  );
   $custom_query = new WP_Query($query_args);
   if ($custom_query->have_posts()) : while ($custom_query->have_posts()) : $custom_query->the_post();
   ?>`;
@@ -1057,6 +1174,29 @@ function buildFunctionsPhp(
           k !== 'attachment',
       );
       if (postTypes.length > 0) {
+        // Dynamic Taxonomy Scan from post _terms
+        const taxonomiesSet = new Set();
+        const postTypeTaxonomies = {}; // Map postType -> Set of taxonomies
+        
+        for (const pt of postTypes) {
+          postTypeTaxonomies[pt] = new Set();
+          const items = mockData[pt];
+          if (Array.isArray(items)) {
+            for (const item of items) {
+              if (item._terms && typeof item._terms === 'object') {
+                for (const tax of Object.keys(item._terms)) {
+                  if (tax !== 'category' && tax !== 'post_tag') {
+                    taxonomiesSet.add(tax);
+                    postTypeTaxonomies[pt].add(tax);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        const registeredTaxonomies = Array.from(taxonomiesSet);
+
         cptRegistration = `
 /**
  * Register dynamic Custom Post Types inferred from local mock data.
@@ -1087,6 +1227,33 @@ ${postTypes
     ));`,
   )
   .join('\n')}
+
+${registeredTaxonomies
+  .map((tax) => {
+    const associatedPostTypes = postTypes.filter((pt) => postTypeTaxonomies[pt].has(tax));
+    const taxLabel = tax.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    return `    register_taxonomy('${tax}', array('${associatedPostTypes.join("', '")}'), array(
+        'labels'            => array(
+            'name'              => '${taxLabel}s',
+            'singular_name'     => '${taxLabel}',
+            'search_items'      => 'Search ${taxLabel}s',
+            'all_items'         => 'All ${taxLabel}s',
+            'parent_item'       => 'Parent ${taxLabel}',
+            'parent_item_colon' => 'Parent ${taxLabel}:',
+            'edit_item'         => 'Edit ${taxLabel}',
+            'update_item'       => 'Update ${taxLabel}',
+            'add_new_item'      => 'Add New ${taxLabel}',
+            'new_item_name'     => 'New ${taxLabel} Name',
+            'menu_name'         => '${taxLabel}s',
+        ),
+        'hierarchical'      => true,
+        'show_ui'           => true,
+        'show_admin_column' => true,
+        'query_var'         => true,
+        'show_in_rest'      => true,
+    ));`;
+  })
+  .join('\n\n')}
 }
 add_action('init', 'forgewp_register_custom_post_types');
 `;

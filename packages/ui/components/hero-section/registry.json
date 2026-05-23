@@ -1,0 +1,9 @@
+{
+  "name": "hero-section",
+  "source": "forgewp",
+  "description": "ForgeWP full-bleed hero section with editorial typography and CTA.",
+  "dependencies": [],
+  "devDependencies": [],
+  "tailwindPlugins": [],
+  "registryDependencies": []
+}

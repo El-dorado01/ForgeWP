@@ -199,84 +199,63 @@ if (existsSync(footerPath)) {
 // ── Render pages ──────────────────────────────────────────────────────────────
 const appHtml = renderPage(App);
 
-// single.tsx
-const singlePath = path.join(themeRoot, "src", "app", "single.tsx");
-let singleHtml = "";
-if (existsSync(singlePath)) {
-  try {
-    const { default: SinglePage } = await import(pathToFileURL(singlePath).href);
-    if (!SinglePage) {
-      throw new Error("single.tsx component lacks a default export.");
-    }
-    singleHtml = renderPage(SinglePage);
-  } catch (err: any) {
-    console.error(`\n[ForgeWP Compiler Error] Failed to load or render the Single Post Page component (src/app/single.tsx).`);
-    console.error(`Error details: ${err.stack || err.message || err}\n`);
-    process.exit(1);
-  }
-}
-
-// 404.tsx — rendered bare, no RootLayout (WP 404.php calls get_header/get_footer)
-const notFoundPath = path.join(themeRoot, "src", "app", "404.tsx");
-let notFoundHtml = "";
-if (existsSync(notFoundPath)) {
-  try {
-    const { default: NotFoundPage } = await import(pathToFileURL(notFoundPath).href);
-    if (!NotFoundPage) {
-      throw new Error("404.tsx component lacks a default export.");
-    }
-    notFoundHtml = renderToStaticMarkup(React.createElement(NotFoundPage));
-  } catch (err: any) {
-    console.error(`\n[ForgeWP Compiler Error] Failed to load or render the 404 Not Found Page component (src/app/404.tsx).`);
-    console.error(`Error details: ${err.stack || err.message || err}\n`);
-    process.exit(1);
-  }
-}
-
-// archive.tsx
-const archivePath = path.join(themeRoot, "src", "app", "archive.tsx");
-let archiveHtml = "";
-if (existsSync(archivePath)) {
-  try {
-    const { default: ArchivePage } = await import(pathToFileURL(archivePath).href);
-    if (!ArchivePage) {
-      throw new Error("archive.tsx component lacks a default export.");
-    }
-    archiveHtml = renderPage(ArchivePage);
-  } catch (err: any) {
-    console.error(`\n[ForgeWP Compiler Error] Failed to load or render the Archive Page component (src/app/archive.tsx).`);
-    console.error(`Error details: ${err.stack || err.message || err}\n`);
-    process.exit(1);
-  }
-}
-
-// ── Extract SEO from source files ─────────────────────────────────────────────
-// Global defaults come from layout.tsx <SEO> props.
-// Per-page overrides come from the individual page file's <SEO> props.
+// ── Compile Dynamic WordPress Template Hierarchy ──────────────────────────────
 const layoutSeo = extractSeoPropsFromSource(layoutPath);
-const singleSeo = existsSync(singlePath)
-  ? extractSeoPropsFromSource(singlePath)
-  : {};
-
-// Global head.html (used on all pages that don't have a per-page override)
 const headHtml = buildHeadHtml(layoutSeo);
-
-// Per-page head HTML for single.html (merged: layout defaults + single overrides)
-const singleHeadHtml = buildHeadHtml(layoutSeo, singleSeo);
-
-// ── Write outputs ─────────────────────────────────────────────────────────────
 const outDir = path.join(themeRoot, ".forgewp");
 mkdirSync(outDir, { recursive: true });
+
+const appDir = path.join(themeRoot, "src", "app");
+if (existsSync(appDir)) {
+  const { readdirSync } = require("node:fs");
+  const files = readdirSync(appDir);
+  for (const file of files) {
+    if (file.endsWith(".tsx")) {
+      const name = file.replace(".tsx", "");
+      const isWpTemplate = 
+        name === "single" || 
+        name === "archive" || 
+        name === "404" || 
+        name === "taxonomy" ||
+        name.startsWith("single-") ||
+        name.startsWith("taxonomy-") ||
+        name.startsWith("archive-");
+      
+      if (isWpTemplate) {
+        const filePath = path.join(appDir, file);
+        console.warn(`[ForgeWP Compiler] Attempting to compile template: ${file}`);
+        try {
+          const module = await import(pathToFileURL(filePath).href);
+          const TemplateComponent = module.default;
+          if (TemplateComponent) {
+            const html = name === "404"
+              ? renderToStaticMarkup(React.createElement(TemplateComponent))
+              : renderPage(TemplateComponent);
+            
+            writeFileSync(path.join(outDir, `${name}.html`), html, "utf8");
+            console.warn(`[ForgeWP Compiler] WROTE ${name}.html to ${outDir}`);
+            
+            const seoProps = extractSeoPropsFromSource(filePath);
+            const customHeadHtml = buildHeadHtml(layoutSeo, seoProps);
+            writeFileSync(path.join(outDir, `${name}-head.html`), customHeadHtml, "utf8");
+            console.warn(`[ForgeWP Compiler] WROTE ${name}-head.html to ${outDir}`);
+          }
+        } catch (e: any) {
+          console.warn(`[ForgeWP Compiler Warning] Failed to render WP template ${file}:`, e.message);
+        }
+      }
+    }
+  }
+}
+
+// ── Write outputs ─────────────────────────────────────────────────────────────
+
 
 writeFileSync(path.join(outDir, "header.html"), headerHtml, "utf8");
 writeFileSync(path.join(outDir, "footer.html"), footerHtml, "utf8");
 writeFileSync(path.join(outDir, "app.html"), appHtml, "utf8");
 writeFileSync(path.join(outDir, "head.html"), headHtml, "utf8");
-writeFileSync(path.join(outDir, "single-head.html"), singleHeadHtml, "utf8");
 
-if (singleHtml) writeFileSync(path.join(outDir, "single.html"), singleHtml, "utf8");
-if (notFoundHtml) writeFileSync(path.join(outDir, "404.html"), notFoundHtml, "utf8");
-if (archiveHtml) writeFileSync(path.join(outDir, "archive.html"), archiveHtml, "utf8");
 
 // ── Compile Custom Page Templates ──────────────────────────────────────────────
 const pagesDir = path.join(themeRoot, "src", "app", "pages");

@@ -3,10 +3,10 @@ import type { ForgeWPThemeConfig } from "./src/.forgewp/forgewp-config";
 const config: ForgeWPThemeConfig = {
   name: "ForgeWP Starter",
   slug: "forgewp-starter",
-  version: "0.2.0",
-  description: "A premium block-theme built with React, Tailwind CSS, and ForgeWP.",
+  version: "0.1.0",
+  description: "A clean default canvas for building block-themes with ForgeWP.",
   textDomain: "forgewp-starter",
-  style: "forgewp", // "forgewp" (sharp neo-brutalist) or "shadcn" (smooth modern curves)
+  style: "forgewp", // "forgewp" (sharp corners) or "shadcn" (smooth modern curves)
 
   settings: {
     layout: {
@@ -16,8 +16,8 @@ const config: ForgeWPThemeConfig = {
     color: {
       custom: true,
       palette: [
-        { name: "Brand Primary", slug: "brand", color: "#2563eb" },
-        { name: "Brand Secondary", slug: "secondary", color: "#4f46e5" },
+        { name: "Brand Primary", slug: "brand", color: "#ff000c" },
+        { name: "Brand Secondary", slug: "secondary", color: "#1e293b" },
         { name: "Accent Amber", slug: "accent", color: "#f59e0b" },
         { name: "Background Light", slug: "background", color: "#fafafa" },
         { name: "Text Slate", slug: "text", color: "#0f172a" },
@@ -32,10 +32,12 @@ const config: ForgeWPThemeConfig = {
       ],
       fontFamilies: [
         { name: "Sans Serif (Outfit)", slug: "sans", fontFamily: "Outfit, system-ui, sans-serif" },
+        { name: "Space Grotesk (Heading)", slug: "heading", fontFamily: "Space Grotesk, system-ui, sans-serif" },
         { name: "Serif (Lora)", slug: "serif", fontFamily: "Lora, Georgia, serif" },
       ],
       googleFonts: [
         "Outfit:wght@300;400;500;600;700",
+        "Space Grotesk:wght@300;400;500;600;700;800;900",
         "Lora:ital,wght@0,400;0,500;1,400",
       ],
     },

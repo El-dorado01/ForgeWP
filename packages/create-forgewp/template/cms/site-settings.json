@@ -1,17 +1,23 @@
 {
   "options": {
-    "blogname": "ForgeWP Developer Hub",
-    "blogdescription": "A compiler-first React + WordPress theme engine",
-    "admin_email": "dev@forgewp.local",
+    "blogname": "ForgeWP Starter",
+    "blogdescription": "A clean default canvas for building block-themes with ForgeWP.",
+    "admin_email": "admin@forgewp.local",
     "posts_per_page": "10",
     "blogurl": "http://forgewp.local",
     "home": "http://forgewp.local",
     "siteurl": "http://forgewp.local",
-    "users_can_register": "0"
+    "users_can_register": "0",
+    "contact_phone": "+1 (555) 019-9000",
+    "contact_email": "admin@forgewp.local",
+    "social_facebook": "https://facebook.com",
+    "social_instagram": "https://instagram.com",
+    "social_twitter": "https://twitter.com",
+    "editor_note": "ForgeWP Canvas"
   },
   "theme_mods": {
     "custom_logo": "",
-    "header_textcolor": "#18181b",
+    "header_textcolor": "#0f172a",
     "footer_text": "Proudly powered by ForgeWP & React 19",
     "nav_menu_locations": {}
   }

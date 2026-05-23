@@ -1,0 +1,9 @@
+{
+  "name": "404",
+  "source": "forgewp",
+  "description": "ForgeWP branded 404 not-found page template.",
+  "dependencies": [],
+  "devDependencies": [],
+  "tailwindPlugins": [],
+  "registryDependencies": []
+}

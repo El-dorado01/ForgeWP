@@ -21,9 +21,7 @@
           "large":     { "url": "https://picsum.photos/seed/forgewp/1024/768", "width": 1024, "height": 768 }
         }
       },
-      "customFields": {
-        "read_time": "5"
-      },
+      "customFields": { "read_time": "5" },
       "_terms": {
         "category": [
           { "id": 1, "slug": "tutorials", "name": "Tutorials" },
@@ -43,68 +41,19 @@
       "date": "2026-05-12T14:30:00Z",
       "author": "DeepMind Partner",
       "featuredImage": "https://picsum.photos/seed/brutalist/1200/630",
-      "customFields": {
-        "read_time": "8"
-      },
+      "customFields": { "read_time": "8" },
       "_terms": {
         "category": [
-          { "id": 3, "slug": "design",    "name": "Design" },
-          { "id": 4, "slug": "css",       "name": "CSS" }
+          { "id": 3, "slug": "design", "name": "Design" },
+          { "id": 4, "slug": "css",    "name": "CSS" }
         ],
         "post_tag": [
           { "id": 12, "slug": "brutalism", "name": "Brutalism" },
           { "id": 13, "slug": "tailwind",  "name": "Tailwind" }
         ]
       }
-    },
-    {
-      "id": 3,
-      "title": "Building Your First Gutenberg Block with defineBlock()",
-      "excerpt": "Learn how to author native WordPress blocks using clean React components and the ForgeWP compiler.",
-      "content": "<p>The <code>defineBlock()</code> API gives you full type-safety while the compiler handles all the Gutenberg boilerplate.</p>",
-      "date": "2026-05-14T08:00:00Z",
-      "author": "ForgeWP Team",
-      "featuredImage": "https://picsum.photos/seed/blocks/1200/630",
-      "customFields": {
-        "read_time": "12",
-        "difficulty": "intermediate"
-      },
-      "_terms": {
-        "category": [
-          { "id": 1, "slug": "tutorials", "name": "Tutorials" },
-          { "id": 5, "slug": "gutenberg", "name": "Gutenberg" }
-        ],
-        "post_tag": [
-          { "id": 10, "slug": "react",     "name": "React" },
-          { "id": 14, "slug": "blocks",    "name": "Blocks" }
-        ]
-      }
-    },
-    {
-      "id": 4,
-      "title": "Theming WordPress at Scale: defineTheme() Deep Dive",
-      "excerpt": "A comprehensive guide to using defineTheme() to compile color palettes, menu locations, and Google Fonts into theme.json.",
-      "content": "<p>Everything you need to know about ForgeWP's theme compilation pipeline — from design tokens to PHP output.</p>",
-      "date": "2026-05-16T10:00:00Z",
-      "author": "Antigravity",
-      "featuredImage": "https://picsum.photos/seed/theming/1200/630",
-      "customFields": {
-        "read_time": "15",
-        "difficulty": "advanced"
-      },
-      "_terms": {
-        "category": [
-          { "id": 2, "slug": "framework", "name": "Framework" },
-          { "id": 6, "slug": "theming",   "name": "Theming" }
-        ],
-        "post_tag": [
-          { "id": 11, "slug": "wordpress", "name": "WordPress" },
-          { "id": 15, "slug": "compiler",  "name": "Compiler" }
-        ]
-      }
     }
   ],
-
   "project": [
     {
       "id": 1,
@@ -120,13 +69,8 @@
         "status": "active"
       },
       "_terms": {
-        "project_type": [
-          { "id": 20, "slug": "open-source", "name": "Open Source" }
-        ],
-        "technology": [
-          { "id": 30, "slug": "react",    "name": "React" },
-          { "id": 31, "slug": "nodejs",   "name": "Node.js" }
-        ]
+        "project_type": [{ "id": 20, "slug": "open-source", "name": "Open Source" }],
+        "technology":   [{ "id": 30, "slug": "react", "name": "React" }]
       }
     },
     {
@@ -143,39 +87,11 @@
         "status": "completed"
       },
       "_terms": {
-        "project_type": [
-          { "id": 20, "slug": "open-source", "name": "Open Source" }
-        ],
-        "technology": [
-          { "id": 32, "slug": "tailwind", "name": "Tailwind CSS" }
-        ]
-      }
-    },
-    {
-      "id": 3,
-      "title": "E-Commerce Theme for El Dorado",
-      "excerpt": "A custom WooCommerce-compatible theme built for a premium retail client.",
-      "content": "<p>Full e-commerce project integrating WooCommerce, custom product blocks, and a checkout flow.</p>",
-      "date": "2026-05-17T09:00:00Z",
-      "author": "Lead Architect",
-      "featuredImage": "https://picsum.photos/seed/ecommerce/1200/630",
-      "customFields": {
-        "client_name": "El Dorado",
-        "project_budget": "75000",
-        "status": "active"
-      },
-      "_terms": {
-        "project_type": [
-          { "id": 21, "slug": "client-work", "name": "Client Work" }
-        ],
-        "technology": [
-          { "id": 33, "slug": "woocommerce", "name": "WooCommerce" },
-          { "id": 30, "slug": "react",       "name": "React" }
-        ]
+        "project_type": [{ "id": 20, "slug": "open-source", "name": "Open Source" }],
+        "technology":   [{ "id": 32, "slug": "tailwind", "name": "Tailwind CSS" }]
       }
     }
   ],
-
   "attachment": [
     {
       "id": 101,
@@ -201,45 +117,6 @@
       "sizes": {
         "thumbnail": { "url": "https://picsum.photos/seed/layout/150/150", "width": 150, "height": 150 },
         "medium":    { "url": "https://picsum.photos/seed/layout/300/300", "width": 300, "height": 300 }
-      }
-    }
-  ],
-
-  "portfolio": [
-    {
-      "id": 1,
-      "title": "Sample Portfolio Item 1",
-      "excerpt": "This is a custom portfolio post seeded dynamically via ForgeWP CLI.",
-      "content": "<p>Welcome to your new custom <strong>portfolio</strong> post template! Edit this in cms/mock-data.json.</p>",
-      "date": "2026-05-21T08:00:00Z",
-      "author": "ForgeWP CLI",
-      "featuredImage": "https://picsum.photos/seed/portfolio1/1200/630",
-      "customFields": {
-        "client_name": "Mock Enterprise",
-        "project_budget": "30000"
-      },
-      "_terms": {
-        "portfolio_category": [
-          { "id": 40, "slug": "branding", "name": "Branding" }
-        ]
-      }
-    },
-    {
-      "id": 2,
-      "title": "Sample Portfolio Item 2",
-      "excerpt": "This is another custom portfolio post seeded dynamically via ForgeWP CLI.",
-      "content": "<p>This is the second custom post for the portfolio post type.</p>",
-      "date": "2026-05-21T10:00:00Z",
-      "author": "ForgeWP CLI",
-      "featuredImage": "https://picsum.photos/seed/portfolio2/1200/630",
-      "customFields": {
-        "client_name": "Mock Organization",
-        "project_budget": "55000"
-      },
-      "_terms": {
-        "portfolio_category": [
-          { "id": 41, "slug": "web-design", "name": "Web Design" }
-        ]
       }
     }
   ]

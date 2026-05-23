@@ -1,0 +1,9 @@
+{
+  "name": "pricing-table",
+  "source": "forgewp",
+  "description": "ForgeWP responsive pricing table with feature comparison rows.",
+  "dependencies": [],
+  "devDependencies": [],
+  "tailwindPlugins": [],
+  "registryDependencies": []
+}

@@ -1,0 +1,9 @@
+{
+  "name": "fade-reveal",
+  "source": "forgewp",
+  "description": "ForgeWP intersection-observer fade-in reveal animation wrapper.",
+  "dependencies": [],
+  "devDependencies": [],
+  "tailwindPlugins": ["tailwindcss-animate"],
+  "registryDependencies": []
+}

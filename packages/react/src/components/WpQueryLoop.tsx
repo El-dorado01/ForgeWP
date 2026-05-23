@@ -11,6 +11,18 @@ export interface WpQueryLoopProps {
   categoryName?: string;
   /** Optional ID filter for single views */
   postId?: number;
+  /** Optional relational custom-field meta query key */
+  metaKey?: string;
+  /** Optional relational custom-field meta query value */
+  metaValue?: string;
+  /** Optional relational custom-field meta query comparison operator */
+  metaCompare?: string;
+  /** Optional relational custom taxonomy */
+  taxTaxonomy?: string;
+  /** Optional relational custom taxonomy term slugs */
+  taxTerms?: string;
+  /** Optional relational dynamic post ID collection selector */
+  postIn?: string;
   /**
    * Posts data — injected by the data bridge in src/.forgewp/wordpress.tsx.
    * You do not need to pass this yourself; WpQueryLoop in your project handles it.
@@ -33,11 +45,33 @@ export function WpQueryLoop({
   postType = "post",
   postsPerPage = 3,
   postId,
+  metaKey: _metaKey,
+  metaValue: _metaValue,
+  metaCompare: _metaCompare,
+  taxTaxonomy: _taxTaxonomy,
+  taxTerms: _taxTerms,
+  postIn,
   posts = [],
   children,
 }: WpQueryLoopProps) {
+  const parentPost = React.useContext(WpPostContext);
+
+  // Filter by postIn if provided (for local listicle connected post views)
+  let filteredPosts = posts;
+  if (postIn && parentPost?.customFields?.[postIn]) {
+    const relatedVal = String(parentPost.customFields[postIn]);
+    const ids = relatedVal.split(",").filter(Boolean).map(Number);
+    filteredPosts = posts.filter(p => ids.includes(p.id));
+    
+    // Sort in the order of the ids
+    filteredPosts.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+  }
+
   // Filter by ID if requested (for local single views), then slice and inject __postType
-  const filteredPosts = postId ? posts.filter(p => p.id === postId) : posts;
+  if (postId) {
+    filteredPosts = filteredPosts.filter(p => p.id === postId);
+  }
+
   const items = filteredPosts.slice(0, postsPerPage).map(p => ({ ...p, __postType: postType }));
 
   if (items.length === 0) {

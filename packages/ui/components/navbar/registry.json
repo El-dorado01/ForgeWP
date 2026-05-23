@@ -1,0 +1,9 @@
+{
+  "name": "navbar",
+  "source": "forgewp",
+  "description": "ForgeWP branded navigation bar with mobile drawer, language selector, and sticky hydration island support.",
+  "dependencies": [],
+  "devDependencies": [],
+  "tailwindPlugins": [],
+  "registryDependencies": []
+}

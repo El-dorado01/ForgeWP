@@ -1,0 +1,9 @@
+{
+  "name": "premium-gallery",
+  "source": "forgewp",
+  "description": "ForgeWP premium masonry/grid image gallery with lightbox.",
+  "dependencies": [],
+  "devDependencies": [],
+  "tailwindPlugins": [],
+  "registryDependencies": []
+}

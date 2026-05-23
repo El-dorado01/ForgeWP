@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import pc from 'picocolors';
 import {
   scanForHydrationIslands,
   findComponentPath,
@@ -426,6 +427,8 @@ export async function onFresh(themeRoot) {
 
   const routesContent = `import { Route, Switch } from "wouter";
 import HomePage from "./page";
+import QuerySandbox from "./query-sandbox";
+import WpEditablePage from "./wp-editable";
 
 /**
  * Local Developer Routes — ForgeWP.
@@ -443,14 +446,22 @@ export default function AppRoutes() {
       {/* Home preview */}
       <Route path="/" component={HomePage} />
 
+      {/* Relational Query Engine Sandbox — verifies taxQuery, metaQuery, pagination */}
+      <Route path="/query-sandbox" component={QuerySandbox} />
+
+      {/* WpEditable Block Canvas Preview — verifies inline editing primitive */}
+      <Route path="/wp-editable" component={WpEditablePage} />
+
       {/* Fallback route */}
       <Route>
         <div className="flex min-h-[60vh] flex-col items-center justify-center text-center p-6">
           <h1 className="text-4xl font-bold font-serif text-zinc-950">404</h1>
           <p className="mt-2 text-zinc-600">Page not found locally.</p>
-          <a href="/" className="mt-4 text-brand font-semibold hover:underline">
-            Go back home
-          </a>
+          <div className="mt-4 flex flex-col items-center gap-2 text-sm">
+            <a href="/" className="text-brand font-semibold hover:underline">← Go back home</a>
+            <a href="/query-sandbox" className="text-zinc-500 font-mono hover:underline text-xs">→ Query Engine Sandbox</a>
+            <a href="/wp-editable" className="text-zinc-500 font-mono hover:underline text-xs">→ WpEditable Canvas</a>
+          </div>
         </div>
       </Route>
     </Switch>
@@ -458,304 +469,142 @@ export default function AppRoutes() {
 }
 `;
 
-  const pageContent = `import wpConfig from "../../wp.config";
-import { useWpCustomField, WpMenu, WpQueryLoop, WpHead, WpImage } from "../.forgewp/wordpress";
-import { Hydrate } from "@forgewp/react";
-import { Counter } from "../components/Counter";
+  const pageContent = `import { WpHead } from "../.forgewp/wordpress";
+import { BookOpen, Github, ChevronRight, Database, Code2 } from "lucide-react";
 
 export default function HomePage() {
-  const colors = wpConfig.settings?.color?.palette || [];
-  const fontFamilies = wpConfig.settings?.typography?.fontFamilies || [];
-  const googleFonts = wpConfig.settings?.typography?.googleFonts || [];
-  const layout = wpConfig.settings?.layout || {};
-
   return (
-    <div className="min-h-screen bg-bg-light p-6 md:p-12 font-sans selection:bg-brand selection:text-white">
+    <div className="min-h-screen lg:h-screen w-full bg-[#fafafa] selection:bg-primary selection:text-white flex flex-col items-center justify-center p-6 md:p-8 lg:p-12 relative overflow-x-hidden lg:overflow-hidden font-sans">
       <WpHead
-        title="ForgeWP Starter — React & Tailwind CSS for WordPress"
-        description="A premium, sharp-edge developer framework for creating modern block-themes using React."
+        title="ForgeWP — React & Tailwind Compiler for WordPress"
+        description="A premium developer framework for creating modern Gutenberg block-themes using React."
         ogType="website"
       />
 
-      {/* Main Container — Sharp brutalist outer grid */}
-      <main className="mx-auto max-w-6xl border-4 border-zinc-950 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-        {/* Header Grid Bar */}
-        <header className="flex flex-col sm:flex-row items-stretch border-b-4 border-zinc-950">
-          <div className="bg-brand text-white px-6 py-6 flex items-center border-b-4 sm:border-b-0 sm:border-r-4 border-zinc-950 font-black tracking-wider text-xl uppercase select-none">
-            ⚡ FORGEWP
-          </div>
-          <div className="flex-1 px-6 py-4 flex items-center text-xs md:text-sm font-semibold text-zinc-600 font-mono tracking-tight bg-zinc-50">
-            theme-compiler://v{wpConfig.version} // status: online
-          </div>
-          <div className="px-6 py-4 border-t-4 sm:border-t-0 sm:border-l-4 border-zinc-950 flex items-center bg-accent font-black text-sm uppercase tracking-wide text-zinc-950 select-none">
-            Developer Console
-          </div>
-        </header>
+      {/* ── BACKGROUND: Glowing Magma Blob ── */}
+      <div className="absolute -left-48 -top-48 w-[600px] h-[600px] bg-[radial-gradient(circle,oklch(0.61_0.22_42.5/_0.12)_0%,transparent_70%)] blur-3xl pointer-events-none z-0"></div>
 
-        {/* Hero Section */}
-        <section className="grid md:grid-cols-12 border-b-4 border-zinc-950">
-          <div className="md:col-span-8 p-8 md:p-12 flex flex-col justify-center border-b-4 md:border-b-0 md:border-r-4 border-zinc-950">
-            <span className="inline-block bg-zinc-950 text-white text-xs font-bold font-mono tracking-widest px-3 py-1 uppercase max-w-fit mb-6 select-none">
-              v{wpConfig.version} Active
-            </span>
-            <h1 className="text-4xl md:text-6xl font-serif font-black tracking-tight leading-none text-zinc-950">
-              React structure.<br />
-              Tailwind speed.<br />
-              WordPress power.
-            </h1>
-            <p className="mt-6 text-base md:text-lg text-zinc-700 leading-relaxed font-sans font-medium max-w-xl">
-              Welcome to the next generation of WordPress theme development. Build your layout dynamically using standard React components, mock hooks, and modern utilities. 
+      {/* ── HEADER: Centered Text Logo ── */}
+      <header className="relative w-full flex justify-center pb-4 lg:pb-6 z-10 shrink-0">
+        <h1 className="font-heading font-black text-3xl tracking-tight bg-linear-to-r from-primary to-amber-500 bg-clip-text text-transparent select-none">
+          ForgeWP
+        </h1>
+      </header>
+
+      {/* ── COMPACT CARD CONTAINER wrapping the Two-Column Grid ── */}
+      <main className="relative w-full max-w-5xl bg-white border border-slate-100/80 shadow-xl shadow-slate-100/50 p-6 md:p-8 lg:py-8 lg:px-10 lg:min-h-[430px] z-10 rounded-none flex items-center justify-center">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 w-full items-center">
+          
+          {/* Left Layout: Hero Header, Text, and Two CTAs */}
+          <div className="lg:col-span-6 flex flex-col justify-center text-left">
+            <h2 className="text-3xl md:text-4xl font-heading font-black tracking-tight leading-[1.1] text-slate-900 mb-4 uppercase">
+              React Structure.
+              <br />
+              Tailwind Speed.
+              <br />
+              WordPress Power.
+            </h2>
+
+            <p className="text-slate-500 text-xs md:text-sm leading-relaxed font-normal max-w-xl mb-6">
+              Welcome to ForgeWP. Build your layout dynamically using standard
+              React components, mock hooks, and modern utilities. The compiler
+              transpiles your isomorphic components directly into
+              production-grade, standard classic WordPress block themes
+              automatically.
             </p>
-            <div className="mt-8 flex flex-wrap gap-4">
+
+            {/* Two CTAs: Docs and GitHub */}
+            <div className="flex flex-wrap gap-4">
               <a
                 href="https://forgewp.dev/docs"
                 target="_blank"
                 rel="noreferrer"
-                className="group relative inline-flex items-center justify-center border-2 border-zinc-950 bg-zinc-950 text-white font-bold text-sm tracking-wider uppercase px-6 py-3 transition-colors hover:bg-brand hover:text-white"
+                className="group relative inline-flex items-center justify-center bg-transparent text-primary hover:text-white border border-primary font-mono font-bold text-[10px] uppercase tracking-widest px-6 py-3.5 transition-colors duration-500 rounded-none overflow-hidden select-none cursor-pointer shadow-sm shadow-primary/5 hover:shadow-md hover:shadow-primary/10"
               >
-                Read Framework Docs
+                {/* Fill effect helper layer */}
+                <div className="absolute inset-y-0 left-0 bg-primary w-0 group-hover:w-full transition-all duration-600 ease-out z-0"></div>
+                
+                {/* Text Content */}
+                <span className="relative z-10 flex items-center justify-center">
+                  <BookOpen className="w-3.5 h-3.5 mr-2" />
+                  Read Framework Docs
+                </span>
               </a>
               <a
-                href="#tokens"
-                className="group relative inline-flex items-center justify-center border-2 border-zinc-950 bg-white text-zinc-950 font-bold text-sm tracking-wider uppercase px-6 py-3 transition-all hover:bg-zinc-100"
+                href="https://github.com/forgewp/forgewp"
+                target="_blank"
+                rel="noreferrer"
+                className="group inline-flex items-center justify-center bg-white text-slate-900 border border-slate-200 font-mono font-bold text-[10px] uppercase tracking-widest px-6 py-3.5 shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 rounded-none select-none cursor-pointer"
               >
-                Inspect Config Settings
+                <Github className="w-3.5 h-3.5 mr-2" />
+                View on GitHub
               </a>
             </div>
           </div>
 
-          {/* Quick Stats sidebar */}
-          <div className="md:col-span-4 bg-zinc-50 p-8 flex flex-col justify-between font-mono text-xs">
-            <div className="space-y-6">
-              <div className="border-b-2 border-zinc-200 pb-4">
-                <span className="block text-zinc-400 font-bold uppercase tracking-wider mb-1">Theme Name</span>
-                <span className="text-sm font-black text-zinc-900">{wpConfig.name}</span>
-              </div>
-              <div className="border-b-2 border-zinc-200 pb-4">
-                <span className="block text-zinc-400 font-bold uppercase tracking-wider mb-1">Theme Slug</span>
-                <span className="text-sm font-black text-zinc-900">{wpConfig.slug}</span>
-              </div>
-              <div className="border-b-2 border-zinc-200 pb-4">
-                <span className="block text-zinc-400 font-bold uppercase tracking-wider mb-1">Text Domain</span>
-                <span className="text-sm font-black text-zinc-900">{wpConfig.textDomain}</span>
-              </div>
-              <div>
-                <span className="block text-zinc-400 font-bold uppercase tracking-wider mb-1">PHP Engine Target</span>
-                <span className="text-sm font-black text-zinc-900">PHP 7.4+ // WP 6.0+</span>
-              </div>
-            </div>
+          {/* Right Layout: Two Stacked Compact Cards */}
+          <div className="lg:col-span-6 flex flex-col gap-4 w-full">
 
-            <div className="mt-8 border-t-2 border-zinc-950 pt-4 text-[10px] text-zinc-500 font-bold uppercase">
-              ⚡ Generated via @forgewp/compiler
-            </div>
-          </div>
-        </section>
+            {/* Card 1: Query Sandbox */}
+            <a
+              href="/query-sandbox"
+              className="group bg-white border border-transparent p-4 lg:p-5 shadow-md shadow-slate-100/30 hover:shadow-[0_0_15px_oklch(0.61_0.22_42.5/_0.08)] transition-all duration-500 rounded-none relative overflow-hidden flex flex-col justify-center"
+            >
+              {/* Top border progress bar on hover */}
+              <div className="absolute top-0 left-0 h-[2px] bg-linear-to-r from-primary to-amber-500 w-0 group-hover:w-full transition-all duration-1000 ease-out"></div>
 
-        {/* Dynamic Tokens Section */}
-        <section id="tokens" className="p-8 md:p-12">
-          <div className="border-2 border-zinc-950 p-6 md:p-8 bg-zinc-50">
-            <div className="flex items-center gap-3 border-b-2 border-zinc-950 pb-4 mb-8">
-              <div className="w-4 h-4 bg-secondary"></div>
-              <h2 className="text-lg md:text-xl font-bold uppercase tracking-wider text-zinc-950">
-                Design Tokens Synchronization Check
-              </h2>
-            </div>
-
-            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {/* Color Presets */}
-              <div className="border border-zinc-300 bg-white p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                <h3 className="font-serif font-black text-lg text-zinc-900 mb-4 border-b border-zinc-200 pb-2 uppercase tracking-wide">
-                  Color Palette
-                </h3>
-                <div className="space-y-3 font-mono text-xs">
-                  {colors.map((c) => (
-                    <div key={c.slug} className="flex items-center gap-3">
-                      <div
-                        className="w-6 h-6 border border-zinc-950"
-                        style={{ backgroundColor: c.color }}
-                      ></div>
-                      <div className="flex-1">
-                        <span className="block font-black text-zinc-800">{c.name}</span>
-                        <span className="text-zinc-500">{c.color} // {c.slug}</span>
-                      </div>
-                    </div>
-                  ))}
+              <div className="flex items-start gap-4">
+                <div className="bg-amber-500/5 p-2.5 rounded-full border border-amber-500/10 shrink-0">
+                  <Database className="w-5 h-5 text-amber-500" />
                 </div>
-              </div>
-
-              {/* Typography Presets */}
-              <div className="border border-zinc-300 bg-white p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                <h3 className="font-serif font-black text-lg text-zinc-900 mb-4 border-b border-zinc-200 pb-2 uppercase tracking-wide">
-                  Font Families
-                </h3>
-                <div className="space-y-4">
-                  {fontFamilies.map((f) => (
-                    <div key={f.slug} className="font-mono text-xs">
-                      <span className="block font-black text-zinc-800 uppercase">{f.name}</span>
-                      <span className="text-zinc-500 block mb-2">{f.fontFamily}</span>
-                      <span
-                        className="text-lg block font-semibold text-zinc-950 border border-zinc-200 p-2 bg-zinc-50"
-                        style={{ fontFamily: f.fontFamily }}
-                      >
-                        The quick brown fox
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Layout Presets */}
-              <div className="border border-zinc-300 bg-white p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
-                <div>
-                  <h3 className="font-serif font-black text-lg text-zinc-900 mb-4 border-b border-zinc-200 pb-2 uppercase tracking-wide">
-                    Layout Bounds
+                
+                <div className="flex-1 pr-6">
+                  <h3 className="font-heading font-black text-lg text-slate-900 tracking-tight mb-2 uppercase">
+                    Relational Query Sandbox
                   </h3>
-                  <div className="space-y-4 font-mono text-xs">
-                    <div>
-                      <span className="block font-black text-zinc-800">CONTENT SIZE</span>
-                      <span className="text-zinc-500 text-lg font-black">{layout.contentSize || "N/A"}</span>
-                    </div>
-                    <div>
-                      <span className="block font-black text-zinc-800">WIDE SIZE</span>
-                      <span className="text-zinc-500 text-lg font-black">{layout.wideSize || "N/A"}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8 border-t border-zinc-200 pt-4">
-                  <span className="block font-mono text-[10px] text-zinc-400 font-bold uppercase tracking-wider mb-2">
-                    Synced Google Fonts
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    {googleFonts.map((font) => (
-                      <span
-                        key={font}
-                        className="inline-block bg-zinc-900 text-white text-[10px] font-mono px-2 py-1 uppercase"
-                      >
-                        {font.split(":")[0]}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* WordPress Dynamic Data Layer Console Section */}
-        <section id="data-layer" className="p-8 md:p-12 border-t-4 border-zinc-950 bg-zinc-50">
-          <div className="border-2 border-zinc-950 p-6 md:p-8 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-            <div className="flex items-center gap-3 border-b-2 border-zinc-950 pb-4 mb-8">
-              <div className="w-4 h-4 bg-brand"></div>
-              <h2 className="text-lg md:text-xl font-bold uppercase tracking-wider text-zinc-950">
-                WordPress Data Layer & Compiler Sandbox
-              </h2>
-            </div>
-
-            <div className="grid gap-8 lg:grid-cols-2 xl:grid-cols-4">
-              {/* Dynamic Menus Console */}
-              <div className="border border-zinc-200 bg-zinc-50 p-6">
-                <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
-                  Hook: &lt;WpMenu&gt;
-                </span>
-                <h3 className="font-serif font-black text-base text-zinc-900 mb-2">
-                  Navigation Menu
-                </h3>
-                <p className="text-zinc-500 text-xs mb-4">
-                  Compiles into dynamic WP site menus (\`wp_nav_menu\`) managed in the WP Dashboard.
-                </p>
-                <div className="border border-zinc-300 p-4 bg-white">
-                  <span className="block font-mono text-[9px] text-zinc-400 font-bold uppercase tracking-wider mb-2">
-                    Rendered Header Navigation:
-                  </span>
-                  <WpMenu
-                    location="primary"
-                    className="flex flex-col gap-2"
-                    linkClassName="font-mono text-xs font-bold uppercase tracking-wide text-zinc-700 hover:text-brand transition-colors"
-                  />
-                </div>
-              </div>
-
-              {/* Custom Meta Fields + WpImage */}
-              <div className="border border-zinc-200 bg-zinc-50 p-6">
-                <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
-                  Hook: useWpCustomField()
-                </span>
-                <h3 className="font-serif font-black text-base text-zinc-900 mb-2">
-                  Metadata & Custom Fields
-                </h3>
-                <p className="text-zinc-500 text-xs mb-4">
-                  Bridges WordPress metadata and ACF (Advanced Custom Fields) directly to your React markup.
-                </p>
-                <div className="border border-zinc-300 p-4 bg-white font-mono text-xs space-y-3">
-                  <div>
-                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Field: "author_bio"</span>
-                    <span className="text-zinc-800 font-bold">{useWpCustomField("author_bio", "React Developer & WP theme engineer")}</span>
-                  </div>
-                  <div>
-                    <span className="block text-[9px] text-zinc-400 font-bold uppercase">Field: "media_lookup" (ID 102)</span>
-                    <WpImage id={102} size="medium" className="w-full h-20 object-cover border border-zinc-950 mt-1" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Custom Query Loop + WpImage featured image */}
-              <div className="border border-zinc-200 bg-zinc-50 p-6">
-                <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
-                  Hook: &lt;WpQueryLoop&gt;
-                </span>
-                <h3 className="font-serif font-black text-base text-zinc-900 mb-2">
-                  Custom WP_Query Loop
-                </h3>
-                <p className="text-zinc-500 text-xs mb-4">
-                  Fetches collections of posts and resolves featured media objects.
-                </p>
-                <div className="border border-zinc-300 p-3 bg-white space-y-2.5 max-h-[160px] overflow-y-auto">
-                  <WpQueryLoop postType="post" postsPerPage={3}>
-                    <div className="border border-zinc-100 p-2 hover:bg-zinc-50 transition-colors flex items-center gap-2.5">
-                      <WpImage field="featuredImage" size="thumbnail" className="w-8 h-8 object-cover border border-zinc-950 flex-shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-mono text-[10px] font-black text-zinc-950 uppercase tracking-tight truncate">
-                          ⚡ Recent Block Post
-                        </h4>
-                        <span className="text-[9px] text-zinc-400 font-mono">Date: {new Date().toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  </WpQueryLoop>
-                </div>
-              </div>
-
-              {/* Interactive Selective Hydration Island */}
-              <div className="border border-zinc-200 bg-zinc-50 p-6 flex flex-col justify-between">
-                <div>
-                  <span className="inline-block bg-zinc-950 text-white text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 mb-4">
-                    Component: &lt;Hydrate&gt;
-                  </span>
-                  <h3 className="font-serif font-black text-base text-zinc-900 mb-2">
-                    Selective Hydration
-                  </h3>
-                  <p className="text-zinc-500 text-xs mb-4">
-                    Splits React code into dynamic chunks loaded lazily with advanced triggers.
+                  <p className="text-slate-500 text-xs leading-relaxed font-sans font-medium">
+                    Test and inspect ForgeWP's mock data loop systems, custom tax
+                    queries, meta mappings, and server pagination.
                   </p>
                 </div>
-                <Hydrate trigger="visible" preload="near-visible">
-                  <Counter />
-                </Hydrate>
-              </div>
-            </div>
-          </div>
-        </section>
 
-        {/* Footer info console bar */}
-        <footer className="border-t-4 border-zinc-950 bg-zinc-950 text-white p-6 font-mono text-xs flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 bg-green-500 animate-pulse"></span>
-            <span>Vite Dev Environment active on port 5173</span>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2">
+                  <ChevronRight className="w-5 h-5 text-amber-500 opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-500" />
+                </div>
+              </div>
+            </a>
+
+            {/* Card 2: wp-editable */}
+            <a
+              href="/wp-editable"
+              className="group bg-white border border-transparent p-4 lg:p-5 shadow-md shadow-slate-100/30 hover:shadow-[0_0_15px_oklch(0.61_0.22_42.5/_0.08)] transition-all duration-500 rounded-none relative overflow-hidden flex flex-col justify-center"
+            >
+              {/* Top border progress bar on hover */}
+              <div className="absolute top-0 left-0 h-[2px] bg-linear-to-r from-primary to-amber-500 w-0 group-hover:w-full transition-all duration-1000 ease-out"></div>
+
+              <div className="flex items-start gap-4">
+                <div className="bg-primary/5 p-2.5 rounded-full border border-primary/10 shrink-0">
+                  <Code2 className="w-5 h-5 text-primary" />
+                </div>
+                
+                <div className="flex-1 pr-6">
+                  <h3 className="font-heading font-black text-lg text-slate-900 tracking-tight mb-2 uppercase">
+                    WpEditable Block Canvas
+                  </h3>
+                  <p className="text-slate-500 text-xs leading-relaxed font-sans font-medium">
+                    Test visual inline editing primitives. Build custom content
+                    editors directly inside the Gutenberg admin dashboard.
+                  </p>
+                </div>
+
+                <div className="absolute right-6 top-1/2 -translate-y-1/2">
+                  <ChevronRight className="w-5 h-5 text-primary opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-500" />
+                </div>
+              </div>
+            </a>
+
           </div>
-          <div>
-            <span>Press <kbd className="bg-zinc-800 px-1 py-0.5 border border-zinc-700">Ctrl + C</kbd> to exit console</span>
-          </div>
-        </footer>
+        </div>
       </main>
     </div>
   );
@@ -775,7 +624,43 @@ export default function HomePage() {
   } catch (err) {
     console.log(pc.red(`  ❌ Failed to reset src/app/page.tsx: ${err.message}`));
   }
+
+  // Ensure shadcn's components.json is present so `forgewp add` works
+  // immediately after a fresh without requiring a manual `shadcn init`.
+  const componentsJsonPath = path.join(themeRoot, 'components.json');
+  if (!existsSync(componentsJsonPath)) {
+    const defaultComponentsJson = {
+      "$schema": "https://ui.shadcn.com/schema.json",
+      "style": "new-york",
+      "rsc": false,
+      "tsx": true,
+      "tailwind": {
+        "config": "tailwind.config.js",
+        "css": "src/app/globals.css",
+        "baseColor": "zinc",
+        "cssVariables": true,
+        "prefix": ""
+      },
+      "aliases": {
+        "components": "@/components",
+        "utils": "@/lib/utils",
+        "ui": "@/components/ui",
+        "lib": "@/lib",
+        "hooks": "@/hooks"
+      },
+      "iconLibrary": "lucide"
+    };
+    try {
+      writeFileSync(componentsJsonPath, JSON.stringify(defaultComponentsJson, null, 2), 'utf8');
+      console.log(`  ${pc.green('✅ Created shadcn config')}: components.json`);
+    } catch (err) {
+      console.log(pc.yellow(`  ⚠️  Could not create components.json: ${err.message}`));
+    }
+  } else {
+    console.log(`  ${pc.dim('↳ components.json already present')}`);
+  }
 }
+
 
 export function onMakeBlock(themeRoot, { pascalCase, readableTitle, attributesList, pc }) {
   const blocksDir = path.join(themeRoot, 'src', 'blocks');
@@ -802,24 +687,24 @@ export function onMakeBlock(themeRoot, { pascalCase, readableTitle, attributesLi
         .replace(/(?:^\w|[A-Z]|\b\w)/g, word => word.toUpperCase());
       
       if (a === 'content' || a === 'description' || a === 'body') {
-        return `<div className="border-2 border-zinc-950 p-4 bg-zinc-50 rounded-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-            <label className="block text-xs font-mono font-bold uppercase text-zinc-950 mb-1">${cleanLabel}</label>
+        return `<div className="border border-slate-100 p-4 bg-slate-50/30 rounded-none">
+            <label className="block text-xs font-mono font-bold uppercase text-slate-700 mb-1">${cleanLabel}</label>
             <textarea 
               value={attributes.${a}} 
               onChange={(e) => setAttributes({ ${a}: e.target.value })}
-              className="w-full p-2 border-2 border-zinc-950 bg-white font-mono text-xs focus:ring-0 focus:outline-none focus:border-brand rounded-none"
+              className="w-full p-2 border border-slate-200 bg-white font-sans text-xs focus:ring-0 focus:outline-none focus:border-primary rounded-none shadow-sm"
               rows={3}
               placeholder="Enter ${cleanLabel} content..."
             />
           </div>`;
       }
-      return `<div className="border-2 border-zinc-950 p-4 bg-zinc-50 rounded-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-            <label className="block text-xs font-mono font-bold uppercase text-zinc-950 mb-1">${cleanLabel}</label>
+      return `<div className="border border-slate-100 p-4 bg-slate-50/30 rounded-none">
+            <label className="block text-xs font-mono font-bold uppercase text-slate-700 mb-1">${cleanLabel}</label>
             <input 
               type="text" 
               value={attributes.${a}} 
               onChange={(e) => setAttributes({ ${a}: e.target.value })}
-              className="w-full p-2 border-2 border-zinc-950 bg-white font-mono text-xs focus:ring-0 focus:outline-none focus:border-brand rounded-none" 
+              className="w-full p-2 border border-slate-200 bg-white font-sans text-xs focus:ring-0 focus:outline-none focus:border-primary rounded-none shadow-sm" 
               placeholder="Enter ${cleanLabel}..."
             />
           </div>`;
@@ -829,7 +714,7 @@ export function onMakeBlock(themeRoot, { pascalCase, readableTitle, attributesLi
   const saveLayout = attributesList
     .map((attr, index) => {
       if (index === 0) {
-        return `<h3 className="text-2xl font-black text-zinc-950 uppercase tracking-tight leading-none mb-3">
+        return `<h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none mb-3">
           {attributes.${attr}}
         </h3>`;
       }
@@ -838,9 +723,9 @@ export function onMakeBlock(themeRoot, { pascalCase, readableTitle, attributesLi
         attr.toLowerCase().includes('pic') ||
         attr.toLowerCase().includes('img')
       ) {
-        return `<img src={attributes.${attr}} alt="Block Media" className="w-full border-2 border-zinc-950 mb-3" />`;
+        return `<img src={attributes.${attr}} alt="Block Media" className="w-full border border-slate-100 shadow-md mb-3" />`;
       }
-      return `<p className="text-sm text-zinc-600 font-medium font-sans leading-relaxed mb-3">
+      return `<p className="text-sm text-slate-600 font-medium font-sans leading-relaxed mb-3">
           {attributes.${attr}}
         </p>`;
     })
@@ -874,8 +759,8 @@ ${attributesRegistry}
   },
   edit: ({ attributes, setAttributes }) => {
     return (
-      <div className="p-8 bg-white border-4 border-zinc-950 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-none my-6 selection:bg-brand selection:text-white">
-        <span className="inline-block bg-brand text-white text-xs font-mono font-bold uppercase tracking-wider px-2 py-0.5 mb-4 border-2 border-zinc-950 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+      <div className="p-8 bg-white border border-slate-100 shadow-xl shadow-slate-100/50 rounded-none my-6 selection:bg-brand selection:text-white">
+        <span className="inline-block bg-primary/5 text-primary border border-primary/10 text-xs font-mono font-bold uppercase tracking-wider px-2.5 py-1 mb-4">
           Gutenberg Custom Block (Edit Mode)
         </span>
         <div className="space-y-4">
@@ -886,8 +771,8 @@ ${attributesRegistry}
   },
   save: ({ attributes }) => {
     return (
-      <div className="p-8 bg-white border-4 border-zinc-950 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-none my-6 selection:bg-brand selection:text-white">
-        <span className="inline-block bg-brand text-white text-xs font-mono font-bold uppercase tracking-wider px-2 py-0.5 mb-3 border-2 border-zinc-950">
+      <div className="p-8 bg-white border border-slate-100 shadow-xl shadow-slate-100/50 rounded-none my-6 selection:bg-brand selection:text-white">
+        <span className="inline-block bg-primary/5 text-primary border border-primary/10 text-xs font-mono font-bold uppercase tracking-wider px-2.5 py-1 mb-3">
           Gutenberg Custom Block
         </span>
         ${saveLayout}
@@ -924,9 +809,9 @@ export function onMakeTemplate(themeRoot, { pascalCase, postType, customFields, 
         const cleanLabel = f
           .replace(/_/g, ' ')
           .replace(/(?:^\w|[A-Z]|\b\w)/g, word => word.toUpperCase());
-        return `<div className="flex justify-between border-t border-zinc-950 pt-2 text-xs font-mono text-zinc-700">
+        return `<div className="flex justify-between border-t border-slate-100 pt-2 text-xs font-mono text-slate-500">
               <span>${cleanLabel}:</span>
-              <span className="font-bold">{useWpCustomField("${f}")}</span>
+              <span className="font-bold text-slate-800">{useWpCustomField("${f}")}</span>
             </div>`;
       })
       .join('\n            ');
@@ -945,17 +830,17 @@ export function onMakeTemplate(themeRoot, { pascalCase, postType, customFields, 
  */
 export default function ${pascalCase}() {
   return (
-    <div className="min-h-screen bg-zinc-50 selection:bg-brand selection:text-white py-12">
+    <div className="min-h-screen bg-slate-50 selection:bg-primary selection:text-white py-12">
       <div className="max-w-6xl mx-auto px-4">
-        {/* Brutalist Header Banner */}
-        <div className="mb-12 border-4 border-zinc-950 bg-white p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-          <span className="inline-block bg-brand text-white text-xs font-mono font-bold uppercase tracking-wider px-3 py-1 mb-4 border-2 border-zinc-950">
+        {/* Header Banner */}
+        <div className="mb-12 border border-slate-100 bg-white p-8 shadow-xl shadow-slate-100/50">
+          <span className="inline-block bg-primary/5 text-primary border border-primary/10 text-xs font-mono font-bold uppercase tracking-wider px-3 py-1 mb-4">
             Loop Template
           </span>
-          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight text-zinc-950">
+          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight text-slate-900">
             Latest ${postType.charAt(0).toUpperCase() + postType.slice(1)} Feed
           </h1>
-          <p className="text-sm font-mono font-medium text-zinc-600 mt-2">
+          <p className="text-sm font-mono font-medium text-slate-500 mt-2">
             Dynamic Post-Type Template &bull; Querying: "${postType}"
           </p>
         </div>
@@ -963,19 +848,19 @@ export default function ${pascalCase}() {
         {/* Post Grid Loop */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           <WpQueryLoop postType="${postType}" postsPerPage={6}>
-            <article className="bg-white border-4 border-zinc-950 p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-none flex flex-col justify-between hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] transition-all">
+            <article className="bg-white border border-slate-100 p-6 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 rounded-none flex flex-col justify-between">
               <div>
-                <div className="relative aspect-video w-full border-2 border-zinc-950 overflow-hidden mb-4 bg-zinc-100">
+                <div className="relative aspect-video w-full border border-slate-100 overflow-hidden mb-4 bg-slate-50/50">
                   <img 
                     src={useWpFeaturedImage()} 
                     alt={useWpTitle()} 
                     className="object-cover w-full h-full"
                   />
                 </div>
-                <h3 className="text-2xl font-black text-zinc-950 uppercase tracking-tight leading-none mb-3 hover:text-brand transition-colors">
+                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none mb-3 hover:text-primary transition-colors">
                   <a href={useWpPermalink()}>{useWpTitle()}</a>
                 </h3>
-                <p className="text-sm text-zinc-600 font-sans leading-relaxed mb-6">
+                <p className="text-sm text-slate-500 font-sans leading-relaxed mb-6">
                   {useWpExcerpt()}
                 </p>
               </div>
@@ -1057,16 +942,16 @@ export default function ${pascalCase}({ label = "React State Island (${pascalCas
   }, []);
 
   return (
-    <div className="p-6 border-4 border-zinc-950 bg-white font-mono text-zinc-950 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] transition-all">
-      <div className="flex items-center justify-between gap-4 mb-4 border-b-2 border-zinc-950 pb-2">
+    <div className="p-6 border border-slate-100 bg-white font-sans text-slate-900 shadow-xl shadow-slate-100/50 hover:-translate-y-0.5 transition-all duration-300 rounded-none">
+      <div className="flex items-center justify-between gap-4 mb-4 border-b border-slate-100 pb-2">
         <span className="block text-sm font-bold uppercase tracking-wider">
           {label}
         </span>
         <span
-          className={\`text-[10px] font-bold px-2 py-0.5 uppercase tracking-widest border-2 border-zinc-950 transition-all duration-300 \${
+          className={\`text-[10px] font-bold px-2 py-0.5 uppercase tracking-widest border transition-all duration-300 \${
             isHydrated
-              ? "bg-green-400 text-zinc-950 font-black"
-              : "bg-amber-400 text-zinc-950 font-black animate-pulse"
+              ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-black"
+              : "bg-amber-50 text-amber-700 border-amber-200 font-black animate-pulse"
           }\`}
         >
           {isHydrated ? "● Hydrated" : "○ Static (SSR)"}
@@ -1074,10 +959,10 @@ export default function ${pascalCase}({ label = "React State Island (${pascalCas
       </div>
       
       <div className="flex items-center gap-4 mt-2">
-        <span className="text-2xl font-black">Counter: {count}</span>
+        <span className="text-2xl font-black text-slate-800">Counter: {count}</span>
         <button
           onClick={() => setCount((c) => c + 1)}
-          className="border-2 border-zinc-950 bg-brand text-white px-4 py-2 font-black text-sm uppercase tracking-wide shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-[0px] active:translate-y-[0px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
+          className="border border-primary bg-primary text-white px-4 py-2 font-bold text-xs uppercase tracking-widest hover:bg-transparent hover:text-primary transition-all duration-300 shadow-sm cursor-pointer"
         >
           Increment Value
         </button>
@@ -1133,7 +1018,7 @@ import { WpQueryLoop, useWpTitle, useWpExcerpt, useWpFeaturedImage } from "../..
 
 export function ${componentName}() {
   return (
-    <main className="container mx-auto px-6 py-12">
+    <main className="container mx-auto px-6 py-12 font-sans text-slate-900">
       {/* WordPress SEO — compiles to native <meta> tags in your theme header */}
       <WpHead 
         title="${route.title}" 
@@ -1141,33 +1026,35 @@ export function ${componentName}() {
       />
 
       {/* Hero Header Area */}
-      <header className="border-b-4 border-black pb-6 mb-12">
-        <h1 className="text-5xl font-black tracking-tight uppercase">${route.title}</h1>
-        <p className="text-zinc-500 mt-2 text-lg">
-          Auto-generated template. Edit <code className="bg-zinc-100 px-1 py-0.5 rounded text-sm text-red-600 font-mono">src/app/pages/${componentName}.tsx</code> to customize this page.
+      <header className="border-b border-slate-100 pb-6 mb-12">
+        <h1 className="text-5xl font-black tracking-tight uppercase text-slate-900">${route.title}</h1>
+        <p className="text-slate-500 mt-2 text-sm">
+          Auto-generated template. Edit <code className="bg-slate-50 px-1 py-0.5 border border-slate-100 text-xs text-primary font-mono">src/app/pages/${componentName}.tsx</code> to customize this page.
         </p>
       </header>
 
       {/* Grid Starter - WordPress Mock Loop */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <WpQueryLoop postType="post" postsPerPage={3}>
-          <article className="border-2 border-black p-6 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all">
-            <div className="w-full h-48 bg-zinc-100 mb-4 border border-zinc-200 overflow-hidden">
-              <img 
-                src={useWpFeaturedImage()} 
-                alt={useWpTitle()} 
-                className="w-full h-full object-cover"
-              />
+          <article className="border border-slate-100 p-6 bg-white shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 rounded-none flex flex-col justify-between">
+            <div>
+              <div className="w-full h-48 bg-slate-50/50 mb-4 border border-slate-100 overflow-hidden">
+                <img 
+                  src={useWpFeaturedImage()} 
+                  alt={useWpTitle()} 
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <h2 className="text-xl font-bold uppercase tracking-tight mb-2 text-slate-900">
+                {useWpTitle()}
+              </h2>
+              <p className="text-slate-500 text-sm mb-4">
+                {useWpExcerpt()}
+              </p>
             </div>
-            <h2 className="text-xl font-bold uppercase tracking-tight mb-2">
-              {useWpTitle()}
-            </h2>
-            <p className="text-zinc-600 text-sm mb-4">
-              {useWpExcerpt()}
-            </p>
             <a 
               href="#" 
-              className="inline-block px-4 py-2 border-2 border-black bg-zinc-100 font-bold uppercase text-xs hover:bg-black hover:text-white transition-colors"
+              className="inline-block px-4 py-2 border border-primary bg-primary text-white font-bold uppercase text-[10px] tracking-wider hover:bg-transparent hover:text-primary transition-colors cursor-pointer text-center"
             >
               Read More
             </a>
