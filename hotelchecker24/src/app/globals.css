@@ -23,6 +23,12 @@
   --color-primary-foreground: #ffffff;
   --color-card: var(--wp--preset--color--background, #ffffff);
   --color-card-foreground: var(--wp--preset--color--text, #1e293b);
+  --color-input: #e2e8f0;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #0f172a;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+  --color-border: #e2e8f0;
 }
 
 @layer base {

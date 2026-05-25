@@ -8,29 +8,30 @@ export function MiniHeader() {
   const facebookUrl = useWpOption("social_facebook", "https://facebook.com/hotelchecker24");
   const instagramUrl = useWpOption("social_instagram", "https://instagram.com/hotelchecker24");
   const twitterUrl = useWpOption("social_twitter", "https://twitter.com/hotelchecker24");
+  
 
   return (
-    <div className="w-full bg-slate-50 text-slate-500 text-xs py-2 px-4 sm:px-6 lg:px-8 border-b border-slate-100/80 relative z-40">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <div className="w-full bg-slate-50 text-slate-500 text-[10px] sm:text-xs py-2 px-4 sm:px-6 lg:px-8 border-b border-slate-100/80 relative z-40 overflow-hidden select-none">
+      <div className="max-w-7xl mx-auto flex flex-row items-center justify-between">
         
         {/* Contact Details */}
         <div className="flex items-center gap-5">
           {phone && (
             <a href={`tel:${phone}`} className="flex items-center gap-1.5 hover:text-slate-800 transition-colors duration-300">
               <Phone className="w-3.5 h-3.5 text-accent" />
-              <span className="font-medium">{phone}</span>
+              <span className="font-medium whitespace-nowrap">{phone}</span>
             </a>
           )}
           {email && (
-            <a href={`mailto:${email}`} className="flex items-center gap-1.5 hover:text-slate-800 transition-colors duration-300">
+            <a href={`mailto:${email}`} className="hidden sm:flex items-center gap-1.5 hover:text-slate-800 transition-colors duration-300">
               <Mail className="w-3.5 h-3.5 text-primary" />
-              <span className="font-medium">{email}</span>
+              <span className="font-medium whitespace-nowrap">{email}</span>
             </a>
           )}
         </div>
 
         {/* Social Media Links */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center justify-center gap-4">
           {facebookUrl && (
             <a href={facebookUrl} target="_blank" rel="noopener noreferrer" className="hover:text-slate-800 transition-colors duration-300" aria-label="Facebook">
               <Facebook className="w-4 h-4" />

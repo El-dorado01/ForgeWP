@@ -11,8 +11,30 @@ import WpEditablePage from "./wp-editable";
  * @example
  * // 1. Create a component in src/app/about.tsx
  * // 2. Import it here: import AboutPage from "./about";
+import { Route, Switch } from "wouter";
+import HomePage from "./page";
+import QuerySandbox from "./query-sandbox";
+import WpEditablePage from "./wp-editable";
+
+/**
+ * Local Developer Routes — ForgeWP.
+ *
+ * Edit this file to add new routes/components for your local Vite preview server.
+ *
+ * @example
+ * // 1. Create a component in src/app/about.tsx
+ * // 2. Import it here: import AboutPage from "./about";
  * // 3. Add the Route: <Route path="/about" component={AboutPage} />
  */
+import { ListiclesPage } from "./pages/ListiclesPage";
+import { HotelsPage } from "./pages/HotelsPage";
+import { BerUnsPage } from "./pages/BerUnsPage";
+import { KontaktPage } from "./pages/KontaktPage";
+import { SingleListiclePage } from "./pages/SingleListiclePage";
+import { SingleHotelPage } from "./pages/SingleHotelPage";
+
+import { SingleAttachmentPage } from "./pages/SingleAttachmentPage";
+import { SingleTestimonialPage } from "./pages/SingleTestimonialPage";
 export default function AppRoutes() {
   return (
     <Switch>
@@ -24,6 +46,20 @@ export default function AppRoutes() {
 
       {/* WpEditable Block Canvas Preview — verifies inline editing primitive */}
       <Route path="/wp-editable" component={WpEditablePage} />
+
+      <Route path="/listicles" component={ListiclesPage} />
+      <Route path="/listicle/:id" component={SingleListiclePage} />
+
+      <Route path="/hotels" component={HotelsPage} />
+      <Route path="/hotel/:id" component={SingleHotelPage} />
+
+      <Route path="/contact" component={KontaktPage} />
+
+      <Route path="/about" component={BerUnsPage} />
+
+      <Route path="/attachment/:id" component={SingleAttachmentPage} />
+
+      <Route path="/testimonial/:id" component={SingleTestimonialPage} />
 
       {/* Fallback route */}
       <Route>

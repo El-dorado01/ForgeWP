@@ -1,10 +1,14 @@
 import type { ReactNode } from "react";
 import { WpHead } from "../.forgewp/wordpress";
 import { PresetsStyle } from "../.forgewp/PresetsStyle";
+import { MiniHeader } from "../components/MiniHeader";
+import { Navbar } from "../components/Navbar";
+import SiteFooter from "../components/SiteFooter";
+import { Hydrate } from "@forgewp/react";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="forgewp-root">
+    <div translate="no" className="forgewp-root notranslate">
       {/* Dev-only preset variables and font enqueues (no-op in production) */}
       <PresetsStyle />
 
@@ -23,7 +27,21 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         ogType="website"
         twitterCard="summary_large_image"
       />
+
+      {/* MINI TOP HEADER (Static, scrolls out) */}
+      <MiniHeader />
+
+      {/* NAVBAR (Sticky, Hydrated) */}
+      <Hydrate trigger="load" className="sticky top-0 z-50 w-full">
+        <Navbar />
+      </Hydrate>
+
       {children}
+      
+      {/* GLOBAL UPGRADED FOOTER */}
+      <Hydrate trigger="visible">
+        <SiteFooter />
+      </Hydrate>
     </div>
   );
 }
