@@ -131,54 +131,6 @@
       }
     }
   ],
-  "attachment": [
-    {
-      "id": 101,
-      "url": "https://picsum.photos/seed/forgewp/1200/630",
-      "alt": "ForgeWP Logo and Brand Artwork",
-      "title": "ForgeWP Logo",
-      "caption": "A high-fidelity minimalist logo graphic.",
-      "width": 1200,
-      "height": 630,
-      "sizes": {
-        "thumbnail": {
-          "url": "https://picsum.photos/seed/forgewp/150/150",
-          "width": 150,
-          "height": 150
-        },
-        "medium": {
-          "url": "https://picsum.photos/seed/forgewp/300/300",
-          "width": 300,
-          "height": 300
-        },
-        "large": {
-          "url": "https://picsum.photos/seed/forgewp/1024/768",
-          "width": 1024,
-          "height": 768
-        }
-      }
-    },
-    {
-      "id": 102,
-      "url": "https://picsum.photos/seed/layout/1200/800",
-      "alt": "Brutalist Layout Preview",
-      "title": "Layout Preview",
-      "width": 1200,
-      "height": 800,
-      "sizes": {
-        "thumbnail": {
-          "url": "https://picsum.photos/seed/layout/150/150",
-          "width": 150,
-          "height": 150
-        },
-        "medium": {
-          "url": "https://picsum.photos/seed/layout/300/300",
-          "width": 300,
-          "height": 300
-        }
-      }
-    }
-  ],
   "hotel": [
     {
       "id": 1,
@@ -476,34 +428,6 @@
       "meta": {
         "featured_image": "https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=600&q=80",
         "flag": "🇮🇹"
-      }
-    }
-  ],
-  "testimonial": [
-    {
-      "id": 1,
-      "title": "Sample Testimonial Item 1",
-      "excerpt": "This is a custom testimonial post seeded dynamically via ForgeWP CLI.",
-      "content": "<p>Welcome to your new custom <strong>testimonial</strong> post template! Edit this in cms/mock-data.json.</p>",
-      "date": "May 25, 2026",
-      "author": "ForgeWP CLI",
-      "featuredImage": "https://picsum.photos/seed/testimonial1/1200/630",
-      "customFields": {
-        "quote": "[Seeded quote 1]",
-        "author_title": "[Seeded author_title 1]"
-      }
-    },
-    {
-      "id": 2,
-      "title": "Sample Testimonial Item 2",
-      "excerpt": "This is another custom testimonial post seeded dynamically via ForgeWP CLI.",
-      "content": "<p>This is the second custom post for the testimonial post type.</p>",
-      "date": "May 25, 2026",
-      "author": "ForgeWP CLI",
-      "featuredImage": "https://picsum.photos/seed/testimonial2/1200/630",
-      "customFields": {
-        "quote": "[Seeded quote 2]",
-        "author_title": "[Seeded author_title 2]"
       }
     }
   ]

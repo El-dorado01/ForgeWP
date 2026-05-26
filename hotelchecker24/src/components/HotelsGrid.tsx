@@ -103,13 +103,18 @@ export function HotelsGrid() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className='flex flex-col items-center justify-center py-24 text-center'>
-          <div className='w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4'>
-            <SlidersHorizontal className='w-7 h-7 text-slate-400' />
+        <div className="bg-white border border-slate-200/60 rounded-3xl p-12 max-w-md mx-auto shadow-xs text-center flex flex-col items-center justify-center my-12 select-none">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4 text-primary">
+            <SlidersHorizontal className="w-7 h-7" />
           </div>
-          <p className='text-slate-700 font-bold text-lg uppercase tracking-tight'>Keine Hotels gefunden</p>
-          <p className='text-slate-400 text-sm mt-1'>Passen Sie Ihre Filter an oder setzen Sie sie zurück.</p>
-          <Button onClick={handleResetFilters} className='mt-6 bg-primary text-white text-xs font-bold uppercase tracking-wider px-6 py-3 rounded-full'>
+          <h3 className="text-slate-900 font-black text-lg uppercase tracking-tight mb-1">Keine Hotels gefunden</h3>
+          <p className="text-slate-400 text-xs leading-relaxed max-w-xs">
+            Für die ausgewählten Filter gibt es keine Ergebnisse. Passen Sie die Auswahl von Land oder Kategorie an.
+          </p>
+          <Button 
+            onClick={handleResetFilters} 
+            className="mt-6 bg-primary hover:bg-primary/95 text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl cursor-pointer hover:shadow-md hover:shadow-primary/20 active:scale-95 transition-all border-none"
+          >
             Filter zurücksetzen
           </Button>
         </div>

@@ -27,7 +27,7 @@ export default function SiteFooter() {
   // Retrieve dynamic theme customization options
   const footerText = useWpThemeMod(
     "footer_text",
-    `© ${new Date().getFullYear()} Hotelchecker24. Alle Rechte vorbehalten.`
+    `© ${new Date().getFullYear()} Hotelchecker24. All rights reserved.`
   );
 
   const handleSubscribe = (e: React.FormEvent) => {

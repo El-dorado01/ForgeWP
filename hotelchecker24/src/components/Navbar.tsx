@@ -7,8 +7,26 @@ import { Switch } from './ui/switch';
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [isScrolled, setIsScrolled] = React.useState(false);
-  const [isEnglish, setIsEnglish] = React.useState(false);
+  
+  // Dynamic Polylang/WPML language integration
+  const translations = typeof window !== 'undefined' ? (window as any).forgeWpTranslations : null;
+  const currentLang = translations?.currentLanguage || 'de';
+  const [isEnglish, setIsEnglish] = React.useState(currentLang === 'en');
   const themeUri = useWpThemeUri();
+
+  const handleLanguageToggle = (checked: boolean) => {
+    setIsEnglish(checked);
+    if (typeof window !== 'undefined') {
+      const targetLang = checked ? 'en' : 'de';
+      const targetUrl = translations?.urls?.[targetLang];
+      if (targetUrl) {
+        window.location.href = targetUrl;
+      } else {
+        // Fallback redirection to chosen language root if no direct translation link exists
+        window.location.href = checked ? '/en/' : '/';
+      }
+    }
+  };
 
   // Scroll listener to toggle sticky state styling
   React.useEffect(() => {
@@ -39,24 +57,22 @@ export function Navbar() {
           </div>
           {/* Mobile Flat Language Switcher using shadcn Switch */}
           <div
+            className='md:hidden flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 border border-slate-100 rounded-full shadow-xs'
             translate='no'
-            className='notranslate md:hidden flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 border border-slate-100 rounded-full shadow-xs'
           >
             <span
-              translate='no'
-              className={`notranslate text-[10px] font-bold transition-colors duration-300 ${!isEnglish ? 'text-primary font-black' : 'text-slate-400'}`}
+              className={`text-[10px] font-bold transition-colors duration-300 ${!isEnglish ? 'text-primary font-black' : 'text-slate-400'}`}
             >
               DE
             </span>
             <Switch
               checked={isEnglish}
-              onCheckedChange={(checked) => setIsEnglish(checked)}
+              onCheckedChange={handleLanguageToggle}
               aria-label='Language switch (DE/EN)'
               className='scale-90'
             />
             <span
-              translate='no'
-              className={`notranslate text-[10px] font-bold transition-colors duration-300 ${isEnglish ? 'text-primary font-black' : 'text-slate-400'}`}
+              className={`text-[10px] font-bold transition-colors duration-300 ${isEnglish ? 'text-primary font-black' : 'text-slate-400'}`}
             >
               EN
             </span>
@@ -83,23 +99,21 @@ export function Navbar() {
           <div className='hidden md:flex items-center gap-6'>
             {/* Flat Language Switcher (Plugin Ready) using shadcn Switch */}
             <div
+              className='flex items-center gap-2.5 bg-slate-50 px-3.5 py-1.5 border border-slate-100 rounded-full shadow-xs'
               translate='no'
-              className='notranslate flex items-center gap-2.5 bg-slate-50 px-3.5 py-1.5 border border-slate-100 rounded-full shadow-xs'
             >
               <span
-                translate='no'
-                className={`notranslate text-xs font-bold tracking-wider transition-colors duration-300 ${!isEnglish ? 'text-primary font-black' : 'text-slate-400'}`}
+                className={`text-xs font-bold tracking-wider transition-colors duration-300 ${!isEnglish ? 'text-primary font-black' : 'text-slate-400'}`}
               >
                 DE
               </span>
               <Switch
                 checked={isEnglish}
-                onCheckedChange={(checked) => setIsEnglish(checked)}
+                onCheckedChange={handleLanguageToggle}
                 aria-label='Language switch (DE/EN)'
               />
               <span
-                translate='no'
-                className={`notranslate text-xs font-bold tracking-wider transition-colors duration-300 ${isEnglish ? 'text-primary font-black' : 'text-slate-400'}`}
+                className={`text-xs font-bold tracking-wider transition-colors duration-300 ${isEnglish ? 'text-primary font-black' : 'text-slate-400'}`}
               >
                 EN
               </span>

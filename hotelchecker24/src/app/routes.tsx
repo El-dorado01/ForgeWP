@@ -33,8 +33,6 @@ import { KontaktPage } from "./pages/KontaktPage";
 import { SingleListiclePage } from "./pages/SingleListiclePage";
 import { SingleHotelPage } from "./pages/SingleHotelPage";
 
-import { SingleAttachmentPage } from "./pages/SingleAttachmentPage";
-import { SingleTestimonialPage } from "./pages/SingleTestimonialPage";
 export default function AppRoutes() {
   return (
     <Switch>
@@ -56,10 +54,6 @@ export default function AppRoutes() {
       <Route path="/contact" component={KontaktPage} />
 
       <Route path="/about" component={BerUnsPage} />
-
-      <Route path="/attachment/:id" component={SingleAttachmentPage} />
-
-      <Route path="/testimonial/:id" component={SingleTestimonialPage} />
 
       {/* Fallback route */}
       <Route>
