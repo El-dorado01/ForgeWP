@@ -181,6 +181,13 @@ export function useWpThemeMod(modName: string, defaultValue = ''): string {
   return defaultValue || `[theme_mod: ${modName}]`;
 }
 
+export function useWpThemeUri(): string {
+  if (typeof window !== 'undefined') {
+    return (window as any).forgeWpHydration?.themeUri || '';
+  }
+  return '';
+}
+
 // ── Isomorphic Query Hook ─────────────────────────────────────────────────────
 
 /**

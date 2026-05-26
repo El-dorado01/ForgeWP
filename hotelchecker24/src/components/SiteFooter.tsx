@@ -7,9 +7,10 @@ import {
   ArrowRight,
   Globe
 } from "lucide-react";
-import { WpMenu, useWpOption, useWpThemeMod, useWpThemeUri } from "../.forgewp/wordpress";
+import { WpMenu, useWpOption, useWpThemeMod, useWpThemeUri, useWpI18n } from "../.forgewp/wordpress";
 
 export default function SiteFooter() {
+  const { __ } = useWpI18n();
   const [email, setEmail] = React.useState("");
   const themeUri = useWpThemeUri();
 
@@ -33,7 +34,7 @@ export default function SiteFooter() {
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
     if (email) {
-      alert("Danke für Ihr Abonnement! / Thank you for subscribing!");
+      alert(__("Danke für Ihr Abonnement!"));
       setEmail("");
     }
   };
@@ -65,7 +66,7 @@ export default function SiteFooter() {
             {/* Language indicator & signal */}
             <div className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 bg-slate-800/40 border border-slate-800/60 px-3 py-1 rounded-md">
               <Globe className="w-3.5 h-3.5 text-[#929f5d]" />
-              <span>Edition: DE / EN</span>
+              <span>{__('Edition: DE / EN')}</span>
             </div>
           </div>
 
@@ -84,10 +85,10 @@ export default function SiteFooter() {
           {/* COLUMN 3: Newsletter & Socials (Span 4) */}
           <div className="md:col-span-4 flex flex-col">
             <h4 className="text-white text-xs font-mono font-bold uppercase tracking-widest mb-6">
-              Newsletter
+              {__('Newsletter')}
             </h4>
             <p className="text-[#8e9499] text-sm leading-relaxed mb-4">
-              Abonnieren Sie exklusive Hotelempfehlungen und Reise-Inspirationen direkt in Ihr Postfach.
+              {__('Abonnieren Sie exklusive Hotelempfehlungen und Reise-Inspirationen direkt in Ihr Postfach.')}
             </p>
             
             {/* Minimalist Newsletter Form */}
@@ -97,7 +98,7 @@ export default function SiteFooter() {
                 <input 
                   type="email" 
                   required
-                  placeholder="Ihre E-Mail-Adresse..."
+                  placeholder={__('Ihre E-Mail-Adresse...')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-transparent border-0 outline-none text-xs text-white placeholder-slate-500 py-3.5 pl-10 pr-12 font-medium"
@@ -158,7 +159,7 @@ export default function SiteFooter() {
             {footerText}
           </div>
           <div className="flex items-center gap-1">
-            <span>Powered by</span>
+            <span>{__('Powered by')}</span>
             <span className="text-white hover:text-primary transition-colors cursor-pointer">ForgeWP Framework</span>
           </div>
         </div>

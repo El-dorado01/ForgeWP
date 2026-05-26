@@ -9,11 +9,13 @@ import {
   useWpCustomField,
   useWpAuthor,
   useWpDate,
+  useWpI18n,
 } from '../../.forgewp/wordpress';
 import { useRoute } from 'wouter';
 import { ChevronRight, User, Calendar, BookOpen, ArrowLeft } from 'lucide-react';
 
 export function SingleListiclePage() {
+  const { __ } = useWpI18n();
   const [, params] = useRoute('/listicle/:id');
   const routeParam = params?.id;
 
@@ -35,11 +37,11 @@ export function SingleListiclePage() {
   );
 
   // Isomorphic dynamic mapping (compiles directly to WP loops in production)
-  const title = useWpTitle() || devPost?.title || 'Kuratierter Reisebericht';
-  const content = useWpContent() || devPost?.content || '<p>Lade Inhalt...</p>';
+  const title = useWpTitle() || devPost?.title || __('Kuratierter Reisebericht');
+  const content = useWpContent() || devPost?.content || `<p>${__('Lade Inhalt...')}</p>`;
   const excerpt = useWpExcerpt() || devPost?.excerpt || '';
   const date = useWpDate() || devPost?.date || '24. Mai 2026';
-  const author = useWpAuthor() || devPost?.author || 'Hotelchecker24 Redaktion';
+  const author = useWpAuthor() || devPost?.author || __('Hotelchecker24 Redaktion');
   
   const rawImage = useWpFeaturedImage();
   const hydrationImage =
@@ -67,9 +69,9 @@ export function SingleListiclePage() {
       />
       <div className="max-w-7xl mx-auto">
         <nav className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-8 w-full">
-          <WpLink href="/" className="hover:text-primary transition-colors">Startseite</WpLink>
+          <WpLink href="/" className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
           <ChevronRight className="w-3 h-3 text-slate-300" />
-          <WpLink href="/listicles" className="hover:text-primary transition-colors">Listicles</WpLink>
+          <WpLink href="/listicles" className="hover:text-primary transition-colors">{__('Listicles')}</WpLink>
           <ChevronRight className="w-3 h-3 text-slate-300" />
           <span className="text-slate-500 line-clamp-1">{title}</span>
         </nav>
@@ -77,7 +79,7 @@ export function SingleListiclePage() {
           <article className="bg-white border border-slate-200/50 shadow-xs rounded-2xl p-5 sm:p-8 overflow-hidden max-w-4xl mx-auto">
             <header className="text-center mb-6">
               <span className="inline-block bg-[#929f5d]/10 text-[#929f5d] border border-[#929f5d]/15 text-[10px] font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-md mb-3">
-                Redaktioneller Beitrag
+                {__('Redaktioneller Beitrag')}
               </span>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-slate-900 leading-tight mb-4 uppercase">
                 {title}
@@ -93,7 +95,7 @@ export function SingleListiclePage() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <BookOpen className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{readTime} Min. Lesezeit</span>
+                  <span>{readTime} {__('Min. Lesezeit')}</span>
                 </div>
               </div>
             </header>
@@ -122,7 +124,7 @@ export function SingleListiclePage() {
               className="inline-flex items-center gap-2 px-6 py-3.5 border border-slate-200 hover:border-slate-800 text-slate-700 hover:text-slate-900 font-mono font-bold uppercase text-xs tracking-wider rounded-xl transition-all duration-300 group cursor-pointer bg-white"
             >
               <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-              Zurück zur Übersicht
+              {__('Zurück zur Übersicht')}
             </WpLink>
           </div>
         </div>

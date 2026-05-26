@@ -1,7 +1,8 @@
-import { useWpQuery, WpLink } from '../.forgewp/wordpress';
+import { useWpQuery, WpLink, useWpI18n } from '../.forgewp/wordpress';
 import { Star, MapPin, ArrowRight, Hotel, Sparkles } from 'lucide-react';
 
 export function FeaturedHotelsGrid() {
+  const { __ } = useWpI18n();
   const { posts: hotels, loading } = useWpQuery({
     postType: 'hotel',
     postsPerPage: 3,
@@ -44,15 +45,15 @@ export function FeaturedHotelsGrid() {
 
           {/* Bilingual label */}
           <span className='inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#929f5d] bg-[#929f5d]/10 border border-[#929f5d]/20 px-3 py-1 rounded-full'>
-            Empfohlen · Featured
+            {__('Empfohlen')} · Featured
           </span>
 
           <div>
             <h3 className='text-xl font-black uppercase tracking-tight text-slate-800 font-sans mt-1'>
-              Keine Hotels gefunden
+              {__('Keine Hotels gefunden')}
             </h3>
             <p className='text-slate-400 text-sm mt-2 max-w-xs mx-auto leading-relaxed'>
-              Derzeit sind keine empfohlenen Hotels verfügbar.{' '}
+              {__('Derzeit sind keine empfohlenen Hotels verfügbar.')}{' '}
               <span className='text-slate-300'>·</span>{' '}
               <span className='italic'>No featured hotels available yet.</span>
             </p>
@@ -69,7 +70,7 @@ export function FeaturedHotelsGrid() {
             href='/hotels'
             className='inline-flex items-center gap-2 bg-[#929f5d] hover:bg-[#929f5d]/90 text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full transition-all duration-300 active:scale-95 shadow-lg shadow-[#929f5d]/20'
           >
-            Alle Hotels entdecken <ArrowRight className='w-3.5 h-3.5' />
+            {__('Alle Hotels entdecken')} <ArrowRight className='w-3.5 h-3.5' />
           </WpLink>
         </div>
       </div>
@@ -84,7 +85,7 @@ export function FeaturedHotelsGrid() {
           const rating = String(hotel.customFields?.rating || '4.8');
           const city = String(hotel.customFields?.city || hotel.customFields?.location || '');
           const categoryTerms = postAny._terms?.category || [];
-          const categoryName = categoryTerms.length > 0 ? categoryTerms[0].name : 'Boutique';
+          const categoryName = categoryTerms.length > 0 ? categoryTerms[0].name : __('Boutique');
           const imageUrl =
             typeof hotel.featuredImage === 'object' && hotel.featuredImage !== null
               ? (hotel.featuredImage as any).url || ''
@@ -134,7 +135,7 @@ export function FeaturedHotelsGrid() {
           href='/hotels'
           className='inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary'
         >
-          Alle Hotels ansehen <ArrowRight className='w-3.5 h-3.5' />
+          {__('Alle Hotels ansehen')} <ArrowRight className='w-3.5 h-3.5' />
         </WpLink>
       </div>
     </>

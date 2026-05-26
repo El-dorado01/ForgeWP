@@ -1,7 +1,8 @@
-import { useWpQuery, WpLink } from '../.forgewp/wordpress';
+import { useWpQuery, WpLink, useWpI18n } from '../.forgewp/wordpress';
 import { ArrowRight, User, BookOpen, Newspaper, PenLine } from 'lucide-react';
 
 export function LatestListiclesGrid() {
+  const { __ } = useWpI18n();
   const { posts: listicles, loading } = useWpQuery({
     postType: 'listicle',
     postsPerPage: 3,
@@ -50,10 +51,10 @@ export function LatestListiclesGrid() {
 
           <div>
             <h3 className='text-xl font-black uppercase tracking-tight text-slate-800 font-sans mt-1'>
-              Keine Listicles gefunden
+              {__('Keine Listicles gefunden')}
             </h3>
             <p className='text-slate-400 text-sm mt-2 max-w-xs mx-auto leading-relaxed'>
-              Unsere Redaktion arbeitet an neuen Artikeln für Sie.{' '}
+              {__('Unsere Redaktion arbeitet an neuen Artikeln für Sie.')}{' '}
               <span className='text-slate-300'>·</span>{' '}
               <span className='italic'>Our editors are crafting new articles soon.</span>
             </p>
@@ -70,7 +71,7 @@ export function LatestListiclesGrid() {
             href='/listicles'
             className='inline-flex items-center gap-2 bg-[#929f5d] hover:bg-[#929f5d]/90 text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full transition-all duration-300 active:scale-95 shadow-lg shadow-[#929f5d]/20'
           >
-            Alle Artikel entdecken <ArrowRight className='w-3.5 h-3.5' />
+            {__('Alle Artikel entdecken')} <ArrowRight className='w-3.5 h-3.5' />
           </WpLink>
         </div>
       </div>
@@ -101,7 +102,7 @@ export function LatestListiclesGrid() {
               />
               <div className='absolute top-4 left-4'>
                 <span className='text-[9px] font-mono font-bold uppercase tracking-wider bg-white/95 text-slate-800 px-2.5 py-1 shadow-xs border border-slate-100/30 rounded-md'>
-                  Redaktion
+                  {__('Redaktion')}
                 </span>
               </div>
             </div>
@@ -113,7 +114,7 @@ export function LatestListiclesGrid() {
                 </span>
                 <span className='flex items-center gap-1'>
                   <BookOpen className='w-3 h-3' />
-                  {readTime} Min.
+                  {readTime} {__('Min.')}
                 </span>
               </div>
               <h3 className='font-bold text-slate-900 leading-snug group-hover:text-primary transition-colors line-clamp-2 grow'>
@@ -121,7 +122,7 @@ export function LatestListiclesGrid() {
               </h3>
               <div className='mt-4 flex items-center justify-between border-t border-slate-100 pt-4'>
                 <span className='text-[#929f5d] font-mono font-black uppercase text-[10px] tracking-widest'>
-                  Artikel lesen
+                  {__('Artikel lesen')}
                 </span>
                 <div className='w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-300'>
                   <ArrowRight className='w-3 h-3' />

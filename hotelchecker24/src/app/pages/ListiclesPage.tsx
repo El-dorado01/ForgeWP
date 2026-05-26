@@ -1,8 +1,9 @@
 import React from 'react';
-import { WpHead, WpLink, useWpQuery, useWpSearch, useWpLocation } from '../../.forgewp/wordpress';
+import { WpHead, WpLink, useWpQuery, useWpSearch, useWpLocation, useWpI18n } from '../../.forgewp/wordpress';
 import { Search, BookOpen, ArrowRight, User, Calendar, Tag, ChevronRight, Newspaper } from 'lucide-react';
 
 export function ListiclesPage() {
+  const { __ } = useWpI18n();
   const searchString = useWpSearch();
   const [, setLocation] = useWpLocation();
   const params = React.useMemo(() => new URLSearchParams(searchString), [searchString]);
@@ -63,8 +64,8 @@ export function ListiclesPage() {
   return (
     <main className="min-h-screen bg-[#fafaf8] font-sans select-none">
       <WpHead
-        title="Listicles & Reiseberichte — Hotelchecker24"
-        description="Kuratierte Reiseberichte, Hotellisten und Insider-Tipps von unserer Redaktion. Entdecken Sie die besten Hotels und Reiseziele."
+        title={__('Listicles & Reiseberichte — Hotelchecker24')}
+        description={__('Kuratierte Reiseberichte, Hotellisten und Insider-Tipps von unserer Redaktion. Entdecken Sie die besten Hotels und Reiseziele.')}
       />
 
       {/* Hero — compact light editorial */}
@@ -74,7 +75,7 @@ export function ListiclesPage() {
 
         <div className="relative max-w-7xl mx-auto z-10">
           <nav className="flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4">
-            <WpLink href="/" className="hover:text-primary transition-colors">Startseite</WpLink>
+            <WpLink href="/" className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
             <ChevronRight className="w-4 h-4" />
             <span className="text-slate-700">Listicles</span>
           </nav>
@@ -82,18 +83,18 @@ export function ListiclesPage() {
             <div>
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-full mb-3">
                 <Newspaper className="w-3.5 h-3.5" />
-                Redaktionelles Magazin
+                {__('Redaktionelles Magazin')}
               </span>
               <h1 className="text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-slate-900 mb-2">
-                Reise<span className="text-primary">berichte</span>
+                Reise<span className="text-primary">{__('berichte')}</span>
               </h1>
               <p className="text-slate-500 text-sm max-w-xl">
-                Handverlesene Hotellisten, Destinations-Guides und Insider-Tipps — verfasst von unserer Reiseredaktion.
+                {__('Handverlesene Hotellisten, Destinations-Guides und Insider-Tipps — verfasst von unserer Reiseredaktion.')}
               </p>
             </div>
             <div className="text-right hidden sm:block pb-1">
               <div className="text-4xl font-black text-slate-600 font-mono leading-none">{listicles.length}</div>
-              <div className="text-xs font-semibold text-slate-400 mt-1">Artikel</div>
+              <div className="text-xs font-semibold text-slate-400 mt-1">{__('Artikel')}</div>
             </div>
           </div>
 
@@ -105,7 +106,7 @@ export function ListiclesPage() {
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Artikel suchen…"
+                placeholder={__('Artikel suchen…')}
                 className="w-full bg-white text-slate-800 placeholder:text-slate-400 border border-slate-200 rounded-xl pl-11 pr-4 py-2.5 text-sm shadow-xs focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/30 transition-all"
               />
             </div>
@@ -113,7 +114,7 @@ export function ListiclesPage() {
               type="submit"
               className="bg-primary hover:bg-primary/90 text-white font-bold text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all cursor-pointer active:scale-95 shadow-xs"
             >
-              Suchen
+              {__('Suchen')}
             </button>
           </form>
         </div>
@@ -124,7 +125,7 @@ export function ListiclesPage() {
         <div className="border-b border-slate-200 bg-white sticky top-0 z-20 shadow-xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-2 overflow-x-auto scrollbar-none">
             <span className="text-xs font-semibold text-slate-400 shrink-0 flex items-center gap-1.5">
-              <Tag className="w-3.5 h-3.5" /> Themen:
+              <Tag className="w-3.5 h-3.5" /> {__('Themen:')}
             </span>
             <button
               onClick={() => setCategory('')}
@@ -134,7 +135,7 @@ export function ListiclesPage() {
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              Alle
+              {__('Alle')}
             </button>
             {categories.map((c) => (
               <button
@@ -173,21 +174,21 @@ export function ListiclesPage() {
             <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4 text-primary">
               <Newspaper className="w-7 h-7" />
             </div>
-            <h3 className="text-slate-900 font-black text-lg uppercase tracking-tight mb-1">Keine Artikel gefunden</h3>
+            <h3 className="text-slate-900 font-black text-lg uppercase tracking-tight mb-1">{__('Keine Artikel gefunden')}</h3>
             <p className="text-slate-400 text-xs leading-relaxed max-w-xs">
-              Es wurden keine Beiträge für Ihre Auswahl gefunden. Passen Sie Ihre Suchbegriffe oder den Themenfilter an.
+              {__('Es wurden keine Beiträge für Ihre Auswahl gefunden. Passen Sie Ihre Suchbegriffe oder den Themenfilter an.')}
             </p>
             <button
               onClick={() => { setCategory(''); setSearchInput(''); setLocation('/listicles'); }}
               className="mt-6 bg-primary hover:bg-primary/95 text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl cursor-pointer hover:shadow-md hover:shadow-primary/20 active:scale-95 transition-all"
             >
-              Filter zurücksetzen
+              {__('Filter zurücksetzen')}
             </button>
           </div>
         ) : (
           <>
             <p className="text-xs font-semibold text-slate-400 mb-6">
-              {filtered.length} Artikel{activeCategory ? ` in "${categories.find(c => c.slug === activeCategory)?.name}"` : ''}
+              {filtered.length} {__('Artikel')}{activeCategory ? ` in "${categories.find(c => c.slug === activeCategory)?.name}"` : ''}
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filtered.map((listicle) => {
@@ -221,7 +222,7 @@ export function ListiclesPage() {
                             <span
                               key={t.slug}
                               className="text-[10px] font-semibold bg-white/95 backdrop-blur-xs text-slate-700 px-2 py-0.5 rounded-md shadow-xs"
-                          >
+                            >
                               {t.name}
                             </span>
                           ))}
@@ -230,7 +231,7 @@ export function ListiclesPage() {
                       {/* Read time badge top-right */}
                       <div className="absolute top-3 right-3 flex items-center gap-1 bg-white/95 backdrop-blur-xs text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded-md shadow-xs">
                         <BookOpen className="w-3 h-3" />
-                        <span>{readTime} Min.</span>
+                        <span>{readTime} {__('Min.')}</span>
                       </div>
                     </div>
 
@@ -265,7 +266,7 @@ export function ListiclesPage() {
 
                       {/* Footer CTA */}
                       <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-xs font-bold text-primary">Artikel lesen</span>
+                        <span className="text-xs font-bold text-primary">{__('Artikel lesen')}</span>
                         <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-200">
                           <ArrowRight className="w-3.5 h-3.5 group-hover:-rotate-45 transition-transform duration-200" />
                         </div>

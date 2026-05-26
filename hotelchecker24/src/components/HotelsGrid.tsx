@@ -1,9 +1,10 @@
 import React from 'react';
-import { useWpQuery, WpLink, useWpSearch, useWpLocation } from '../.forgewp/wordpress';
+import { useWpQuery, WpLink, useWpSearch, useWpLocation, useWpI18n } from '../.forgewp/wordpress';
 import { MapPin, Star, SlidersHorizontal, X, RotateCcw, DollarSign } from 'lucide-react';
 import { Button } from './ui/button';
 
 export function HotelsGrid() {
+  const { __ } = useWpI18n();
   const searchString = useWpSearch();
   const [, setLocation] = useWpLocation();
   const params = React.useMemo(() => new URLSearchParams(searchString), [searchString]);
@@ -54,14 +55,14 @@ export function HotelsGrid() {
       {hasFilters && (
         <div className='flex flex-wrap items-center gap-2 mb-6'>
           <span className='text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5'>
-            <SlidersHorizontal className='w-3 h-3' /> Aktive Filter:
+            <SlidersHorizontal className='w-3 h-3' /> {__('Aktive Filter:')}
           </span>
           {keyword && (
             <button
               onClick={() => removeFilter('s')}
               className='flex items-center gap-1.5 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full hover:bg-primary/20 transition-colors'
             >
-              Suche: {keyword} <X className='w-3 h-3' />
+              {__('Suche:')} {keyword} <X className='w-3 h-3' />
             </button>
           )}
           {category && (
@@ -69,7 +70,7 @@ export function HotelsGrid() {
               onClick={() => removeFilter('category')}
               className='flex items-center gap-1.5 bg-accent/10 text-slate-700 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full hover:bg-accent/20 transition-colors'
             >
-              Kategorie: {category} <X className='w-3 h-3' />
+              {__('Kategorie:')} {category} <X className='w-3 h-3' />
             </button>
           )}
           {country && (
@@ -77,14 +78,14 @@ export function HotelsGrid() {
               onClick={() => removeFilter('country')}
               className='flex items-center gap-1.5 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full hover:bg-slate-200 transition-colors'
             >
-              Land: {country} <X className='w-3 h-3' />
+              {__('Land:')} {country} <X className='w-3 h-3' />
             </button>
           )}
           <button
             onClick={handleResetFilters}
             className='flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-700 transition-colors ml-auto'
           >
-            <RotateCcw className='w-3 h-3' /> Alle zurücksetzen
+            <RotateCcw className='w-3 h-3' /> {__('Alle zurücksetzen')}
           </button>
         </div>
       )}
@@ -107,15 +108,15 @@ export function HotelsGrid() {
           <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4 text-primary">
             <SlidersHorizontal className="w-7 h-7" />
           </div>
-          <h3 className="text-slate-900 font-black text-lg uppercase tracking-tight mb-1">Keine Hotels gefunden</h3>
+          <h3 className="text-slate-900 font-black text-lg uppercase tracking-tight mb-1">{__('Keine Hotels gefunden')}</h3>
           <p className="text-slate-400 text-xs leading-relaxed max-w-xs">
-            Für die ausgewählten Filter gibt es keine Ergebnisse. Passen Sie die Auswahl von Land oder Kategorie an.
+            {__('Für die ausgewählten Filter gibt es keine Ergebnisse. Passen Sie die Auswahl von Land oder Kategorie an.')}
           </p>
           <Button 
             onClick={handleResetFilters} 
             className="mt-6 bg-primary hover:bg-primary/95 text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl cursor-pointer hover:shadow-md hover:shadow-primary/20 active:scale-95 transition-all border-none"
           >
-            Filter zurücksetzen
+            {__('Filter zurücksetzen')}
           </Button>
         </div>
       ) : (
@@ -127,7 +128,7 @@ export function HotelsGrid() {
             const priceRange = String(hotel.customFields?.price_range || '$$$');
             const starsVal = parseInt(String(hotel.customFields?.stars || '5'), 10) || 5;
             const categoryTerms = postAny._terms?.category || [];
-            const categoryName = categoryTerms.length > 0 ? categoryTerms[0].name : 'Boutique Hotel';
+            const categoryName = categoryTerms.length > 0 ? categoryTerms[0].name : __('Boutique Hotel');
             const imageUrl =
               typeof hotel.featuredImage === 'object' && hotel.featuredImage !== null
                 ? (hotel.featuredImage as any).url || ''
@@ -174,7 +175,7 @@ export function HotelsGrid() {
                   </p>
                   <div className='mt-4 pt-3 border-t border-slate-100 flex items-center justify-between'>
                     <span className='text-[10px] font-mono font-black text-[#929f5d] uppercase tracking-widest'>
-                      Details ansehen
+                      {__('Details ansehen')}
                     </span>
                     <span className='text-xs font-bold text-slate-500 flex items-center gap-1'>
                       <Star className='w-3 h-3 text-primary fill-primary' />

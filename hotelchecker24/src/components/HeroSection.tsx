@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWpLocation, useWpTerms } from '../.forgewp/wordpress';
+import { useWpLocation, useWpTerms, useWpI18n } from '../.forgewp/wordpress';
 import {
   Search,
   MapPin,
@@ -11,6 +11,7 @@ import {
 import { Button } from './ui/button';
 
 export function HeroSection() {
+  const { __ } = useWpI18n();
   const [, setLocation] = useWpLocation();
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState('');
@@ -24,10 +25,16 @@ export function HeroSection() {
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
+      if (
+        categoryRef.current &&
+        !categoryRef.current.contains(event.target as Node)
+      ) {
         setCategoryOpen(false);
       }
-      if (countryRef.current && !countryRef.current.contains(event.target as Node)) {
+      if (
+        countryRef.current &&
+        !countryRef.current.contains(event.target as Node)
+      ) {
         setCountryOpen(false);
       }
     }
@@ -43,18 +50,19 @@ export function HeroSection() {
 
   // Build dropdown options — always include an "all" entry first
   const categories = [
-    { value: '', label: 'Kategorie (Alle)' },
+    { value: '', label: __('Kategorie (Alle)') },
     ...categoryTerms.map((t) => ({ value: t.slug, label: t.name })),
   ];
   const countries = [
-    { value: '', label: 'Land (Alle)' },
+    { value: '', label: __('Land (Alle)') },
     ...countryTerms.map((t) => ({
       value: t.slug,
       label: `${t.meta?.flag ?? '🌍'} ${t.name}`,
     })),
   ];
 
-  const isSearchDisabled = !searchTerm.trim() && !selectedCategory && !selectedCountry;
+  const isSearchDisabled =
+    !searchTerm.trim() && !selectedCategory && !selectedCountry;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,18 +85,17 @@ export function HeroSection() {
         <div className='lg:col-span-7 flex flex-col items-start text-left'>
           {/* Heading */}
           <h1 className='text-4xl sm:text-5xl md:text-6xl font-sans font-black tracking-tight text-slate-800 leading-[1.1] mb-6 uppercase'>
-            Handverlesene <br />
+            {__('Handverlesene')} <br />
             <span className='bg-linear-to-r from-primary via-slate-700 to-accent bg-clip-text text-transparent'>
-              Boutique- & Luxushotels
+              {__('Boutique- & Luxushotels')}
             </span>
           </h1>
 
           {/* Subtitle */}
           <p className='text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed'>
-            Hotelchecker24 ist Ihre unabhängige, bilinguale Magazin-Plattform
-            für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene
-            Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz
-            Europa.
+            {__(
+              'Hotelchecker24 ist Ihre unabhängige, bilinguale Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa.',
+            )}
           </p>
 
           {/* Search Card (Spacious, well-spaced editorial board) */}
@@ -101,7 +108,7 @@ export function HeroSection() {
               <Search className='w-4 h-4 text-slate-400 shrink-0 mr-3' />
               <input
                 type='text'
-                placeholder='Hotelname oder Stadt suchen...'
+                placeholder={__('Hotelname oder Stadt suchen...')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className='w-full h-full text-slate-800 text-sm font-medium bg-transparent focus:outline-none placeholder-slate-400'
@@ -109,7 +116,10 @@ export function HeroSection() {
             </div>
 
             {/* CATEGORY FILTER (dynamic from WP taxonomy) */}
-            <div className='sm:col-span-3 relative' ref={categoryRef}>
+            <div
+              className='sm:col-span-3 relative'
+              ref={categoryRef}
+            >
               <button
                 type='button'
                 onClick={() => {
@@ -124,10 +134,12 @@ export function HeroSection() {
                     {selectedCategory
                       ? categories.find((c) => c.value === selectedCategory)
                           ?.label
-                      : 'Kategorie (Alle)'}
+                      : __('Kategorie (Alle)')}
                   </span>
                 </div>
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 ml-1 transition-transform duration-200 ${categoryOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 shrink-0 ml-1 transition-transform duration-200 ${categoryOpen ? 'rotate-180' : ''}`}
+                />
               </button>
               {categoryOpen && (
                 <div className='absolute left-0 mt-2 w-48 bg-white border border-slate-100/90 rounded-2xl shadow-xl p-1.5 z-50 max-h-60 overflow-y-auto animate-in fade-in-50 slide-in-from-top-1 duration-150'>
@@ -149,7 +161,10 @@ export function HeroSection() {
             </div>
 
             {/* COUNTRY FILTER (dynamic from WP taxonomy) */}
-            <div className='sm:col-span-2 relative' ref={countryRef}>
+            <div
+              className='sm:col-span-2 relative'
+              ref={countryRef}
+            >
               <button
                 type='button'
                 onClick={() => {
@@ -163,15 +178,21 @@ export function HeroSection() {
                   <span className='whitespace-nowrap overflow-hidden text-ellipsis max-w-17.5 sm:max-w-none'>
                     {selectedCountry
                       ? (() => {
-                          const found = countries.find((c) => c.value === selectedCountry);
-                          if (!found) return 'Land';
+                          const found = countries.find(
+                            (c) => c.value === selectedCountry,
+                          );
+                          if (!found) return __('Land');
                           const parts = found.label.split(' ');
-                          return parts.length > 1 ? parts.slice(1).join(' ') : found.label;
+                          return parts.length > 1
+                            ? parts.slice(1).join(' ')
+                            : found.label;
                         })()
-                      : 'Land'}
+                      : __('Land')}
                   </span>
                 </div>
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 ml-1 transition-transform duration-200 ${countryOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 shrink-0 ml-1 transition-transform duration-200 ${countryOpen ? 'rotate-180' : ''}`}
+                />
               </button>
               {countryOpen && (
                 <div className='absolute left-0 mt-2 w-40 bg-white border border-slate-100/90 rounded-2xl shadow-xl p-1.5 z-50 max-h-60 overflow-y-auto animate-in fade-in-50 slide-in-from-top-1 duration-150'>
@@ -199,7 +220,7 @@ export function HeroSection() {
                 disabled={isSearchDisabled}
                 className='w-full bg-primary hover:bg-primary/95 text-white font-sans font-bold text-xs uppercase tracking-wider rounded-2xl sm:rounded-full flex items-center justify-center gap-1.5 shadow-md shadow-primary/10 transition-all duration-300 transform active:scale-95 group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none'
               >
-                <span>Suchen</span>
+                <span>{__('Suchen')}</span>
                 <ArrowRight className='w-4 h-4 text-white group-hover:text-white transition-all duration-300 group-hover:translate-x-1' />
               </Button>
             </div>
@@ -212,15 +233,20 @@ export function HeroSection() {
             </span>
             {(categoryTerms.length > 0
               ? categoryTerms.slice(0, 5).map((t) => t.name)
-              : ['Wellness', 'Boutique', 'Alpin', 'Luxus', 'Design']
+              : [
+                  __('Wellness'),
+                  __('Boutique'),
+                  __('Alpin'),
+                  __('Luxus'),
+                  __('Design'),
+                ]
             ).map((tag) => (
               <button
                 key={tag}
                 type='button'
                 onClick={() => {
                   const term = categoryTerms.find(
-                    (t) =>
-                      t.name === tag || t.slug === tag.toLowerCase()
+                    (t) => t.name === tag || t.slug === tag.toLowerCase(),
                   );
                   setSelectedCategory(term ? term.slug : tag.toLowerCase());
                 }}
@@ -249,7 +275,7 @@ export function HeroSection() {
             <div className='absolute bottom-6 left-6 right-6 bg-white/90 backdrop-blur-md border border-white/20 p-5 rounded-3xl shadow-xl flex items-center justify-between transition-all duration-300 group-hover:bg-white'>
               <div>
                 <span className='text-[10px] font-bold uppercase tracking-wider text-[#929f5d] bg-[#929f5d]/10 px-2.5 py-0.5 rounded-md mb-1.5 inline-block'>
-                  Hotel des Monats
+                  {__('Hotel des Monats')}
                 </span>
                 <h4 className='font-sans font-black text-slate-800 text-lg leading-tight'>
                   Villa d'Este
@@ -266,7 +292,7 @@ export function HeroSection() {
                   4.9
                 </span>
                 <span className='text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider'>
-                  Hervorragend
+                  {__('Hervorragend')}
                 </span>
               </div>
             </div>

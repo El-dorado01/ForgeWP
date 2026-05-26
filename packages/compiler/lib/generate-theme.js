@@ -164,6 +164,19 @@ export async function generateTheme({
   mkdirSync(assetsOut, { recursive: true });
   cpSync(distAssets, assetsOut, { recursive: true });
 
+  // Copy all other files/folders from dist to outDir (excluding .vite, index.html, and assets)
+  const distDir = path.join(themeRoot, 'dist');
+  if (existsSync(distDir)) {
+    const items = readdirSync(distDir);
+    for (const item of items) {
+      if (item !== '.vite' && item !== 'index.html' && item !== 'assets') {
+        const srcPath = path.join(distDir, item);
+        const destPath = path.join(outDir, item);
+        cpSync(srcPath, destPath, { recursive: true });
+      }
+    }
+  }
+
   let hydrationManifestJson = '{}';
   if (hasHydration) {
     const manifestPath = path.join(themeRoot, 'dist', '.vite', 'manifest.json');
@@ -463,42 +476,86 @@ export async function generateTheme({
     }
   }
 
+  // Scan all page templates for translations before processMarkup replaces them
+  const i18nKeys = new Set();
+  const scanForI18nKeys = (content) => {
+    if (!content) return;
+    const regex = /__FORGEWP_I18N_([^_](?:[^_]|_(?!_))*?)__/g;
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+      const clean = match[1]
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&#x27;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+      i18nKeys.add(clean);
+    }
+  };
+
+  scanForI18nKeys(appHtml);
+  scanForI18nKeys(headerHtml);
+  scanForI18nKeys(footerHtml);
+  scanForI18nKeys(singleHtml);
+  scanForI18nKeys(notFoundHtml);
+  scanForI18nKeys(archiveHtml);
+
+  if (existsSync(forgewpDir)) {
+    const templateFiles = readdirSync(forgewpDir);
+    for (const file of templateFiles) {
+      if (file.endsWith('.html')) {
+        const rawHtml = readFileSync(path.join(forgewpDir, file), 'utf8');
+        scanForI18nKeys(rawHtml);
+      }
+    }
+  }
+
   // Fix nav links and split markup
-  const processedApp = processMarkup(appHtml);
-  const processedHeader = processMarkup(headerHtml);
-  const processedFooter = processMarkup(footerHtml);
+  const processedApp = processMarkup(appHtml, config.textDomain);
+  const processedHeader = processMarkup(headerHtml, config.textDomain);
+  const processedFooter = processMarkup(footerHtml, config.textDomain);
 
   // Extract content (App markup minus Header/Footer)
   let contentHtml = processedApp;
   if (processedHeader) {
-    contentHtml = contentHtml.replace(processedHeader, '');
+    const replaced = contentHtml.replace(processedHeader, '');
+    contentHtml = replaced !== contentHtml ? replaced : contentHtml.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
   }
   if (processedFooter) {
-    contentHtml = contentHtml.replace(processedFooter, '');
+    const replaced = contentHtml.replace(processedFooter, '');
+    contentHtml = replaced !== contentHtml ? replaced : contentHtml.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
   }
+  contentHtml = contentHtml.replace(/<div\s+data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
 
   // Process single post template if exists
   let processedSingle = '';
   if (singleHtml) {
-    processedSingle = processMarkup(singleHtml);
+    processedSingle = processMarkup(singleHtml, config.textDomain);
     if (processedHeader) {
-      processedSingle = processedSingle.replace(processedHeader, '');
+      const replaced = processedSingle.replace(processedHeader, '');
+      processedSingle = replaced !== processedSingle ? replaced : processedSingle.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
     }
     if (processedFooter) {
-      processedSingle = processedSingle.replace(processedFooter, '');
+      const replaced = processedSingle.replace(processedFooter, '');
+      processedSingle = replaced !== processedSingle ? replaced : processedSingle.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
     }
+    processedSingle = processedSingle.replace(/<div\s+data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
   }
 
   // Process 404 template if exists
   let processedNotFound = '';
   if (notFoundHtml) {
-    processedNotFound = processMarkup(notFoundHtml);
+    processedNotFound = processMarkup(notFoundHtml, config.textDomain);
     if (processedHeader) {
-      processedNotFound = processedNotFound.replace(processedHeader, '');
+      const replaced = processedNotFound.replace(processedHeader, '');
+      processedNotFound = replaced !== processedNotFound ? replaced : processedNotFound.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
     }
     if (processedFooter) {
-      processedNotFound = processedNotFound.replace(processedFooter, '');
+      const replaced = processedNotFound.replace(processedFooter, '');
+      processedNotFound = replaced !== processedNotFound ? replaced : processedNotFound.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
     }
+    processedNotFound = processedNotFound.replace(/<div\s+data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
   }
 
   const staticDir = path.join(outDir, 'forgewp-static');
@@ -526,11 +583,15 @@ export async function generateTheme({
   // Archive page (category / tag / date archives)
   let processedArchive = '';
   if (archiveHtml) {
-    processedArchive = processMarkup(archiveHtml);
-    if (processedHeader)
-      processedArchive = processedArchive.replace(processedHeader, '');
-    if (processedFooter)
-      processedArchive = processedArchive.replace(processedFooter, '');
+    processedArchive = processMarkup(archiveHtml, config.textDomain);
+    if (processedHeader) {
+      const replaced = processedArchive.replace(processedHeader, '');
+      processedArchive = replaced !== processedArchive ? replaced : processedArchive.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
+    }
+    if (processedFooter) {
+      const replaced = processedArchive.replace(processedFooter, '');
+      processedArchive = replaced !== processedArchive ? replaced : processedArchive.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
+    }
     writeFileSync(
       path.join(staticDir, 'archive.html'),
       processedArchive,
@@ -622,6 +683,7 @@ if (window.forgeWpBlocks) {
       pagesToAutoCreate,
       menus,
       hydrationData,
+      Array.from(i18nKeys),
     ),
     'utf8',
   );
@@ -657,11 +719,15 @@ if (window.forgeWpBlocks) {
       
       if (isHierarchyTemplate) {
         const rawHtml = readFileSync(path.join(forgewpDir, file), 'utf8');
-        let processedHtml = processMarkup(rawHtml);
-        if (processedHeader)
-          processedHtml = processedHtml.replace(processedHeader, '');
-        if (processedFooter)
-          processedHtml = processedHtml.replace(processedFooter, '');
+        let processedHtml = processMarkup(rawHtml, config.textDomain);
+        if (processedHeader) {
+          const replaced = processedHtml.replace(processedHeader, '');
+          processedHtml = replaced !== processedHtml ? replaced : processedHtml.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
+        }
+        if (processedFooter) {
+          const replaced = processedHtml.replace(processedFooter, '');
+          processedHtml = replaced !== processedHtml ? replaced : processedHtml.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
+        }
 
         writeFileSync(path.join(staticDir, file), processedHtml, 'utf8');
 
@@ -716,11 +782,15 @@ get_footer();
         const slug = file.replace('.html', '');
         const rawHtml = readFileSync(path.join(forgewpDir, file), 'utf8');
 
-        let processedHtml = processMarkup(rawHtml);
-        if (processedHeader)
-          processedHtml = processedHtml.replace(processedHeader, '');
-        if (processedFooter)
-          processedHtml = processedHtml.replace(processedFooter, '');
+        let processedHtml = processMarkup(rawHtml, config.textDomain);
+        if (processedHeader) {
+          const replaced = processedHtml.replace(processedHeader, '');
+          processedHtml = replaced !== processedHtml ? replaced : processedHtml.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
+        }
+        if (processedFooter) {
+          const replaced = processedHtml.replace(processedFooter, '');
+          processedHtml = replaced !== processedHtml ? replaced : processedHtml.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
+        }
 
         writeFileSync(path.join(staticDir, file), processedHtml, 'utf8');
 
@@ -831,7 +901,7 @@ get_footer();
 /**
  * Process markup: fix nav links etc.
  */
-function processMarkup(html) {
+function processMarkup(html, textDomain = 'theme') {
   if (!html) return '';
   // Fix nav links — # → <?php echo esc_url( home_url( '/' ) ); ?>
   // We use a placeholder and replace it in the PHP file generation if needed,
@@ -931,7 +1001,14 @@ function processMarkup(html) {
 
       return `<?php
   $locations = get_nav_menu_locations();
-  $menu_id = isset($locations['${location}']) ? $locations['${location}'] : null;
+  $loc_key = '${location}';
+  if (function_exists('pll_current_language')) {
+      $lang = pll_current_language();
+      if ($lang && isset($locations[$loc_key . '___' . $lang])) {
+          $loc_key = $loc_key . '___' . $lang;
+      }
+  }
+  $menu_id = isset($locations[$loc_key]) ? $locations[$loc_key] : null;
   $menu_items = $menu_id ? wp_get_nav_menu_items($menu_id) : array();
   if (!empty($menu_items)) {
       echo '<nav class="${className}">';
@@ -946,6 +1023,69 @@ function processMarkup(html) {
     },
   );
   processed = processed.replace(/<\/forgewp-menu>/g, '');
+
+  // ── WpLanguageSwitcher → pll_the_languages() ──
+  processed = processed.replace(
+    /<forgewp-language-switcher\s+([^>]*)\/?\>/g,
+    (match, attrsStr) => {
+      const getAttr = (name) => {
+        const regex = new RegExp(
+          `(?:${name}|${name.toLowerCase()})=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
+          'i',
+        );
+        const m = attrsStr.match(regex);
+        return m ? m[1] || m[2] || m[3] || '' : '';
+      };
+
+      const className    = getAttr('class') || getAttr('className') || '';
+      const linkClass    = getAttr('linkClassName') || getAttr('linkclassname') || '';
+      const showFlags    = getAttr('showFlags') === '1';
+      const showNames    = getAttr('showNames') === '1';
+      const showCodes    = getAttr('showCodes') !== '0'; // default true
+
+      const flagsPart  = showFlags ? "echo '<img src=\"' . esc_url($l['flag']) . '\" alt=\"' . esc_attr($l['name']) . '\" />';" : '';
+      const codesPart  = showCodes ? "echo esc_html(strtoupper($l['slug']));" : '';
+      const namesPart  = showNames ? "echo ' ' . esc_html($l['name']);" : '';
+
+      return `<?php
+if (function_exists('pll_the_languages')) {
+    $pll_langs = pll_the_languages(array('raw' => 1));
+    if (is_array($pll_langs)) {
+        echo '<nav class="${className}">';
+        foreach ($pll_langs as $pll_l) {
+            $pll_is_current = !empty($pll_l['current_lang']);
+            $pll_link_class = trim('${linkClass}' . ($pll_is_current ? ' active' : ''));
+            echo '<a href="' . esc_url($pll_l['url']) . '" class="' . esc_attr($pll_link_class) . '" hreflang="' . esc_attr($pll_l['slug']) . '" lang="' . esc_attr($pll_l['slug']) . '">';
+            ${flagsPart}
+            ${codesPart}
+            ${namesPart}
+            echo '</a>';
+        }
+        echo '</nav>';
+    }
+} else {
+    // Fallback: plain home link when no multilingual plugin is active
+    echo '<nav class="${className}"><a href="' . esc_url(home_url('/')) . '" class="${linkClass}">${showCodes ? 'DE' : ''}</a></nav>';
+} ?>`;
+    },
+  );
+  processed = processed.replace(/<\/forgewp-language-switcher>/g, '');
+
+  // ── useWpI18n strings → esc_html__() ──
+  // Matches __FORGEWP_I18N_<text>__ and emits <?php echo __('text', 'textdomain'); ?>
+  // The regex allows spaces and most characters inside the token; double-underscore terminates.
+  processed = processed.replace(
+    /__FORGEWP_I18N_([^_](?:[^_]|_(?!_))*?)__/g,
+    (match, text) => {
+      // Decode any HTML entities React may have encoded
+      const clean = text
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&')
+        .replace(/'/g, "\\'");
+      return `<?php echo __('${clean}', '${textDomain}'); ?>`;
+    },
+  );
 
   // ── WordPress Shortcodes Support ──
   processed = processed.replace(
@@ -1094,12 +1234,26 @@ ${phpArgs}
     /__FORGEWP_OPTION_([a-zA-Z0-9_-]+)_DEFAULT_(.*?)__/g,
     (match, name, defaultVal) => {
       const decoded = decodeURIComponent(defaultVal);
+      if (name === 'blogname') {
+        return `<?php echo esc_html( get_bloginfo( 'name' ) ); ?>`;
+      }
+      if (name === 'blogdescription') {
+        return `<?php echo esc_html( get_bloginfo( 'description' ) ); ?>`;
+      }
       return `<?php echo esc_html( get_option( '${name}', '${decoded}' ) ); ?>`;
     },
   );
   processed = processed.replace(
     /__FORGEWP_OPTION_([a-zA-Z0-9_-]+)__/g,
-    "<?php echo esc_html( get_option( '$1' ) ); ?>",
+    (match, name) => {
+      if (name === 'blogname') {
+        return `<?php echo esc_html( get_bloginfo( 'name' ) ); ?>`;
+      }
+      if (name === 'blogdescription') {
+        return `<?php echo esc_html( get_bloginfo( 'description' ) ); ?>`;
+      }
+      return `<?php echo esc_html( get_option( '${name}' ) ); ?>`;
+    },
   );
 
   processed = processed.replace(
@@ -1112,6 +1266,11 @@ ${phpArgs}
   processed = processed.replace(
     /__FORGEWP_THEME_MOD_([a-zA-Z0-9_-]+)__/g,
     "<?php echo esc_html( get_theme_mod( '$1' ) ); ?>",
+  );
+
+  processed = processed.replace(
+    /__FORGEWP_THEME_URI__/g,
+    "<?php echo esc_url( get_template_directory_uri() ); ?>",
   );
 
   return processed;
@@ -1151,10 +1310,15 @@ function buildFunctionsPhp(
   pagesToAutoCreate = [],
   menus = {},
   hydrationData = null,
+  i18nKeys = [],
 ) {
   const css = assets.cssFile.replace(/^assets\//, '');
   const version = config.version.replace(/'/g, "\\'");
   const googleFonts = config.settings?.typography?.googleFonts || [];
+
+  const i18nKeysPhp = i18nKeys
+    .map((k) => `        '${k.replace(/'/g, "\\'")}',`)
+    .join('\n');
   const wpBlockStylesLine = config.presets?.wordpressCoreStyles === false
     ? ''
     : "    add_theme_support('wp-block-styles');\n";
@@ -1171,7 +1335,8 @@ function buildFunctionsPhp(
           k !== 'post' &&
           k !== 'page' &&
           k !== 'menus' &&
-          k !== 'attachment',
+          k !== 'attachment' &&
+          !k.startsWith('_'),  // Underscore-prefixed keys are taxonomy definitions, not CPTs
       );
       if (postTypes.length > 0) {
         // Dynamic Taxonomy Scan from post _terms
@@ -1204,27 +1369,31 @@ function buildFunctionsPhp(
 function forgewp_register_custom_post_types() {
 ${postTypes
   .map(
-    (pt) => `    register_post_type('${pt}', array(
+    (pt) => {
+      const singular = pt.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      const plural = singular + 's';
+      return `    register_post_type('${pt}', array(
         'labels'      => array(
-            'name'               => '${pt.charAt(0).toUpperCase() + pt.slice(1)}s',
-            'singular_name'      => '${pt.charAt(0).toUpperCase() + pt.slice(1)}',
-            'menu_name'          => '${pt.charAt(0).toUpperCase() + pt.slice(1)}s',
-            'name_admin_bar'     => '${pt.charAt(0).toUpperCase() + pt.slice(1)}',
+            'name'               => '${plural}',
+            'singular_name'      => '${singular}',
+            'menu_name'          => '${plural}',
+            'name_admin_bar'     => '${singular}',
             'add_new'            => 'Add New',
-            'add_new_item'       => 'Add New ${pt.charAt(0).toUpperCase() + pt.slice(1)}',
-            'new_item'           => 'New ${pt.charAt(0).toUpperCase() + pt.slice(1)}',
-            'edit_item'          => 'Edit ${pt.charAt(0).toUpperCase() + pt.slice(1)}',
-            'view_item'          => 'View ${pt.charAt(0).toUpperCase() + pt.slice(1)}',
-            'all_items'          => 'All ${pt.charAt(0).toUpperCase() + pt.slice(1)}s',
-            'search_items'       => 'Search ${pt.charAt(0).toUpperCase() + pt.slice(1)}s',
-            'not_found'          => 'No ${pt.charAt(0).toUpperCase() + pt.slice(1)}s found.',
+            'add_new_item'       => 'Add New ${singular}',
+            'new_item'           => 'New ${singular}',
+            'edit_item'          => 'Edit ${singular}',
+            'view_item'          => 'View ${singular}',
+            'all_items'          => 'All ${plural}',
+            'search_items'       => 'Search ${plural}',
+            'not_found'          => 'No ${plural} found.',
         ),
         'public'      => true,
         'has_archive' => true,
         'show_in_rest'=> true,
         'supports'    => array('title', 'editor', 'thumbnail', 'custom-fields', 'excerpt'),
         'menu_icon'   => 'dashicons-admin-post',
-    ));`,
+    ));`;
+    }
   )
   .join('\n')}
 
@@ -1501,12 +1670,10 @@ add_action('after_switch_theme', 'forgewp_set_default_footer_text');
 
   let hydrationEnqueue = '';
   if (hydrationData && hydrationData.mapping) {
-    const mainJs = hydrationData.mainJsFile
-      .replace(/^assets\//, '')
-      .replace(/^assets\\/, '');
+    const mainJs = hydrationData.mainJsFile.replace(/^.*?[/\\]?assets[/\\]/, '');
     const manifestPairs = Object.entries(hydrationData.mapping)
       .map(([key, val]) => {
-        const cleanVal = val.replace(/^assets\//, '').replace(/^assets\\/, '');
+        const cleanVal = val.replace(/^.*?[/\\]?assets[/\\]/, '');
         return `                    '${key}' => 'assets/${cleanVal}'`;
       })
       .join(',\n');
@@ -1569,12 +1736,45 @@ add_action('after_switch_theme', 'forgewp_set_default_footer_text');
             true
         );
 
+        $menu_locations = get_nav_menu_locations();
+        $hydrated_menus = array();
+        $registered_locations = array_keys(get_registered_nav_menus());
+        $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
+        if (empty($current_lang) && function_exists('pll_default_language')) {
+            $current_lang = pll_default_language();
+        }
+        foreach ($registered_locations as $loc) {
+            $base_loc = $loc;
+            $loc_lang = '';
+            if (strpos($loc, '___') !== false) {
+                $parts = explode('___', $loc);
+                $base_loc = $parts[0];
+                $loc_lang = $parts[1];
+            }
+            
+            $menu_id = isset($menu_locations[$loc]) ? $menu_locations[$loc] : null;
+            $menu_items = $menu_id ? wp_get_nav_menu_items($menu_id) : array();
+            $items_list = array();
+            if ($menu_items) {
+                foreach ($menu_items as $item) {
+                    $items_list[] = array(
+                        'title' => $item->title,
+                        'url' => $item->url
+                    );
+                }
+            }
+            $hydrated_menus[$loc] = $items_list;
+            if (empty($loc_lang) || (!empty($current_lang) && $loc_lang === $current_lang)) {
+                $hydrated_menus[$base_loc] = $items_list;
+            }
+        }
+
         // Inject hydration manifest mappings dynamically
-        wp_localize_script(
+        wp_add_inline_script(
             '${config.textDomain}-react-runtime',
-            'forgeWpHydration',
-            array(
+            'window.forgeWpHydration = ' . wp_json_encode(array(
                 'themeUri' => $theme_uri,
+                'menus' => $hydrated_menus,
                 'manifest' => array(
 ${manifestPairs}
                 ),
@@ -1586,7 +1786,8 @@ ${optionsPairs}
 ${themeModsPairs}
                     ),
                 ),
-            )
+            ), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) . ';',
+            'before'
         );
 
         // Enqueue Micro-Hydrator orchestrator script
@@ -1597,14 +1798,58 @@ ${themeModsPairs}
             FORGEWP_THEME_VERSION,
             true
         );
+
+        // Integrate dynamic translation dictionary and Polylang / WPML multi-language data
+        $i18n_keys = array(
+${i18nKeysPhp}
+        );
+        if (function_exists('pll_register_string')) {
+            foreach ($i18n_keys as $key) {
+                pll_register_string($key, $key, '${config.textDomain}');
+            }
+        }
+        $translated_dict = array();
+        foreach ($i18n_keys as $key) {
+            $translated_dict[$key] = function_exists('pll__') ? pll__($key) : __($key, '${config.textDomain}');
+        }
+
+        $current_lang = '';
+        if (function_exists('pll_current_language')) {
+            $current_lang = pll_current_language();
+        }
+        if (empty($current_lang)) {
+            $current_lang = get_locale();
+        }
+
+        $translations = array();
+        if (function_exists('pll_the_languages')) {
+            $langs = pll_the_languages(array('raw' => 1));
+            if (is_array($langs)) {
+                foreach ($langs as $l) {
+                    $translations[$l['slug']] = $l['url'];
+                }
+            }
+        }
+
+        wp_add_inline_script(
+            '${config.textDomain}-react-runtime',
+            'window.forgeWpTranslations = ' . wp_json_encode(array(
+                'currentLanguage' => $current_lang,
+                'urls' => $translations,
+                'translations' => $translated_dict
+            ), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) . ';',
+            'before'
+        );
     }
 
-    /**
-     * Load ForgeWP compiled assets as ES modules.
-     */
     function ${config.textDomain.replace(/-/g, '_')}_script_loader_tag($tag, $handle, $src) {
         if (in_array($handle, array('${config.textDomain}-react-runtime', '${config.textDomain}-hydrator'), true)) {
-            return '<script type="module" src="' . esc_url($src) . '" id="' . esc_attr($handle) . '-js"></script>';
+            $tag = preg_replace_callback('/(<script\\\\b[^>]*src=[^>]*>)/i', function($matches) {
+                $script_open = $matches[1];
+                $script_open = preg_replace('/\\\\stype\\\\s*=\\\\s*([\\\'"])[^\\\'"]*\\\\1/i', '', $script_open);
+                $script_open = preg_replace('/<script\\\\b/i', '<script type="module"', $script_open);
+                return $script_open;
+            }, $tag, 1);
         }
         return $tag;
     }
@@ -1642,6 +1887,8 @@ ${fontsEnqueue}
         );
     }
 ${hydrationEnqueue}
+
+
 }
 add_action('wp_enqueue_scripts', 'forgewp_enqueue_assets');
 

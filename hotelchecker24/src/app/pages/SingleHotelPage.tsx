@@ -8,6 +8,7 @@ import {
   useWpExcerpt,
   useWpFeaturedImage,
   useWpCustomField,
+  useWpI18n,
 } from '../../.forgewp/wordpress';
 import {
   ChevronRight,
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react';
 
 export function SingleHotelPage() {
+  const { __ } = useWpI18n();
   const [, params] = useRoute('/hotel/:id');
   const routeParam = params?.id;
 
@@ -45,9 +47,9 @@ export function SingleHotelPage() {
   const postAny = devPost as any;
 
   // Isomorphic dynamic mapping (compiles directly to WP loops in production)
-  const title = useWpTitle() || devPost?.title || 'Luxushotel';
+  const title = useWpTitle() || devPost?.title || __('Luxushotel');
   const content =
-    useWpContent() || devPost?.content || '<p>Lade Hoteldetails...</p>';
+    useWpContent() || devPost?.content || `<p>${__('Lade Hoteldetails...')}</p>`;
   const excerpt = useWpExcerpt() || devPost?.excerpt || '';
   
   const rawImage = useWpFeaturedImage();
@@ -123,9 +125,9 @@ export function SingleHotelPage() {
         <div className="absolute inset-x-0 top-0 h-24 bg-linear-to-b from-slate-950/40 to-transparent pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pb-12 relative z-10">
           <nav className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300 mb-6 bg-slate-950/20 backdrop-blur-xs py-2 px-4 rounded-full w-fit border border-white/5">
-            <WpLink href="/" className="hover:text-primary transition-colors">Startseite</WpLink>
+            <WpLink href="/" className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
             <ChevronRight className="w-3 h-3 text-slate-400" />
-            <WpLink href="/hotels" className="hover:text-primary transition-colors">Hotels</WpLink>
+            <WpLink href="/hotels" className="hover:text-primary transition-colors">{__('Hotels')}</WpLink>
             <ChevronRight className="w-3 h-3 text-slate-400" />
             <span className="text-slate-200 line-clamp-1">{title}</span>
           </nav>
@@ -152,7 +154,7 @@ export function SingleHotelPage() {
           <div className="lg:col-span-2 space-y-8">
             <article className="bg-white border border-slate-200/50 shadow-xs rounded-2xl p-5 sm:p-7 overflow-hidden">
               <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight text-slate-950 mb-4 border-l-4 border-primary pl-4">
-                Redaktionelle Bewertung
+                {__('Redaktionelle Bewertung')}
               </h3>
               <div 
                 className="prose prose-slate prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tight prose-a:text-primary hover:prose-a:underline max-w-none text-slate-600 leading-relaxed font-sans text-sm"
@@ -162,14 +164,14 @@ export function SingleHotelPage() {
 
             <section className="bg-white border border-slate-200/50 shadow-xs rounded-2xl p-5 sm:p-7">
               <h3 className="text-lg font-black uppercase tracking-tight text-slate-950 mb-1 pl-3 border-l-4 border-[#929f5d]">
-                In Listicles erwähnt
+                {__('In Listicles erwähnt')}
               </h3>
               <p className="text-slate-400 text-[10px] font-mono font-bold uppercase tracking-wider mb-4 pl-3">
-                Kuration &amp; Expertentipps
+                {__('Kuration & Expertentipps')}
               </p>
               
               {listiclesLoading ? (
-                <div className="py-8 text-center text-slate-400 text-sm">Lade Listicles...</div>
+                <div className="py-8 text-center text-slate-400 text-sm">{__('Lade Listicles...')}</div>
               ) : matchingListicles.length > 0 ? (
                 <div className="grid grid-cols-1 gap-4">
                   {matchingListicles.map((l: any) => (
@@ -190,7 +192,7 @@ export function SingleHotelPage() {
                 </div>
               ) : (
                 <div className="py-8 text-center text-slate-400 text-sm font-sans border border-dashed border-slate-200 rounded-2xl">
-                  Dieses Hotel wird aktuell in keinem unserer Listicles aufgeführt.
+                  {__('Dieses Hotel wird aktuell in keinem unserer Listicles aufgeführt.')}
                 </div>
               )}
             </section>
@@ -199,19 +201,19 @@ export function SingleHotelPage() {
           <div className="space-y-6">
             <div className="bg-white border border-slate-200/50 shadow-xs rounded-2xl p-5 space-y-4 text-slate-800">
               <h4 className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2">
-                Hotel Spezifikationen
+                {__('Hotel Spezifikationen')}
               </h4>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#929f5d]/10 flex items-center justify-center border border-[#929f5d]/20 shrink-0 text-primary">
                   <Award className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <div className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 leading-none">Expertenscore</div>
+                  <div className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 leading-none">{__('Expertenscore')}</div>
                   <div className="text-base font-black text-slate-900 mt-1 flex items-baseline gap-1 leading-none">
                     <span>{rating}</span>
                     <span className="text-[10px] text-slate-400">/ 5.0</span>
                   </div>
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-[#929f5d] mt-1 font-mono leading-none">Hervorragend</div>
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-[#929f5d] mt-1 font-mono leading-none">{__('Hervorragend')}</div>
                 </div>
               </div>
 
@@ -220,9 +222,9 @@ export function SingleHotelPage() {
                   <DollarSign className="w-5 h-5 text-amber-600" />
                 </div>
                 <div>
-                  <div className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 leading-none">Preiskategorie</div>
+                  <div className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 leading-none">{__('Preiskategorie')}</div>
                   <div className="text-base font-black text-slate-900 mt-1 leading-none">{priceRange}</div>
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1 font-mono leading-none">Luxusstufe</div>
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1 font-mono leading-none">{__('Luxusstufe')}</div>
                 </div>
               </div>
 
@@ -231,19 +233,19 @@ export function SingleHotelPage() {
                   <User className="w-5 h-5 text-slate-600" />
                 </div>
                 <div>
-                  <div className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 leading-none">Kategorie</div>
-                  <div className="text-sm font-black text-slate-900 mt-1 leading-none uppercase truncate max-w-32.5">{categoryName}</div>
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1 font-mono leading-none">Klassifizierung</div>
+                  <div className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 leading-none">{__('Kategorie')}</div>
+                  <div className="text-sm font-black text-slate-900 mt-1 leading-none uppercase truncate max-w-32.5">{__(categoryName)}</div>
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1 font-mono leading-none">{__('Klassifizierung')}</div>
                 </div>
               </div>
             </div>
 
             <div className="bg-white border border-slate-200/50 shadow-xs rounded-2xl p-5 space-y-4">
               <h4 className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2">
-                Kontakt &amp; Buchung
+                {__('Kontakt & Buchung')}
               </h4>
               <div className="space-y-1">
-                <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 leading-none">Hausanschrift</span>
+                <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 leading-none">{__('Hausanschrift')}</span>
                 <p className="text-xs font-bold text-slate-800 leading-snug">{address}</p>
               </div>
               <div className="space-y-2 pt-1">
@@ -253,7 +255,7 @@ export function SingleHotelPage() {
                       <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-slate-900 group-hover:text-white transition-all">
                         <Globe className="w-3.5 h-3.5 text-slate-500 group-hover:text-white" />
                       </div>
-                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Website besuchen</span>
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">{__('Website besuchen')}</span>
                     </div>
                     <span className="text-slate-300 group-hover:text-slate-800 font-mono text-xs group-hover:translate-x-0.5 transition-transform">→</span>
                   </a>
@@ -264,14 +266,14 @@ export function SingleHotelPage() {
                       <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-slate-900 group-hover:text-white transition-all">
                         <Mail className="w-3.5 h-3.5 text-slate-500 group-hover:text-white" />
                       </div>
-                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Direktanfrage senden</span>
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">{__('Direktanfrage senden')}</span>
                     </div>
                     <span className="text-slate-300 group-hover:text-slate-800 font-mono text-xs group-hover:translate-x-0.5 transition-transform">→</span>
                   </a>
                 )}
               </div>
               <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 h-9 px-4 w-full bg-primary hover:bg-primary/95 text-white font-bold text-[10px] uppercase tracking-wider py-4 rounded-xl cursor-pointer shadow-xs transition-all duration-300 active:scale-95 mt-2">
-                Jetzt Aufenthalt anfragen
+                {__('Jetzt Aufenthalt anfragen')}
               </button>
             </div>
 
@@ -281,7 +283,7 @@ export function SingleHotelPage() {
                 className="inline-flex items-center justify-center gap-2 w-full px-5 py-3.5 border border-slate-200 hover:border-slate-800 text-slate-700 hover:text-slate-900 font-mono font-bold uppercase text-[10px] tracking-wider rounded-xl transition-all duration-300 group cursor-pointer bg-white"
               >
                 <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-                Zurück zum Verzeichnis
+                {__('Zurück zum Verzeichnis')}
               </WpLink>
             </div>
           </div>

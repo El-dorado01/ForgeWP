@@ -1076,6 +1076,157 @@ export function ${componentName}() {
     }
   }
 
+  // Discover Custom Post Types (CPTs) from cms/mock-data.json
+  const mockDataPath = path.join(themeRoot, 'cms', 'mock-data.json');
+  let cpts = [];
+  if (existsSync(mockDataPath)) {
+    try {
+      const mockData = JSON.parse(readFileSync(mockDataPath, 'utf8'));
+      for (const [key, value] of Object.entries(mockData)) {
+        if (
+          Array.isArray(value) &&
+          !key.startsWith('_') &&
+          !['post', 'page', 'menu', 'primary', 'utility'].includes(key)
+        ) {
+          cpts.push(key);
+        }
+      }
+    } catch (e) {
+      console.log(pc.yellow(`  ⚠️  Warning: Failed to parse cms/mock-data.json for CPT auto-discovery.`));
+    }
+  }
+
+  let cptScaffoldedCount = 0;
+  let cptSkippedCount = 0;
+
+  for (const cpt of cpts) {
+    const pascalCpt = cpt.charAt(0).toUpperCase() + cpt.slice(1);
+    
+    // 1. Scaffold thin wrapper src/app/single-${cpt}.tsx
+    const wrapperPath = path.join(themeRoot, 'src', 'app', `single-${cpt}.tsx`);
+    const wrapperContent = `import { Single${pascalCpt}Page } from "./pages/Single${pascalCpt}Page";
+export default Single${pascalCpt}Page;
+`;
+    
+    if (existsSync(wrapperPath) && !isForce) {
+      // Skip wrapper
+    } else {
+      writeFileSync(wrapperPath, wrapperContent, 'utf8');
+      console.log(`  ${pc.green('✅ Scaffolded thin CPT wrapper')}: src/app/single-${cpt}.tsx`);
+    }
+
+    // 2. Scaffold page component src/app/pages/Single${pascalCpt}Page.tsx
+    const cptPagePath = path.join(pagesDir, `Single${pascalCpt}Page.tsx`);
+    const cptPageContent = `/**
+ * ⚡ Auto-Generated CPT Single Page Component by ForgeWP
+ * 
+ * This file was generated automatically for the custom post type "${cpt}".
+ * You can safely edit this file to customize the visual layout, styles, and custom fields.
+ * Subsequent runs of 'pnpm forgewp sync:routes' will NOT overwrite your changes.
+ * 
+ * To force reset this page back to boilerplate defaults, run:
+ * 'pnpm forgewp sync:routes --force'
+ */
+import { useRoute } from "wouter";
+import { 
+  WpHead, 
+  WpLink, 
+  useWpQuery, 
+  useWpTitle, 
+  useWpContent, 
+  useWpFeaturedImage 
+} from "../../.forgewp/wordpress";
+import { ArrowLeft } from "lucide-react";
+
+export function Single${pascalCpt}Page() {
+  const [, params] = useRoute("/${cpt}/:id");
+  const routeParam = params?.id;
+
+  // In production, forgeWpHydration.currentPostId holds the real WP numeric ID
+  const hydrationId =
+    typeof window !== 'undefined'
+      ? (window as any).forgeWpHydration?.currentPostId || 0
+      : 0;
+  const id = hydrationId || routeParam;
+
+  // Local development mock query for single ${cpt}
+  const { posts } = useWpQuery({
+    postType: "${cpt}",
+    postsPerPage: 100,
+  });
+
+  const devPost = posts.find(
+    (p) => p.id === Number(id) || p.id === Number(hydrationId)
+  );
+
+  // Isomorphic dynamic mapping (compiles directly to WP loops in production)
+  const title = useWpTitle() || devPost?.title || "Details";
+  const content =
+    useWpContent() || devPost?.content || "<p>Loading details...</p>";
+  const rawImage = useWpFeaturedImage();
+  const hydrationImage =
+    typeof window !== 'undefined' && !(window as any)._forgeWpCompileTime
+      ? (window as any).forgeWpHydration?.currentFeaturedImage || ""
+      : "";
+  const restImage =
+    typeof devPost?.featuredImage === "object" && devPost?.featuredImage !== null
+      ? (devPost.featuredImage as any).url || ""
+      : String(devPost?.featuredImage || "");
+  const featuredImage = restImage || hydrationImage || rawImage || "https://picsum.photos/seed/forgewp/1200/630";
+
+  return (
+    <main className="min-h-screen bg-slate-50 font-sans text-slate-800 py-12 px-4 sm:px-6 lg:px-8">
+      <WpHead 
+        title={title} 
+        description="Dynamic single CPT details, loaded dynamically inside Headless React." 
+      />
+
+      <div className="max-w-4xl mx-auto bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-xl p-8 sm:p-12">
+        {/* Back Button */}
+        <WpLink 
+          href="/${cpt}s" 
+          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-primary transition-colors mb-8"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" /> Back to overview
+        </WpLink>
+
+        {/* Hero image */}
+        {featuredImage && (
+          <div className="w-full aspect-video rounded-2xl overflow-hidden border border-slate-100 mb-8">
+            <img 
+              src={featuredImage} 
+              alt={title} 
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+
+        {/* Heading */}
+        <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-900 uppercase mb-6 leading-tight">
+          {title}
+        </h1>
+
+        {/* Content */}
+        <div 
+          className="prose prose-slate max-w-none text-slate-600 text-sm leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: content }}
+        />
+      </div>
+    </main>
+  );
+}
+`;
+
+    if (existsSync(cptPagePath) && !isForce) {
+      console.log(`  ${pc.gray('ℹ️ [Skip] CPT Page Component already exists:')} src/app/pages/Single${pascalCpt}Page.tsx`);
+      cptSkippedCount++;
+    } else {
+      writeFileSync(cptPagePath, cptPageContent, 'utf8');
+      console.log(`  ${pc.green('✅ Scaffolded CPT Page Component')}: src/app/pages/Single${pascalCpt}Page.tsx`);
+      cptScaffoldedCount++;
+    }
+  }
+
   const routesFilePath = path.join(themeRoot, 'src', 'app', 'routes.tsx');
   if (existsSync(routesFilePath)) {
     let routesContent = readFileSync(routesFilePath, 'utf8');
@@ -1119,6 +1270,46 @@ export function ${componentName}() {
       }
     }
 
+    // --- CPT Routing Sync ---
+    for (const cpt of cpts) {
+      const pascalCpt = cpt.charAt(0).toUpperCase() + cpt.slice(1);
+      const componentName = `Single${pascalCpt}Page`;
+
+      const importRegex = new RegExp(`import\\s+\\{\\s*${componentName}\\s*\\}\\s+from\\s+["']\\./pages/${componentName}["']`);
+      if (!importRegex.test(routesContent)) {
+        const defaultExportIndex = routesContent.indexOf('export default function');
+        if (defaultExportIndex !== -1) {
+          routesContent =
+            routesContent.slice(0, defaultExportIndex) +
+            `import { ${componentName} } from "./pages/${componentName}";\n` +
+            routesContent.slice(defaultExportIndex);
+          modified = true;
+        }
+      }
+
+      const routeRegex = new RegExp(`path\\s*=\\s*["']/${cpt}/:id["']`);
+      if (!routeRegex.test(routesContent)) {
+        const fallbackMarker = '{/* Fallback route */}';
+        const fallbackIndex = routesContent.indexOf(fallbackMarker);
+        if (fallbackIndex !== -1) {
+          routesContent =
+            routesContent.slice(0, fallbackIndex) +
+            `<Route path="/${cpt}/:id" component={${componentName}} />\n\n      ` +
+            routesContent.slice(fallbackIndex);
+          modified = true;
+        } else {
+          const switchCloseIndex = routesContent.indexOf('</Switch>');
+          if (switchCloseIndex !== -1) {
+            routesContent =
+              routesContent.slice(0, switchCloseIndex) +
+              `  <Route path="/${cpt}/:id" component={${componentName}} />\n      ` +
+              routesContent.slice(switchCloseIndex);
+            modified = true;
+          }
+        }
+      }
+    }
+
     if (modified) {
       writeFileSync(routesFilePath, routesContent, 'utf8');
       console.log(`  ${pc.green('✅ Synced routing paths in')}: src/app/routes.tsx`);
@@ -1130,7 +1321,7 @@ export function ${componentName}() {
   }
 
   console.log('\n' + '─'.repeat(60));
-  console.log(pc.green(`\n🎉 ${pc.bold('SITEMAP SYNC COMPLETE:')} Generated ${scaffoldedCount} new pages (skipped ${skippedCount}).\n`));
+  console.log(pc.green(`\n🎉 ${pc.bold('SITEMAP SYNC COMPLETE:')} Generated ${scaffoldedCount} sitemap pages, ${cptScaffoldedCount} custom post-type templates (skipped ${skippedCount} pages, ${cptSkippedCount} templates).\n`));
 }
 
 export { scanForHydrationIslands, findComponentPath, getHydrationRollupInputs };

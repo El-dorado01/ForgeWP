@@ -1,5 +1,5 @@
 import React from 'react';
-import { WpHead, WpLink, useWpOption } from '../../.forgewp/wordpress';
+import { WpHead, WpLink, useWpOption, useWpI18n } from '../../.forgewp/wordpress';
 import {
   Mail, Phone, MapPin, Clock, Send, ChevronRight,
   MessageSquare, Globe, Instagram, Facebook, Twitter,
@@ -24,6 +24,7 @@ export function KontaktPage() {
 
   const [form, setForm] = React.useState({ name: '', email: '', subject: '', message: '' });
   const [submitted, setSubmitted] = React.useState(false);
+  const { __ } = useWpI18n();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -38,8 +39,8 @@ export function KontaktPage() {
   return (
     <main className="min-h-screen bg-[#fafaf8] font-sans select-none">
       <WpHead
-        title="Kontakt — Hotelchecker24"
-        description="Kontaktieren Sie die Hotelchecker24-Redaktion. Wir helfen Ihnen bei Fragen zu Hotels, Reiseempfehlungen und Kooperationsanfragen."
+        title={__('Kontakt — Hotelchecker24')}
+        description={__('Kontaktieren Sie die Hotelchecker24-Redaktion. Wir helfen Ihnen bei Fragen zu Hotels, Reiseempfehlungen und Kooperationsanfragen.')}
       />
 
       {/* Hero — compact light editorial two-column */}
@@ -49,9 +50,9 @@ export function KontaktPage() {
 
         <div className="relative max-w-7xl mx-auto z-10">
           <nav className="flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4">
-            <WpLink href="/" className="hover:text-primary transition-colors">Startseite</WpLink>
+            <WpLink href="/" className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
             <ChevronRight className="w-4 h-4" />
-            <span className="text-slate-700">Kontakt</span>
+            <span className="text-slate-700">{__('Kontakt')}</span>
           </nav>
           
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-center">
@@ -59,13 +60,13 @@ export function KontaktPage() {
             <div className="lg:col-span-3 max-w-2xl">
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-full mb-3">
                 <MessageSquare className="w-3.5 h-3.5" />
-                Wir sind für Sie da
+                {__('Wir sind für Sie da')}
               </span>
               <h1 className="text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-slate-900 mb-2">
-                Schreiben Sie uns
+                {__('Schreiben Sie uns')}
               </h1>
               <p className="text-slate-500 text-sm sm:text-base leading-relaxed">
-                Fragen zu Hotels, Kooperationsanfragen oder Feedback — unsere Redaktion antwortet innerhalb von 24 Stunden.
+                {__('Fragen zu Hotels, Kooperationsanfragen oder Feedback — unsere Redaktion antwortet innerhalb von 24 Stunden.')}
               </p>
             </div>
 
@@ -83,7 +84,7 @@ export function KontaktPage() {
                 {/* Floating Location Badge */}
                 <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg text-[10px] font-bold text-slate-800 shadow-xs flex items-center gap-1">
                   <MapPin className="w-3 h-3 text-primary" />
-                  <span>Hauptredaktion Wien</span>
+                  <span>{__('Hauptredaktion Wien')}</span>
                 </div>
               </div>
             </div>
@@ -100,7 +101,7 @@ export function KontaktPage() {
             {/* Info cards */}
             <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-5">
               <h2 className="text-sm font-bold text-slate-600 border-b border-slate-100 pb-3">
-                Kontaktdaten
+                {__('Kontaktdaten')}
               </h2>
 
               {[
@@ -168,30 +169,30 @@ export function KontaktPage() {
                   <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 border border-primary/20">
                     <Send className="w-7 h-7 text-primary" />
                   </div>
-                  <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 mb-2">Nachricht gesendet!</h2>
+                  <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 mb-2">{__('Nachricht gesendet!')}</h2>
                   <p className="text-slate-500 text-sm max-w-sm">
-                    Vielen Dank für Ihre Anfrage. Wir melden uns in der Regel innerhalb von 24 Stunden bei Ihnen.
+                    {__('Vielen Dank für Ihre Anfrage. Wir melden uns in der Regel innerhalb von 24 Stunden bei Ihnen.')}
                   </p>
                   <button
                     onClick={() => { setSubmitted(false); setForm({ name: '', email: '', subject: '', message: '' }); }}
                     className="mt-6 bg-primary text-white text-xs font-bold uppercase tracking-wider px-6 py-3 rounded-xl cursor-pointer hover:bg-primary/90 transition-all"
                   >
-                    Neue Nachricht
+                    {__('Neue Nachricht')}
                   </button>
                 </div>
               ) : (
                 <>
                   <h2 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1 pl-3 border-l-4 border-primary">
-                    Kontaktformular
+                    {__('Kontaktformular')}
                   </h2>
                   <p className="text-slate-400 text-xs mb-6 pl-3">
-                    Alle Felder sind Pflichtfelder, sofern nicht anders angegeben.
+                    {__('Alle Felder sind Pflichtfelder, sofern nicht anders angegeben.')}
                   </p>
                   <form onSubmit={handleSubmit} className="space-y-5">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
                         <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                          Ihr Name
+                          {__('Ihr Name')}
                         </label>
                         <input
                           type="text"
@@ -205,7 +206,7 @@ export function KontaktPage() {
                       </div>
                       <div>
                         <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                          E-Mail-Adresse
+                          {__('E-Mail-Adresse')}
                         </label>
                         <input
                           type="email"
@@ -221,7 +222,7 @@ export function KontaktPage() {
 
                     <div>
                       <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                        Betreff
+                        {__('Betreff')}
                       </label>
                       <select
                         name="subject"
@@ -230,18 +231,18 @@ export function KontaktPage() {
                         required
                         className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all bg-white"
                       >
-                        <option value="">Bitte wählen…</option>
-                        <option value="hotel-inquiry">Hotelanfrage / Empfehlung</option>
-                        <option value="partnership">Kooperationsanfrage</option>
-                        <option value="editorial">Redaktionelle Anfrage</option>
-                        <option value="technical">Technischer Support</option>
-                        <option value="other">Sonstiges</option>
+                        <option value="">{__('Bitte wählen…')}</option>
+                        <option value="hotel-inquiry">{__('Hotelanfrage / Empfehlung')}</option>
+                        <option value="partnership">{__('Kooperationsanfrage')}</option>
+                        <option value="editorial">{__('Redaktionelle Anfrage')}</option>
+                        <option value="technical">{__('Technischer Support')}</option>
+                        <option value="other">{__('Sonstiges')}</option>
                       </select>
                     </div>
 
                     <div>
                       <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                        Ihre Nachricht
+                        {__('Ihre Nachricht')}
                       </label>
                       <textarea
                         name="message"
@@ -249,7 +250,7 @@ export function KontaktPage() {
                         onChange={handleChange}
                         required
                         rows={6}
-                        placeholder="Schreiben Sie uns Ihr Anliegen…"
+                        placeholder={__('Schreiben Sie uns Ihr Anliegen…')}
                         className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all resize-none"
                       />
                     </div>
@@ -259,7 +260,7 @@ export function KontaktPage() {
                       className="w-full inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white font-bold text-xs uppercase tracking-wider px-6 py-4 rounded-xl transition-all duration-300 cursor-pointer active:scale-95 shadow-xs shadow-primary/20"
                     >
                       <Send className="w-4 h-4" />
-                      Nachricht absenden
+                      {__('Nachricht absenden')}
                     </button>
                   </form>
                 </>

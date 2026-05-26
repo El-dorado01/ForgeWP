@@ -14,10 +14,41 @@ if (!themeRoot) {
 const require = createRequire(path.join(themeRoot, "package.json"));
 const React = require("react");
 globalThis.React = React; // Polyfill for classic JSX transform in Node.js
+
+// Resilient browser globals polyfills for Node SSR/compile-time rendering
+if (typeof globalThis.window === "undefined") {
+  const mockLocation = {
+    pathname: "/",
+    search: "",
+    hash: "",
+    href: "http://localhost/",
+    origin: "http://localhost",
+    assign: () => {},
+    replace: () => {},
+    reload: () => {}
+  };
+  globalThis.window = {
+    location: mockLocation,
+    navigator: { userAgent: "Node" },
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+    _forgeWpCompileTime: true,
+  } as any;
+  globalThis.location = mockLocation as any;
+  globalThis.document = {
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    querySelector: () => null,
+    querySelectorAll: () => [],
+  } as any;
+}
+
 const { renderToStaticMarkup } = require("react-dom/server");
 
 const appUrl = pathToFileURL(path.join(themeRoot, "src", "app", "page.tsx")).href;
-const headerUrl = pathToFileURL(path.join(themeRoot, "src", "components", "SiteHeader.tsx")).href;
+const headerPath = path.join(themeRoot, "src", "components", "SiteHeader.tsx");
+const headerUrl = pathToFileURL(headerPath).href;
 const footerUrl = pathToFileURL(path.join(themeRoot, "src", "components", "SiteFooter.tsx")).href;
 const layoutUrl = pathToFileURL(path.join(themeRoot, "src", "app", "layout.tsx")).href;
 const layoutPath = path.join(themeRoot, "src", "app", "layout.tsx");
@@ -157,7 +188,6 @@ function buildHeadHtml(
 }
 
 // ── Render header / footer fragments ─────────────────────────────────────────
-const headerPath = path.join(themeRoot, "src", "components", "SiteHeader.tsx");
 const footerPath = path.join(themeRoot, "src", "components", "SiteFooter.tsx");
 
 let headerHtml = "";

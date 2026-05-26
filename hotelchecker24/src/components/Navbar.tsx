@@ -1,32 +1,23 @@
 import React from 'react';
 import { Menu, X } from 'lucide-react';
-import { WpMenu, useWpThemeUri } from '../.forgewp/wordpress';
+import { WpMenu, useWpThemeUri, useWpI18n, useWpLanguage } from '../.forgewp/wordpress';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
 
 export function Navbar() {
+  const { __ } = useWpI18n();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [isScrolled, setIsScrolled] = React.useState(false);
-  
-  // Dynamic Polylang/WPML language integration
-  const translations = typeof window !== 'undefined' ? (window as any).forgeWpTranslations : null;
-  const currentLang = translations?.currentLanguage || 'de';
-  const [isEnglish, setIsEnglish] = React.useState(currentLang === 'en');
   const themeUri = useWpThemeUri();
 
+  // Simple unified, dynamic framework hook!
+  const { currentLanguage, switchLanguage } = useWpLanguage();
+  const isEnglish = currentLanguage === 'en';
+
   const handleLanguageToggle = (checked: boolean) => {
-    setIsEnglish(checked);
-    if (typeof window !== 'undefined') {
-      const targetLang = checked ? 'en' : 'de';
-      const targetUrl = translations?.urls?.[targetLang];
-      if (targetUrl) {
-        window.location.href = targetUrl;
-      } else {
-        // Fallback redirection to chosen language root if no direct translation link exists
-        window.location.href = checked ? '/en/' : '/';
-      }
-    }
+    switchLanguage(checked ? 'en' : 'de');
   };
+
 
   // Scroll listener to toggle sticky state styling
   React.useEffect(() => {
@@ -38,7 +29,7 @@ export function Navbar() {
   }, []);
 
   return (
-    <header
+    <div
       className={`w-full bg-white select-none transition-all duration-700 ${
         isScrolled
           ? 'border-b border-slate-100/90 shadow-xs'
@@ -97,13 +88,13 @@ export function Navbar() {
         <div className='flex-1 flex items-center justify-end z-20'>
           {/* Desktop Right Actions */}
           <div className='hidden md:flex items-center gap-6'>
-            {/* Flat Language Switcher (Plugin Ready) using shadcn Switch */}
+            {/* Desktop Language Switcher using shadcn Switch */}
             <div
-              className='flex items-center gap-2.5 bg-slate-50 px-3.5 py-1.5 border border-slate-100 rounded-full shadow-xs'
+              className='hidden md:flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 border border-slate-100 rounded-full shadow-xs'
               translate='no'
             >
               <span
-                className={`text-xs font-bold tracking-wider transition-colors duration-300 ${!isEnglish ? 'text-primary font-black' : 'text-slate-400'}`}
+                className={`text-[10px] font-bold transition-colors duration-300 ${!isEnglish ? 'text-primary font-black' : 'text-slate-400'}`}
               >
                 DE
               </span>
@@ -111,9 +102,10 @@ export function Navbar() {
                 checked={isEnglish}
                 onCheckedChange={handleLanguageToggle}
                 aria-label='Language switch (DE/EN)'
+                className='scale-90'
               />
               <span
-                className={`text-xs font-bold tracking-wider transition-colors duration-300 ${isEnglish ? 'text-primary font-black' : 'text-slate-400'}`}
+                className={`text-[10px] font-bold transition-colors duration-300 ${isEnglish ? 'text-primary font-black' : 'text-slate-400'}`}
               >
                 EN
               </span>
@@ -127,7 +119,7 @@ export function Navbar() {
               <a href='/contact'>
                 {/* Expand-from-bottom-center background layer */}
                 <span className='absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 bg-primary rounded-full transition-all duration-700 ease-out group-hover:w-[240px] group-hover:h-[240px] group-hover:bottom-[-90px] z-0' />
-                <span className='relative z-10'>Eintragen lassen</span>
+                <span className='relative z-10'>{__('Eintragen lassen')}</span>
               </a>
             </Button>
           </div>
@@ -168,12 +160,12 @@ export function Navbar() {
               <a href='/contact'>
                 {/* Expanding background for mobile */}
                 <span className='absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 bg-primary rounded-full transition-all duration-700 ease-out group-hover:w-[400px] group-hover:h-[400px] group-hover:bottom-[-150px] z-0' />
-                <span className='relative z-10'>Eintragen lassen</span>
+                <span className='relative z-10'>{__('Eintragen lassen')}</span>
               </a>
             </Button>
           </div>
         </div>
       )}
-    </header>
+    </div>
   );
 }

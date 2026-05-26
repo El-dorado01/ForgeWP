@@ -49,6 +49,7 @@ export {
   getStaticMotionStyle,
   useWpOption,
   useWpThemeMod,
+  useWpThemeUri,
   useWpQuery,
   defineBlock,
   defineTheme,

@@ -1,4 +1,4 @@
-import { WpHead, WpLink, useWpQuery } from '../../.forgewp/wordpress';
+import { WpHead, WpLink, useWpQuery, useWpI18n } from '../../.forgewp/wordpress';
 import {
   ChevronRight, Award, Globe, Users, Shield, Star,
   ArrowRight, BookOpen, MapPin,
@@ -59,13 +59,14 @@ const VALUES = [
 ];
 
 export function BerUnsPage() {
+  const { __ } = useWpI18n();
   const { posts: latestListicles } = useWpQuery({ postType: 'listicle', postsPerPage: 3 });
 
   return (
     <main className="min-h-screen bg-[#fafaf8] font-sans select-none">
       <WpHead
-        title="Über uns — Hotelchecker24"
-        description="Erfahren Sie mehr über Hotelchecker24: das unabhängige Magazin für Luxushotels, Reiseziele und kuratierte Reiseberichte."
+        title={__('Über uns — Hotelchecker24')}
+        description={__('Erfahren Sie mehr über Hotelchecker24: das unabhängige Magazin für Luxushotels, Reiseziele und kuratierte Reiseberichte.')}
       />
 
       {/* Hero — compact light editorial */}
@@ -75,9 +76,9 @@ export function BerUnsPage() {
 
         <div className="relative max-w-7xl mx-auto z-10">
           <nav className="flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4">
-            <WpLink href="/" className="hover:text-primary transition-colors">Startseite</WpLink>
+            <WpLink href="/" className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
             <ChevronRight className="w-4 h-4" />
-            <span className="text-slate-700">Über uns</span>
+            <span className="text-slate-700">{__('Über uns')}</span>
           </nav>
           
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-center">
@@ -85,16 +86,14 @@ export function BerUnsPage() {
             <div className="lg:col-span-3 max-w-2xl">
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-full mb-4">
                 <Star className="w-3.5 h-3.5 fill-primary" />
-                Seit 2019 — Das unabhängige Luxushotel-Magazin
+                {__('Seit 2019 — Das unabhängige Luxushotel-Magazin')}
               </span>
               <h1 className="text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-slate-900 mb-4">
-                Wir kuratieren<br />
-                <span className="text-primary">Ihr Reiseerlebnis</span>
+                {__('Wir kuratieren')}<br />
+                <span className="text-primary">{__('Ihr Reiseerlebnis')}</span>
               </h1>
               <p className="text-slate-500 text-sm sm:text-base leading-relaxed mb-6">
-                Hotelchecker24 ist Österreichs führendes unabhängiges Magazin für Luxus- und Boutique-Hotels.
-                Unser Redaktionsteam bereist die Welt, bewertet Hotels nach strengen Kriterien und teilt
-                ehrliche, fundierte Empfehlungen.
+                {__('Hotelchecker24 ist Österreichs führendes unabhängiges Magazin für Luxus- und Boutique-Hotels. Unser Redaktionsteam bereist die Welt, bewertet Hotels nach strengen Kriterien und teilt ehrliche, fundierte Empfehlungen.')}
               </p>
               <div className="flex flex-wrap gap-3">
                 {/* Discover Hotels Button with premium expand-bubble animation */}
@@ -104,7 +103,7 @@ export function BerUnsPage() {
                 >
                   <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 bg-primary rounded-full transition-all duration-750 ease-out group-hover:w-[320px] group-hover:h-[320px] group-hover:bottom-[-100px] z-0" />
                   <span className="relative z-10 flex items-center gap-2">
-                    Hotels entdecken
+                    {__('Hotels entdecken')}
                     <ArrowRight className="w-4 h-4 text-primary group-hover:text-white transition-colors duration-500" />
                   </span>
                 </WpLink>
@@ -112,7 +111,7 @@ export function BerUnsPage() {
                   href="/kontakt"
                   className="inline-flex items-center gap-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
                 >
-                  Kontakt aufnehmen
+                  {__('Kontakt aufnehmen')}
                 </WpLink>
               </div>
             </div>
@@ -163,9 +162,9 @@ export function BerUnsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-widest text-primary mb-3 block">Unsere Mission</span>
+            <span className="text-xs font-semibold uppercase tracking-widest text-primary mb-3 block">{__('Unsere Mission')}</span>
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight uppercase text-slate-900 leading-tight mb-5">
-              Ehrliche Empfehlungen.<br />Keine Kompromisse.
+              {__('Ehrliche Empfehlungen.')} <br />{__('Keine Kompromisse.')}
             </h2>
             <div className="space-y-4 text-slate-600 text-sm sm:text-base leading-relaxed">
               <p>
@@ -187,7 +186,7 @@ export function BerUnsPage() {
               className="inline-flex items-center gap-2 mt-6 bg-slate-950 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all cursor-pointer group"
             >
               <BookOpen className="w-4 h-4" />
-              Unsere Berichte lesen
+              {__('Unsere Berichte lesen')}
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </WpLink>
           </div>
@@ -209,12 +208,12 @@ export function BerUnsPage() {
       <div className="bg-white border-t border-b border-slate-100 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <span className="text-xs font-semibold uppercase tracking-widest text-primary mb-2 block">Das Team</span>
+            <span className="text-xs font-semibold uppercase tracking-widest text-primary mb-2 block">{__('Das Team')}</span>
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight uppercase text-slate-900">
-              Unsere Redaktion
+              {__('Unsere Redaktion')}
             </h2>
             <p className="text-slate-400 text-sm mt-2 max-w-xl mx-auto">
-              Ein kleines, leidenschaftliches Team von Reiseexperten, Journalisten und Hotelbewertungsprofis.
+              {__('Ein kleines, leidenschaftliches Team von Reiseexperten, Journalisten und Hotelbewertungsprofis.')}
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -245,14 +244,14 @@ export function BerUnsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="flex items-end justify-between mb-8">
             <div>
-              <span className="text-xs font-semibold uppercase tracking-widest text-primary mb-1 block">Aus der Redaktion</span>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight uppercase text-slate-900">Aktuelle Berichte</h2>
+              <span className="text-xs font-semibold uppercase tracking-widest text-primary mb-1 block">{__('Aus der Redaktion')}</span>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight uppercase text-slate-900">{__('Aktuelle Berichte')}</h2>
             </div>
             <WpLink
               href="/listicles"
               className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-primary transition-colors group"
             >
-              Alle anzeigen <ArrowRight className="w-3.5 h-3.5 group-hover:-rotate-45 transition-transform duration-300" />
+              {__('Alle anzeigen')} <ArrowRight className="w-3.5 h-3.5 group-hover:-rotate-45 transition-transform duration-300" />
             </WpLink>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -307,7 +306,7 @@ export function BerUnsPage() {
                       {listicle.title}
                     </h3>
                     <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-xs font-bold text-primary">Artikel lesen</span>
+                      <span className="text-xs font-bold text-primary">{__('Artikel lesen')}</span>
                       <div className="w-7 h-7 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-300">
                         <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-white group-hover:-rotate-45 transition-transform duration-300" />
                       </div>
@@ -336,10 +335,10 @@ export function BerUnsPage() {
 
         <div className="relative max-w-4xl mx-auto text-center z-10">
           <h2 className="text-3xl sm:text-4xl font-black tracking-tight uppercase mb-3">
-            Ihr nächstes <span className="text-primary">Traumhotel</span><br />wartet auf Sie
+            {__('Ihr nächstes')} <span className="text-primary">{__('Traumhotel')}</span><br />{__('wartet auf Sie')}
           </h2>
           <p className="text-[#b3b8bc] text-sm mb-8 max-w-xl mx-auto">
-            Entdecken Sie unsere kuratierte Auswahl an Luxushotels, Boutique-Resorts und einzigartigen Unterkünften weltweit.
+            {__('Entdecken Sie unsere kuratierte Auswahl an Luxushotels, Boutique-Resorts und einzigartigen Unterkünften weltweit.')}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <WpLink
@@ -349,14 +348,14 @@ export function BerUnsPage() {
               <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 bg-primary rounded-full transition-all duration-750 ease-out group-hover:w-[320px] group-hover:h-[320px] group-hover:bottom-[-100px] z-0" />
               <span className="relative z-10 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-primary group-hover:text-white transition-colors duration-500" />
-                Hotels entdecken
+                {__('Hotels entdecken')}
               </span>
             </WpLink>
             <WpLink
               href="/kontakt"
               className="inline-flex items-center gap-2 bg-white/8 hover:bg-white/15 text-white border border-white/12 font-bold text-sm uppercase tracking-wider px-8 py-4 rounded-xl transition-all cursor-pointer"
             >
-              Kontakt aufnehmen
+              {__('Kontakt aufnehmen')}
             </WpLink>
           </div>
         </div>
