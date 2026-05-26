@@ -73,7 +73,7 @@ export default function SiteFooter() {
           {/* COLUMN 2: Navigation Links (Span 3) */}
           <div className="md:col-span-3">
             <h4 className="text-white text-xs font-mono font-bold uppercase tracking-widest mb-6">
-              Navigation
+              {__('Navigation')}
             </h4>
             <WpMenu 
               location="primary" 
@@ -156,7 +156,7 @@ export default function SiteFooter() {
         {/* BOTTOM METADATA BAR */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
           <div>
-            {footerText}
+            {footerText || `© ${new Date().getFullYear()} Hotelchecker24. ${__('Alle Rechte vorbehalten.')}`}
           </div>
           <div className="flex items-center gap-1">
             <span>{__('Powered by')}</span>

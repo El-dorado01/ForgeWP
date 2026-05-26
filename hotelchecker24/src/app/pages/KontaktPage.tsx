@@ -115,7 +115,7 @@ export function KontaktPage() {
                     <Icon className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold text-slate-500 mb-0.5">{label}</div>
+                    <div className="text-xs font-semibold text-slate-500 mb-0.5">{__(label)}</div>
                     {href ? (
                       <a href={href} className="text-sm font-bold text-slate-800 hover:text-primary transition-colors break-all">{value}</a>
                     ) : (

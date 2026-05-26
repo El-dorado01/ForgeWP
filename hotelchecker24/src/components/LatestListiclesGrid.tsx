@@ -46,7 +46,7 @@ export function LatestListiclesGrid() {
 
           {/* Bilingual badge */}
           <span className='inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#929f5d] bg-[#929f5d]/10 border border-[#929f5d]/20 px-3 py-1 rounded-full'>
-            Magazin · Editorial
+            {__('Magazin')}
           </span>
 
           <div>
@@ -54,9 +54,7 @@ export function LatestListiclesGrid() {
               {__('Keine Listicles gefunden')}
             </h3>
             <p className='text-slate-400 text-sm mt-2 max-w-xs mx-auto leading-relaxed'>
-              {__('Unsere Redaktion arbeitet an neuen Artikeln für Sie.')}{' '}
-              <span className='text-slate-300'>·</span>{' '}
-              <span className='italic'>Our editors are crafting new articles soon.</span>
+              {__('Unsere Redaktion arbeitet an neuen Artikeln für Sie.')}
             </p>
           </div>
 

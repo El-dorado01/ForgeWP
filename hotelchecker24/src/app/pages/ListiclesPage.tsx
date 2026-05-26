@@ -77,7 +77,7 @@ export function ListiclesPage() {
           <nav className="flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4">
             <WpLink href="/" className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
             <ChevronRight className="w-4 h-4" />
-            <span className="text-slate-700">Listicles</span>
+            <span className="text-slate-700">{__('Listicles')}</span>
           </nav>
           <div className="flex items-end justify-between gap-8 flex-wrap">
             <div>
@@ -86,7 +86,7 @@ export function ListiclesPage() {
                 {__('Redaktionelles Magazin')}
               </span>
               <h1 className="text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-slate-900 mb-2">
-                Reise<span className="text-primary">{__('berichte')}</span>
+                {__('Reise')}<span className="text-primary">{__('berichte')}</span>
               </h1>
               <p className="text-slate-500 text-sm max-w-xl">
                 {__('Handverlesene Hotellisten, Destinations-Guides und Insider-Tipps — verfasst von unserer Reiseredaktion.')}

@@ -45,7 +45,7 @@ export function FeaturedHotelsGrid() {
 
           {/* Bilingual label */}
           <span className='inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#929f5d] bg-[#929f5d]/10 border border-[#929f5d]/20 px-3 py-1 rounded-full'>
-            {__('Empfohlen')} · Featured
+            {__('Empfohlen')}
           </span>
 
           <div>
@@ -53,9 +53,7 @@ export function FeaturedHotelsGrid() {
               {__('Keine Hotels gefunden')}
             </h3>
             <p className='text-slate-400 text-sm mt-2 max-w-xs mx-auto leading-relaxed'>
-              {__('Derzeit sind keine empfohlenen Hotels verfügbar.')}{' '}
-              <span className='text-slate-300'>·</span>{' '}
-              <span className='italic'>No featured hotels available yet.</span>
+              {__('Derzeit sind keine empfohlenen Hotels verfügbar.')}
             </p>
           </div>
 

@@ -39,7 +39,7 @@ function DestinationsEmpty() {
         </div>
 
         <span className='inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#929f5d] bg-[#929f5d]/10 border border-[#929f5d]/20 px-3 py-1 rounded-full'>
-          {__('Reiseziele')} · Destinations
+          {__('Reiseziele')}
         </span>
 
         <div>
@@ -47,11 +47,7 @@ function DestinationsEmpty() {
             {__('Keine Reiseziele vorhanden')}
           </h3>
           <p className='text-slate-400 text-sm mt-2 max-w-xs mx-auto leading-relaxed'>
-            {__('Fügen Sie Länder im WP-Admin unter Reiseziel hinzu.')}{' '}
-            <span className='text-slate-300'>·</span>{' '}
-            <span className='italic'>
-              Add countries via WP Admin › Country taxonomy.
-            </span>
+            {__('Fügen Sie Länder im WP-Admin unter Reiseziel hinzu.')}
           </p>
         </div>
 

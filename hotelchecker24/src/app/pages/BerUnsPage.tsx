@@ -144,10 +144,10 @@ export function BerUnsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
             {[
-              { value: '500+', label: 'Hotels bewertet' },
-              { value: '40', label: 'Länder' },
-              { value: '80k', label: 'Leser / Monat' },
-              { value: '6', label: 'Jahre Erfahrung' },
+              { value: '500+', label: __('Hotels bewertet') },
+              { value: '40', label: __('Länder') },
+              { value: '80k', label: __('Leser / Monat') },
+              { value: '6', label: __('Jahre Erfahrung') },
             ].map(({ value, label }) => (
               <div key={label} className="space-y-1">
                 <div className="text-2xl font-black text-slate-900 tracking-tight">{value}</div>
@@ -168,17 +168,13 @@ export function BerUnsPage() {
             </h2>
             <div className="space-y-4 text-slate-600 text-sm sm:text-base leading-relaxed">
               <p>
-                Hotelchecker24 wurde 2019 in Wien gegründet, mit einem einfachen Versprechen: Hotels so zu bewerten,
-                wie es eine gute Freundin mit Insider-Wissen tun würde — offen, ehrlich und ohne Werbeauftrag.
+                {__('Hotelchecker24 wurde 2019 in Wien gegründet, mit einem einfachen Versprechen: Hotels so zu bewerten, wie es eine gute Freundin mit Insider-Wissen tun würde — offen, ehrlich und ohne Werbeauftrag.')}
               </p>
               <p>
-                Wir lehnen bezahlte Platzierungen und gesponserte Inhalte konsequent ab. Jedes Hotel,
-                das wir empfehlen, hat unsere Redakteure persönlich überzeugt. Dafür nehmen wir uns die Zeit,
-                die andere nicht aufwenden.
+                {__('Wir lehnen bezahlte Platzierungen und gesponserte Inhalte konsequent ab. Jedes Hotel, das wir empfehlen, hat unsere Redakteure persönlich überzeugt. Dafür nehmen wir uns die Zeit, die andere nicht aufwenden.')}
               </p>
               <p>
-                Das Ergebnis: Eine kuratierte Auswahl an Unterkünften, der Sie vertrauen können —
-                ob Stadtreise, Alpenerholung oder fernöstliches Abenteuer.
+                {__('Das Ergebnis: Eine kuratierte Auswahl an Unterkünften, der Sie vertrauen können — ob Stadtreise, Alpenerholung oder fernöstliches Abenteuer.')}
               </p>
             </div>
             <WpLink
@@ -196,8 +192,8 @@ export function BerUnsPage() {
                 <div className={`w-10 h-10 rounded-xl border flex items-center justify-center mb-3 ${color}`}>
                   <Icon className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900 mb-1.5 leading-snug">{title}</h3>
-                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">{description}</p>
+                <h3 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900 mb-1.5 leading-snug">{__(title)}</h3>
+                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">{__(description)}</p>
               </div>
             ))}
           </div>
@@ -231,8 +227,8 @@ export function BerUnsPage() {
                 </div>
                 
                 <h3 className="font-black text-slate-900 text-base uppercase tracking-tight group-hover:text-primary transition-colors duration-200">{member.name}</h3>
-                <p className="text-xs font-mono font-bold uppercase tracking-wider text-primary mt-0.5 mb-3">{member.role}</p>
-                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-[200px]">{member.bio}</p>
+                <p className="text-xs font-mono font-bold uppercase tracking-wider text-primary mt-0.5 mb-3">{__(member.role)}</p>
+                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-[200px]">{__(member.bio)}</p>
               </div>
             ))}
           </div>
@@ -296,7 +292,7 @@ export function BerUnsPage() {
                     {/* Read time badge */}
                     <div className="absolute top-3 right-3 flex items-center gap-1 bg-white/95 backdrop-blur-xs text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded-md shadow-xs z-10">
                       <BookOpen className="w-3 h-3 text-slate-400" />
-                      <span>{readTime} Min.</span>
+                      <span>{readTime} {__('Min.')}</span>
                     </div>
                   </div>
                   
@@ -321,7 +317,7 @@ export function BerUnsPage() {
               href="/listicles"
               className="inline-flex items-center gap-2 bg-slate-950 text-white font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-xl"
             >
-              Alle Berichte <ArrowRight className="w-4 h-4" />
+              {__('Alle Berichte')} <ArrowRight className="w-4 h-4" />
             </WpLink>
           </div>
         </div>

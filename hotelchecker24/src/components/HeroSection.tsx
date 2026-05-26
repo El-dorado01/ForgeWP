@@ -229,7 +229,7 @@ export function HeroSection() {
           {/* Quick Tags — derived from category terms */}
           <div className='flex flex-wrap items-center justify-center w-full gap-2'>
             <span className='text-xs font-bold uppercase tracking-wider text-slate-400 mr-2'>
-              Trending:
+              {__('Trending:')}
             </span>
             {(categoryTerms.length > 0
               ? categoryTerms.slice(0, 5).map((t) => t.name)
