@@ -12,26 +12,29 @@ export function scanForHydrationIslands(themeRoot) {
   const islands = new Set();
   const filesToScan = [];
 
-  const appDir = path.join(themeRoot, "src", "app");
-  if (existsSync(appDir)) {
-    // Scan page.tsx
-    const mainPage = path.join(appDir, "page.tsx");
-    if (existsSync(mainPage)) filesToScan.push(mainPage);
+  const dirsToScan = [
+    path.join(themeRoot, "src", "app"),
+    path.join(themeRoot, "src", "components"),
+    path.join(themeRoot, "src", "blocks"),
+  ];
 
-    // Scan layout.tsx
-    const mainLayout = path.join(appDir, "layout.tsx");
-    if (existsSync(mainLayout)) filesToScan.push(mainLayout);
-
-    // Scan pages/ directory
-    const pagesDir = path.join(appDir, "pages");
-    if (existsSync(pagesDir)) {
-      try {
-        const pages = readdirSync(pagesDir).filter((f) => f.endsWith(".tsx"));
-        for (const file of pages) {
-          filesToScan.push(path.join(pagesDir, file));
+  function collectFilesRecursive(dir) {
+    if (!existsSync(dir)) return;
+    try {
+      const items = readdirSync(dir, { withFileTypes: true });
+      for (const item of items) {
+        const fullPath = path.join(dir, item.name);
+        if (item.isDirectory()) {
+          collectFilesRecursive(fullPath);
+        } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+          filesToScan.push(fullPath);
         }
-      } catch {}
-    }
+      }
+    } catch {}
+  }
+
+  for (const dir of dirsToScan) {
+    collectFilesRecursive(dir);
   }
 
   // Scan each file for <Hydrate> occurrences
@@ -221,23 +224,29 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
   const namesFound = new Set();
   const filesToScan = [];
 
-  const appDir = path.join(themeRoot, "src", "app");
-  if (existsSync(appDir)) {
-    const mainPage = path.join(appDir, "page.tsx");
-    if (existsSync(mainPage)) filesToScan.push(mainPage);
+  const dirsToScan = [
+    path.join(themeRoot, "src", "app"),
+    path.join(themeRoot, "src", "components"),
+    path.join(themeRoot, "src", "blocks"),
+  ];
 
-    const mainLayout = path.join(appDir, "layout.tsx");
-    if (existsSync(mainLayout)) filesToScan.push(mainLayout);
-
-    const pagesDir = path.join(appDir, "pages");
-    if (existsSync(pagesDir)) {
-      try {
-        const pages = readdirSync(pagesDir).filter((f) => f.endsWith(".tsx"));
-        for (const file of pages) {
-          filesToScan.push(path.join(pagesDir, file));
+  function collectFilesRecursive(dir) {
+    if (!existsSync(dir)) return;
+    try {
+      const items = readdirSync(dir, { withFileTypes: true });
+      for (const item of items) {
+        const fullPath = path.join(dir, item.name);
+        if (item.isDirectory()) {
+          collectFilesRecursive(fullPath);
+        } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+          filesToScan.push(fullPath);
         }
-      } catch {}
-    }
+      }
+    } catch {}
+  }
+
+  for (const dir of dirsToScan) {
+    collectFilesRecursive(dir);
   }
 
   // Helper to extract attribute values
@@ -371,23 +380,29 @@ export function runStaticLintChecks(themeRoot) {
   const violations = [];
   const filesToScan = [];
 
-  const appDir = path.join(themeRoot, "src", "app");
-  if (existsSync(appDir)) {
-    const mainPage = path.join(appDir, "page.tsx");
-    if (existsSync(mainPage)) filesToScan.push(mainPage);
+  const dirsToScan = [
+    path.join(themeRoot, "src", "app"),
+    path.join(themeRoot, "src", "components"),
+    path.join(themeRoot, "src", "blocks"),
+  ];
 
-    const mainLayout = path.join(appDir, "layout.tsx");
-    if (existsSync(mainLayout)) filesToScan.push(mainLayout);
-
-    const pagesDir = path.join(appDir, "pages");
-    if (existsSync(pagesDir)) {
-      try {
-        const pages = readdirSync(pagesDir).filter((f) => f.endsWith(".tsx"));
-        for (const file of pages) {
-          filesToScan.push(path.join(pagesDir, file));
+  function collectFilesRecursive(dir) {
+    if (!existsSync(dir)) return;
+    try {
+      const items = readdirSync(dir, { withFileTypes: true });
+      for (const item of items) {
+        const fullPath = path.join(dir, item.name);
+        if (item.isDirectory()) {
+          collectFilesRecursive(fullPath);
+        } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+          filesToScan.push(fullPath);
         }
-      } catch {}
-    }
+      }
+    } catch {}
+  }
+
+  for (const dir of dirsToScan) {
+    collectFilesRecursive(dir);
   }
 
   for (const filePath of filesToScan) {

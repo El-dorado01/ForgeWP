@@ -71,12 +71,15 @@ async function main() {
 
     let resolvedChunk = null;
     for (const [key, value] of Object.entries(viteManifest)) {
+      const fileBasename = path.basename(value.file || '');
+      const cleanName = fileBasename.replace(/-[A-Za-z0-9_-]+\.js$/, '');
       if (
-        key.endsWith(`${pascalName}.tsx`) ||
-        key.endsWith(`${pascalName}.ts`) ||
-        key.endsWith(`${name}.tsx`) ||
-        key.endsWith(`${name}.ts`) ||
-        (value.file && value.file.includes(name))
+        key.endsWith(`/${pascalName}.tsx`) ||
+        key.endsWith(`/${pascalName}.ts`) ||
+        key.endsWith(`/${name}.tsx`) ||
+        key.endsWith(`/${name}.ts`) ||
+        cleanName === name ||
+        cleanName === pascalName.toLowerCase()
       ) {
         resolvedChunk = value.file;
         break;

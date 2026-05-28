@@ -210,12 +210,15 @@ export async function generateTheme({
 
       let resolvedChunk = null;
       for (const [key, value] of Object.entries(viteManifest)) {
+        const fileBasename = path.basename(value.file || '');
+        const cleanName = fileBasename.replace(/-[A-Za-z0-9_-]+\.js$/, '');
         if (
-          key.endsWith(`${pascalName}.tsx`) ||
-          key.endsWith(`${pascalName}.ts`) ||
-          key.endsWith(`${island}.tsx`) ||
-          key.endsWith(`${island}.ts`) ||
-          (value.file && value.file.includes(island))
+          key.endsWith(`/${pascalName}.tsx`) ||
+          key.endsWith(`/${pascalName}.ts`) ||
+          key.endsWith(`/${island}.tsx`) ||
+          key.endsWith(`/${island}.ts`) ||
+          cleanName === island ||
+          cleanName === pascalName.toLowerCase()
         ) {
           resolvedChunk = value.file;
           break;
@@ -687,6 +690,12 @@ if (window.forgeWpBlocks) {
     ),
     'utf8',
   );
+
+  // Copy translations.json directly if it exists in the project cms/ folder
+  const translationsSrc = path.join(themeRoot, 'cms', 'translations.json');
+  if (existsSync(translationsSrc)) {
+    copyFileSync(translationsSrc, path.join(outDir, 'translations.json'));
+  }
   writeFileSync(
     path.join(outDir, 'header.php'),
     buildHeaderPhp(config),
@@ -1808,17 +1817,30 @@ ${i18nKeysPhp}
                 pll_register_string($key, $key, '${config.textDomain}');
             }
         }
-        $translated_dict = array();
-        foreach ($i18n_keys as $key) {
-            $translated_dict[$key] = function_exists('pll__') ? pll__($key) : __($key, '${config.textDomain}');
-        }
-
         $current_lang = '';
         if (function_exists('pll_current_language')) {
             $current_lang = pll_current_language();
         }
         if (empty($current_lang)) {
             $current_lang = get_locale();
+        }
+
+        $json_dict = array();
+        $translations_file = get_template_directory() . '/translations.json';
+        if (file_exists($translations_file)) {
+            $json_data = json_decode(file_get_contents($translations_file), true);
+            if (is_array($json_data) && isset($json_data[$current_lang])) {
+                $json_dict = $json_data[$current_lang];
+            }
+        }
+
+        $translated_dict = array();
+        foreach ($i18n_keys as $key) {
+            if (isset($json_dict[$key])) {
+                $translated_dict[$key] = $json_dict[$key];
+            } else {
+                $translated_dict[$key] = function_exists('pll__') ? pll__($key) : __($key, '${config.textDomain}');
+            }
         }
 
         $translations = array();
@@ -1956,6 +1978,39 @@ function forgewp_disable_emojis_remove_dns_prefetch($urls, $relation_type) {
     }
     return $urls;
 }
+
+/**
+ * Isomorphic static translation bridge for ForgeWP.
+ * Hooks into WordPress gettext to translate server-side static strings
+ * using translations.json and the active Polylang language.
+ */
+function forgewp_gettext_translation_bridge($translated, $text, $domain) {
+    if ($domain === '${config.textDomain}') {
+        static $translations = null;
+        if ($translations === null) {
+            $file = get_template_directory() . '/translations.json';
+            if (file_exists($file)) {
+                $translations = json_decode(file_get_contents($file), true);
+            } else {
+                $translations = array();
+            }
+        }
+        $lang = '';
+        if (function_exists('pll_current_language')) {
+            $lang = pll_current_language();
+        }
+        if (empty($lang)) {
+            $lang = get_locale();
+        }
+        $lang = substr($lang, 0, 2);
+        if (is_array($translations) && isset($translations[$lang][$text])) {
+            return $translations[$lang][$text];
+        }
+    }
+    return $translated;
+}
+add_filter('gettext', 'forgewp_gettext_translation_bridge', 10, 3);
+add_filter('ngettext', 'forgewp_gettext_translation_bridge', 10, 3);
 `;
 }
 

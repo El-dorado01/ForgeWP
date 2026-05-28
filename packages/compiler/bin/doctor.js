@@ -140,12 +140,15 @@ runCheck("Selective Hydration Islands Diagnostics", () => {
 
     let resolvedChunk = null;
     for (const [key, value] of Object.entries(viteManifest)) {
+      const fileBasename = path.basename(value.file || '');
+      const cleanName = fileBasename.replace(/-[A-Za-z0-9_-]+\.js$/, '');
       if (
-        key.endsWith(`${pascalName}.tsx`) ||
-        key.endsWith(`${pascalName}.ts`) ||
-        key.endsWith(`${island}.tsx`) ||
-        key.endsWith(`${island}.ts`) ||
-        (value.file && value.file.includes(island))
+        key.endsWith(`/${pascalName}.tsx`) ||
+        key.endsWith(`/${pascalName}.ts`) ||
+        key.endsWith(`/${island}.tsx`) ||
+        key.endsWith(`/${island}.ts`) ||
+        cleanName === island ||
+        cleanName === pascalName.toLowerCase()
       ) {
         resolvedChunk = value.file;
         break;

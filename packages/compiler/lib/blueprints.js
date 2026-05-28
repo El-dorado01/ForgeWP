@@ -206,6 +206,8 @@ import mockData from '../../cms/mock-data.json';
 import menusData from '../../cms/menus.json';
 // @ts-ignore
 import siteSettings from '../../cms/site-settings.json';
+// @ts-ignore
+import translationsData from '../../cms/translations.json';
 
 import {
   WpQueryLoop as _WpQueryLoop,
@@ -341,7 +343,7 @@ export function useWpThemeMod(modName: string, defaultValue = ''): string {
 
 export function useWpThemeUri(): string {
   if (IS_DEV) return _useWpThemeUri();
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && !(window as any)._forgeWpCompileTime) {
     return (window as any).forgeWpHydration?.themeUri || '';
   }
   return '__FORGEWP_THEME_URI__';
@@ -889,25 +891,53 @@ export function WpLink({ href, className, children, ...props }: any) {
 export { WpLink as Link };
 
 export function useWpI18n() {
+  const getTranslatedText = (text: string) => {
+    if (typeof window === "undefined") {
+      return text;
+    }
+    const currentLang = (window as any).forgeWpLocale || (window as any).forgeWpTranslations?.currentLanguage || 'de';
+    const dict = (window as any).forgeWpTranslations?.translations;
+    
+    if (dict) {
+      // 1. Nested dictionary format: { de: { ... }, en: { ... } }
+      if (dict[currentLang] && typeof dict[currentLang][text] !== "undefined") {
+        return dict[currentLang][text];
+      }
+      // 2. Flat enqueued active locale format: { 'Kontakt': 'Kontakt' }
+      if (typeof dict[text] !== "undefined") {
+        return dict[text];
+      }
+    }
+    return text;
+  };
+
   if (IS_DEV) {
-    return { __: (text: string) => text };
+    return {
+      __: (text: string) => {
+        if (typeof window === "undefined") {
+          return text;
+        }
+        const pathname = window.location.pathname;
+        const isEn = pathname.startsWith('/en');
+        const currentLang = isEn ? 'en' : 'de';
+        
+        const dict = (translationsData as any)?.[currentLang];
+        if (dict && typeof dict[text] !== "undefined") {
+          return dict[text];
+        }
+        return text;
+      }
+    };
   }
   // Node SSR (Compile-time): return the token so the compiler can perform string replacement
   if (typeof window === "undefined" || (window as any)._forgeWpCompileTime) {
     return {
-      __: (text: string) => \`__FORGEWP_I18N_\\\${text}__\`,
+      __: (text: string) => \`__FORGEWP_I18N_\${text}__\`,
     };
   }
   // Production Browser (Hydration & Client-side rendering):
-  // Dynamically lookup the translation from the server-enqueued dictionary
   return {
-    __: (text: string) => {
-      const dict = (window as any).forgeWpTranslations?.translations;
-      if (dict && typeof dict[text] !== "undefined") {
-        return dict[text];
-      }
-      return text;
-    },
+    __: getTranslatedText,
   };
 }
 
@@ -945,7 +975,7 @@ export function useWpLanguage() {
     const languages = ['de', 'en'];
     const switchLanguage = React.useCallback((lang: string) => {
       if (typeof window !== 'undefined') {
-        window.location.href = urls[lang] || '/';
+        window.location.href = urls[lang] || (lang === 'de' ? '/' : \`/\${lang}/\`);
       }
     }, [urls]);
     return {
@@ -969,8 +999,12 @@ export function useWpLanguage() {
 
   // Redirection helper to switch safely between languages
   const switchLanguage = React.useCallback((lang: string) => {
-    if (typeof window !== 'undefined' && urls[lang]) {
-      window.location.href = urls[lang];
+    if (typeof window !== 'undefined') {
+      if (urls && urls[lang]) {
+        window.location.href = urls[lang];
+      } else {
+        window.location.href = lang === 'de' ? '/' : \`/\${lang}/\`;
+      }
     }
   }, [urls]);
 
