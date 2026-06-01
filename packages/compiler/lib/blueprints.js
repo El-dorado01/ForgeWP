@@ -228,9 +228,18 @@ import {
   WpHead as _WpHead,
   WpImage as _WpImage,
   WpPostContext,
+  useWpMeta as _useWpMeta,
+  useWpPageLink as _useWpPageLink,
+  BlockArea as _BlockArea,
+  defineEditable,
+  text,
+  richText,
+  image,
+  boolean,
+  repeater,
 } from '@forgewp/react';
 
-export { WpPostContext };
+export { WpPostContext, defineEditable, text, richText, image, boolean, repeater };
 
 import type {
   WpQueryLoopProps,
@@ -242,6 +251,7 @@ import type {
   WpQueryResults,
   WpPost,
   WpShortcodeProps,
+  BlockAreaProps,
 } from '@forgewp/react';
 
 const IS_DEV =
@@ -288,9 +298,45 @@ export function useWpFeaturedImage(): string {
   if (IS_DEV) return _useWpFeaturedImage();
   return '__FORGEWP_THE_POST_THUMBNAIL_URL__';
 }
-export function useWpCustomField(fieldName: string, defaultValue = ''): string {
+export function useWpCustomField(fieldName: string, defaultValue = ''): any {
   if (IS_DEV) return _useWpCustomField(fieldName, defaultValue);
+
+  if (typeof window !== 'undefined') {
+    const win = window as any;
+    if (!win._forgeWpCompileTime) {
+      const post = React.useContext(WpPostContext);
+      const currentPost = post || win.forgeWpHydration?.post;
+      if (currentPost?.customFields && typeof currentPost.customFields[fieldName] !== 'undefined') {
+        return currentPost.customFields[fieldName];
+      }
+    }
+  }
+
   return '__FORGEWP_CUSTOM_FIELD__' + fieldName + '__';
+}
+
+export function useWpMeta<T>(key: string, defaultValue: T): T {
+  if (IS_DEV) return _useWpMeta(key, defaultValue);
+
+  // Browser-side hydration: check for forgeWpHydration data first
+  if (typeof window !== 'undefined') {
+    const win = window as any;
+    if (win._forgeWpCompileTime) {
+      if (typeof defaultValue === 'string') {
+        return \`__FORGEWP_META_\${key}_DEFAULT_\${encodeURIComponent(defaultValue).replace(/_/g, '%5F')}__\` as any as T;
+      }
+      return defaultValue;
+    }
+    const post = React.useContext(WpPostContext);
+    const currentPost = post || win.forgeWpHydration?.post;
+    if (currentPost?.customFields && typeof currentPost.customFields[key] !== 'undefined') {
+      return currentPost.customFields[key] as T;
+    }
+  }
+
+  // Fallback to token for compiler replacement
+  const defaultStr = typeof defaultValue === 'string' ? defaultValue : JSON.stringify(defaultValue);
+  return \`__FORGEWP_META_\${key}_DEFAULT_\${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__\` as any as T;
 }
 
 export function useWpOption(optionName: string, defaultValue = ''): string {
@@ -347,6 +393,19 @@ export function useWpThemeUri(): string {
     return (window as any).forgeWpHydration?.themeUri || '';
   }
   return '__FORGEWP_THEME_URI__';
+}
+
+export function useWpPageLink(name: string, fallback: string): string {
+  if (IS_DEV) return _useWpPageLink(name, fallback);
+  if (typeof window !== 'undefined' && !(window as any)._forgeWpCompileTime) {
+    const win = window as any;
+    if (win.forgeWpHydration?.pageLinks?.[name]) {
+      return win.forgeWpHydration.pageLinks[name];
+    }
+  }
+  return fallback
+    ? \`__FORGEWP_PAGELINK_\${name}_DEFAULT_\${encodeURIComponent(fallback)}__\`
+    : \`__FORGEWP_PAGELINK_\${name}__\`;
 }
 
 export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
@@ -463,16 +522,22 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
         if (categoryName) {
           params.append('category_name', categoryName);
         }
+        // Polylang multi-language query support
+        const currentLang = (window as any).forgeWpLocale || (window as any).forgeWpTranslations?.currentLanguage;
+        if (currentLang) {
+          params.append('lang', currentLang);
+        }
+
         const homeUrl = (window as any).forgeWpHydration?.siteSettings?.options?.home || '';
         let apiBase = '';
         if (homeUrl) {
           try {
-            apiBase = new URL(homeUrl).pathname.replace(/\\/$/, '');
+            apiBase = new URL(homeUrl).pathname.replace(/\/$/, '');
           } catch (e) {}
         }
-        const response = await fetch(
-          \`\${apiBase}/wp-json/wp/v2/\${endpoint}?\${params.toString()}\`,
-        );
+        const fetchUrl = \`\${apiBase}/wp-json/wp/v2/\${endpoint}?\${params.toString()}\`;
+        console.log(\`[useWpQuery] Fetching CPT "\${postType}" from URL:\`, fetchUrl);
+        const response = await fetch(fetchUrl);
         if (!response.ok) {
           throw new Error(
             \`WordPress API returned \${response.status}: \${response.statusText}\`,
@@ -483,21 +548,11 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
         if (!Array.isArray(data)) {
           throw new Error('Invalid response format from WordPress API');
         }
+        console.log(\`[useWpQuery] Successfully loaded \${data.length} items for CPT "\${postType}"\`);
 
         const cleanHtml = (html: string) => {
           if (!html) return '';
-          return html
-            .replace(/<\\/?[^>]+(>|$)/g, '')
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&quot;/g, '"')
-            .replace(/&#039;/g, "'")
-            .replace(/&#8217;/g, "'")
-            .replace(/&#8211;/g, '–')
-            .replace(/&#8212;/g, '—')
-            .replace(/&#8230;/g, '…')
-            .trim();
+          return decodeHtmlEntities(html.replace(/<\\/?[^>]+(>|$)/g, '')).trim();
         };
 
         const mappedPosts: WpPost[] = data.map((wp: any) => {
@@ -523,7 +578,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
                   _terms[taxonomy] = termGroup.map((t: any) => ({
                     id: t.id,
                     slug: t.slug,
-                    name: t.name,
+                    name: typeof t.name === 'string' ? decodeHtmlEntities(t.name) : '',
                   }));
                 }
               }
@@ -533,7 +588,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
           return {
             id: wp.id,
             title:
-              typeof wp.title === 'object' ? wp.title.rendered : wp.title || '',
+              typeof wp.title === 'object' ? decodeHtmlEntities(wp.title.rendered) : decodeHtmlEntities(wp.title || ''),
             excerpt:
               typeof wp.excerpt === 'object'
                 ? cleanHtml(wp.excerpt.rendered)
@@ -557,7 +612,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
                 : 'Admin',
             featuredImage,
             permalink: wp.link,
-            customFields: wp.acf || wp.meta || {},
+            customFields: { ...(wp.meta || {}), ...(wp.acf || {}) },
             _terms,
             __postType: wp.type || postType,
           };
@@ -675,30 +730,38 @@ export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolea
     let apiBase = '';
     if (homeUrl) {
       try {
-        apiBase = new URL(homeUrl).pathname.replace(/\\/$/, '');
+        apiBase = new URL(homeUrl).pathname.replace(/\/$/, '');
       } catch (e) {}
     }
-    fetch(\`\${apiBase}/wp-json/wp/v2/\${endpoint}?per_page=100&_fields=id,name,slug,description,count,meta\`)
+    const currentLang = (window as any).forgeWpLocale || (window as any).forgeWpTranslations?.currentLanguage;
+    const langParam = currentLang ? \`&lang=\${currentLang}\` : '';
+    const fetchUrl = \`\${apiBase}/wp-json/wp/v2/\${endpoint}?per_page=100&_fields=id,name,slug,description,count,acf,meta\${langParam}\`;
+    console.log(\`[useWpTerms] Fetching taxonomy "\${taxonomy}" from URL:\`, fetchUrl);
+    fetch(fetchUrl)
       .then((res) => {
         if (!res.ok) throw new Error(\`WP Terms API \${taxonomy}: \${res.status}\`);
         return res.json();
       })
       .then((data: any[]) => {
         if (cancelled) return;
+        console.log(\`[useWpTerms] Successfully loaded \${data.length} terms for taxonomy "\${taxonomy}"\`);
         setTerms(
           data.map((t) => ({
             id: t.id,
-            name: t.name || '',
+            name: typeof t.name === 'string' ? decodeHtmlEntities(t.name) : '',
             slug: t.slug || '',
             description: t.description || '',
             count: t.count || 0,
-            meta: t.meta || {},
+            meta: { ...(t.meta || {}), ...(t.acf || {}) },
           }))
         );
         setError(null);
       })
       .catch((err: any) => {
-        if (!cancelled) setError(err.message || \`Failed to load \${taxonomy} terms\`);
+        if (!cancelled) {
+          console.error(\`[useWpTerms] Error loading taxonomy "\${taxonomy}":\`, err);
+          setError(err.message || \`Failed to load \${taxonomy} terms\`);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -823,6 +886,17 @@ export function WpMenu({
       className={className}
       linkClassName={linkClassName}
     />
+  );
+}
+
+// ── BlockArea ────────────────────────────────────────────────────────────────
+export function BlockArea(props: BlockAreaProps) {
+  if (IS_DEV) {
+    return <_BlockArea {...props} />;
+  }
+  return (
+    // @ts-ignore
+    <forgewp-block-area name={props.name} />
   );
 }
 
@@ -1078,6 +1152,12 @@ declare global {
             'data-size'?: string;
             'data-class-name'?: string;
             'data-alt'?: string;
+          },
+          HTMLElement
+        >;
+        'forgewp-block-area': React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement> & {
+            name?: string;
           },
           HTMLElement
         >;

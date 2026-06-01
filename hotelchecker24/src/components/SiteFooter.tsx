@@ -7,17 +7,21 @@ import {
   ArrowRight,
   Globe
 } from "lucide-react";
-import { WpMenu, useWpOption, useWpThemeMod, useWpThemeUri, useWpI18n } from "../.forgewp/wordpress";
+import { WpMenu, useWpOption, useWpThemeMod, useWpThemeUri, useWpI18n, useWpLanguage, WpLink } from "../.forgewp/wordpress";
 
 export default function SiteFooter() {
   const { __ } = useWpI18n();
+  const { urls, currentLanguage } = useWpLanguage();
+  const homeHref = urls[currentLanguage] || '/';
   const [email, setEmail] = React.useState("");
+  const [newsletterStatus, setNewsletterStatus] = React.useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [newsletterError, setNewsletterError] = React.useState('');
   const themeUri = useWpThemeUri();
 
   // Retrieve dynamic site branding options
   const blogDescription = useWpOption(
     "blogdescription",
-    "Hotelchecker24 ist Ihre unabhängige, bilinguale Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa."
+    "Hotelchecker24 ist Ihre unabhängige Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa."
   );
 
   // Retrieve dynamic social media options
@@ -31,11 +35,28 @@ export default function SiteFooter() {
     `© ${new Date().getFullYear()} Hotelchecker24. All rights reserved.`
   );
 
-  const handleSubscribe = (e: React.FormEvent) => {
+  const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-      alert(__("Danke für Ihr Abonnement!"));
-      setEmail("");
+    if (!email) return;
+    setNewsletterStatus('sending');
+    setNewsletterError('');
+    try {
+      const res = await fetch('/wp-json/mailpoet/v1/subscribers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, status: 'subscribed' }),
+      });
+      if (res.ok) {
+        setNewsletterStatus('success');
+        setEmail('');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setNewsletterError(data?.error?.message || __('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.'));
+        setNewsletterStatus('error');
+      }
+    } catch {
+      setNewsletterError(__('Netzwerkfehler. Bitte prüfen Sie Ihre Verbindung.'));
+      setNewsletterStatus('error');
     }
   };
 
@@ -51,13 +72,13 @@ export default function SiteFooter() {
           {/* COLUMN 1: Editorial Branding (Span 5) */}
           <div className="md:col-span-5 flex flex-col items-start">
             {/* Logo with clean silver-white filter */}
-            <a href="/" className="hover:opacity-90 transition-opacity mb-6">
+            <WpLink href={homeHref} className="hover:opacity-90 transition-opacity mb-6">
               <img 
                 src={themeUri + "/Logo/hotelchecker24-logo_farbe.svg"} 
                 alt="Hotelchecker24 Logo" 
                 className="h-7 w-auto object-contain brightness-0 invert opacity-95" 
               />
-            </a>
+            </WpLink>
             
             <p className="text-[#8e9499] text-sm font-sans font-normal leading-relaxed max-w-sm mb-6">
               {blogDescription}
@@ -66,7 +87,7 @@ export default function SiteFooter() {
             {/* Language indicator & signal */}
             <div className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 bg-slate-800/40 border border-slate-800/60 px-3 py-1 rounded-md">
               <Globe className="w-3.5 h-3.5 text-[#929f5d]" />
-              <span>{__('Edition: DE / EN')}</span>
+              <span>{__('Sprachen: DE / EN')}</span>
             </div>
           </div>
 
@@ -92,26 +113,46 @@ export default function SiteFooter() {
             </p>
             
             {/* Minimalist Newsletter Form */}
-            <form onSubmit={handleSubscribe} className="flex items-center w-full mb-6 relative">
-              <div className="relative w-full flex items-center bg-[#1c1f22]/90 border border-slate-800 focus-within:border-primary/50 rounded-xl transition-all duration-300">
-                <Mail className="w-3.5 h-3.5 text-slate-500 absolute left-3.5 pointer-events-none" />
-                <input 
-                  type="email" 
-                  required
-                  placeholder={__('Ihre E-Mail-Adresse...')}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-transparent border-0 outline-none text-xs text-white placeholder-slate-500 py-3.5 pl-10 pr-12 font-medium"
-                />
-                <button 
-                  type="submit"
-                  className="absolute right-2 p-2 bg-primary hover:bg-primary/95 text-white rounded-lg transition-colors cursor-pointer"
-                  aria-label="Subscribe"
-                >
-                  <ArrowRight className="w-3.5 h-3.5 text-white" />
-                </button>
+            {newsletterStatus === 'success' ? (
+              <div className="flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 mb-6">
+                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                  <ArrowRight className="w-3.5 h-3.5 text-primary" />
+                </div>
+                <p className="text-xs font-semibold text-primary">
+                  {__('Danke! Sie erhalten in Kürze eine Bestätigungsmail.')}
+                </p>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleSubscribe} className="flex items-center w-full mb-2 relative">
+                <div className="relative w-full flex items-center bg-[#1c1f22]/90 border border-slate-800 focus-within:border-primary/50 rounded-xl transition-all duration-300">
+                  <Mail className="w-3.5 h-3.5 text-slate-500 absolute left-3.5 pointer-events-none" />
+                  <input 
+                    type="email" 
+                    required
+                    placeholder={__('Ihre E-Mail-Adresse...')}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={newsletterStatus === 'sending'}
+                    className="w-full bg-transparent border-0 outline-none text-xs text-white placeholder-slate-500 py-3.5 pl-10 pr-12 font-medium disabled:opacity-50"
+                  />
+                  <button 
+                    type="submit"
+                    disabled={newsletterStatus === 'sending'}
+                    className="absolute right-2 p-2 bg-primary hover:bg-primary/95 disabled:opacity-60 text-white rounded-lg transition-colors cursor-pointer"
+                    aria-label={__('Abonnieren')}
+                  >
+                    {newsletterStatus === 'sending' ? (
+                      <span className="w-3.5 h-3.5 block rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    ) : (
+                      <ArrowRight className="w-3.5 h-3.5 text-white" />
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+            {newsletterStatus === 'error' && (
+              <p className="text-[10px] text-red-400 font-semibold mb-4">{newsletterError}</p>
+            )}
 
             {/* Socials Connection Row */}
             <div className="flex items-center gap-3">
@@ -157,10 +198,6 @@ export default function SiteFooter() {
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
           <div>
             {footerText || `© ${new Date().getFullYear()} Hotelchecker24. ${__('Alle Rechte vorbehalten.')}`}
-          </div>
-          <div className="flex items-center gap-1">
-            <span>{__('Powered by')}</span>
-            <span className="text-white hover:text-primary transition-colors cursor-pointer">ForgeWP Framework</span>
           </div>
         </div>
 

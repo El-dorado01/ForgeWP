@@ -94,7 +94,7 @@ export function HeroSection() {
           {/* Subtitle */}
           <p className='text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed'>
             {__(
-              'Hotelchecker24 ist Ihre unabhängige, bilinguale Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa.',
+              'Hotelchecker24 ist Ihre unabhängige Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa.',
             )}
           </p>
 

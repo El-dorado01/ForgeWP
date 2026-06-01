@@ -63,8 +63,12 @@ export function copyTemplate(targetDir, adapter = 'react') {
   cpSync(templateDir, targetDir, {
     recursive: true,
     filter: (src) => {
-      const base = path.basename(src);
-      return !COPY_EXCLUDE.has(base);
+      const relative = path.relative(templateDir, src);
+      const parts = relative.split(path.sep);
+      if (parts.length > 0 && COPY_EXCLUDE.has(parts[0])) {
+        return false;
+      }
+      return true;
     },
   });
 }

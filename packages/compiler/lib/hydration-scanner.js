@@ -534,4 +534,110 @@ export function runStaticLintChecks(themeRoot) {
   return violations;
 }
 
+/**
+ * Scans theme template page files for colocated `defineEditable` exports
+ * and parses them into a unified schema dictionary.
+ *
+ * @param {string} themeRoot
+ * @returns {Record<string, Record<string, any>>} A map of template/page slug -> parsed schema
+ */
+export function scanForEditableSchemas(themeRoot) {
+  const schemas = {};
+  const filesToScan = [];
+
+  const dirsToScan = [
+    path.join(themeRoot, "src", "app"),
+  ];
+
+  function collectFilesRecursive(dir) {
+    if (!existsSync(dir)) return;
+    try {
+      const items = readdirSync(dir, { withFileTypes: true });
+      for (const item of items) {
+        const fullPath = path.join(dir, item.name);
+        if (item.isDirectory()) {
+          collectFilesRecursive(fullPath);
+        } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+          filesToScan.push(fullPath);
+        }
+      }
+    } catch {}
+  }
+
+  for (const dir of dirsToScan) {
+    collectFilesRecursive(dir);
+  }
+
+  for (const filePath of filesToScan) {
+    try {
+      const content = readFileSync(filePath, "utf8");
+      if (!content.includes("defineEditable")) continue;
+
+      const schemaStr = extractDefineEditableContent(content);
+      if (schemaStr) {
+        const parsed = parseEditableSchema(schemaStr);
+        if (parsed) {
+          // Resolve template slug based on file name or path
+          // e.g. "SingleHotelPage.tsx" -> "single-hotel-page"
+          // or "page.tsx" -> "front-page" or similar
+          const baseName = path.basename(filePath, path.extname(filePath));
+          let slug = baseName
+            .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+            .toLowerCase();
+          
+          if (slug === 'page') {
+            slug = 'front-page';
+          }
+          
+          schemas[slug] = parsed;
+        }
+      }
+    } catch (err) {
+      console.warn(`[Schema Scanner] Failed to scan file ${filePath}:`, err.message);
+    }
+  }
+
+  return schemas;
+}
+
+function extractDefineEditableContent(fileContent) {
+  const match = fileContent.match(/export\s+const\s+editable\s*=\s*defineEditable\s*\(/);
+  if (!match) return null;
+  
+  const startIndex = match.index + match[0].length;
+  let parenCount = 1;
+  let currentIndex = startIndex;
+  
+  while (parenCount > 0 && currentIndex < fileContent.length) {
+    const char = fileContent[currentIndex];
+    if (char === '(') {
+      parenCount++;
+    } else if (char === ')') {
+      parenCount--;
+    }
+    currentIndex++;
+  }
+  
+  if (parenCount === 0) {
+    return fileContent.substring(startIndex, currentIndex - 1);
+  }
+  return null;
+}
+
+function parseEditableSchema(schemaStr) {
+  const text = (opts) => ({ type: 'text', ...opts });
+  const richText = (opts) => ({ type: 'richText', ...opts });
+  const image = (opts) => ({ type: 'image', ...opts });
+  const boolean = (opts) => ({ type: 'boolean', ...opts });
+  const repeater = (opts) => ({ type: 'repeater', ...opts });
+
+  try {
+    const fn = new Function('text', 'richText', 'image', 'boolean', 'repeater', `return (${schemaStr})`);
+    return fn(text, richText, image, boolean, repeater);
+  } catch (e) {
+    console.error('[Schema Parser] Failed to evaluate schema literal:', e.message);
+    return null;
+  }
+}
+
 

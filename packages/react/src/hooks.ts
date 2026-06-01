@@ -188,6 +188,16 @@ export function useWpThemeUri(): string {
   return '';
 }
 
+export function useWpPageLink(name: string, fallback: string): string {
+  if (typeof window !== 'undefined') {
+    const win = window as any;
+    if (win.forgeWpHydration?.pageLinks?.[name]) {
+      return win.forgeWpHydration.pageLinks[name];
+    }
+  }
+  return fallback;
+}
+
 // ── Isomorphic Query Hook ─────────────────────────────────────────────────────
 
 /**
@@ -512,6 +522,93 @@ export interface ThemeSettings {
  */
 export function defineTheme(config: ThemeSettings): ThemeSettings {
   return config;
+}
+
+// ── Structured Editable Content Architecture (Phase 1) ──────────────────────
+
+export interface FieldBase<T> {
+  type: 'text' | 'richText' | 'image' | 'repeater' | 'boolean';
+  label?: string;
+  default?: T;
+  description?: string;
+  required?: boolean;
+  customType?: string;
+  skipRegisterMeta?: boolean;
+  postTypes?: string[];
+}
+
+export interface TextField extends FieldBase<string> {
+  type: 'text';
+}
+
+export interface RichTextField extends FieldBase<string> {
+  type: 'richText';
+}
+
+export interface ImageFieldVal {
+  id?: number;
+  url: string;
+  alt?: string;
+  title?: string;
+  caption?: string;
+}
+
+export interface ImageField extends FieldBase<ImageFieldVal | string> {
+  type: 'image';
+}
+
+export interface BooleanField extends FieldBase<boolean> {
+  type: 'boolean';
+}
+
+export interface RepeaterField<T extends Record<string, any> = Record<string, any>> extends FieldBase<T[]> {
+  type: 'repeater';
+  fields: Record<keyof T, EditableField>;
+}
+
+export type EditableField = TextField | RichTextField | ImageField | BooleanField | RepeaterField;
+
+export type EditableSchema = Record<string, EditableField>;
+
+/**
+ * Declares a structured editable content schema in ForgeWP.
+ * Enforces type safety and acts as a compiler hook.
+ */
+export function defineEditable<T extends EditableSchema>(schema: T): T {
+  return schema;
+}
+
+export function text(options: Omit<TextField, 'type'> = {}): TextField {
+  return { type: 'text', ...options };
+}
+
+export function richText(options: Omit<RichTextField, 'type'> = {}): RichTextField {
+  return { type: 'richText', ...options };
+}
+
+export function image(options: Omit<ImageField, 'type'> = {}): ImageField {
+  return { type: 'image', ...options };
+}
+
+export function boolean(options: Omit<BooleanField, 'type'> = {}): BooleanField {
+  return { type: 'boolean', ...options };
+}
+
+export function repeater<T extends Record<string, any>>(options: Omit<RepeaterField<T>, 'type'>): RepeaterField<T> {
+  return { type: 'repeater', ...options };
+}
+
+/**
+ * Isomorphic hook to read a dynamic structured editable field value.
+ * In local dev (Vite): resolves the value from WpPostContext / cms/mock-data.json.
+ * In production: the compiler replaces this with direct WordPress/ACF metadata calls.
+ */
+export function useWpMeta<T>(key: string, defaultValue: T): T {
+  const post = useContext(WpPostContext);
+  if (post?.customFields && typeof post.customFields[key] !== 'undefined') {
+    return post.customFields[key] as T;
+  }
+  return defaultValue;
 }
 
 

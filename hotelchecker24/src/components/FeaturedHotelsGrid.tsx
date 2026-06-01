@@ -1,8 +1,9 @@
-import { useWpQuery, WpLink, useWpI18n } from '../.forgewp/wordpress';
+import { useWpQuery, WpLink, useWpI18n, useWpPageLink } from '../.forgewp/wordpress';
 import { Star, MapPin, ArrowRight, Hotel, Sparkles } from 'lucide-react';
 
 export function FeaturedHotelsGrid() {
   const { __ } = useWpI18n();
+  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
   const { posts: hotels, loading } = useWpQuery({
     postType: 'hotel',
     postsPerPage: 3,
@@ -65,7 +66,7 @@ export function FeaturedHotelsGrid() {
           </div>
 
           <WpLink
-            href='/hotels'
+            href={hotelsHref}
             className='inline-flex items-center gap-2 bg-[#929f5d] hover:bg-[#929f5d]/90 text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full transition-all duration-300 active:scale-95 shadow-lg shadow-[#929f5d]/20'
           >
             {__('Alle Hotels entdecken')} <ArrowRight className='w-3.5 h-3.5' />
@@ -130,7 +131,7 @@ export function FeaturedHotelsGrid() {
       </div>
       <div className='mt-8 text-center md:hidden'>
         <WpLink
-          href='/hotels'
+          href={hotelsHref}
           className='inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary'
         >
           {__('Alle Hotels ansehen')} <ArrowRight className='w-3.5 h-3.5' />

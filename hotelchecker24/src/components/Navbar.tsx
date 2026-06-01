@@ -1,6 +1,6 @@
 import React from 'react';
 import { Menu, X } from 'lucide-react';
-import { WpMenu, useWpThemeUri, useWpI18n, useWpLanguage } from '../.forgewp/wordpress';
+import { WpMenu, useWpThemeUri, useWpI18n, useWpLanguage, useWpPageLink, WpLink } from '../.forgewp/wordpress';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
 
@@ -9,10 +9,12 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [isScrolled, setIsScrolled] = React.useState(false);
   const themeUri = useWpThemeUri();
+  const contactHref = useWpPageLink('kontakt-page', '/contact');
 
   // Simple unified, dynamic framework hook!
-  const { currentLanguage, switchLanguage } = useWpLanguage();
+  const { currentLanguage, switchLanguage, urls } = useWpLanguage();
   const isEnglish = currentLanguage === 'en';
+  const homeHref = urls[currentLanguage] || '/';
 
   const handleLanguageToggle = (checked: boolean) => {
     switchLanguage(checked ? 'en' : 'de');
@@ -72,8 +74,8 @@ export function Navbar() {
 
         {/* CENTER: Centrally Placed Logo */}
         <div className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 shrink-0'>
-          <a
-            href='/'
+          <WpLink
+            href={homeHref}
             className='flex items-center justify-center hover:opacity-90 transition-opacity'
           >
             <img
@@ -81,7 +83,7 @@ export function Navbar() {
               className='h-6 sm:h-8 w-auto object-contain max-w-[130px] sm:max-w-none'
               alt='Hotelchecker24 Logo'
             />
-          </a>
+          </WpLink>
         </div>
 
         {/* RIGHT AREA: Desktop Actions / Mobile Menu Button */}
@@ -116,7 +118,7 @@ export function Navbar() {
               asChild
               className='relative overflow-hidden inline-flex items-center justify-center border border-primary text-primary font-sans font-semibold text-sm px-6 py-2.5 rounded-full transition-colors duration-500 group hover:text-white select-none bg-transparent hover:bg-transparent shadow-none'
             >
-              <a href='/contact'>
+              <a href={contactHref}>
                 {/* Expand-from-bottom-center background layer */}
                 <span className='absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 bg-primary rounded-full transition-all duration-700 ease-out group-hover:w-[240px] group-hover:h-[240px] group-hover:bottom-[-90px] z-0' />
                 <span className='relative z-10'>{__('Eintragen lassen')}</span>
@@ -157,7 +159,7 @@ export function Navbar() {
               asChild
               className='mt-6 relative overflow-hidden flex items-center justify-center border border-primary text-primary font-semibold py-6 rounded-xl hover:text-white transition-colors duration-500 group bg-transparent hover:bg-transparent shadow-none'
             >
-              <a href='/contact'>
+              <a href={contactHref}>
                 {/* Expanding background for mobile */}
                 <span className='absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 bg-primary rounded-full transition-all duration-700 ease-out group-hover:w-[400px] group-hover:h-[400px] group-hover:bottom-[-150px] z-0' />
                 <span className='relative z-10'>{__('Eintragen lassen')}</span>

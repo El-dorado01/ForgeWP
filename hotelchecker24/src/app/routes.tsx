@@ -1,20 +1,11 @@
 import { Route, Switch } from "wouter";
 import HomePage from "./page";
-import QuerySandbox from "./query-sandbox";
-import WpEditablePage from "./wp-editable";
-
-/**
- * Local Developer Routes — ForgeWP.
- *
- * Edit this file to add new routes/components for your local Vite preview server.
- *
- * @example
- * // 1. Create a component in src/app/about.tsx
- * // 2. Import it here: import AboutPage from "./about";
-import { Route, Switch } from "wouter";
-import HomePage from "./page";
-import QuerySandbox from "./query-sandbox";
-import WpEditablePage from "./wp-editable";
+import { ListiclesPage } from "./pages/ListiclesPage";
+import { HotelsPage } from "./pages/HotelsPage";
+import { BerUnsPage } from "./pages/BerUnsPage";
+import { KontaktPage } from "./pages/KontaktPage";
+import { SingleListiclePage } from "./pages/SingleListiclePage";
+import { SingleHotelPage } from "./pages/SingleHotelPage";
 
 /**
  * Local Developer Routes — ForgeWP.
@@ -26,12 +17,6 @@ import WpEditablePage from "./wp-editable";
  * // 2. Import it here: import AboutPage from "./about";
  * // 3. Add the Route: <Route path="/about" component={AboutPage} />
  */
-import { ListiclesPage } from "./pages/ListiclesPage";
-import { HotelsPage } from "./pages/HotelsPage";
-import { BerUnsPage } from "./pages/BerUnsPage";
-import { KontaktPage } from "./pages/KontaktPage";
-import { SingleListiclePage } from "./pages/SingleListiclePage";
-import { SingleHotelPage } from "./pages/SingleHotelPage";
 
 export default function AppRoutes() {
   return (
@@ -39,14 +24,8 @@ export default function AppRoutes() {
       {/* Home preview */}
       <Route path="/" component={HomePage} />
 
-      {/* Relational Query Engine Sandbox — verifies taxQuery, metaQuery, pagination */}
-      <Route path="/query-sandbox" component={QuerySandbox} />
-
-      {/* WpEditable Block Canvas Preview — verifies inline editing primitive */}
-      <Route path="/wp-editable" component={WpEditablePage} />
-
-      <Route path="/listicles" component={ListiclesPage} />
-      <Route path="/listicle/:id" component={SingleListiclePage} />
+      <Route path="/hotelvergleiche" component={ListiclesPage} />
+      <Route path="/hotelvergleich/:id" component={SingleListiclePage} />
 
       <Route path="/hotels" component={HotelsPage} />
       <Route path="/hotel/:id" component={SingleHotelPage} />
@@ -62,8 +41,6 @@ export default function AppRoutes() {
           <p className="mt-2 text-zinc-600">Page not found locally.</p>
           <div className="mt-4 flex flex-col items-center gap-2 text-sm">
             <a href="/" className="text-brand font-semibold hover:underline">← Go back home</a>
-            <a href="/query-sandbox" className="text-zinc-500 font-mono hover:underline text-xs">→ Query Engine Sandbox</a>
-            <a href="/wp-editable" className="text-zinc-500 font-mono hover:underline text-xs">→ WpEditable Canvas</a>
           </div>
         </div>
       </Route>

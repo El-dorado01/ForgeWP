@@ -9,7 +9,7 @@ export function HotelsGrid() {
   const [, setLocation] = useWpLocation();
   const params = React.useMemo(() => new URLSearchParams(searchString), [searchString]);
 
-  const keyword = params.get('s') || '';
+  const keyword = params.get('q') || params.get('s') || '';
   const country = params.get('country') || '';
   const category = params.get('category') || '';
 
@@ -20,9 +20,13 @@ export function HotelsGrid() {
   });
 
   const handleResetFilters = () => setLocation('/hotels');
-  const removeFilter = (key: 's' | 'country' | 'category') => {
+  const removeFilter = (key: 'q' | 's' | 'country' | 'category') => {
     const newParams = new URLSearchParams(searchString);
     newParams.delete(key);
+    if (key === 'q' || key === 's') {
+      newParams.delete('q');
+      newParams.delete('s');
+    }
     const qs = newParams.toString();
     setLocation(qs ? `/hotels?${qs}` : '/hotels');
   };
@@ -59,7 +63,7 @@ export function HotelsGrid() {
           </span>
           {keyword && (
             <button
-              onClick={() => removeFilter('s')}
+              onClick={() => removeFilter('q')}
               className='flex items-center gap-1.5 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full hover:bg-primary/20 transition-colors'
             >
               {__('Suche:')} {keyword} <X className='w-3 h-3' />

@@ -6,6 +6,7 @@ export {
   scanForHydrationIslandsWithProps,
   findComponentPath,
   getHydrationRollupInputs,
+  scanForEditableSchemas,
 } from './hydration-scanner.js';
 export { validateExport } from './validate-export.js';
 export {

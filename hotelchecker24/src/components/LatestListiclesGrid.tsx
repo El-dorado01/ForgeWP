@@ -1,8 +1,9 @@
-import { useWpQuery, WpLink, useWpI18n } from '../.forgewp/wordpress';
+import { useWpQuery, WpLink, useWpI18n, useWpPageLink } from '../.forgewp/wordpress';
 import { ArrowRight, User, BookOpen, Newspaper, PenLine } from 'lucide-react';
 
 export function LatestListiclesGrid() {
   const { __ } = useWpI18n();
+  const listiclesHref = useWpPageLink('listicles-page', '/hotelvergleiche');
   const { posts: listicles, loading } = useWpQuery({
     postType: 'listicle',
     postsPerPage: 3,
@@ -51,7 +52,7 @@ export function LatestListiclesGrid() {
 
           <div>
             <h3 className='text-xl font-black uppercase tracking-tight text-slate-800 font-sans mt-1'>
-              {__('Keine Listicles gefunden')}
+              {__('Keine Vergleiche gefunden')}
             </h3>
             <p className='text-slate-400 text-sm mt-2 max-w-xs mx-auto leading-relaxed'>
               {__('Unsere Redaktion arbeitet an neuen Artikeln für Sie.')}
@@ -66,7 +67,7 @@ export function LatestListiclesGrid() {
           </div>
 
           <WpLink
-            href='/listicles'
+            href={listiclesHref}
             className='inline-flex items-center gap-2 bg-[#929f5d] hover:bg-[#929f5d]/90 text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full transition-all duration-300 active:scale-95 shadow-lg shadow-[#929f5d]/20'
           >
             {__('Alle Artikel entdecken')} <ArrowRight className='w-3.5 h-3.5' />
@@ -88,7 +89,7 @@ export function LatestListiclesGrid() {
         return (
           <WpLink
             key={listicle.id}
-            href={listicle.permalink || `/listicle/${listicle.id}`}
+            href={listicle.permalink || `/hotelvergleich/${listicle.id}`}
             className='group bg-white border border-slate-200/50 rounded-3xl overflow-hidden shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-500 flex flex-col'
           >
             <div className='relative h-48 w-full overflow-hidden bg-slate-100'>

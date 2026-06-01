@@ -23,6 +23,9 @@ export type { WpMenuProps } from "./components/WpMenu";
 export { WpShortcode } from "./components/WpShortcode";
 export type { WpShortcodeProps } from "./components/WpShortcode";
 
+export { BlockArea } from "./components/BlockArea";
+export type { BlockAreaProps } from "./components/BlockArea";
+
 export { WpEditable } from "./components/WpEditable";
 export type { WpEditableProps } from "./components/WpEditable";
 
@@ -50,9 +53,17 @@ export {
   useWpOption,
   useWpThemeMod,
   useWpThemeUri,
+  useWpPageLink,
   useWpQuery,
   defineBlock,
   defineTheme,
+  useWpMeta,
+  defineEditable,
+  text,
+  richText,
+  image,
+  boolean,
+  repeater,
 } from "./hooks";
 
 export type {
@@ -62,6 +73,14 @@ export type {
   ColorPreset,
   FontSizePreset,
   FontFamilyPreset,
+  EditableField,
+  EditableSchema,
+  TextField,
+  RichTextField,
+  ImageField,
+  BooleanField,
+  RepeaterField,
+  ImageFieldVal,
 } from "./hooks";
 
 // Types

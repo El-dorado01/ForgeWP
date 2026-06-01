@@ -16,6 +16,14 @@ export interface FontFamilyPreset {
   fontFamily: string;
 }
 
+export interface CustomPostTypeConfig {
+  translatable?: boolean;
+  labels?: {
+    singular?: string;
+    plural?: string;
+  };
+}
+
 export interface ForgeWPThemeConfig {
   name: string;
   slug: string;
@@ -24,6 +32,7 @@ export interface ForgeWPThemeConfig {
   textDomain: string;
   frameworkAdapter?: 'react' | 'html' | 'stub';
   style?: 'forgewp' | 'shadcn';
+  postTypes?: Record<string, CustomPostTypeConfig>;
   settings?: {
     layout?: {
       contentSize?: string;
@@ -40,6 +49,7 @@ export interface ForgeWPThemeConfig {
     };
   };
 }
+
 
 export interface ForgeWPBuildAssets {
   cssFile: string;

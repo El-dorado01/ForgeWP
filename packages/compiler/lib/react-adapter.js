@@ -378,7 +378,13 @@ export function generateHydrationRuntime(
 
     import(scriptUrl)
       .then((module) => {
-        const Component = module.default || Object.values(module)[0];
+        let Component = module.default;
+        if (!Component) {
+          Component = Object.values(module).find((val) => typeof val === "function");
+          if (!Component) {
+            Component = Object.values(module)[0];
+          }
+        }
         if (typeof Component !== "function") {
           const exportsList = Object.keys(module).join(", ");
           console.error(
@@ -1145,10 +1151,10 @@ export function Single${pascalCpt}Page() {
   const [, params] = useRoute("/${cpt}/:id");
   const routeParam = params?.id;
 
-  // In production, forgeWpHydration.currentPostId holds the real WP numeric ID
+  // In production, forgeWpHydration.post.id holds the real WP numeric ID
   const hydrationId =
     typeof window !== 'undefined'
-      ? (window as any).forgeWpHydration?.currentPostId || 0
+      ? (window as any).forgeWpHydration?.post?.id || 0
       : 0;
   const id = hydrationId || routeParam;
 

@@ -1,10 +1,18 @@
-import React from 'react';
-import { WpHead, WpLink, useWpOption, useWpI18n } from '../../.forgewp/wordpress';
+
+import { WpHead, WpLink, useWpOption, useWpI18n, useWpMeta, useWpLanguage, defineEditable, text, image } from '../../.forgewp/wordpress';
+import { Hydrate } from '@forgewp/react';
 import {
-  Mail, Phone, MapPin, Clock, Send, ChevronRight,
+  Mail, Phone, MapPin, Clock, ChevronRight,
   MessageSquare, Globe, Instagram, Facebook, Twitter,
   ArrowRight,
 } from 'lucide-react';
+import ContactForm from '../../components/ContactForm';
+
+const getImageUrl = (imageVal: any) => {
+  if (!imageVal) return '';
+  if (typeof imageVal === 'string') return imageVal;
+  return imageVal.url || '';
+};
 
 export function KontaktPage() {
   const phone = useWpOption('contact_phone', '+43 1 234 5678');
@@ -22,19 +30,18 @@ export function KontaktPage() {
   const twitterHandle = twitterUrl ? `@${twitterUrl.replace(/\/$/, '').split('/').pop()}` : '@hotelchecker24';
   const siteHandle = siteUrl ? siteUrl.replace(/^https?:\/\/(www\.)?/, '') : 'hotelchecker24.com';
 
-  const [form, setForm] = React.useState({ name: '', email: '', subject: '', message: '' });
-  const [submitted, setSubmitted] = React.useState(false);
   const { __ } = useWpI18n();
+  const { urls, currentLanguage } = useWpLanguage();
+  const homeHref = urls[currentLanguage] || '/';
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // In production, this integrates with WP Contact Form 7 or similar plugin
-    setSubmitted(true);
-  };
+  // Page-specific editable content fields
+  const heroBadge = useWpMeta('hero_badge', __('Wir sind für Sie da'));
+  const heroTitle = useWpMeta('hero_title', __('Schreiben Sie uns'));
+  const heroSubtitle = useWpMeta('hero_subtitle', __('Fragen zu Hotels, Kooperationsanfragen oder Feedback — unsere Redaktion antwortet innerhalb von 24 Stunden.'));
+  const formTitle = useWpMeta('form_title', __('Kontaktformular'));
+  const formDescription = useWpMeta('form_description', __('Alle Felder sind Pflichtfelder, sofern nicht anders angegeben.'));
+  const cardImage = useWpMeta('card_image', 'https://images.unsplash.com/photo-1516550893923-42d28e5677af?auto=format&fit=crop&w=400&q=80');
+  const cardBadge = useWpMeta('card_badge', __('Hauptredaktion Wien'));
 
   return (
     <main className="min-h-screen bg-[#fafaf8] font-sans select-none">
@@ -50,7 +57,7 @@ export function KontaktPage() {
 
         <div className="relative max-w-7xl mx-auto z-10">
           <nav className="flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4">
-            <WpLink href="/" className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
+            <WpLink href={homeHref} className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
             <ChevronRight className="w-4 h-4" />
             <span className="text-slate-700">{__('Kontakt')}</span>
           </nav>
@@ -60,23 +67,22 @@ export function KontaktPage() {
             <div className="lg:col-span-3 max-w-2xl">
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-full mb-3">
                 <MessageSquare className="w-3.5 h-3.5" />
-                {__('Wir sind für Sie da')}
+                {heroBadge}
               </span>
               <h1 className="text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-slate-900 mb-2">
-                {__('Schreiben Sie uns')}
+                {heroTitle}
               </h1>
               <p className="text-slate-500 text-sm sm:text-base leading-relaxed">
-                {__('Fragen zu Hotels, Kooperationsanfragen oder Feedback — unsere Redaktion antwortet innerhalb von 24 Stunden.')}
+                {heroSubtitle}
               </p>
             </div>
 
             {/* Right Column — Editorial Vienna Visual Card */}
             <div className="lg:col-span-2 relative hidden lg:flex items-center justify-center h-[200px] select-none">
-              {/* Photo Card */}
               <div className="relative w-72 h-44 rounded-2xl overflow-hidden shadow-xl border-4 border-white rotate-2 hover:rotate-0 transition-transform duration-500 ease-out">
                 <img 
-                  src="https://images.unsplash.com/photo-1516550893923-42d28e5677af?auto=format&fit=crop&w=400&q=80" 
-                  alt="Wien Redaktion" 
+                  src={getImageUrl(cardImage)} 
+                  alt={__('Wien Redaktion')} 
                   className="w-full h-full object-cover select-none pointer-events-none"
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-slate-950/40 via-transparent to-transparent pointer-events-none" />
@@ -84,7 +90,7 @@ export function KontaktPage() {
                 {/* Floating Location Badge */}
                 <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg text-[10px] font-bold text-slate-800 shadow-xs flex items-center gap-1">
                   <MapPin className="w-3 h-3 text-primary" />
-                  <span>{__('Hauptredaktion Wien')}</span>
+                  <span>{cardBadge}</span>
                 </div>
               </div>
             </div>
@@ -161,114 +167,46 @@ export function KontaktPage() {
             </div>
           </aside>
 
-          {/* Contact Form */}
+          {/* Contact Form — hydration island */}
           <div className="lg:col-span-3">
-            <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-6 sm:p-8">
-              {submitted ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 border border-primary/20">
-                    <Send className="w-7 h-7 text-primary" />
-                  </div>
-                  <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 mb-2">{__('Nachricht gesendet!')}</h2>
-                  <p className="text-slate-500 text-sm max-w-sm">
-                    {__('Vielen Dank für Ihre Anfrage. Wir melden uns in der Regel innerhalb von 24 Stunden bei Ihnen.')}
-                  </p>
-                  <button
-                    onClick={() => { setSubmitted(false); setForm({ name: '', email: '', subject: '', message: '' }); }}
-                    className="mt-6 bg-primary text-white text-xs font-bold uppercase tracking-wider px-6 py-3 rounded-xl cursor-pointer hover:bg-primary/90 transition-all"
-                  >
-                    {__('Neue Nachricht')}
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <h2 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1 pl-3 border-l-4 border-primary">
-                    {__('Kontaktformular')}
-                  </h2>
-                  <p className="text-slate-400 text-xs mb-6 pl-3">
-                    {__('Alle Felder sind Pflichtfelder, sofern nicht anders angegeben.')}
-                  </p>
-                  <form onSubmit={handleSubmit} className="space-y-5">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      <div>
-                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                          {__('Ihr Name')}
-                        </label>
-                        <input
-                          type="text"
-                          name="name"
-                          value={form.name}
-                          onChange={handleChange}
-                          required
-                          placeholder="Max Mustermann"
-                          className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                          {__('E-Mail-Adresse')}
-                        </label>
-                        <input
-                          type="email"
-                          name="email"
-                          value={form.email}
-                          onChange={handleChange}
-                          required
-                          placeholder="max@beispiel.at"
-                          className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                        {__('Betreff')}
-                      </label>
-                      <select
-                        name="subject"
-                        value={form.subject}
-                        onChange={handleChange}
-                        required
-                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all bg-white"
-                      >
-                        <option value="">{__('Bitte wählen…')}</option>
-                        <option value="hotel-inquiry">{__('Hotelanfrage / Empfehlung')}</option>
-                        <option value="partnership">{__('Kooperationsanfrage')}</option>
-                        <option value="editorial">{__('Redaktionelle Anfrage')}</option>
-                        <option value="technical">{__('Technischer Support')}</option>
-                        <option value="other">{__('Sonstiges')}</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                        {__('Ihre Nachricht')}
-                      </label>
-                      <textarea
-                        name="message"
-                        value={form.message}
-                        onChange={handleChange}
-                        required
-                        rows={6}
-                        placeholder={__('Schreiben Sie uns Ihr Anliegen…')}
-                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all resize-none"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white font-bold text-xs uppercase tracking-wider px-6 py-4 rounded-xl transition-all duration-300 cursor-pointer active:scale-95 shadow-xs shadow-primary/20"
-                    >
-                      <Send className="w-4 h-4" />
-                      {__('Nachricht absenden')}
-                    </button>
-                  </form>
-                </>
-              )}
-            </div>
+            <Hydrate trigger="load">
+              <ContactForm formTitle={formTitle} formDescription={formDescription} />
+            </Hydrate>
           </div>
+
         </div>
       </div>
     </main>
   );
 }
+
+export const editable = defineEditable({
+  hero_badge: text({
+    label: 'Hero Badge',
+    default: 'Wir sind für Sie da',
+  }),
+  hero_title: text({
+    label: 'Hero Title',
+    default: 'Schreiben Sie uns',
+  }),
+  hero_subtitle: text({
+    label: 'Hero Subtitle',
+    default: 'Fragen zu Hotels, Kooperationsanfragen oder Feedback — unsere Redaktion antwortet innerhalb von 24 Stunden.',
+  }),
+  card_image: image({
+    label: 'Visual Card Image',
+    default: 'https://images.unsplash.com/photo-1516550893923-42d28e5677af?auto=format&fit=crop&w=400&q=80',
+  }),
+  card_badge: text({
+    label: 'Visual Card Badge',
+    default: 'Hauptredaktion Wien',
+  }),
+  form_title: text({
+    label: 'Form Title',
+    default: 'Kontaktformular',
+  }),
+  form_description: text({
+    label: 'Form Description',
+    default: 'Alle Felder sind Pflichtfelder, sofern nicht anders angegeben.',
+  }),
+});

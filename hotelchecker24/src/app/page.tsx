@@ -12,7 +12,7 @@ export default function HomePage() {
   return (
     <div className='min-h-screen w-full bg-slate-50 font-sans selection:bg-primary selection:text-white'>
       <WpHead
-        title={__('Hotelchecker24 — Premium Hotel- & Listicle-Magazin')}
+        title={__('Hotelchecker24 — Premium Hotel- & Vergleichs-Magazin')}
         description={__('Entdecken Sie kuratierte Boutique- und Luxushotels in Österreich, Deutschland, der Schweiz und Italien.')}
         ogType='website'
       />
@@ -30,7 +30,7 @@ export default function HomePage() {
               { value: '500+', label: __('Kuratierte Hotels') },
               { value: '4', label: __('Länder abgedeckt') },
               { value: '100%', label: __('Unabhängig & redaktionell') },
-              { value: 'DE / EN', label: __('Bilinguales Magazin') },
+              { value: 'DE / EN', label: __('Deutsch & Englisch') },
             ].map((stat) => (
               <div
                 key={stat.label}
@@ -92,10 +92,10 @@ export default function HomePage() {
                 {__('Kein bezahltes Ranking. Kein Algorithmus. Nur ehrliche, redaktionell geprüfte Empfehlungen von unserem Team, das die Hotels selbst besucht hat.')}
               </p>
               <WpLink
-                href='/listicles'
+                href='/hotelvergleiche'
                 className='inline-flex items-center gap-2 bg-[#929f5d] hover:bg-[#929f5d]/90 text-white text-xs font-bold uppercase tracking-wider px-6 py-3 rounded-full transition-all duration-300 active:scale-95'
               >
-                {__('Alle Listicles lesen')} <ArrowRight className='w-3.5 h-3.5' />
+                {__('Alle Hotelvergleiche lesen')} <ArrowRight className='w-3.5 h-3.5' />
               </WpLink>
             </div>
             <div className='relative z-10 grid grid-cols-2 gap-3'>
@@ -112,7 +112,7 @@ export default function HomePage() {
                 },
                 {
                   num: '03',
-                  label: __('Bilinguale Texte'),
+                  label: __('DE & EN'),
                   desc: __('Inhalte auf Deutsch und Englisch'),
                 },
                 {
@@ -148,17 +148,17 @@ export default function HomePage() {
                 {__('Magazin')}
               </span>
               <h2 className='text-3xl font-sans font-black text-slate-800 uppercase tracking-tight mt-3'>
-                {__('Aktuelle Listicles')}
+                {__('Aktuelle Hotelvergleiche')}
               </h2>
               <p className='text-slate-500 text-sm mt-1 max-w-md'>
                 {__('Tiefgehende Reiseberichte und Empfehlungen von unserer Redaktion.')}
               </p>
             </div>
             <WpLink
-              href='/listicles'
+              href='/hotelvergleiche'
               className='hidden md:inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:text-primary/80 transition-colors'
             >
-              {__('Alle Listicles')} <ArrowRight className='w-3.5 h-3.5' />
+              {__('Alle Vergleiche')} <ArrowRight className='w-3.5 h-3.5' />
             </WpLink>
           </div>
 

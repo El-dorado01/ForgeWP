@@ -9,6 +9,19 @@ const config: ForgeWPThemeConfig = {
   frameworkAdapter: "react",
   style: "shadcn",
 
+  postTypes: {
+    listicle: {
+      translatable: true,
+      labels: {
+        singular: "Hotel Comparison",
+        plural: "Hotel Comparisons",
+      }
+    },
+    hotel: {
+      translatable: true,
+    }
+  },
+
   settings: {
     layout: {
       contentSize: "720px",

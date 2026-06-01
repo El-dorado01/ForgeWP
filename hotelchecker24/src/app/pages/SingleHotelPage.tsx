@@ -1,4 +1,6 @@
 import { useRoute } from 'wouter';
+import { Hydrate } from '@forgewp/react';
+import { HotelListicles } from '../../components/HotelListicles';
 import {
   WpHead,
   WpLink,
@@ -8,7 +10,12 @@ import {
   useWpExcerpt,
   useWpFeaturedImage,
   useWpCustomField,
+  useWpTaxonomyList,
   useWpI18n,
+  useWpLanguage,
+  useWpPageLink,
+  defineEditable,
+  text,
 } from '../../.forgewp/wordpress';
 import {
   ChevronRight,
@@ -20,18 +27,20 @@ import {
   Award,
   Globe,
   Mail,
-  BookOpen,
 } from 'lucide-react';
 
 export function SingleHotelPage() {
   const { __ } = useWpI18n();
+  const { urls, currentLanguage } = useWpLanguage();
+  const homeHref = urls[currentLanguage] || '/';
+  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
   const [, params] = useRoute('/hotel/:id');
   const routeParam = params?.id;
 
-  // In production, forgeWpHydration.currentPostId holds the real WP numeric ID
+  // In production, forgeWpHydration.post.id holds the real WP numeric ID
   const hydrationId =
     typeof window !== 'undefined'
-      ? (window as any).forgeWpHydration?.currentPostId || 0
+      ? (window as any).forgeWpHydration?.post?.id || 0
       : 0;
   const id = hydrationId || routeParam;
 
@@ -44,7 +53,6 @@ export function SingleHotelPage() {
   const devPost = posts.find(
     (p) => p.id === Number(id) || p.id === Number(hydrationId),
   );
-  const postAny = devPost as any;
 
   // Isomorphic dynamic mapping (compiles directly to WP loops in production)
   const title = useWpTitle() || devPost?.title || __('Luxushotel');
@@ -81,6 +89,8 @@ export function SingleHotelPage() {
     useWpCustomField('stars') || String(devPost?.customFields?.stars || '5');
   const stars = parseInt(starsVal, 10) || 5;
 
+  const city =
+    useWpCustomField('city') || String(devPost?.customFields?.city || '');
 
   // Extended ACF coordinates
   const website =
@@ -90,23 +100,8 @@ export function SingleHotelPage() {
     String(devPost?.customFields?.contact_email || '');
 
   // Terms mapping
-  const categoryTerms = postAny?._terms?.category || [];
-  const categoryName =
-    categoryTerms.length > 0 ? categoryTerms[0].name : 'Boutique Hotel';
-
-  // Relational Loop: Fetch all listicles and filter to those referencing this hotel
-  const { posts: allListicles, loading: listiclesLoading } = useWpQuery({
-    postType: 'listicle',
-    postsPerPage: 100,
-  });
-
-  const matchingListicles = allListicles.filter((l: any) => {
-    const related = l.customFields?.related_hotels;
-    if (Array.isArray(related)) {
-      return related.map(Number).includes(Number(id));
-    }
-    return false;
-  });
+  // Terms mapping
+  const categoryName = useWpTaxonomyList('category', 'Boutique');
 
   return (
     <main className="min-h-screen bg-[#fafaf8] selection:bg-primary selection:text-white font-sans select-none pb-24">
@@ -125,9 +120,9 @@ export function SingleHotelPage() {
         <div className="absolute inset-x-0 top-0 h-24 bg-linear-to-b from-slate-950/40 to-transparent pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pb-12 relative z-10">
           <nav className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300 mb-6 bg-slate-950/20 backdrop-blur-xs py-2 px-4 rounded-full w-fit border border-white/5">
-            <WpLink href="/" className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
+            <WpLink href={homeHref} className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
             <ChevronRight className="w-3 h-3 text-slate-400" />
-            <WpLink href="/hotels" className="hover:text-primary transition-colors">{__('Hotels')}</WpLink>
+            <WpLink href={hotelsHref} className="hover:text-primary transition-colors">{__('Hotels')}</WpLink>
             <ChevronRight className="w-3 h-3 text-slate-400" />
             <span className="text-slate-200 line-clamp-1">{title}</span>
           </nav>
@@ -143,7 +138,7 @@ export function SingleHotelPage() {
             </h1>
             <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-300 uppercase tracking-widest pl-0.5">
               <MapPin className="w-4 h-4 text-[#929f5d] shrink-0" />
-              <span>{address}</span>
+              <span>{city ? `${city} — ` : ''}{address}</span>
             </div>
           </div>
         </div>
@@ -162,40 +157,9 @@ export function SingleHotelPage() {
               />
             </article>
 
-            <section className="bg-white border border-slate-200/50 shadow-xs rounded-2xl p-5 sm:p-7">
-              <h3 className="text-lg font-black uppercase tracking-tight text-slate-950 mb-1 pl-3 border-l-4 border-[#929f5d]">
-                {__('In Listicles erwähnt')}
-              </h3>
-              <p className="text-slate-400 text-[10px] font-mono font-bold uppercase tracking-wider mb-4 pl-3">
-                {__('Kuration & Expertentipps')}
-              </p>
-              
-              {listiclesLoading ? (
-                <div className="py-8 text-center text-slate-400 text-sm">{__('Lade Listicles...')}</div>
-              ) : matchingListicles.length > 0 ? (
-                <div className="grid grid-cols-1 gap-4">
-                  {matchingListicles.map((l: any) => (
-                    <WpLink 
-                      key={l.id}
-                      href={`/listicle/${l.id}`}
-                      className="flex items-center justify-between p-4 border border-slate-100 hover:border-slate-800 rounded-xl transition-all duration-300 group hover:shadow-xs cursor-pointer bg-slate-50/20"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-slate-900 group-hover:text-white transition-all">
-                          <BookOpen className="w-3.5 h-3.5 text-slate-500 group-hover:text-white" />
-                        </div>
-                        <span className="text-xs font-bold text-slate-800 uppercase tracking-tight line-clamp-1">{l.title}</span>
-                      </div>
-                      <span className="text-slate-300 group-hover:text-slate-800 font-mono text-xs group-hover:translate-x-0.5 transition-transform">→</span>
-                    </WpLink>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-8 text-center text-slate-400 text-sm font-sans border border-dashed border-slate-200 rounded-2xl">
-                  {__('Dieses Hotel wird aktuell in keinem unserer Listicles aufgeführt.')}
-                </div>
-              )}
-            </section>
+            <Hydrate trigger="load">
+              <HotelListicles hotelId={id} />
+            </Hydrate>
           </div>
 
           <div className="space-y-6">
@@ -234,7 +198,7 @@ export function SingleHotelPage() {
                 </div>
                 <div>
                   <div className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 leading-none">{__('Kategorie')}</div>
-                  <div className="text-sm font-black text-slate-900 mt-1 leading-none uppercase truncate max-w-32.5">{__(categoryName)}</div>
+                  <div className="text-sm font-black text-slate-900 mt-1 leading-none uppercase truncate max-w-32.5">{categoryName}</div>
                   <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1 font-mono leading-none">{__('Klassifizierung')}</div>
                 </div>
               </div>
@@ -279,7 +243,7 @@ export function SingleHotelPage() {
 
             <div className="pt-1">
               <WpLink 
-                href="/hotels" 
+                href={hotelsHref} 
                 className="inline-flex items-center justify-center gap-2 w-full px-5 py-3.5 border border-slate-200 hover:border-slate-800 text-slate-700 hover:text-slate-900 font-mono font-bold uppercase text-[10px] tracking-wider rounded-xl transition-all duration-300 group cursor-pointer bg-white"
               >
                 <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
@@ -292,3 +256,34 @@ export function SingleHotelPage() {
     </main>
   );
 }
+
+export const editable = defineEditable({
+  rating: text({
+    label: 'Rating (Expert Score)',
+    default: '4.8',
+  }),
+  price_range: text({
+    label: 'Price Range',
+    default: '$$$',
+  }),
+  location: text({
+    label: 'Location (Address)',
+    default: 'Schubertring 10-12, 1010 Vienna',
+  }),
+  stars: text({
+    label: 'Stars',
+    default: '5',
+  }),
+  website: text({
+    label: 'Website URL',
+    default: 'https://grandferdinand.com',
+  }),
+  contact_email: text({
+    label: 'Contact Email',
+    default: 'reservations@grandferdinand.com',
+  }),
+  city: text({
+    label: 'City',
+    default: 'Vienna',
+  }),
+});

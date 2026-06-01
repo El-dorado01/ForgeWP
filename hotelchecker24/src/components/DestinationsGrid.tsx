@@ -1,4 +1,4 @@
-import { useWpTerms, WpLink, useWpI18n } from '../.forgewp/wordpress';
+import { useWpTerms, WpLink, useWpI18n, useWpPageLink } from '../.forgewp/wordpress';
 import type { WpTerm } from '../.forgewp/wordpress';
 import { MapPin, Globe, ArrowRight } from 'lucide-react';
 
@@ -25,6 +25,7 @@ function DestinationsSkeleton() {
 // ── Empty state when no country terms exist in WP ─────────────────────────────
 function DestinationsEmpty() {
   const { __ } = useWpI18n();
+  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
   return (
     <div className='relative overflow-hidden rounded-3xl border-2 border-dashed border-slate-200 bg-linear-to-br from-slate-50 via-white to-[#929f5d]/5 py-16 px-8 text-center'>
       <div className='pointer-events-none absolute -top-10 -right-10 w-36 h-36 rounded-full bg-[#929f5d]/6 blur-2xl' />
@@ -61,7 +62,7 @@ function DestinationsEmpty() {
         </div>
 
         <WpLink
-          href='/hotels'
+          href={hotelsHref}
           className='inline-flex items-center gap-2 bg-[#929f5d] hover:bg-[#929f5d]/90 text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full transition-all duration-300 active:scale-95 shadow-lg shadow-[#929f5d]/20'
         >
           {__('Alle Hotels entdecken')} <ArrowRight className='w-3.5 h-3.5' />

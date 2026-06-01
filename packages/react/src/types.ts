@@ -26,7 +26,7 @@ export interface WpPost {
   author: string;
   featuredImage: string | WpAttachment;
   permalink?: string;
-  customFields?: Record<string, string | number | boolean>;
+  customFields?: Record<string, any>;
   __postType?: string;
 }
 
