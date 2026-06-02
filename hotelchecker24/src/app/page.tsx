@@ -1,4 +1,4 @@
-import { WpHead, WpLink, useWpI18n } from '../.forgewp/wordpress';
+import { WpHead, WpLink, useWpI18n, useWpPageLink } from '../.forgewp/wordpress';
 import { Hydrate } from '@forgewp/react';
 import { HeroSection } from '../components/HeroSection';
 import { FeaturedHotelsGrid } from '../components/FeaturedHotelsGrid';
@@ -8,6 +8,8 @@ import { ArrowRight } from 'lucide-react';
 
 export default function HomePage() {
   const { __ } = useWpI18n();
+  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
+  const listiclesHref = useWpPageLink('listicles-page', '/hotelvergleiche');
 
   return (
     <div className='min-h-screen w-full bg-slate-50 font-sans selection:bg-primary selection:text-white'>
@@ -64,7 +66,7 @@ export default function HomePage() {
               </p>
             </div>
             <WpLink
-              href='/hotels'
+              href={hotelsHref}
               className='hidden md:inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:text-primary/80 transition-colors'
             >
               {__('Alle Hotels')} <ArrowRight className='w-3.5 h-3.5' />
@@ -92,7 +94,7 @@ export default function HomePage() {
                 {__('Kein bezahltes Ranking. Kein Algorithmus. Nur ehrliche, redaktionell geprüfte Empfehlungen von unserem Team, das die Hotels selbst besucht hat.')}
               </p>
               <WpLink
-                href='/hotelvergleiche'
+                href={listiclesHref}
                 className='inline-flex items-center gap-2 bg-[#929f5d] hover:bg-[#929f5d]/90 text-white text-xs font-bold uppercase tracking-wider px-6 py-3 rounded-full transition-all duration-300 active:scale-95'
               >
                 {__('Alle Hotelvergleiche lesen')} <ArrowRight className='w-3.5 h-3.5' />
@@ -155,7 +157,7 @@ export default function HomePage() {
               </p>
             </div>
             <WpLink
-              href='/hotelvergleiche'
+              href={listiclesHref}
               className='hidden md:inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:text-primary/80 transition-colors'
             >
               {__('Alle Vergleiche')} <ArrowRight className='w-3.5 h-3.5' />

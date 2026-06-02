@@ -72,9 +72,12 @@ function DestinationsEmpty() {
   );
 }
 
-// ── Single destination card ────────────────────────────────────────────────────
 function DestinationCard({ term }: { term: WpTerm }) {
   const { __ } = useWpI18n();
+  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
+  const base = hotelsHref.includes('?') ? hotelsHref.split('?')[0] : hotelsHref;
+  const href = `${base.replace(/\/$/, '')}?country=${term.slug}`;
+
   const image =
     term.meta?.featured_image ||
     `https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80`;
@@ -82,7 +85,7 @@ function DestinationCard({ term }: { term: WpTerm }) {
 
   return (
     <WpLink
-      href={`/hotels?country=${term.slug}`}
+      href={href}
       className='relative overflow-hidden rounded-2xl aspect-square group cursor-pointer block'
     >
       <img

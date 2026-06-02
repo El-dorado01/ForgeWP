@@ -370,6 +370,64 @@ ${phpArgs}
   );
   processed = processed.replace(/<\/forgewp-image>/g, '');
 
+  // ── Declarative WpRepeater Loops ──
+  processed = processed.replace(
+    /<forgewp-repeater-start\s+name="([^"]+)"\s+subfields="([^"]+)"\s*\/?>/g,
+    (match, name, subfields) => {
+      const subfieldsArrayStr = subfields
+        .split(',')
+        .map((f) => `'${f.trim()}'`)
+        .join(', ');
+      
+      return `<?php
+  $repeater_key = '${name}';
+  $sub_fields = array(${subfieldsArrayStr});
+  $repeater_rows = forgewp_get_repeater_field($repeater_key, $sub_fields);
+  if (empty($repeater_rows)) {
+      $repeater_rows = array(array());
+  }
+  foreach ($repeater_rows as $row) {
+  ?>`;
+    }
+  );
+  processed = processed.replace(/<\/forgewp-repeater-start>/g, '');
+
+  processed = processed.replace(/<forgewp-repeater-end\s*\/?>/g, '');
+  processed = processed.replace(/<\/forgewp-repeater-end>/g, '<?php } ?>');
+
+  // ── Dynamic WpIcon Custom SVGs ──
+  processed = processed.replace(
+    /<forgewp-icon-placeholder\s+([^>]*)\/?>/g,
+    (match, attrsStr) => {
+      const getAttr = (name) => {
+        const regex = new RegExp(
+          `(?:${name}|${name.toLowerCase()})=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
+          'i',
+        );
+        const m = attrsStr.match(regex);
+        return m ? m[1] || m[2] || m[3] || '' : '';
+      };
+
+      const nameAttr = getAttr('name');
+      const provider = getAttr('provider') || 'lucide';
+      const className = getAttr('class') || getAttr('className') || '';
+
+      const fieldMatch = nameAttr.match(/__FORGEWP_REPEATER_FIELD_([a-zA-Z0-9_-]+)__/);
+      if (fieldMatch) {
+        const fieldName = fieldMatch[1];
+        return `<?php forgewp_render_theme_icon($row['${fieldName}'], '${className}', '${provider}'); ?>`;
+      }
+
+      return `<?php forgewp_render_theme_icon('${nameAttr}', '${className}', '${provider}'); ?>`;
+    }
+  );
+  processed = processed.replace(/<\/forgewp-icon-placeholder>/g, '');
+
+  processed = processed.replace(
+    /__FORGEWP_REPEATER_FIELD_([a-zA-Z0-9_-]+)__/g,
+    (match, fieldName) => `<?php echo esc_html($row['${fieldName}']); ?>`
+  );
+
   // ── Page Links Support ──
   processed = processed.replace(
     /__FORGEWP_PAGELINK_([a-zA-Z0-9_-]+)_DEFAULT_(.*?)__/g,

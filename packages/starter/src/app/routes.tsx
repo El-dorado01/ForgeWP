@@ -2,6 +2,7 @@ import { Route, Switch } from "wouter";
 import HomePage from "./page";
 import QuerySandbox from "./query-sandbox";
 import WpEditablePage from "./wp-editable";
+import RepeaterSandboxPage from "./repeater-sandbox";
 
 /**
  * Local Developer Routes — ForgeWP.
@@ -24,6 +25,9 @@ export default function AppRoutes() {
 
       {/* WpEditable Block Canvas Preview — verifies inline editing primitive */}
       <Route path="/wp-editable" component={WpEditablePage} />
+
+      {/* WpRepeater and WpIcon Sandbox — verifies loops and dynamic icons */}
+      <Route path="/repeater-sandbox" component={RepeaterSandboxPage} />
 
       {/* Fallback route */}
       <Route>

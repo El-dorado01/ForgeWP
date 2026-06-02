@@ -38,6 +38,12 @@ export type { WpHeadProps } from "./components/WpHead";
 export { WpImage } from "./components/WpImage";
 export type { WpImageProps } from "./components/WpImage";
 
+export { WpRepeater } from "./components/WpRepeater";
+export type { WpRepeaterProps } from "./components/WpRepeater";
+
+export { WpIcon } from "./components/WpIcon";
+export type { WpIconProps } from "./components/WpIcon";
+
 // Hooks & Utilities
 export {
   useWpTitle,

@@ -13,10 +13,12 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "react": ">=17.0.0"
+    "react": ">=17.0.0",
+    "lucide-react": "*"
   },
   "devDependencies": {
     "@types/react": "^19.1.4",
+    "lucide-react": "^0.475.0",
     "typescript": "^5.8.3"
   },
   "keywords": [

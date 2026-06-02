@@ -237,9 +237,11 @@ import {
   image,
   boolean,
   repeater,
+  WpRepeater,
+  WpIcon,
 } from '@forgewp/react';
 
-export { WpPostContext, defineEditable, text, richText, image, boolean, repeater };
+export { WpPostContext, defineEditable, text, richText, image, boolean, repeater, WpRepeater, WpIcon };
 
 import type {
   WpQueryLoopProps,
@@ -252,12 +254,30 @@ import type {
   WpPost,
   WpShortcodeProps,
   BlockAreaProps,
+  WpRepeaterProps,
+  WpIconProps,
 } from '@forgewp/react';
 
 const IS_DEV =
   typeof import.meta !== 'undefined' &&
   // @ts-ignore
   import.meta.env?.DEV === true;
+
+export function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  if (typeof window === 'undefined') {
+    return str
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'");
+  }
+  const txt = document.createElement('textarea');
+  txt.innerHTML = str;
+  return txt.value;
+}
 
 if (IS_DEV) {
   if (typeof window !== 'undefined') {
@@ -532,7 +552,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
         let apiBase = '';
         if (homeUrl) {
           try {
-            apiBase = new URL(homeUrl).pathname.replace(/\/$/, '');
+            apiBase = new URL(homeUrl).pathname.replace(new RegExp('/$'), '');
           } catch (e) {}
         }
         const fetchUrl = \`\${apiBase}/wp-json/wp/v2/\${endpoint}?\${params.toString()}\`;
@@ -730,7 +750,7 @@ export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolea
     let apiBase = '';
     if (homeUrl) {
       try {
-        apiBase = new URL(homeUrl).pathname.replace(/\/$/, '');
+        apiBase = new URL(homeUrl).pathname.replace(new RegExp('/$'), '');
       } catch (e) {}
     }
     const currentLang = (window as any).forgeWpLocale || (window as any).forgeWpTranslations?.currentLanguage;
@@ -931,7 +951,7 @@ export function WpHead(props: WpHeadProps) {
     />
   );
 }
-export type { WpHeadProps, WpImageProps, WpAttachment };
+export type { WpHeadProps, WpImageProps, WpAttachment, WpRepeaterProps, WpIconProps };
 
 export function WpImage(props: WpImageProps) {
   if (IS_DEV) {
@@ -1158,6 +1178,25 @@ declare global {
         'forgewp-block-area': React.DetailedHTMLProps<
           React.HTMLAttributes<HTMLElement> & {
             name?: string;
+          },
+          HTMLElement
+        >;
+        'forgewp-repeater-start': React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement> & {
+            name?: string;
+            subfields?: string;
+          },
+          HTMLElement
+        >;
+        'forgewp-repeater-end': React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement>,
+          HTMLElement
+        >;
+        'forgewp-icon-placeholder': React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement> & {
+            name?: string;
+            provider?: string;
+            class?: string;
           },
           HTMLElement
         >;

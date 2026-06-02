@@ -1,6 +1,6 @@
-import { WpHead, WpLink, useWpQuery, useWpI18n, useWpMeta, useWpPageLink, useWpLanguage, defineEditable, text, richText, BlockArea, image, repeater } from '../../.forgewp/wordpress';
+import { WpHead, WpLink, useWpQuery, useWpI18n, useWpMeta, useWpPageLink, useWpLanguage, defineEditable, text, richText, BlockArea, image, repeater, WpRepeater, WpIcon } from '../../.forgewp/wordpress';
 import {
-  ChevronRight, Award, Globe, Users, Shield, Star,
+  ChevronRight, Star,
   ArrowRight, BookOpen, MapPin,
 } from 'lucide-react';
 
@@ -23,25 +23,6 @@ interface TeamMember {
   avatar: string | { url: string };
 }
 
-const iconMap: Record<string, any> = {
-  award: Award,
-  shield: Shield,
-  globe: Globe,
-  users: Users,
-  star: Star,
-};
-
-const colorMap: Record<string, string> = {
-  award: 'text-primary bg-primary/10 border-primary/20',
-  shield: 'text-blue-600 bg-blue-50 border-blue-100',
-  globe: 'text-[#929f5d] bg-[#929f5d]/10 border-[#929f5d]/20',
-  users: 'text-amber-600 bg-amber-50 border-amber-100',
-};
-
-const getColorClasses = (icon: string) => {
-  return colorMap[icon?.toLowerCase()] || 'text-primary bg-primary/10 border-primary/20';
-};
-
 const getImageUrl = (imageVal: any) => {
   if (!imageVal) return '';
   if (typeof imageVal === 'string') return imageVal;
@@ -63,78 +44,15 @@ export function BerUnsPage() {
   const heroImage2 = useWpMeta('hero_image_2', 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80');
   const heroBadge = useWpMeta('hero_badge', __('Seit 2019 — Das unabhängige Luxushotel-Magazin'));
 
-  // Stats bar
-  const stats = useWpMeta<StatItem[]>('stats', [
-    { value: '500+', label: __('Hotels bewertet') },
-    { value: '40', label: __('Länder') },
-    { value: '80k', label: __('Leser / Monat') },
-    { value: '6', label: __('Jahre Erfahrung') },
-  ]);
-
   // Mission Section
   const missionBadge = useWpMeta('mission_badge', __('Unsere Mission'));
   const missionTitle = useWpMeta('mission_title', __('Ehrliche Empfehlungen.\nKeine Kompromisse.'));
   const missionContent = useWpMeta('mission_content', `<p>${__('Hotelchecker24 wurde 2019 in Wien gegründet, mit einem einfachen Versprechen: Hotels so zu bewerten, wie es eine gute Freundin mit Insider-Wissen tun würde — offen, ehrlich und ohne Werbeauftrag.')}</p><p>${__('Wir lehnen bezahlte Platzierungen und gesponserte Inhalte konsequent ab. Jedes Hotel, das wir empfehlen, hat unsere Redakteure persönlich überzeugt. Dafür nehmen wir uns die Zeit, die andere nicht aufwenden.')}</p><p>${__('Das Ergebnis: Eine kuratierte Auswahl an Unterkünften, der Sie vertrauen können — ob Stadtreise, Alpenerholung oder fernöstliches Abenteuer.')}</p>`);
 
-  // Values List
-  const values = useWpMeta<ValueItem[]>('values', [
-    {
-      icon: 'award',
-      title: __('Unabhängige Bewertung'),
-      description: __('Alle Hotels werden anonym von unseren Redakteuren besucht — keine bezahlten Platzierungen.'),
-      color: 'text-primary bg-primary/10 border-primary/20',
-    },
-    {
-      icon: 'shield',
-      title: __('Vertrauen & Transparenz'),
-      description: __('Unsere Kriterien sind öffentlich einsehbar. Wir legen offen, nach welchen Maßstäben wir urteilen.'),
-      color: 'text-blue-600 bg-blue-50 border-blue-100',
-    },
-    {
-      icon: 'globe',
-      title: __('Globale Reichweite'),
-      description: __('Über 500 Hotels in 40 Ländern bewertet — von Stadthotels bis zu abgelegenen Luxusresorts.'),
-      color: 'text-[#929f5d] bg-[#929f5d]/10 border-[#929f5d]/20',
-    },
-    {
-      icon: 'users',
-      title: __('Community-First'),
-      description: __('Mehr als 80.000 monatliche Leser vertrauen unseren Empfehlungen für ihre Reiseentscheidungen.'),
-      color: 'text-amber-600 bg-amber-50 border-amber-100',
-    },
-  ]);
-
   // Team Section
   const teamBadge = useWpMeta('team_badge', __('Das Team'));
   const teamTitle = useWpMeta('team_title', __('Unsere Redaktion'));
   const teamSubtitle = useWpMeta('team_subtitle', __('Ein kleines, leidenschaftliches Team von Reiseexperten, Journalisten und Hotelbewertungsprofis.'));
-
-  const teamMembers = useWpMeta<TeamMember[]>('team_members', [
-    {
-      name: 'Isabella von Habsburg',
-      role: __('Chefredakteurin'),
-      bio: __('Über 15 Jahre Erfahrung in der Luxushotellerie. Spezialisiert auf alpinen Wellness-Tourismus.'),
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
-    },
-    {
-      name: 'Matteo Bianchi',
-      role: __('Reiseredakteur'),
-      bio: __('Kenner des mediterranen Raums. Hat über 200 Hotels in Italien, Griechenland und Spanien bewertet.'),
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-    },
-    {
-      name: 'Sophie Lehmann',
-      role: __('Destinations-Expertin'),
-      bio: __('Spezialistin für City-Hotels und Boutique-Unterkünfte im deutschsprachigen Raum.'),
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=200&q=80',
-    },
-    {
-      name: 'Lars Eriksson',
-      role: __('Nordeuropa-Korrespondent'),
-      bio: __('Reist für uns durch Skandinavien und berichtet über Design-Hotels und Naturresorts.'),
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
-    },
-  ]);
 
   return (
     <main className="min-h-screen bg-[#fafaf8] font-sans select-none">
@@ -217,12 +135,22 @@ export function BerUnsPage() {
       <div className="bg-white border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
-            {stats.map(({ value, label }) => (
-              <div key={label} className="space-y-1">
-                <div className="text-2xl font-black text-slate-900 tracking-tight">{value}</div>
-                <div className="text-xs font-semibold text-slate-400">{label}</div>
-              </div>
-            ))}
+            <WpRepeater
+              name="stats"
+              defaultValue={[
+                { value: '500+', label: __('Hotels bewertet') },
+                { value: '40', label: __('Länder') },
+                { value: '80k', label: __('Leser / Monat') },
+                { value: '6', label: __('Jahre Erfahrung') },
+              ]}
+            >
+              {(row: StatItem, index) => (
+                <div key={index} className="space-y-1">
+                  <div className="text-2xl font-black text-slate-900 tracking-tight">{row.value}</div>
+                  <div className="text-xs font-semibold text-slate-400">{row.label}</div>
+                </div>
+              )}
+            </WpRepeater>
           </div>
         </div>
       </div>
@@ -251,19 +179,45 @@ export function BerUnsPage() {
             </WpLink>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            {values.map(({ icon, title, description, color }) => {
-              const IconComponent = iconMap[icon.toLowerCase()] || Star;
-              const computedColor = color || getColorClasses(icon);
-              return (
-                <div key={title} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs hover:shadow-md transition-shadow">
-                  <div className={`w-10 h-10 rounded-xl border flex items-center justify-center mb-3 ${computedColor}`}>
-                    <IconComponent className="w-5 h-5" />
+            <WpRepeater
+              name="values"
+              defaultValue={[
+                {
+                  icon: 'award',
+                  title: __('Unabhängige Bewertung'),
+                  description: __('Alle Hotels werden anonym von unseren Redakteuren besucht — keine bezahlten Platzierungen.'),
+                  color: 'text-primary bg-primary/10 border-primary/20',
+                },
+                {
+                  icon: 'shield',
+                  title: __('Vertrauen & Transparenz'),
+                  description: __('Unsere Kriterien sind öffentlich einsehbar. Wir legen offen, nach welchen Maßstäben wir urteilen.'),
+                  color: 'text-blue-600 bg-blue-50 border-blue-100',
+                },
+                {
+                  icon: 'globe',
+                  title: __('Globale Reichweite'),
+                  description: __('Über 500 Hotels in 40 Ländern bewertet — von Stadthotels bis zu abgelegenen Luxusresorts.'),
+                  color: 'text-[#929f5d] bg-[#929f5d]/10 border-[#929f5d]/20',
+                },
+                {
+                  icon: 'users',
+                  title: __('Community-First'),
+                  description: __('Mehr als 80.000 monatliche Leser vertrauen unseren Empfehlungen für ihre Reiseentscheidungen.'),
+                  color: 'text-amber-600 bg-amber-50 border-amber-100',
+                },
+              ]}
+            >
+              {(row: ValueItem, index) => (
+                <div key={index} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs hover:shadow-md transition-shadow">
+                  <div className={`w-10 h-10 rounded-xl border flex items-center justify-center mb-3 ${row.color || 'text-primary bg-primary/10 border-primary/20'}`}>
+                    <WpIcon name={row.icon} className="w-5 h-5" />
                   </div>
-                  <h3 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900 mb-1.5 leading-snug">{title}</h3>
-                  <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">{description}</p>
+                  <h3 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900 mb-1.5 leading-snug">{row.title}</h3>
+                  <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">{row.description}</p>
                 </div>
-              );
-            })}
+              )}
+            </WpRepeater>
           </div>
         </div>
       </div>
@@ -281,24 +235,54 @@ export function BerUnsPage() {
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {teamMembers.map((member) => (
-              <div
-                key={member.name}
-                className="bg-slate-50/70 border border-slate-100/90 rounded-3xl p-6 text-center hover:shadow-xl hover:-translate-y-1.5 hover:bg-white hover:border-primary/20 transition-all duration-300 group relative overflow-hidden flex flex-col items-center"
-              >
-                {/* Accent hover background blob */}
-                <div className="absolute top-0 right-0 w-28 h-28 bg-[radial-gradient(circle,rgba(146,159,93,0.08)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                
-                {/* Avatar Frame with custom borders */}
-                <div className="w-24 h-24 rounded-2xl overflow-hidden mb-4 p-1 border border-slate-200 group-hover:border-primary transition-colors duration-300 shadow-xs relative">
-                  <img src={getImageUrl(member.avatar)} alt={member.name} className="w-full h-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-500" />
+            <WpRepeater
+              name="team_members"
+              defaultValue={[
+                {
+                  name: 'Isabella von Habsburg',
+                  role: __('Chefredakteurin'),
+                  bio: __('Über 15 Jahre Erfahrung in der Luxushotellerie. Spezialisiert auf alpinen Wellness-Tourismus.'),
+                  avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
+                },
+                {
+                  name: 'Matteo Bianchi',
+                  role: __('Reiseredakteur'),
+                  bio: __('Kenner des mediterranen Raums. Hat über 200 Hotels in Italien, Griechenland und Spanien bewertet.'),
+                  avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+                },
+                {
+                  name: 'Sophie Lehmann',
+                  role: __('Destinations-Expertin'),
+                  bio: __('Spezialistin für City-Hotels und Boutique-Unterkünfte im deutschsprachigen Raum.'),
+                  avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=200&q=80',
+                },
+                {
+                  name: 'Lars Eriksson',
+                  role: __('Nordeuropa-Korrespondent'),
+                  bio: __('Reist für uns durch Skandinavien und berichtet über Design-Hotels und Naturresorts.'),
+                  avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
+                },
+              ]}
+            >
+              {(row: TeamMember, index) => (
+                <div
+                  key={index}
+                  className="bg-slate-50/70 border border-slate-100/90 rounded-3xl p-6 text-center hover:shadow-xl hover:-translate-y-1.5 hover:bg-white hover:border-primary/20 transition-all duration-300 group relative overflow-hidden flex flex-col items-center"
+                >
+                  {/* Accent hover background blob */}
+                  <div className="absolute top-0 right-0 w-28 h-28 bg-[radial-gradient(circle,rgba(146,159,93,0.08)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                  
+                  {/* Avatar Frame with custom borders */}
+                  <div className="w-24 h-24 rounded-2xl overflow-hidden mb-4 p-1 border border-slate-200 group-hover:border-primary transition-colors duration-300 shadow-xs relative">
+                    <img src={getImageUrl(row.avatar)} alt={row.name} className="w-full h-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-500" />
+                  </div>
+                  
+                  <h3 className="font-black text-slate-900 text-base uppercase tracking-tight group-hover:text-primary transition-colors duration-200">{row.name}</h3>
+                  <p className="text-xs font-mono font-bold uppercase tracking-wider text-primary mt-0.5 mb-3">{row.role}</p>
+                  <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-[200px]">{row.bio}</p>
                 </div>
-                
-                <h3 className="font-black text-slate-900 text-base uppercase tracking-tight group-hover:text-primary transition-colors duration-200">{member.name}</h3>
-                <p className="text-xs font-mono font-bold uppercase tracking-wider text-primary mt-0.5 mb-3">{member.role}</p>
-                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-[200px]">{member.bio}</p>
-              </div>
-            ))}
+              )}
+            </WpRepeater>
           </div>
         </div>
       </div>
@@ -480,27 +464,32 @@ export const editable = defineEditable({
       icon: text({ label: 'Icon (award, shield, globe, users)' }),
       title: text({ label: 'Title' }),
       description: text({ label: 'Description' }),
+      color: text({ label: 'Color Classes' }),
     },
     default: [
       {
         icon: 'award',
         title: 'Unabhängige Bewertung',
         description: 'Alle Hotels werden anonym von unseren Redakteuren besucht — keine bezahlten Platzierungen.',
+        color: 'text-primary bg-primary/10 border-primary/20',
       },
       {
         icon: 'shield',
         title: 'Vertrauen & Transparenz',
         description: 'Unsere Kriterien sind öffentlich einsehbar. Wir legen offen, nach welchen Maßstäben wir urteilen.',
+        color: 'text-blue-600 bg-blue-50 border-blue-100',
       },
       {
         icon: 'globe',
         title: 'Globale Reichweite',
         description: 'Über 500 Hotels in 40 Ländern bewertet — von Stadthotels bis zu abgelegenen Luxusresorts.',
+        color: 'text-[#929f5d] bg-[#929f5d]/10 border-[#929f5d]/20',
       },
       {
         icon: 'users',
         title: 'Community-First',
         description: 'Mehr als 80.000 monatliche Leser vertrauen unseren Empfehlungen für ihre Reiseentscheidungen.',
+        color: 'text-amber-600 bg-amber-50 border-amber-100',
       },
     ],
   }),

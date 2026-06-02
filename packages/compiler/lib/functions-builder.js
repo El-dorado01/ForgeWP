@@ -233,6 +233,37 @@ add_filter('pll_get_taxonomies', function($taxonomies, $is_settings) {
 ${registeredTaxonomies.map((tax) => `    $taxonomies['${tax}'] = '${tax}';`).join('\n')}
     return $taxonomies;
 }, 10, 2);`;
+
+    const taxArrayStr = registeredTaxonomies.map(tax => `'${tax}'`).join(', ');
+    php += `\n\n// Automatically expose custom taxonomy metadata in WordPress REST API
+add_action('rest_api_init', function() {
+    $taxonomies = array(${taxArrayStr});
+    foreach ($taxonomies as $tax) {
+        register_rest_field($tax, 'meta', array(
+            'get_callback' => function($term) use ($tax) {
+                $term_id = $term['id'];
+                
+                // Retrieve values using ACF if available, or direct term meta as fallback
+                $featured_image = function_exists('get_field') ? get_field('featured_image', 'term_' . $term_id) : null;
+                $flag = function_exists('get_field') ? get_field('flag', 'term_' . $term_id) : null;
+                
+                if (empty($featured_image)) {
+                    $featured_image = get_term_meta($term_id, 'featured_image', true);
+                }
+                if (empty($flag)) {
+                    $flag = get_term_meta($term_id, 'flag', true);
+                }
+                
+                return array(
+                    'featured_image' => !empty($featured_image) ? $featured_image : '',
+                    'flag'           => !empty($flag) ? $flag : ''
+                );
+            },
+            'update_callback' => null,
+            'schema'          => null,
+        ));
+    }
+});`;
   }
 
   if (translatablePtKeys.length > 0 || registeredTaxonomies.length > 0) {
@@ -976,10 +1007,11 @@ ${i18nKeysPhp}
         }
 
         $translated_dict = array();
+        if (is_array($json_dict)) {
+            $translated_dict = $json_dict;
+        }
         foreach ($i18n_keys as $key) {
-            if (isset($json_dict[$key])) {
-                $translated_dict[$key] = $json_dict[$key];
-            } else {
+            if (!isset($translated_dict[$key])) {
                 $translated_dict[$key] = function_exists('pll__') ? pll__($key) : __($key, '${config.textDomain}');
             }
         }
@@ -1422,5 +1454,32 @@ function forgewp_gettext_translation_bridge($translated, $text, $domain) {
 }
 add_filter('gettext', 'forgewp_gettext_translation_bridge', 10, 3);
 add_filter('ngettext', 'forgewp_gettext_translation_bridge', 10, 3);
+
+/**
+ * Dynamic SVG theme icon rendering callback.
+ * Maps dynamic icon slugs to inline SVGs from Lucide or custom developer uploads.
+ */
+function forgewp_render_theme_icon($icon_slug, $class_name = '', $provider = 'lucide') {
+    $svgs = array(
+        'award'  => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-award"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"></path><circle cx="12" cy="8" r="6"></circle></svg>',
+        'shield' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path></svg>',
+        'globe'  => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>',
+        'users'  => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-users"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
+    );
+
+    $custom_svgs = get_option(\'forgewp_custom_icons\', array());
+    if ($provider === \'custom\' && isset($custom_svgs[$icon_slug])) {
+        $svg = $custom_svgs[$icon_slug];
+    } else {
+        $svg = isset($svgs[$icon_slug]) ? $svgs[$icon_slug] : \'\';
+    }
+
+    if (!empty($svg)) {
+        if (!empty($class_name)) {
+            $svg = str_replace(\'<svg \', \'<svg class="\' . esc_attr($class_name) . \'" \', $svg);
+        }
+        echo $svg;
+    }
+}
 `;
 }
