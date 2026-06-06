@@ -94,6 +94,17 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === '--style') {
+      args.style = argv[i + 1];
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--style=')) {
+      args.style = arg.split('=')[1];
+      continue;
+    }
+
     if (arg.startsWith('-')) {
       console.error(pc.red(`Unknown option: ${arg}`));
       process.exit(1);
@@ -106,6 +117,11 @@ function parseArgs(argv) {
 
   if (!['react', 'html'].includes(args.adapter)) {
     console.error(pc.red(`Unsupported adapter: ${args.adapter}`));
+    process.exit(1);
+  }
+
+  if (args.style && !['forgewp', 'shadcn'].includes(args.style)) {
+    console.error(pc.red(`Unsupported style: ${args.style}`));
     process.exit(1);
   }
 
@@ -136,6 +152,16 @@ async function gatherConfig(cli, defaults) {
           { title: 'HTML', value: 'html' },
         ],
         initial: cli.adapter === 'html' ? 1 : 0,
+      },
+      {
+        type: (prev) => prev === 'react' ? 'select' : null,
+        name: 'style',
+        message: `${pc.cyan('✔')} Choose aesthetic style preset`,
+        choices: [
+          { title: 'ForgeWP (Sharp geometric corners)', value: 'forgewp' },
+          { title: 'Shadcn (Smooth modern curves)', value: 'shadcn' },
+        ],
+        initial: cli.style === 'shadcn' ? 1 : 0,
       },
       {
         type: cli.noInstall ? null : 'confirm',
@@ -180,6 +206,7 @@ async function gatherConfig(cli, defaults) {
         : `A premium block-theme built with React, Tailwind CSS, and ForgeWP.`,
     textDomain: slug,
     adapter,
+    style: response.style ?? defaults.style,
     install: response.install ?? false,
     packageManager: response.packageManager ?? detectPackageManager(),
   };
@@ -312,6 +339,7 @@ async function main() {
     description: `A premium block-theme built with React, Tailwind CSS, and ForgeWP.`,
     textDomain: slug,
     adapter: cli.adapter || 'react',
+    style: cli.style || 'forgewp',
     version: '0.1.0',
     install: !cli.noInstall,
     packageManager: detectPackageManager(),

@@ -1,4 +1,4 @@
-import { WpHead, WpLink, useWpI18n, useWpPageLink } from '../.forgewp/wordpress';
+import { WpHead, WpLink, useWpI18n, useWpPageLink, defineEditable, text } from '../.forgewp/wordpress';
 import { Hydrate } from '@forgewp/react';
 import { HeroSection } from '../components/HeroSection';
 import { FeaturedHotelsGrid } from '../components/FeaturedHotelsGrid';
@@ -187,3 +187,12 @@ export default function HomePage() {
     </div>
   );
 }
+
+export const editable = defineEditable({
+  hotel_of_the_month: text({
+    label: 'Hotel of the Month',
+    default: '6', // Default to Villa d'Este (ID 6 in mock data)
+    customType: 'relationship',
+    postTypes: ['hotel'],
+  }),
+});

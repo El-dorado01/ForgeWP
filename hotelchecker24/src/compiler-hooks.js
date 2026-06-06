@@ -59,11 +59,16 @@ function forgewp_mailpoet_rest_subscribe_callback($request) {
         return new WP_Error('mailpoet_error', $e->getMessage(), array('status' => 400));
     }
 }
+
+/**
+ * Enqueue Favicon dynamically in WordPress head.
+ */
+function forgewp_add_favicon() {
+    echo '<link rel="icon" type="image/svg+xml" href="' . get_template_directory_uri() . '/Logo/hotelchecker24-logo_farbe.svg">';
+}
+add_action('wp_head', 'forgewp_add_favicon');
 `;
   return php + mailpoetCode;
 }
 
-export {
-  processTemplateMarkup,
-  processFunctionsPhp
-};
+export { processTemplateMarkup, processFunctionsPhp };

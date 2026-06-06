@@ -551,6 +551,23 @@ export async function generateTheme({
     }
   }
 
+  // Load and merge keys from cms/translations.json
+  const translationsFileSrc = path.join(themeRoot, 'cms', 'translations.json');
+  if (existsSync(translationsFileSrc)) {
+    try {
+      const transData = JSON.parse(readFileSync(translationsFileSrc, 'utf8'));
+      for (const locale of Object.keys(transData)) {
+        if (transData[locale] && typeof transData[locale] === 'object') {
+          for (const key of Object.keys(transData[locale])) {
+            i18nKeys.add(key);
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore parse/read errors during build time
+    }
+  }
+
   // Fix nav links and split markup
   const processedApp = processMarkup(appHtml, config.textDomain);
   const processedHeader = processMarkup(headerHtml, config.textDomain);

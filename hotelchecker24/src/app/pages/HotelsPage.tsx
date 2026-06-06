@@ -5,8 +5,8 @@ import { HotelsWorkspace } from '../../components/HotelsWorkspace';
 
 export function HotelsPage() {
   const { __ } = useWpI18n();
-  const { urls, currentLanguage } = useWpLanguage();
-  const homeHref = urls[currentLanguage] || '/';
+  const { homeUrl } = useWpLanguage();
+  const homeHref = homeUrl;
 
   const heroTitle = useWpMeta('hero_title', __('Hotelverzeichnis'));
   const heroSubtitle = useWpMeta('hero_subtitle', __('Kuratierte Auswahl an Luxushotels, Boutique-Resorts und Stadthotels in den schönsten Reisezielen der Welt.'));

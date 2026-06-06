@@ -163,6 +163,17 @@ export interface FontFamilyPreset {
   fontFamily: string;
 }
 
+export interface ForgeWPI18nConfig {
+  locales: string[];
+  defaultLocale: string;
+  provider?: 'local' | 'deepl' | 'libretranslate' | 'google' | string;
+  cache?: string;
+  providerConfig?: {
+    apiKey?: string;
+    endpoint?: string;
+  };
+}
+
 export interface ForgeWPThemeConfig {
   name: string;
   slug: string;
@@ -171,6 +182,7 @@ export interface ForgeWPThemeConfig {
   textDomain: string;
   /** Design aesthetic style — "forgewp" (sharp edges, high-contrast) or "shadcn" (smooth rounded modern) */
   style?: "forgewp" | "shadcn";
+  i18n?: ForgeWPI18nConfig;
   // Design Tokens (Phase 5)
   settings?: {
     layout?: {
@@ -632,7 +644,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
                 : 'Admin',
             featuredImage,
             permalink: wp.link,
-            customFields: { ...(wp.meta || {}), ...(wp.acf || {}) },
+            customFields: { ...(wp.acf || {}), ...(wp.meta || {}) },
             _terms,
             __postType: wp.type || postType,
           };
@@ -772,7 +784,7 @@ export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolea
             slug: t.slug || '',
             description: t.description || '',
             count: t.count || 0,
-            meta: { ...(t.meta || {}), ...(t.acf || {}) },
+            meta: { ...(t.acf || {}), ...(t.meta || {}) },
           }))
         );
         setError(null);
@@ -1012,9 +1024,16 @@ export function useWpI18n() {
           return text;
         }
         const pathname = window.location.pathname;
-        const isEn = pathname.startsWith('/en');
-        const currentLang = isEn ? 'en' : 'de';
-        
+        const translations = translationsData || {};
+        const languages = Object.keys(translations).length > 0 ? Object.keys(translations) : ['de', 'en'];
+        const defaultLanguage = languages[0] || 'de';
+
+        const matchedLang = languages.find(lang => {
+          if (lang === defaultLanguage) return false;
+          return pathname.startsWith(\`/\${lang}/\`) || pathname === \`/\${lang}\`;
+        });
+        const currentLang = matchedLang || defaultLanguage;
+
         const dict = (translationsData as any)?.[currentLang];
         if (dict && typeof dict[text] !== "undefined") {
           return dict[text];
@@ -1062,20 +1081,41 @@ export { useWpSearch as useSearch };
 
 export function useWpLanguage() {
   if (IS_DEV) {
+    const translations = translationsData || {};
+    const languages = Object.keys(translations).length > 0 ? Object.keys(translations) : ['de', 'en'];
+    const defaultLanguage = languages[0] || 'de';
+
     const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
-    const isEn = pathname.startsWith('/en');
-    const currentLanguage = isEn ? 'en' : 'de';
-    const urls: Record<string, string> = { de: '/', en: '/en/' };
-    const languages = ['de', 'en'];
+    // Find if the path starts with one of the non-default languages, e.g. "/en" or "/en/"
+    const matchedLang = languages.find(lang => {
+      if (lang === defaultLanguage) return false;
+      return pathname.startsWith(\`/\${lang}/\`) || pathname === \`/\${lang}\`;
+    });
+    const currentLanguage = matchedLang || defaultLanguage;
+
+    // Generate URLs dynamically
+    const urls: Record<string, string> = {};
+    const homeUrls: Record<string, string> = {};
+    languages.forEach(lang => {
+      const url = lang === defaultLanguage ? '/' : \`/\${lang}/\`;
+      urls[lang] = url;
+      homeUrls[lang] = url;
+    });
+
+    const homeUrl = homeUrls[currentLanguage] || '/';
+
     const switchLanguage = React.useCallback((lang: string) => {
       if (typeof window !== 'undefined') {
-        window.location.href = urls[lang] || (lang === 'de' ? '/' : \`/\${lang}/\`);
+        window.location.href = urls[lang] || (lang === defaultLanguage ? '/' : \`/\${lang}/\`);
       }
-    }, [urls]);
+    }, [urls, defaultLanguage]);
+
     return {
       currentLanguage,
       languages,
       urls,
+      homeUrls,
+      homeUrl,
       switchLanguage,
     };
   }
@@ -1085,8 +1125,12 @@ export function useWpLanguage() {
   // Dynamic current language slug enqueued by WordPress
   const currentLanguage = translations?.currentLanguage || 'de';
 
-  // Dynamic dictionary mapping active language slugs to translation URLs
+  // Dynamic dictionary mapping active language slugs to translation counterpart URLs
   const urls: Record<string, string> = translations?.urls || { de: '/' };
+
+  // Dynamic dictionary mapping active language slugs to home page URLs
+  const homeUrls: Record<string, string> = translations?.homeUrls || { de: '/' };
+  const homeUrl = homeUrls[currentLanguage] || '/';
 
   // Dynamic list of active language slugs enqueued on the site
   const languages = React.useMemo(() => Object.keys(urls), [urls]);
@@ -1106,6 +1150,8 @@ export function useWpLanguage() {
     currentLanguage,
     languages,
     urls,
+    homeUrls,
+    homeUrl,
     switchLanguage,
   };
 }

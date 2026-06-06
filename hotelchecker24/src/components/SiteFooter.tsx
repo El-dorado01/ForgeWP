@@ -1,22 +1,41 @@
-import React from "react";
 import { 
   Instagram, 
   Facebook, 
   Twitter, 
-  Mail, 
-  ArrowRight,
-  Globe
+  Globe,
+  Youtube,
+  Linkedin
 } from "lucide-react";
-import { WpMenu, useWpOption, useWpThemeMod, useWpThemeUri, useWpI18n, useWpLanguage, WpLink } from "../.forgewp/wordpress";
+import { WpMenu, useWpOption, useWpThemeMod, useWpThemeUri, useWpI18n, useWpLanguage, useWpPageLink, WpLink } from "../.forgewp/wordpress";
+
+const TiktokIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={props.className}
+    style={props.style}
+  >
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .57.04.84.13V9.25a6.29 6.29 0 0 0-1.84-.27A6.3 6.3 0 0 0 2 15.28a6.3 6.3 0 0 0 10.3 4.84V8a8.29 8.29 0 0 0 5.3 1.9v-3.2a4.81 4.81 0 0 1 1.99-.01z" />
+  </svg>
+);
+
+const PinterestIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={props.className}
+    style={props.style}
+  >
+    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.08 3.16 9.42 7.63 11.16-.1-.95-.2-2.4 0-3.43l1.24-5.27s-.32-.64-.32-1.57c0-1.48.86-2.58 1.92-2.58.9 0 1.34.68 1.34 1.5 0 .9-.58 2.27-.88 3.53-.25 1.06.53 1.92 1.58 1.92 1.9 0 3.36-2 3.36-4.88 0-2.55-1.83-4.33-4.44-4.33-3.03 0-4.8 2.27-4.8 4.6 0 .92.35 1.9.8 2.44.09.1.1.18.07.3l-.3 1.22c-.05.2-.16.24-.37.14C4.85 16.48 4 13.9 4 11.42c0-4.07 2.96-7.8 8.52-7.8 4.47 0 7.95 3.19 7.95 7.45 0 4.44-2.8 8.02-6.7 8.02-1.3 0-2.53-.68-2.95-1.48l-.8 3.05c-.29 1.1-.1 2.47-.02 2.62.94.29 1.93.44 2.97.44 6.63 0 12-5.37 12-12S18.63 0 12 0z" />
+  </svg>
+);
 
 export default function SiteFooter() {
   const { __ } = useWpI18n();
-  const { urls, currentLanguage } = useWpLanguage();
-  const homeHref = urls[currentLanguage] || '/';
-  const [email, setEmail] = React.useState("");
-  const [newsletterStatus, setNewsletterStatus] = React.useState<'idle' | 'sending' | 'success' | 'error'>('idle');
-  const [newsletterError, setNewsletterError] = React.useState('');
+  const { homeUrl } = useWpLanguage();
+  const homeHref = homeUrl;
   const themeUri = useWpThemeUri();
+  const impressumHref = useWpPageLink('impressum-page', '/impressum');
 
   // Retrieve dynamic site branding options
   const blogDescription = useWpOption(
@@ -25,9 +44,23 @@ export default function SiteFooter() {
   );
 
   // Retrieve dynamic social media options
-  const socialFacebook = useWpOption("social_facebook", "https://facebook.com/hotelchecker24");
-  const socialInstagram = useWpOption("social_instagram", "https://instagram.com/hotelchecker24");
-  const socialTwitter = useWpOption("social_twitter", "https://twitter.com/hotelchecker24");
+  const socialFacebook = useWpOption("social_facebook", "");
+  const socialInstagram = useWpOption("social_instagram", "");
+  const socialTwitter = useWpOption("social_twitter", "");
+  const socialYoutube = useWpOption("social_youtube", "");
+  const socialTiktok = useWpOption("social_tiktok", "");
+  const socialLinkedin = useWpOption("social_linkedin", "");
+  const socialPinterest = useWpOption("social_pinterest", "");
+
+  const socialList = [
+    { icon: <Instagram className="w-4 h-4" />, url: socialInstagram, label: "Instagram" },
+    { icon: <Facebook className="w-4 h-4" />, url: socialFacebook, label: "Facebook" },
+    { icon: <Twitter className="w-4 h-4" />, url: socialTwitter, label: "Twitter" },
+    { icon: <Youtube className="w-4 h-4" />, url: socialYoutube, label: "YouTube" },
+    { icon: <TiktokIcon className="w-4 h-4" />, url: socialTiktok, label: "TikTok" },
+    { icon: <Linkedin className="w-4 h-4" />, url: socialLinkedin, label: "LinkedIn" },
+    { icon: <PinterestIcon className="w-4 h-4" />, url: socialPinterest, label: "Pinterest" },
+  ].filter(social => social.url && social.url.trim() !== "");
 
   // Retrieve dynamic theme customization options
   const footerText = useWpThemeMod(
@@ -35,42 +68,16 @@ export default function SiteFooter() {
     `© ${new Date().getFullYear()} Hotelchecker24. All rights reserved.`
   );
 
-  const handleSubscribe = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
-    setNewsletterStatus('sending');
-    setNewsletterError('');
-    try {
-      const res = await fetch('/wp-json/mailpoet/v1/subscribers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, status: 'subscribed' }),
-      });
-      if (res.ok) {
-        setNewsletterStatus('success');
-        setEmail('');
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setNewsletterError(data?.error?.message || __('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.'));
-        setNewsletterStatus('error');
-      }
-    } catch {
-      setNewsletterError(__('Netzwerkfehler. Bitte prüfen Sie Ihre Verbindung.'));
-      setNewsletterStatus('error');
-    }
-  };
-
   return (
     <footer className="bg-[#121416] text-[#b3b8bc] border-t border-slate-900 py-16 px-4 sm:px-6 lg:px-8 font-sans select-none relative z-10 overflow-hidden">
       {/* Premium Multi-Color Ambient Backdrop Glows */}
       <div className="absolute -bottom-32 -right-32 w-125 h-125 bg-[radial-gradient(circle,rgba(109,155,174,0.22)_0%,transparent_70%)] blur-[120px] pointer-events-none animate-pulse duration-[8s]" />
       <div className="absolute -top-32 -left-32 w-100 h-100 bg-[radial-gradient(circle,rgba(146,159,93,0.18)_0%,transparent_70%)] blur-[100px] pointer-events-none animate-pulse duration-[6s]" />
-      
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-12 md:gap-8 pb-12 border-b border-slate-800/70">
+        <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row gap-12 md:gap-8 pb-12 border-b border-slate-800/70 justify-between items-start">
           
-          {/* COLUMN 1: Editorial Branding (Span 5) */}
-          <div className="md:col-span-5 flex flex-col items-start">
+          {/* COLUMN 1: Editorial Branding */}
+          <div className="flex-1 min-w-[280px] max-w-md flex flex-col items-start">
             {/* Logo with clean silver-white filter */}
             <WpLink href={homeHref} className="hover:opacity-90 transition-opacity mb-6">
               <img 
@@ -83,16 +90,16 @@ export default function SiteFooter() {
             <p className="text-[#8e9499] text-sm font-sans font-normal leading-relaxed max-w-sm mb-6">
               {blogDescription}
             </p>
-
+ 
             {/* Language indicator & signal */}
             <div className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 bg-slate-800/40 border border-slate-800/60 px-3 py-1 rounded-md">
               <Globe className="w-3.5 h-3.5 text-[#929f5d]" />
               <span>{__('Sprachen: DE / EN')}</span>
             </div>
           </div>
-
-          {/* COLUMN 2: Navigation Links (Span 3) */}
-          <div className="md:col-span-3">
+ 
+          {/* COLUMN 2: Navigation Links */}
+          <div className="flex-1 min-w-[200px] max-w-xs md:pl-8">
             <h4 className="text-white text-xs font-mono font-bold uppercase tracking-widest mb-6">
               {__('Navigation')}
             </h4>
@@ -102,102 +109,46 @@ export default function SiteFooter() {
               linkClassName="hover:text-white hover:translate-x-0.5 transition-all duration-300"
             />
           </div>
-
-          {/* COLUMN 3: Newsletter & Socials (Span 4) */}
-          <div className="md:col-span-4 flex flex-col">
-            <h4 className="text-white text-xs font-mono font-bold uppercase tracking-widest mb-6">
-              {__('Newsletter')}
-            </h4>
-            <p className="text-[#8e9499] text-sm leading-relaxed mb-4">
-              {__('Abonnieren Sie exklusive Hotelempfehlungen und Reise-Inspirationen direkt in Ihr Postfach.')}
-            </p>
-            
-            {/* Minimalist Newsletter Form */}
-            {newsletterStatus === 'success' ? (
-              <div className="flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 mb-6">
-                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                  <ArrowRight className="w-3.5 h-3.5 text-primary" />
-                </div>
-                <p className="text-xs font-semibold text-primary">
-                  {__('Danke! Sie erhalten in Kürze eine Bestätigungsmail.')}
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubscribe} className="flex items-center w-full mb-2 relative">
-                <div className="relative w-full flex items-center bg-[#1c1f22]/90 border border-slate-800 focus-within:border-primary/50 rounded-xl transition-all duration-300">
-                  <Mail className="w-3.5 h-3.5 text-slate-500 absolute left-3.5 pointer-events-none" />
-                  <input 
-                    type="email" 
-                    required
-                    placeholder={__('Ihre E-Mail-Adresse...')}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={newsletterStatus === 'sending'}
-                    className="w-full bg-transparent border-0 outline-none text-xs text-white placeholder-slate-500 py-3.5 pl-10 pr-12 font-medium disabled:opacity-50"
-                  />
-                  <button 
-                    type="submit"
-                    disabled={newsletterStatus === 'sending'}
-                    className="absolute right-2 p-2 bg-primary hover:bg-primary/95 disabled:opacity-60 text-white rounded-lg transition-colors cursor-pointer"
-                    aria-label={__('Abonnieren')}
+ 
+          {/* COLUMN 3: Socials & Community */}
+          {socialList.length > 0 && (
+            <div data-forgewp-hide-empty-socials="" className="flex-1 min-w-[280px] max-w-sm flex flex-col">
+              <h4 className="text-white text-xs font-mono font-bold uppercase tracking-widest mb-6">
+                {__('Social Media')}
+              </h4>
+              <p className="text-[#8e9499] text-sm leading-relaxed mb-6">
+                {__('Folgen Sie uns auf unseren Social-Media-Kanälen für tägliche Hotelempfehlungen und exklusive Reiseberichte.')}
+              </p>
+              
+              {/* Socials Connection Row */}
+              <div className="flex items-center gap-3">
+                {socialList.map((social, sIdx) => (
+                  <a 
+                    key={sIdx} 
+                    href={social.url} 
+                    aria-label={social.label}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-8 h-8 rounded-full border border-slate-800 bg-[#1c1f22]/50 text-slate-400 hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center transition-all duration-300 cursor-pointer"
                   >
-                    {newsletterStatus === 'sending' ? (
-                      <span className="w-3.5 h-3.5 block rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                    ) : (
-                      <ArrowRight className="w-3.5 h-3.5 text-white" />
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
-            {newsletterStatus === 'error' && (
-              <p className="text-[10px] text-red-400 font-semibold mb-4">{newsletterError}</p>
-            )}
-
-            {/* Socials Connection Row */}
-            <div className="flex items-center gap-3">
-              {[
-                { icon: <Instagram className="w-4 h-4" />, url: socialInstagram, label: "Instagram" },
-                { icon: <Facebook className="w-4 h-4" />, url: socialFacebook, label: "Facebook" },
-                { icon: <Twitter className="w-4 h-4" />, url: socialTwitter, label: "Twitter" },
-              ].map((social, sIdx) => (
-                <a 
-                  key={sIdx} 
-                  href={social.url} 
-                  aria-label={social.label}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-8 h-8 rounded-full border border-slate-800 bg-[#1c1f22]/50 text-slate-400 hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center transition-all duration-300 cursor-pointer"
-                >
-                  {social.icon}
-                </a>
-              ))}
+                    {social.icon}
+                  </a>
+                ))}
+              </div>
             </div>
-
-          </div>
-
-        </div>
-
-        {/* MASSIVE BRUTALIST WATERMARK BANNER */}
-        <div className="w-full text-center overflow-hidden py-6 sm:py-10 my-4 select-none pointer-events-none">
-          <span 
-            translate="no"
-            className="notranslate text-[13vw] sm:text-[13vw] md:text-[13.5vw] lg:text-[14vw] xl:text-[172px] font-sans font-black tracking-tighter text-white/20 leading-none block select-none whitespace-nowrap"
-          >
-            Hotelchecker
-            <span 
-              translate="no"
-              className="notranslate text-[0.5em] font-bold relative top-[-0.55em] ml-1 inline-block tracking-normal"
-            >
-              24
-            </span>
-          </span>
+          )}
+ 
         </div>
 
         {/* BOTTOM METADATA BAR */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
           <div>
             {footerText || `© ${new Date().getFullYear()} Hotelchecker24. ${__('Alle Rechte vorbehalten.')}`}
+          </div>
+          <div className="flex items-center gap-6">
+            <WpLink href={impressumHref} className="hover:text-white transition-colors">
+              {__('Impressum')}
+            </WpLink>
           </div>
         </div>
 

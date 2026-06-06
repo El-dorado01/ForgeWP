@@ -12,9 +12,9 @@ export function Navbar() {
   const contactHref = useWpPageLink('kontakt-page', '/contact');
 
   // Simple unified, dynamic framework hook!
-  const { currentLanguage, switchLanguage, urls } = useWpLanguage();
+  const { currentLanguage, switchLanguage, homeUrl } = useWpLanguage();
   const isEnglish = currentLanguage === 'en';
-  const homeHref = urls[currentLanguage] || '/';
+  const homeHref = homeUrl;
 
   const handleLanguageToggle = (checked: boolean) => {
     switchLanguage(checked ? 'en' : 'de');
@@ -73,7 +73,7 @@ export function Navbar() {
         </div>
 
         {/* CENTER: Centrally Placed Logo */}
-        <div className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 shrink-0'>
+        <div className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 shrink-0'>
           <WpLink
             href={homeHref}
             className='flex items-center justify-center hover:opacity-90 transition-opacity'

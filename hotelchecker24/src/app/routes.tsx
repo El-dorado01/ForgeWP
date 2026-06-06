@@ -6,6 +6,7 @@ import { BerUnsPage } from "./pages/BerUnsPage";
 import { KontaktPage } from "./pages/KontaktPage";
 import { SingleListiclePage } from "./pages/SingleListiclePage";
 import { SingleHotelPage } from "./pages/SingleHotelPage";
+import { ImpressumPage } from "./pages/ImpressumPage";
 
 /**
  * Local Developer Routes — ForgeWP.
@@ -23,6 +24,8 @@ export default function AppRoutes() {
     <Switch>
       {/* Home preview */}
       <Route path="/" component={HomePage} />
+
+      <Route path="/impressum" component={ImpressumPage} />
 
       <Route path="/hotelvergleiche" component={ListiclesPage} />
       <Route path="/hotelvergleich/:id" component={SingleListiclePage} />

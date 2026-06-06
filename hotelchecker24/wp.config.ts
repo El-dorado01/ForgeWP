@@ -1,6 +1,6 @@
-import type { ForgeWPThemeConfig } from "./src/lib/forgewp-config";
+import { defineConfig } from "@forgewp/compiler/define-config";
 
-const config: ForgeWPThemeConfig = {
+export default defineConfig({
   name: "Hotelchecker24",
   slug: "hotelchecker24",
   version: "1.0.0",
@@ -8,6 +8,11 @@ const config: ForgeWPThemeConfig = {
   textDomain: "hotelchecker24",
   frameworkAdapter: "react",
   style: "shadcn",
+  i18n: {
+    locales: ["en", "de"],
+    defaultLocale: "en",
+    provider: "local",
+  },
 
   postTypes: {
     listicle: {
@@ -47,6 +52,7 @@ const config: ForgeWPThemeConfig = {
         { name: "Ubuntu", slug: "sans", fontFamily: "Ubuntu, system-ui, sans-serif" },
         { name: "Ubuntu Heading", slug: "heading", fontFamily: "Ubuntu, system-ui, sans-serif" },
         { name: "Serif (Lora)", slug: "serif", fontFamily: "Lora, Georgia, serif" },
+        { name: "Mono (Serif)", slug: "mono", fontFamily: "Lora, Georgia, serif" },
       ],
       googleFonts: [
         "Ubuntu:wght@300;400;500;700",
@@ -54,6 +60,4 @@ const config: ForgeWPThemeConfig = {
       ],
     },
   },
-};
-
-export default config;
+});

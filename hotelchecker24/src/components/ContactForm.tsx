@@ -21,6 +21,21 @@ export default function ContactForm({
   const [status, setStatus] = React.useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = React.useState('');
 
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const subjectParam = params.get('subject');
+      const hotelParam = params.get('inquiry_hotel');
+      if (subjectParam || hotelParam) {
+        setForm((prev) => ({
+          ...prev,
+          subject: subjectParam || prev.subject,
+          message: hotelParam ? `${__('Anfrage zu Hotel:')} ${hotelParam}\n\n` : prev.message,
+        }));
+      }
+    }
+  }, [__]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
@@ -80,6 +95,7 @@ export default function ContactForm({
 
   return (
     <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-6 sm:p-8">
+      <div className="hidden" aria-hidden="true">{__('Anfrage zu Hotel:')}</div>
       <h2 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1 pl-3 border-l-4 border-primary">
         {formTitle}
       </h2>

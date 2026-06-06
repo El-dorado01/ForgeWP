@@ -24,6 +24,17 @@ export interface CustomPostTypeConfig {
   };
 }
 
+export interface ForgeWPI18nConfig {
+  locales: string[];
+  defaultLocale: string;
+  provider?: 'local' | 'deepl' | 'libretranslate' | 'google' | string;
+  cache?: string;
+  providerConfig?: {
+    apiKey?: string;
+    endpoint?: string;
+  };
+}
+
 export interface ForgeWPThemeConfig {
   name: string;
   slug: string;
@@ -33,6 +44,7 @@ export interface ForgeWPThemeConfig {
   frameworkAdapter?: 'react' | 'html' | 'stub';
   style?: 'forgewp' | 'shadcn';
   postTypes?: Record<string, CustomPostTypeConfig>;
+  i18n?: ForgeWPI18nConfig;
   settings?: {
     layout?: {
       contentSize?: string;
@@ -122,6 +134,8 @@ export function exportTheme(options: {
 }>;
 
 export function loadConfig(themeRoot: string): Promise<ForgeWPThemeConfig>;
+
+export function defineConfig(config: ForgeWPThemeConfig): ForgeWPThemeConfig;
 
 export function validateCriticalFiles(themeRoot: string): void;
 

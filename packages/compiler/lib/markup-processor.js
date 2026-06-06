@@ -102,10 +102,7 @@ export function processMarkup(html, textDomain = 'theme') {
         }
       );
       const isRichText = decoded.includes('<p>') || decoded.includes('</p>') || decoded.includes('<br') || key.includes('subtitle') || key.includes('content') || key.includes('bio');
-      const echoExpr = isRichText
-        ? `echo !empty(\$meta_val) ? wpautop(\$meta_val) : '${cleanDecoded}';`
-        : `echo esc_html( !empty(\$meta_val) ? \$meta_val : '${cleanDecoded}' );`;
-      return `<?php \$meta_val = get_post_meta( get_the_ID(), '${key}', true ); ${echoExpr} ?>`;
+      return `<?php echo forgewp_get_meta_value( '${key}', '${cleanDecoded}', ${isRichText ? 'true' : 'false'} ); ?>`;
     }
   );
 
@@ -128,15 +125,8 @@ export function processMarkup(html, textDomain = 'theme') {
         getAttr('linkClassName') || getAttr('linkclassname') || '';
 
       return `<?php
-  $locations = get_nav_menu_locations();
-  $loc_key = '${location}';
-  if (function_exists('pll_current_language')) {
-      $lang = pll_current_language();
-      if ($lang && isset($locations[$loc_key . '___' . $lang])) {
-          $loc_key = $loc_key . '___' . $lang;
-      }
-  }
-  $menu_id = isset($locations[$loc_key]) ? $locations[$loc_key] : null;
+  $lang = function_exists('pll_current_language') ? pll_current_language() : (defined('ICL_LANGUAGE_CODE') ? ICL_LANGUAGE_CODE : '');
+  $menu_id = function_exists('forgewp_get_menu_id_for_lang') ? forgewp_get_menu_id_for_lang('${location}', $lang) : null;
   $menu_items = $menu_id ? wp_get_nav_menu_items($menu_id) : array();
   if (!empty($menu_items)) {
       echo '<nav class="${className}">';
@@ -434,7 +424,12 @@ ${phpArgs}
     (match, name, defaultVal) => {
       const decoded = decodeURIComponent(defaultVal);
       return `<?php 
-      $matched_pages = get_pages(array('meta_key' => '_wp_page_template', 'meta_value' => 'page-${name}.php', 'number' => 1));
+      $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
+      $get_pages_args = array('meta_key' => '_wp_page_template', 'meta_value' => 'page-${name}.php', 'number' => 1);
+      if (!empty($current_lang)) {
+          $get_pages_args['lang'] = $current_lang;
+      }
+      $matched_pages = get_pages($get_pages_args);
       echo esc_url(!empty($matched_pages) ? get_permalink($matched_pages[0]->ID) : '${decoded.replace(/'/g, "\\'")}'); 
       ?>`;
     },
@@ -443,10 +438,76 @@ ${phpArgs}
     /__FORGEWP_PAGELINK_([a-zA-Z0-9_-]+)__/g,
     (match, name) => {
       return `<?php 
-      $matched_pages = get_pages(array('meta_key' => '_wp_page_template', 'meta_value' => 'page-${name}.php', 'number' => 1));
+      $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
+      $get_pages_args = array('meta_key' => '_wp_page_template', 'meta_value' => 'page-${name}.php', 'number' => 1);
+      if (!empty($current_lang)) {
+          $get_pages_args['lang'] = $current_lang;
+      }
+      $matched_pages = get_pages($get_pages_args);
       echo esc_url(!empty($matched_pages) ? get_permalink($matched_pages[0]->ID) : ''); 
       ?>`;
     },
+  );
+
+  // ── Auto-hide social media container if no social links exist ──
+  let searchIndex = 0;
+  while (true) {
+    const matchStart = processed.indexOf('data-forgewp-hide-empty-socials', searchIndex);
+    if (matchStart === -1) {
+      break;
+    }
+    const divStart = processed.lastIndexOf('<div', matchStart);
+    if (divStart === -1) {
+      searchIndex = matchStart + 31;
+      continue;
+    }
+    const openTagEnd = processed.indexOf('>', matchStart);
+    if (openTagEnd === -1) {
+      searchIndex = matchStart + 31;
+      continue;
+    }
+    const contentStartIndex = openTagEnd + 1;
+    const matchEnd = findMatchingClosingDiv(processed, contentStartIndex);
+    if (matchEnd !== -1) {
+      const fullBlock = processed.substring(divStart, matchEnd);
+      const optionMatches = Array.from(fullBlock.matchAll(/__FORGEWP_OPTION_(social_[a-zA-Z0-9_-]+)__/g));
+      const optionNames = Array.from(new Set(optionMatches.map(m => m[1])));
+      const cleanBlock = fullBlock.replace(/\s*data-forgewp-hide-empty-socials="[^"]*"/gi, '').replace(/\s*data-forgewp-hide-empty-socials/gi, '');
+      let replacement = cleanBlock;
+      if (optionNames.length > 0) {
+        const conditions = optionNames.map(name => `! empty( get_option( '${name}' ) )`).join(' || ');
+        replacement = `<?php if ( ${conditions} ) : ?>${cleanBlock}<?php endif; ?>`;
+      }
+      processed = processed.substring(0, divStart) + replacement + processed.substring(matchEnd);
+      searchIndex = divStart + replacement.length;
+    } else {
+      searchIndex = matchStart + 31;
+    }
+  }
+
+  // ── Auto-hide empty social links / options ──
+  // If an <a> tag has href="__FORGEWP_OPTION_social_xxx__" and the option is empty, wrap it in a PHP conditional block.
+  processed = processed.replace(
+    /<a\b([^>]*?href=["']__FORGEWP_OPTION_([a-zA-Z0-9_-]+)__["'][^>]*?)>([\s\S]*?)<\/a>/gi,
+    (match, attributes, name, content) => {
+      if (name.startsWith('social_')) {
+        const cleanAttrs = attributes.replace(`__FORGEWP_OPTION_${name}__`, `<?php echo esc_url( get_option( '${name}' ) ); ?>`);
+        return `<?php if ( ! empty( get_option( '${name}' ) ) ) : ?><a${cleanAttrs}>${content}</a><?php endif; ?>`;
+      }
+      return match;
+    }
+  );
+
+  processed = processed.replace(
+    /<a\b([^>]*?href=["']__FORGEWP_OPTION_([a-zA-Z0-9_-]+)_DEFAULT_(.*?)__["'][^>]*?)>([\s\S]*?)<\/a>/gi,
+    (match, attributes, name, defaultVal, content) => {
+      if (name.startsWith('social_')) {
+        const decoded = decodeURIComponent(defaultVal);
+        const cleanAttrs = attributes.replace(`__FORGEWP_OPTION_${name}_DEFAULT_${defaultVal}__`, `<?php echo esc_url( get_option( '${name}', '${decoded}' ) ); ?>`);
+        return `<?php if ( ! empty( get_option( '${name}' ) ) ) : ?><a${cleanAttrs}>${content}</a><?php endif; ?>`;
+      }
+      return match;
+    }
   );
 
   // ── Options & Customizer Theme Mods Support ──
@@ -494,4 +555,24 @@ ${phpArgs}
   );
 
   return processed;
+}
+
+function findMatchingClosingDiv(html, startIndex) {
+  let openCount = 1;
+  let index = startIndex;
+  while (openCount > 0 && index < html.length) {
+    const nextOpen = html.indexOf('<div', index);
+    const nextClose = html.indexOf('</div>', index);
+    if (nextClose === -1) {
+      break;
+    }
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      openCount++;
+      index = nextOpen + 4;
+    } else {
+      openCount--;
+      index = nextClose + 6;
+    }
+  }
+  return openCount === 0 ? index : -1;
 }

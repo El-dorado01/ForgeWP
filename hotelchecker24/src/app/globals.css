@@ -6,6 +6,7 @@
   /* Font Family Mappings */
   --font-sans: var(--wp--preset--font-family--sans, "Ubuntu", "Segoe UI", system-ui, sans-serif);
   --font-serif: var(--wp--preset--font-family--serif, "Lora", Georgia, serif);
+  --font-mono: var(--wp--preset--font-family--mono, var(--font-serif));
   --font-heading: var(--wp--preset--font-family--heading, "Ubuntu", var(--font-sans));
 
   /* Color Palette Mappings */
@@ -42,3 +43,461 @@
     @apply min-h-screen bg-bg-light font-sans text-text-slate;
   }
 }
+
+/* =====================================================================
+   EDITORIAL PROSE STYLING FOR POST CONTENT
+   ===================================================================== */
+.prose {
+  /* Farben */
+  --hc-brand:       #6d9bae;            /* Petrol-Blau – interaktiv/Akzent    */
+  --hc-brand-tint:  rgba(109,155,174,.08);
+  --hc-accent:      #929f5d;            /* Salbeigrün – redaktioneller Akzent */
+  --hc-ink:         #1e293b;            /* Haupttext / dunkel                 */
+  --hc-ink-deep:    #0f172a;            /* Überschriften / stärkster Kontrast */
+  --hc-body:        #475569;            /* Fließtext (slate-600)              */
+  --hc-muted:       #64748b;            /* Sekundärtext / Bildunterschriften  */
+  --hc-border:      #e2e8f0;            /* Linien / Rahmen (slate-200)        */
+  --hc-tint:        #f8fafc;            /* Zebra / dezenter Hintergrund       */
+ 
+  /* Radien */
+  --hc-radius:      .625rem;
+  --hc-radius-lg:   .875rem;
+ 
+  /* Schriften */
+  --hc-sans: "Ubuntu","Segoe UI",system-ui,sans-serif;
+  --hc-serif:"Lora",Georgia,serif;
+ 
+  /* Lese-Grundeinstellung */
+  font-family: var(--hc-sans);
+  color: var(--hc-body);
+  font-size: 1.0625rem;                 /* 17px – angenehmer als die 14px-Vorgabe */
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+ 
+/* Kein Abstand über dem ersten Element */
+.prose > *:first-child { margin-top: 0; }
+ 
+/* =====================================================================
+   1) ABSÄTZE
+   ===================================================================== */
+.prose p {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--hc-body);
+  margin: 0 0 1.2em;
+}
+ 
+/* Intro / Lead – erster Absatz bekommt mehr Gewicht */
+.prose > p:first-of-type {
+  font-size: 1.2rem;
+  line-height: 1.65;
+  color: var(--hc-ink);
+  margin-bottom: 1.5em;
+}
+ 
+/* =====================================================================
+   2) ÜBERSCHRIFTEN
+   H1/H2 = starke Sektionsmarke (uppercase wie im Theme)
+   H3/H4 = ruhigere Unter-Hierarchie (normal-case für bessere Lesbarkeit)
+   ===================================================================== */
+.prose h1 {
+  font-family: var(--hc-sans);
+  font-weight: 900;
+  font-size: clamp(1.9rem, 4vw, 2.4rem);
+  line-height: 1.12;
+  letter-spacing: -.02em;
+  text-transform: uppercase;
+  color: var(--hc-ink-deep);
+  margin: 0 0 1rem;
+}
+ 
+.prose h2 {
+  font-family: var(--hc-sans);
+  font-weight: 900;
+  font-size: clamp(1.5rem, 3vw, 1.75rem);
+  line-height: 1.2;
+  letter-spacing: -.01em;
+  text-transform: uppercase;
+  color: var(--hc-ink-deep);
+  margin: 2.5rem 0 .9rem;
+}
+/* Dezenter Salbei-Akzent unter jeder H2 */
+.prose h2::after {
+  content: "";
+  display: block;
+  width: 2.5rem;
+  height: 3px;
+  margin-top: .55rem;
+  background: var(--hc-accent);
+  border-radius: 2px;
+}
+ 
+.prose h3 {
+  font-family: var(--hc-sans);
+  font-weight: 700;
+  font-size: 1.3rem;
+  line-height: 1.3;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--hc-ink);
+  margin: 1.9rem 0 .6rem;
+}
+ 
+.prose h4 {
+  font-family: var(--hc-sans);
+  font-weight: 700;
+  font-size: 1.075rem;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--hc-ink);
+  margin: 1.5rem 0 .5rem;
+}
+ 
+/* Überschrift direkt nach Überschrift: oberen Abstand reduzieren */
+.prose h2 + h3,
+.prose h3 + h4 { margin-top: .9rem; }
+ 
+/* =====================================================================
+   3) HERVORHEBUNGEN
+   ===================================================================== */
+.prose strong { color: var(--hc-ink-deep); font-weight: 600; }
+.prose em     { font-style: italic; }
+.prose mark {
+  background: rgba(146,159,93,.18);   /* Salbei-Tint */
+  color: inherit;
+  padding: .05em .25em;
+  border-radius: .2rem;
+}
+ 
+/* =====================================================================
+   4) LINKS
+   ===================================================================== */
+.prose a {
+  color: var(--hc-brand);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color .15s ease;
+}
+.prose a:hover { border-bottom-color: var(--hc-brand); }
+ 
+/* =====================================================================
+   5) LISTEN
+   ===================================================================== */
+.prose ul,
+.prose ol {
+  margin: 0 0 1.2em;
+}
+.prose ul {
+  list-style: none;
+  padding-left: 1.4rem;
+}
+.prose li {
+  line-height: 1.65;
+  margin: .35rem 0;
+}
+.prose li > p { margin: 0; }
+ 
+/* Eigener ul-Marker */
+.prose ul > li { position: relative; }
+.prose ul > li::before {
+  content: "";
+  position: absolute;
+  left: -1.4rem;
+  top: .58em;
+  width: .45rem;
+  height: .45rem;
+  border-radius: 2px;
+  background: var(--hc-brand);
+}
+ 
+/* ol-Nummern in Brand-Farbe */
+.prose li::marker     { color: inherit; }
+.prose ol > li::marker { color: var(--hc-brand); font-weight: 600; }
+ 
+/* =====================================================================
+   6) VERGLEICHSTABELLE
+   ===================================================================== */
+.prose table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 2.25rem 0;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  overflow: hidden;
+  font-family: var(--hc-sans);
+  font-size: .875rem;
+  line-height: 1.45;
+}
+ 
+/* Kopfzeile */
+.prose thead th {
+  background: var(--hc-ink);
+  color: #fff;
+  font-weight: 600;
+  font-size: .72rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: .9rem 1rem;
+  vertical-align: middle;
+  border: none;
+}
+ 
+/* Datenzellen */
+.prose tbody td {
+  padding: .85rem 1rem;
+  text-align: left;
+  vertical-align: top;
+  color: var(--hc-ink);
+  border-top: 1px solid var(--hc-border);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+ 
+/* Erste Spalte (Hotelname) */
+.prose tbody td:first-child {
+  font-family: var(--hc-serif);
+  font-weight: 500;
+  font-size: .95rem;
+  color: var(--hc-ink-deep);
+}
+ 
+/* Zebra-Streifen + Hover */
+.prose tbody tr:nth-child(even) { background: var(--hc-tint); }
+.prose tbody tr:hover           { background: var(--hc-brand-tint); }
+ 
+/* =====================================================================
+   7) FAQ-AKKORDEON
+   ===================================================================== */
+.prose details {
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius);
+  background: #fff;
+  margin: .75rem 0;
+  overflow: hidden;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.prose details[open] {
+  border-color: var(--hc-brand);
+  box-shadow: 0 8px 22px -14px rgba(109,155,174,.55);
+}
+ 
+/* Die Frage */
+.prose summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  font-family: var(--hc-sans);
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.35;
+  color: var(--hc-ink);
+  transition: color .2s ease;
+}
+.prose summary:hover { color: var(--hc-brand); }
+.prose summary::-webkit-details-marker { display: none; }
+ 
+/* Eigener +/−-Marker rechts */
+.prose summary::after {
+  content: "+";
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--hc-brand);
+  border-radius: .4rem;
+  color: var(--hc-brand);
+  font-family: var(--hc-sans);
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1;
+  transition: background .2s ease, color .2s ease;
+}
+.prose details[open] summary::after {
+  content: "−";
+  background: var(--hc-brand);
+  color: #fff;
+}
+ 
+/* Die Antwort */
+.prose details > *:not(summary) {
+  margin: 0;
+  padding: 0 1.25rem 1.25rem;
+  color: var(--hc-muted);
+  font-size: .9rem;
+  line-height: 1.65;
+}
+.prose details[open] > *:not(summary) { animation: hcFaqReveal .25s ease; }
+ 
+@keyframes hcFaqReveal {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+ 
+/* =====================================================================
+   8) BLOCKQUOTE
+   ===================================================================== */
+.prose blockquote {
+  border-left: 3px solid var(--hc-brand);
+  background: var(--hc-tint);
+  margin: 1.75rem 0;
+  padding: 1.1rem 1.4rem;
+  border-radius: 0 var(--hc-radius) var(--hc-radius) 0;
+  font-family: var(--hc-serif);
+  font-style: italic;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--hc-ink);
+}
+.prose blockquote p { margin: 0; }
+ 
+/* =====================================================================
+   9) TRENNLINIE
+   ===================================================================== */
+.prose hr {
+  border: 0;
+  height: 1px;
+  background: var(--hc-border);
+  margin: 2.75rem 0;
+}
+ 
+/* =====================================================================
+   10) BILDER & BILDUNTERSCHRIFTEN
+   ===================================================================== */
+.prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--hc-radius-lg);
+  display: block;
+}
+.prose figure { margin: 2rem 0; }
+.prose figcaption {
+  margin-top: .6rem;
+  font-size: .8rem;
+  color: var(--hc-muted);
+  text-align: center;
+  line-height: 1.5;
+}
+ 
+/* =====================================================================
+   11) INLINE-CODE
+   ===================================================================== */
+.prose code {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: .85em;
+  background: var(--hc-tint);
+  color: var(--hc-ink-deep);
+  padding: .12em .4em;
+  border: 1px solid var(--hc-border);
+  border-radius: .3rem;
+}
+ 
+/* =====================================================================
+   12) TEXTAUSWAHL
+   ===================================================================== */
+.prose ::selection {
+  background: rgba(109,155,174,.25);
+  color: var(--hc-ink-deep);
+}
+ 
+/* =====================================================================
+   13) LISTICLE-ÜBERSICHT
+   ===================================================================== */
+.prose .listicle-overview {
+  list-style: none;
+  margin: 2rem 0;
+  padding: 0;
+  counter-reset: hc-rank;
+  border-top: 1px solid var(--hc-border);
+}
+ 
+.prose .listicle-overview > li {
+  list-style: none;
+  counter-increment: hc-rank;
+  position: relative;
+  margin: 0;
+  padding: 1.15rem .35rem 1.15rem 3.6rem;
+  border-bottom: 1px solid var(--hc-border);
+  font-family: var(--hc-sans);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--hc-body);
+  transition: background .2s ease;
+}
+.prose .listicle-overview > li:hover      { background: var(--hc-brand-tint); }
+.prose .listicle-overview > li:last-child { border-bottom: none; }
+ 
+.prose .listicle-overview > li::before {
+  content: counter(hc-rank, decimal-leading-zero);
+  position: absolute;
+  left: .35rem;
+  top: .9rem;
+  font-family: var(--hc-serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 2.3rem;
+  line-height: 1;
+  color: var(--hc-brand);
+  width: auto;
+  height: auto;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  transform: none;
+}
+ 
+.prose .listicle-overview > li strong {
+  font-family: var(--hc-sans);
+  font-weight: 700;
+  color: var(--hc-ink-deep);
+}
+ 
+.prose .listicle-overview > li a {
+  color: var(--hc-ink-deep);
+  border-bottom: 1px solid transparent;
+}
+.prose .listicle-overview > li a:hover { border-bottom-color: var(--hc-brand); }
+ 
+/* =====================================================================
+   14) RESPONSIVE
+   ===================================================================== */
+@media (max-width: 640px) {
+  .prose,
+  .prose p { font-size: 1rem; line-height: 1.7; }
+  .prose > p:first-of-type { font-size: 1.1rem; }
+ 
+  .prose h2 { margin-top: 2rem; }
+  .prose h3 { font-size: 1.2rem; }
+ 
+  .prose table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .prose thead th { font-size: .68rem; padding: .75rem .8rem; }
+  .prose tbody td { padding: .7rem .8rem; }
+ 
+  .prose summary { padding: .85rem 1rem; font-size: .95rem; }
+  .prose summary::after { width: 1.6rem; height: 1.6rem; font-size: 1.1rem; }
+  .prose details > *:not(summary) { padding: 0 1rem 1rem; }
+ 
+  .prose .listicle-overview > li {
+    padding: .95rem .2rem .95rem 3rem;
+    font-size: 1rem;
+  }
+  .prose .listicle-overview > li::before {
+    left: .2rem;
+    font-size: 1.85rem;
+  }
+}
+

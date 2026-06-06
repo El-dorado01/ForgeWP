@@ -52,13 +52,30 @@ function syncTemplate(srcDir, destDir, requiredFiles, templateName) {
   const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
   pkg.name = templateName;
 
+  // Pin @forgewp/compiler and @forgewp/react workspace:* → real semver so standalone installs work
   if (pkg.devDependencies?.["@forgewp/compiler"]) {
     const compilerPkgPath = path.join(root, "packages", "compiler", "package.json");
     const compilerPkg = JSON.parse(readFileSync(compilerPkgPath, "utf8"));
     pkg.devDependencies["@forgewp/compiler"] = `^${compilerPkg.version}`;
   }
 
+  if (pkg.dependencies?.["@forgewp/react"]) {
+    const reactPkgPath = path.join(root, "packages", "react", "package.json");
+    const reactPkg = JSON.parse(readFileSync(reactPkgPath, "utf8"));
+    pkg.dependencies["@forgewp/react"] = `^${reactPkg.version}`;
+  }
+
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+
+  // Inject path mapping for @forgewp/react to resolve type definitions in the CLI template workspace
+  const tsConfigPath = path.join(destDir, "tsconfig.json");
+  if (existsSync(tsConfigPath)) {
+    const tsconfig = JSON.parse(readFileSync(tsConfigPath, "utf8"));
+    if (!tsconfig.compilerOptions) tsconfig.compilerOptions = {};
+    if (!tsconfig.compilerOptions.paths) tsconfig.compilerOptions.paths = {};
+    tsconfig.compilerOptions.paths["@forgewp/react"] = ["../../react/src/index.ts"];
+    writeFileSync(tsConfigPath, `${JSON.stringify(tsconfig, null, 2)}\n`, "utf8");
+  }
 
   // Validate required files are present
   const missing = requiredFiles.filter((file) => !existsSync(path.join(destDir, file)));

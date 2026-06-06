@@ -1,7 +1,6 @@
 {
   "_comment": "⚡ ForgeWP Navigation Menus — Edit this file to add/remove links in local dev.",
   "primary": [
-    { "title": "Startseite", "url": "/" },
     { "title": "Hotelvergleiche", "url": "/hotelvergleiche" },
     { "title": "Hotels", "url": "/hotels" },
     { "title": "Über uns", "url": "/about" }

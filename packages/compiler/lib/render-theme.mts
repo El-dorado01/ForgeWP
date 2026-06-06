@@ -1,7 +1,10 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
+import { pathToFileURL, fileURLToPath } from "node:url";
+import { createRequire, register } from "node:module";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+register(pathToFileURL(path.join(__dirname, "asset-loader.js")).href);
 
 const themeRoot = process.argv[2];
 

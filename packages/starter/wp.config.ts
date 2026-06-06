@@ -1,12 +1,19 @@
-import type { ForgeWPThemeConfig } from './src/.forgewp/forgewp-config';
+import { defineConfig } from '@forgewp/compiler/define-config';
 
-const config: ForgeWPThemeConfig = {
+export default defineConfig({
   name: 'ForgeWP Starter',
   slug: 'forgewp-starter',
   version: '0.1.0',
   description: 'A clean default canvas for building block-themes with ForgeWP.',
   textDomain: 'forgewp-starter',
   style: 'forgewp', // "forgewp" (sharp corners) or "shadcn" (smooth modern curves)
+  frameworkAdapter: 'react',
+
+  i18n: {
+    locales: ['en', 'de'],
+    defaultLocale: 'en',
+    provider: 'local',
+  },
 
   settings: {
     layout: {
@@ -54,6 +61,4 @@ const config: ForgeWPThemeConfig = {
       ],
     },
   },
-};
-
-export default config;
+});

@@ -78,9 +78,12 @@ function DestinationCard({ term }: { term: WpTerm }) {
   const base = hotelsHref.includes('?') ? hotelsHref.split('?')[0] : hotelsHref;
   const href = `${base.replace(/\/$/, '')}?country=${term.slug}`;
 
-  const image =
-    term.meta?.featured_image ||
-    `https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80`;
+  const rawImage = term.meta?.featured_image;
+  const image = (typeof rawImage === 'object' && rawImage !== null)
+    ? rawImage.url || `https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80`
+    : (typeof rawImage === 'string' && rawImage)
+      ? rawImage
+      : `https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80`;
   const flag = term.meta?.flag || '🌍';
 
   return (

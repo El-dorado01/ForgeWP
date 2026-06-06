@@ -1,3 +1,4 @@
+import React from 'react';
 import { useRoute } from 'wouter';
 import { Hydrate } from '@forgewp/react';
 import { HotelListicles } from '../../components/HotelListicles';
@@ -29,10 +30,43 @@ import {
   Mail,
 } from 'lucide-react';
 
+const DEFAULT_GALLERIES: Record<number, string[]> = {
+  1: [ // Grand Ferdinand Vienna
+    'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800&q=80',
+  ],
+  2: [ // Forestis Dolomites
+    'https://images.unsplash.com/photo-1549294413-26f195afcbce?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=800&q=80',
+  ],
+  3: [ // Schloss Elmau
+    'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=800&q=80',
+  ],
+  4: [ // The Chedi Andermatt
+    'https://images.unsplash.com/photo-1517840901100-8179e982acb7?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80',
+  ],
+  5: [ // San Luis Retreat Hotel & Lodges
+    'https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1544644181-1484b3fdfc62?auto=format&fit=crop&w=800&q=80',
+  ],
+  6: [ // Villa d'Este
+    'https://images.unsplash.com/photo-1531572753726-0fd026b5b2b9?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1516483638261-f4dbaf036963?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=800&q=80',
+  ]
+};
+
 export function SingleHotelPage() {
   const { __ } = useWpI18n();
-  const { urls, currentLanguage } = useWpLanguage();
-  const homeHref = urls[currentLanguage] || '/';
+  const { homeUrl } = useWpLanguage();
+  const homeHref = homeUrl;
   const hotelsHref = useWpPageLink('hotels-page', '/hotels');
   const [, params] = useRoute('/hotel/:id');
   const routeParam = params?.id;
@@ -56,6 +90,8 @@ export function SingleHotelPage() {
 
   // Isomorphic dynamic mapping (compiles directly to WP loops in production)
   const title = useWpTitle() || devPost?.title || __('Luxushotel');
+  const kontaktHref = useWpPageLink('kontakt-page', '/kontakt');
+  const inquiryUrl = `${kontaktHref}?subject=hotel-inquiry&inquiry_hotel=${encodeURIComponent(title)}`;
   const content =
     useWpContent() || devPost?.content || `<p>${__('Lade Hoteldetails...')}</p>`;
   const excerpt = useWpExcerpt() || devPost?.excerpt || '';
@@ -100,8 +136,24 @@ export function SingleHotelPage() {
     String(devPost?.customFields?.contact_email || '');
 
   // Terms mapping
-  // Terms mapping
   const categoryName = useWpTaxonomyList('category', 'Boutique');
+
+  // Gallery custom fields
+  const galleryImage1 = useWpCustomField('gallery_image_1') || String(devPost?.customFields?.gallery_image_1 || '');
+  const galleryImage2 = useWpCustomField('gallery_image_2') || String(devPost?.customFields?.gallery_image_2 || '');
+  const galleryImage3 = useWpCustomField('gallery_image_3') || String(devPost?.customFields?.gallery_image_3 || '');
+
+  const galleryImages = React.useMemo(() => {
+    const customImages = [galleryImage1, galleryImage2, galleryImage3].filter(Boolean);
+    if (customImages.length > 0) return customImages;
+
+    const hotelIdNum = Number(id);
+    return DEFAULT_GALLERIES[hotelIdNum] || [
+      'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=800&q=80',
+    ];
+  }, [id, galleryImage1, galleryImage2, galleryImage3]);
 
   return (
     <main className="min-h-screen bg-[#fafaf8] selection:bg-primary selection:text-white font-sans select-none pb-24">
@@ -156,6 +208,29 @@ export function SingleHotelPage() {
                 dangerouslySetInnerHTML={{ __html: content }}
               />
             </article>
+
+            {/* ── EDITORIAL PHOTO GALLERY ─────────────────────────── */}
+            <div className="bg-white border border-slate-200/50 shadow-xs rounded-2xl p-5 sm:p-7 space-y-6 overflow-hidden">
+              <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight text-slate-950 border-l-4 border-primary pl-4">
+                {__('Impressionen & Galerie')}
+              </h3>
+              <div className="flex sm:grid overflow-x-auto sm:overflow-x-visible snap-x snap-mandatory sm:snap-none sm:grid-cols-3 gap-4 pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
+                {galleryImages.map((imgUrl, index) => (
+                  <div 
+                    key={index}
+                    className="relative aspect-4/3 rounded-xl overflow-hidden border border-slate-100 group shadow-xs bg-slate-100 snap-start shrink-0 w-[80vw] sm:w-auto"
+                  >
+                    <img 
+                      src={imgUrl} 
+                      alt={`${title} - ${__('Galeriebild')} ${index + 1}`}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                  </div>
+                ))}
+              </div>
+            </div>
 
             <Hydrate trigger="load">
               <HotelListicles hotelId={id} />
@@ -236,9 +311,12 @@ export function SingleHotelPage() {
                   </a>
                 )}
               </div>
-              <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 h-9 px-4 w-full bg-primary hover:bg-primary/95 text-white font-bold text-[10px] uppercase tracking-wider py-4 rounded-xl cursor-pointer shadow-xs transition-all duration-300 active:scale-95 mt-2">
+              <WpLink 
+                href={inquiryUrl}
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 h-9 px-4 w-full bg-primary hover:bg-primary/95 text-white font-bold text-[10px] uppercase tracking-wider py-4 rounded-xl cursor-pointer shadow-xs transition-all duration-300 active:scale-95 mt-2"
+              >
                 {__('Jetzt Aufenthalt anfragen')}
-              </button>
+              </WpLink>
             </div>
 
             <div className="pt-1">
@@ -285,5 +363,17 @@ export const editable = defineEditable({
   city: text({
     label: 'City',
     default: 'Vienna',
+  }),
+  gallery_image_1: text({
+    label: 'Gallery Image 1 (URL)',
+    default: '',
+  }),
+  gallery_image_2: text({
+    label: 'Gallery Image 2 (URL)',
+    default: '',
+  }),
+  gallery_image_3: text({
+    label: 'Gallery Image 3 (URL)',
+    default: '',
   }),
 });

@@ -23,8 +23,8 @@ import ListicleRankedHotels from '../../components/ListicleRankedHotels';
 
 export function SingleListiclePage() {
   const { __ } = useWpI18n();
-  const { urls, currentLanguage } = useWpLanguage();
-  const homeHref = urls[currentLanguage] || '/';
+  const { homeUrl } = useWpLanguage();
+  const homeHref = homeUrl;
   const listiclesHref = useWpPageLink('listicles-page', '/hotelvergleiche');
   const [, params] = useRoute('/hotelvergleich/:id');
   const routeParam = params?.id;

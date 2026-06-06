@@ -42,11 +42,9 @@ async function checkHydrationData() {
       try {
         const data = JSON.parse(transMatch[1]);
         console.log('\n=== forgeWpTranslations ===');
-        console.log('currentLanguage:', data.currentLanguage);
-        console.log('urls:', JSON.stringify(data.urls));
+        console.log('full data:', JSON.stringify(data));
       } catch(e) {
-        const langMatch = transMatch[1].match(/"currentLanguage"\s*:\s*"([^"]+)"/);
-        console.log('currentLanguage:', langMatch ? langMatch[1] : 'not found');
+        console.log('Failed parsing JSON:', e.message);
       }
     }
     

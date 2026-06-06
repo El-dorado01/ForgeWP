@@ -31,8 +31,8 @@ const getImageUrl = (imageVal: any) => {
 
 export function BerUnsPage() {
   const { __ } = useWpI18n();
-  const { urls, currentLanguage } = useWpLanguage();
-  const homeHref = urls[currentLanguage] || '/';
+  const { homeUrl } = useWpLanguage();
+  const homeHref = homeUrl;
   const contactHref = useWpPageLink('kontakt-page', '/contact');
   const hotelsHref = useWpPageLink('hotels-page', '/hotels');
   const { posts: latestListicles } = useWpQuery({ postType: 'listicle', postsPerPage: 3 });

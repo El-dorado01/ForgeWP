@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWpLocation, useWpTerms, useWpI18n } from '../.forgewp/wordpress';
+import { useWpLocation, useWpTerms, useWpI18n, useWpMeta, useWpQuery, WpLink, useWpPageLink } from '../.forgewp/wordpress';
 import {
   Search,
   MapPin,
@@ -13,9 +13,56 @@ import { Button } from './ui/button';
 export function HeroSection() {
   const { __ } = useWpI18n();
   const [, setLocation] = useWpLocation();
+  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
+  const hotelsPath = React.useMemo(() => {
+    try {
+      return new URL(hotelsHref, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').pathname;
+    } catch (e) {
+      return hotelsHref;
+    }
+  }, [hotelsHref]);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState('');
   const [selectedCountry, setSelectedCountry] = React.useState('');
+
+  // Dynamically resolve the spotlight hotel ID set by the admin on the homepage
+  const hotelOfTheMonthId = useWpMeta('hotel_of_the_month', '6'); // default to ID 6 (Villa d'Este)
+
+  const { posts: hotels } = useWpQuery({
+    postType: 'hotel',
+    postsPerPage: 100,
+  });
+
+  const spotlight = React.useMemo(() => {
+    if (!hotels || hotels.length === 0) return null;
+
+    let targetId = hotelOfTheMonthId;
+    if (Array.isArray(targetId)) {
+      const firstVal = targetId[0];
+      targetId = typeof firstVal === 'object' && firstVal !== null ? (firstVal.ID || firstVal.id) : firstVal;
+    } else if (typeof targetId === 'string' && targetId.trim()) {
+      try {
+        const parsed = JSON.parse(targetId);
+        if (Array.isArray(parsed)) {
+          const firstVal = parsed[0];
+          targetId = typeof firstVal === 'object' && firstVal !== null ? (firstVal.ID || firstVal.id) : firstVal;
+        }
+      } catch (e) {}
+      if (String(targetId).includes(',')) {
+        targetId = String(targetId).split(',')[0].trim();
+      }
+    }
+
+    const found = hotels.find((h) => String(h.id) === String(targetId));
+    return found || hotels[0];
+  }, [hotels, hotelOfTheMonthId]);
+
+  const spotlightTitle = spotlight ? spotlight.title : "Villa d'Este";
+  const spotlightRating = spotlight ? String(spotlight.customFields?.rating || '4.9') : '4.9';
+  const spotlightCity = spotlight ? String(spotlight.customFields?.city || spotlight.customFields?.location || '') : 'Comer See';
+  const spotlightCountry = spotlight ? (spotlight as any)._terms?.country?.[0]?.name || 'Italien' : 'Italien';
+  const spotlightImage = spotlight ? (typeof spotlight.featuredImage === 'object' && spotlight.featuredImage !== null ? (spotlight.featuredImage as any).url : String(spotlight.featuredImage)) : 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=800&q=80';
+  const spotlightLink = spotlight ? (spotlight.permalink || `/hotel/${spotlight.id}`) : '#';
 
   const [categoryOpen, setCategoryOpen] = React.useState(false);
   const [countryOpen, setCountryOpen] = React.useState(false);
@@ -71,7 +118,7 @@ export function HeroSection() {
     if (searchTerm.trim()) params.append('s', searchTerm.trim());
     if (selectedCategory) params.append('category', selectedCategory);
     if (selectedCountry) params.append('country', selectedCountry);
-    setLocation(`/hotels?${params.toString()}`);
+    setLocation(`${hotelsPath}?${params.toString()}`);
   };
 
   return (
@@ -259,12 +306,15 @@ export function HeroSection() {
         </div>
 
         {/* RIGHT COLUMN: Premium Magazine Splash Image & Float Card (Column Span 5) */}
-        <div className='lg:col-span-5 flex items-center justify-center relative w-full mt-8 lg:mt-0'>
-          <div className='relative w-full aspect-4/5 sm:max-w-md lg:max-w-none rounded-[40px] overflow-hidden border border-slate-200/60 shadow-2xl group'>
+        <WpLink
+          href={spotlightLink}
+          className='lg:col-span-5 flex items-center justify-center relative w-full mt-8 lg:mt-0 cursor-pointer group'
+        >
+          <div className='relative w-full aspect-4/5 sm:max-w-md lg:max-w-none rounded-[40px] overflow-hidden border border-slate-200/60 shadow-2xl'>
             {/* Curated Luxury Hotel Image */}
             <img
-              src='https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=800&q=80'
-              alt='Boutique Luxury Infinity Pool overlooking Amalfi Coast'
+              src={spotlightImage}
+              alt={spotlightTitle}
               className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out'
             />
 
@@ -278,18 +328,18 @@ export function HeroSection() {
                   {__('Hotel des Monats')}
                 </span>
                 <h4 className='font-sans font-black text-slate-800 text-lg leading-tight'>
-                  Villa d'Este
+                  {spotlightTitle}
                 </h4>
                 <p className='text-slate-500 text-xs font-medium flex items-center gap-1.5 mt-0.5'>
                   <MapPin className='w-3.5 h-3.5 text-primary' />
-                  Comer See, Italien
+                  {spotlightCity}{spotlightCountry ? `, ${spotlightCountry}` : ''}
                 </p>
               </div>
 
               <div className='flex flex-col items-end shrink-0'>
                 <span className='text-xs font-bold text-slate-800 flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 shadow-xs'>
                   <Star className='w-3.5 h-3.5 text-accent fill-accent' />
-                  4.9
+                  {spotlightRating}
                 </span>
                 <span className='text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider'>
                   {__('Hervorragend')}
@@ -297,7 +347,7 @@ export function HeroSection() {
               </div>
             </div>
           </div>
-        </div>
+        </WpLink>
       </div>
     </section>
   );

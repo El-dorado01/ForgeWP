@@ -11,11 +11,17 @@
     ".": {
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
+    },
+    "./define-config": {
+      "types": "./define-config.d.ts",
+      "default": "./define-config.js"
     }
   },
   "files": [
     "bin",
-    "lib"
+    "lib",
+    "define-config.js",
+    "define-config.d.ts"
   ],
   "engines": {
     "node": ">=18"

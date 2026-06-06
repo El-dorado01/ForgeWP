@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWpSearch, useWpLocation, useWpI18n, useWpTerms } from '../.forgewp/wordpress';
+import { useWpSearch, useWpLocation, useWpI18n, useWpTerms, useWpPageLink } from '../.forgewp/wordpress';
 import { Search, SlidersHorizontal, MapPin, Tag } from 'lucide-react';
 import { HotelsGrid } from './HotelsGrid';
 import { Hydrate } from '@forgewp/react';
@@ -8,6 +8,14 @@ export function HotelsWorkspace() {
   const { __ } = useWpI18n();
   const searchString = useWpSearch();
   const [, setLocation] = useWpLocation();
+  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
+  const hotelsPath = React.useMemo(() => {
+    try {
+      return new URL(hotelsHref, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').pathname;
+    } catch (e) {
+      return hotelsHref;
+    }
+  }, [hotelsHref]);
   const params = React.useMemo(() => new URLSearchParams(searchString), [searchString]);
 
   const keyword = params.get('q') || params.get('s') || '';
@@ -44,7 +52,7 @@ export function HotelsWorkspace() {
     }
     newParams.delete('s');
     const qs = newParams.toString();
-    setLocation(qs ? `/hotels?${qs}` : '/hotels');
+    setLocation(qs ? `${hotelsPath}?${qs}` : hotelsPath);
   };
 
   const setFilter = (key: 'country' | 'category', value: string) => {
@@ -55,7 +63,7 @@ export function HotelsWorkspace() {
       newParams.delete(key);
     }
     const qs = newParams.toString();
-    setLocation(qs ? `/hotels?${qs}` : '/hotels');
+    setLocation(qs ? `${hotelsPath}?${qs}` : hotelsPath);
   };
 
   return (

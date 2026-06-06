@@ -5,8 +5,8 @@ import { ListiclesWorkspace } from '../../components/ListiclesWorkspace';
 
 export function ListiclesPage() {
   const { __ } = useWpI18n();
-  const { urls, currentLanguage } = useWpLanguage();
-  const homeHref = urls[currentLanguage] || '/';
+  const { homeUrl } = useWpLanguage();
+  const homeHref = homeUrl;
 
   const heroBadge = useWpMeta('hero_badge', __('Redaktionelles Magazin'));
   const heroTitle = useWpMeta('hero_title', __('Hotelvergleiche'));

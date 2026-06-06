@@ -138,6 +138,34 @@ export default function HomePage() {
               </div>
             </a>
 
+            {/* Card 3: WpRepeater Loop Sandbox */}
+            <a
+              href='/repeater-sandbox'
+              className='group bg-white border border-transparent p-4 lg:p-5 shadow-md shadow-slate-100/30 hover:shadow-[0_0_15px_oklch(0.61_0.22_42.5/_0.08)] transition-all duration-500 rounded-none relative overflow-hidden flex flex-col justify-center'
+            >
+              {/* Top border progress bar on hover */}
+              <div className='absolute top-0 left-0 h-[2px] bg-linear-to-r from-primary to-amber-500 w-0 group-hover:w-full transition-all duration-1000 ease-out'></div>
+
+              <div className='flex items-start gap-4'>
+                <div className='bg-indigo-500/5 p-2.5 rounded-full border border-indigo-500/10 shrink-0'>
+                  <Database className='w-5 h-5 text-indigo-500' />
+                </div>
+                
+                <div className='flex-1 pr-6'>
+                  <h3 className='font-heading font-black text-lg text-slate-900 tracking-tight mb-2 uppercase'>
+                    WpRepeater Loop Sandbox
+                  </h3>
+                  <p className='text-slate-500 text-xs leading-relaxed font-sans font-medium'>
+                    Test isomorphic repeater loops, nested ACF-style metadata arrays, and client-configurable Lucide SVG icons.
+                  </p>
+                </div>
+
+                <div className='absolute right-6 top-1/2 -translate-y-1/2'>
+                  <ChevronRight className='w-5 h-5 text-indigo-500 opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-500' />
+                </div>
+              </div>
+            </a>
+
           </div>
         </div>
       </main>

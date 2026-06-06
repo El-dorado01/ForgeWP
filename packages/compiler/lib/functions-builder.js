@@ -26,6 +26,48 @@ export function buildFunctionsPhp(
   const version = config.version.replace(/'/g, "\\'");
   const googleFonts = config.settings?.typography?.googleFonts || [];
 
+  // Load site-settings.json to discover social media options dynamically
+  let socialKeys = ['facebook', 'instagram', 'twitter', 'youtube', 'tiktok', 'linkedin', 'pinterest']; // default fallbacks
+  try {
+    const siteSettingsPath = path.join(themeRoot, 'cms', 'site-settings.json');
+    if (existsSync(siteSettingsPath)) {
+      const siteSettings = JSON.parse(readFileSync(siteSettingsPath, 'utf8'));
+      const optionsKeys = Object.keys(siteSettings.options || {});
+      const discoveredSocials = optionsKeys
+        .filter(k => k.startsWith('social_'))
+        .map(k => k.replace(/^social_/, ''));
+      if (discoveredSocials.length > 0) {
+        socialKeys = Array.from(new Set([...socialKeys, ...discoveredSocials]));
+      }
+    }
+  } catch (e) {
+    // fallback to defaults if read fails
+  }
+
+  let socialSettingsPhp = '';
+  for (const key of socialKeys) {
+    const optionName = `social_${key}`;
+    const capitalizedLabel = key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    socialSettingsPhp += `
+    // \${optionName}
+    \$wp_customize->add_setting(
+        '${optionName}',
+        array(
+            'type'              => 'option',
+            'default'           => '',
+            'sanitize_callback' => 'esc_url_raw',
+        )
+    );
+    \$wp_customize->add_control(
+        '${optionName}',
+        array(
+            'label'   => __('${capitalizedLabel} URL', '${config.textDomain}'),
+            'section' => 'forgewp_social_section',
+            'type'    => 'url',
+        )
+    );`;
+  }
+
   const uniqueMetaKeys = new Set();
   const metaKeyTypes = {};
   const metaKeysToSkip = new Set();
@@ -101,6 +143,11 @@ export function buildFunctionsPhp(
         const postTypeNativeTaxonomies = {}; // Map postType -> Set of native taxonomies
         
         for (const pt of postTypes) {
+          if (pt.length > 20) {
+            throw new Error(
+              `Custom Post Type "${pt}" inferred from mock-data.json exceeds the WordPress limit of 20 characters. Please shorten the key.`
+            );
+          }
           postTypeTaxonomies[pt] = new Set();
           postTypeNativeTaxonomies[pt] = new Set();
           const items = mockData[pt];
@@ -666,59 +713,8 @@ function forgewp_register_theme_customizer_settings($wp_customize): void {
         )
     );
 
-    // social_facebook
-    $wp_customize->add_setting(
-        'social_facebook',
-        array(
-            'type'              => 'option',
-            'default'           => '',
-            'sanitize_callback' => 'esc_url_raw',
-        )
-    );
-    $wp_customize->add_control(
-        'social_facebook',
-        array(
-            'label'   => __('Facebook URL', '${config.textDomain}'),
-            'section' => 'forgewp_social_section',
-            'type'    => 'url',
-        )
-    );
+${socialSettingsPhp}
 
-    // social_instagram
-    $wp_customize->add_setting(
-        'social_instagram',
-        array(
-            'type'              => 'option',
-            'default'           => '',
-            'sanitize_callback' => 'esc_url_raw',
-        )
-    );
-    $wp_customize->add_control(
-        'social_instagram',
-        array(
-            'label'   => __('Instagram URL', '${config.textDomain}'),
-            'section' => 'forgewp_social_section',
-            'type'    => 'url',
-        )
-    );
-
-    // social_twitter
-    $wp_customize->add_setting(
-        'social_twitter',
-        array(
-            'type'              => 'option',
-            'default'           => '',
-            'sanitize_callback' => 'esc_url_raw',
-        )
-    );
-    $wp_customize->add_control(
-        'social_twitter',
-        array(
-            'label'   => __('Twitter URL', '${config.textDomain}'),
-            'section' => 'forgewp_social_section',
-            'type'    => 'url',
-        )
-    );
 
     // ── Contact Information Section ──
     $wp_customize->add_section(
@@ -878,11 +874,15 @@ add_action('after_switch_theme', 'forgewp_set_default_footer_text');
     let page_links_php = '';
     for (const slug of pageTemplateSlugs) {
       const safeVar = slug.replace(/[^a-zA-Z0-9]/g, '_');
-      page_links_php += `        $matched_pages_${safeVar} = get_pages(array(
+      page_links_php += `        $get_pages_args_${safeVar} = array(
             'meta_key' => '_wp_page_template',
             'meta_value' => 'page-${slug}.php',
             'number' => 1
-        ));
+        );
+        if (!empty($current_lang)) {
+            $get_pages_args_${safeVar}['lang'] = $current_lang;
+        }
+        $matched_pages_${safeVar} = get_pages($get_pages_args_${safeVar});
         $page_links['${slug}'] = !empty($matched_pages_${safeVar}) ? get_permalink($matched_pages_${safeVar}[0]->ID) : '';\n`;
     }
 
@@ -917,20 +917,31 @@ add_action('after_switch_theme', 'forgewp_set_default_footer_text');
         $hydrated_menus = array();
         $registered_nav_menus = get_registered_nav_menus();
         $registered_locations = is_array($registered_nav_menus) ? array_keys($registered_nav_menus) : array();
-        $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
-        if (empty($current_lang) && function_exists('pll_default_language')) {
-            $current_lang = pll_default_language();
+        $current_lang = '';
+        if (function_exists('pll_current_language')) {
+            $current_lang = pll_current_language();
+        } elseif (defined('ICL_LANGUAGE_CODE')) {
+            $current_lang = ICL_LANGUAGE_CODE;
+        }
+        if (empty($current_lang)) {
+            if (function_exists('pll_default_language')) {
+                $current_lang = pll_default_language();
+            } else {
+                $current_lang = get_locale();
+                if (strpos($current_lang, '_') !== false) {
+                    $parts = explode('_', $current_lang);
+                    $current_lang = $parts[0];
+                }
+            }
         }
         foreach ($registered_locations as $loc) {
             $base_loc = $loc;
-            $loc_lang = '';
             if (strpos($loc, '___') !== false) {
                 $parts = explode('___', $loc);
                 $base_loc = $parts[0];
-                $loc_lang = $parts[1];
             }
             
-            $menu_id = isset($menu_locations[$loc]) ? $menu_locations[$loc] : null;
+            $menu_id = forgewp_get_menu_id_for_lang($base_loc, $current_lang);
             $raw_items = $menu_id ? wp_get_nav_menu_items($menu_id) : array();
             $menu_items = is_array($raw_items) ? $raw_items : array();
             $items_list = array();
@@ -940,9 +951,9 @@ add_action('after_switch_theme', 'forgewp_set_default_footer_text');
                     'url' => $item->url
                 );
             }
-            $hydrated_menus[$loc] = $items_list;
-            if (empty($loc_lang) || (!empty($current_lang) && $loc_lang === $current_lang)) {
-                $hydrated_menus[$base_loc] = $items_list;
+            $hydrated_menus[$base_loc] = $items_list;
+            if (!empty($current_lang)) {
+                $hydrated_menus[$base_loc . '___' . $current_lang] = $items_list;
             }
         }
 
@@ -1017,13 +1028,20 @@ ${i18nKeysPhp}
         }
 
         $translations = array();
+        $home_urls = array();
         if (function_exists('pll_the_languages')) {
             $langs = pll_the_languages(array('raw' => 1));
             if (is_array($langs)) {
                 foreach ($langs as $l) {
                     $translations[$l['slug']] = $l['url'];
+                    if (function_exists('pll_home_url')) {
+                        $home_urls[$l['slug']] = pll_home_url($l['slug']);
+                    }
                 }
             }
+        }
+        if (empty($home_urls)) {
+            $home_urls[$current_lang] = home_url('/');
         }
 
         wp_add_inline_script(
@@ -1031,6 +1049,7 @@ ${i18nKeysPhp}
             'window.forgeWpTranslations = ' . wp_json_encode(array(
                 'currentLanguage' => $current_lang,
                 'urls' => $translations,
+                'homeUrls' => $home_urls,
                 'translations' => $translated_dict
             ), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) . ';',
             'before'
@@ -1284,55 +1303,167 @@ function forgewp_get_repeater_field($meta_key, $sub_field_keys, $post_id = null)
         return array();
     }
     
+    $rows = array();
+    
     // 1. Try get_field first
     if (function_exists('get_field')) {
         $val = get_field($meta_key, $post_id);
         if (is_array($val) && !empty($val)) {
-            return $val;
+            $rows = $val;
         }
     }
     
     // 2. Direct DB query using ACF structure
-    $count = get_post_meta($post_id, $meta_key, true);
-    if (is_numeric($count) && intval($count) > 0) {
-        $rows = array();
-        $count = intval($count);
-        for ($i = 0; $i < $count; $i++) {
-            $row = array();
-            foreach ($sub_field_keys as $sub_key) {
-                $sub_val = get_post_meta($post_id, "{$meta_key}_{$i}_{$sub_key}", true);
-                if ($sub_key === 'avatar' && is_string($sub_val) && (strpos($sub_val, '[') === 0 || strpos($sub_val, '{') === 0)) {
-                    $decoded = json_decode($sub_val, true);
-                    if (is_array($decoded)) {
-                        $sub_val = $decoded;
+    if (empty($rows)) {
+        $count = get_post_meta($post_id, $meta_key, true);
+        if (is_numeric($count) && intval($count) > 0) {
+            $count = intval($count);
+            for ($i = 0; $i < $count; $i++) {
+                $row = array();
+                foreach ($sub_field_keys as $sub_key) {
+                    $sub_val = get_post_meta($post_id, "{$meta_key}_{$i}_{$sub_key}", true);
+                    if (is_string($sub_val) && (strpos($sub_val, '[') === 0 || strpos($sub_val, '{') === 0)) {
+                        $decoded = json_decode($sub_val, true);
+                        if (is_array($decoded)) {
+                            $sub_val = $decoded;
+                        }
                     }
+                    $row[$sub_key] = $sub_val;
                 }
-                $row[$sub_key] = $sub_val;
+                $rows[] = $row;
             }
-            $rows[] = $row;
         }
-        return $rows;
     }
     
     // 3. Fallback to json_fallback
-    $fallback = get_post_meta($post_id, "{$meta_key}_json_fallback", true);
-    if (is_string($fallback) && !empty($fallback)) {
-        $decoded = json_decode($fallback, true);
-        if (is_array($decoded)) {
-            return $decoded;
+    if (empty($rows)) {
+        $fallback = get_post_meta($post_id, "{$meta_key}_json_fallback", true);
+        if (is_string($fallback) && !empty($fallback)) {
+            $decoded = json_decode($fallback, true);
+            if (is_array($decoded)) {
+                $rows = $decoded;
+            }
         }
     }
     
     // 4. Raw JSON fallback
-    $raw_meta = get_post_meta($post_id, $meta_key, true);
-    if (is_string($raw_meta) && !empty($raw_meta)) {
-        $decoded = json_decode($raw_meta, true);
-        if (is_array($decoded)) {
-            return $decoded;
+    if (empty($rows)) {
+        $raw_meta = get_post_meta($post_id, $meta_key, true);
+        if (is_string($raw_meta) && !empty($raw_meta)) {
+            $decoded = json_decode($raw_meta, true);
+            if (is_array($decoded)) {
+                $rows = $decoded;
+            }
         }
     }
     
-    return array();
+    // Normalize rows to resolve image arrays/IDs to URLs
+    if (is_array($rows)) {
+        foreach ($rows as $index => $row) {
+            if (is_array($row)) {
+                foreach ($row as $sub_key => $sub_val) {
+                    if (is_string($sub_val) && (strpos($sub_val, '[') === 0 || strpos($sub_val, '{') === 0)) {
+                        $decoded = json_decode($sub_val, true);
+                        if (is_array($decoded)) {
+                            $sub_val = $decoded;
+                        }
+                    }
+                    
+                    if (is_array($sub_val) && isset($sub_val['url'])) {
+                        $sub_val = $sub_val['url'];
+                    } elseif (is_numeric($sub_val) && intval($sub_val) > 0 && get_post_type(intval($sub_val)) === 'attachment') {
+                        $url = wp_get_attachment_image_url(intval($sub_val), 'full');
+                        if ($url) {
+                            $sub_val = $url;
+                        }
+                    }
+                    
+                    $rows[$index][$sub_key] = $sub_val;
+                }
+            }
+        }
+    }
+    
+    return is_array($rows) ? $rows : array();
+}
+
+/**
+ * Helper to fetch and format page/post meta fields, resolving ACF formatting and attachments.
+ */
+function forgewp_get_meta_value($key, $default_val = '', $is_rich_text = false) {
+    $post_id = get_the_ID();
+    if (!$post_id) {
+        return $default_val;
+    }
+    
+    $val = null;
+    
+    // 1. Try get_field first if ACF is active
+    if (function_exists('get_field')) {
+        $val = get_field($key, $post_id);
+    }
+    
+    // 2. Direct get_post_meta fallback
+    if ($val === null || $val === false) {
+        $val = get_post_meta($post_id, $key, true);
+    }
+    
+    // 3. Fallback to default if empty
+    if ($val === null || $val === false || $val === '') {
+        return $default_val;
+    }
+    
+    // 4. Resolve Image Arrays / Objects (ACF formats)
+    if (is_array($val) && isset($val['url'])) {
+        $val = $val['url'];
+    }
+    // 5. Resolve Attachment IDs to URLs
+    elseif (is_numeric($val) && intval($val) > 0 && get_post_type(intval($val)) === 'attachment') {
+        $url = wp_get_attachment_image_url(intval($val), 'full');
+        if ($url) {
+            $val = $url;
+        }
+    }
+    
+    // 6. Format and escape
+    if ($is_rich_text) {
+        return wpautop($val);
+    } else {
+        return esc_html($val);
+    }
+}
+
+/**
+ * Resolves the menu ID for a location and language, using WordPress nav menu locations.
+ */
+function forgewp_get_menu_id_for_lang($location, $lang = '') {
+    $locations = get_nav_menu_locations();
+    
+    if (empty($locations) || !is_array($locations)) {
+        return null;
+    }
+    
+    // 1. Try to find the language-specific location key (e.g. primary___de)
+    if (!empty($lang)) {
+        $lang_key = $location . '___' . $lang;
+        if (isset($locations[$lang_key])) {
+            return $locations[$lang_key];
+        }
+    }
+    
+    // 2. Try to find the base location key (e.g. primary)
+    if (isset($locations[$location])) {
+        return $locations[$location];
+    }
+    
+    // 3. Fallback to any matching key in the locations array
+    foreach ($locations as $key => $val) {
+        if ($key === $location || strpos($key, $location . '___') === 0) {
+            return $val;
+        }
+    }
+    
+    return null;
 }
 
 /**
