@@ -35,6 +35,7 @@ export function BerUnsPage() {
   const homeHref = homeUrl;
   const contactHref = useWpPageLink('kontakt-page', '/contact');
   const hotelsHref = useWpPageLink('hotels-page', '/hotels');
+  const listiclesHref = useWpPageLink('listicles-page', '/hotelvergleiche');
   const { posts: latestListicles } = useWpQuery({ postType: 'listicle', postsPerPage: 3 });
 
   // Hero Section
@@ -67,10 +68,10 @@ export function BerUnsPage() {
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(146,159,93,0.09)_0%,transparent_70%)] blur-3xl pointer-events-none" />
 
         <div className="relative max-w-7xl mx-auto z-10">
-          <nav className="flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4">
-            <WpLink href={homeHref} className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
-            <ChevronRight className="w-4 h-4" />
-            <span className="text-slate-700">{__('Über uns')}</span>
+          <nav className="flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4 w-full min-w-0">
+            <WpLink href={homeHref} className="hover:text-primary transition-colors whitespace-nowrap shrink-0">{__('Startseite')}</WpLink>
+            <ChevronRight className="w-4 h-4 shrink-0" />
+            <span className="text-slate-700 truncate min-w-0">{__('Über uns')}</span>
           </nav>
           
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-center">
@@ -170,7 +171,7 @@ export function BerUnsPage() {
 
             <BlockArea name="about-editorial-story" />
             <WpLink
-              href="/hotelvergleiche"
+              href={listiclesHref}
               className="inline-flex items-center gap-2 mt-6 bg-slate-950 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all cursor-pointer group"
             >
               <BookOpen className="w-4 h-4" />
@@ -296,7 +297,7 @@ export function BerUnsPage() {
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight uppercase text-slate-900">{__('Aktuelle Berichte')}</h2>
             </div>
             <WpLink
-              href="/hotelvergleiche"
+              href={listiclesHref}
               className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-primary transition-colors group"
             >
               {__('Alle anzeigen')} <ArrowRight className="w-3.5 h-3.5 group-hover:-rotate-45 transition-transform duration-300" />
@@ -366,7 +367,7 @@ export function BerUnsPage() {
           </div>
           <div className="text-center mt-6 sm:hidden">
             <WpLink
-              href="/hotelvergleiche"
+              href={listiclesHref}
               className="inline-flex items-center gap-2 bg-slate-950 text-white font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-xl"
             >
               {__('Alle Berichte')} <ArrowRight className="w-4 h-4" />

@@ -7,6 +7,7 @@ import { KontaktPage } from "./pages/KontaktPage";
 import { SingleListiclePage } from "./pages/SingleListiclePage";
 import { SingleHotelPage } from "./pages/SingleHotelPage";
 import { ImpressumPage } from "./pages/ImpressumPage";
+import { useWpLanguage, WpLink } from "../.forgewp/wordpress";
 
 /**
  * Local Developer Routes — ForgeWP.
@@ -20,6 +21,7 @@ import { ImpressumPage } from "./pages/ImpressumPage";
  */
 
 export default function AppRoutes() {
+  const { homeUrl } = useWpLanguage();
   return (
     <Switch>
       {/* Home preview */}
@@ -43,7 +45,7 @@ export default function AppRoutes() {
           <h1 className="text-4xl font-bold font-serif text-zinc-950">404</h1>
           <p className="mt-2 text-zinc-600">Page not found locally.</p>
           <div className="mt-4 flex flex-col items-center gap-2 text-sm">
-            <a href="/" className="text-brand font-semibold hover:underline">← Go back home</a>
+            <WpLink href={homeUrl} className="text-brand font-semibold hover:underline">← Go back home</WpLink>
           </div>
         </div>
       </Route>

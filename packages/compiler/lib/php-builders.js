@@ -158,11 +158,11 @@ export function buildHeaderPhp(config) {
                        class_exists('SEOPress\\\\Services\\\\Title');
 
   if ( ! $seo_plugin_active ) {
-      $single_head = get_template_directory() . '/forgewp-static/single-head.html';
-      $head_file = get_template_directory() . '/forgewp-static/head.html';
-      $target = (is_single() && file_exists($single_head)) ? $single_head : $head_file;
+      $target = forgewp_resolve_head_target();
       if (file_exists($target)) {
-          $content = file_get_contents($target);
+          ob_start();
+          include $target;
+          $content = ob_get_clean();
           // Strip duplicate title tag so standard wp_head title-tag support outputs it cleanly
           echo preg_replace('/<title>.*?<\\/title>/is', '', $content);
       }

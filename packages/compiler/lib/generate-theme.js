@@ -1,4 +1,4 @@
-import {
+import fs, {
   copyFileSync,
   cpSync,
   existsSync,
@@ -75,6 +75,10 @@ export async function generateTheme({
   let projectHooks = null;
   const hooksPath = path.join(themeRoot, 'src', 'compiler-hooks.js');
   if (existsSync(hooksPath)) {
+    console.warn(
+      '\x1b[33m%s\x1b[0m',
+      '⚠️  [ForgeWP Deprecation Warning]: "compiler-hooks.js" is deprecated. Please migrate custom PHP logic to "src/server/*.php" files.'
+    );
     try {
       const fileUrl = pathToFileURL(hooksPath).href;
       projectHooks = await import(fileUrl);
@@ -731,6 +735,9 @@ if (window.forgeWpBlocks) {
     } catch {}
   }
 
+  const queries = scanForQueries(themeRoot);
+  console.log(`[ForgeWP Compiler] Scanned and compiled ${queries.length} REST endpoints: ${queries.map(q => q.queryId).join(', ') || '<none>'}`);
+
   let functionsPhpContent = buildFunctionsPhp(
     config,
     assets,
@@ -741,10 +748,42 @@ if (window.forgeWpBlocks) {
     hydrationData,
     Array.from(i18nKeys),
     schemas,
+    queries,
   );
 
   if (projectHooks && typeof projectHooks.processFunctionsPhp === 'function') {
     functionsPhpContent = projectHooks.processFunctionsPhp(functionsPhpContent, config);
+  }
+
+  // Execute plugin functions.php transformation hooks
+  if (config.plugins && Array.isArray(config.plugins)) {
+    for (const plugin of config.plugins) {
+      if (typeof plugin.transformFunctionsPhp === 'function') {
+        functionsPhpContent = plugin.transformFunctionsPhp(functionsPhpContent, config, themeRoot, { fs, path });
+      }
+    }
+  }
+
+  // Append custom PHP server escape hatch files from src/server/*.php
+  const serverDir = path.join(themeRoot, 'src', 'server');
+  if (existsSync(serverDir)) {
+    const phpFiles = readdirSync(serverDir)
+      .filter((file) => file.endsWith('.php'))
+      .sort();
+    if (phpFiles.length > 0) {
+      let serverPhpContent = '\n\n/**\n * ── PHP Server Escape Hatch (src/server/) ──\n */';
+      for (const file of phpFiles) {
+        const filePath = path.join(serverDir, file);
+        let content = readFileSync(filePath, 'utf8');
+        // Clean leading and trailing php tags safely
+        content = content
+          .replace(/^<\?php\s*/i, '')
+          .replace(/^<\?\s*/i, '')
+          .replace(/\s*\?>\s*$/i, '');
+        serverPhpContent += `\n\n/**\n * Source: src/server/${file}\n */\n${content.trim()}`;
+      }
+      functionsPhpContent += serverPhpContent + '\n';
+    }
   }
 
   writeFileSync(
@@ -981,4 +1020,121 @@ get_footer();
       copyFileSync(fallbackScreenshot, path.join(outDir, 'screenshot.png'));
     }
   }
+}
+
+function extractUseWpQueryArgs(fileContent) {
+  const queries = [];
+  const regex = /useWpQuery\s*\(/g;
+  let match;
+  while ((match = regex.exec(fileContent)) !== null) {
+    const startIdx = regex.lastIndex; // index right after the '('
+    let parenCount = 1;
+    let endIdx = startIdx;
+    let inString = false;
+    let stringChar = null;
+    
+    for (let i = startIdx; i < fileContent.length; i++) {
+      const char = fileContent[i];
+      
+      if (inString) {
+        if (char === stringChar && fileContent[i - 1] !== '\\') {
+          inString = false;
+        }
+        continue;
+      }
+      if (char === '"' || char === "'" || char === '`') {
+        inString = true;
+        stringChar = char;
+        continue;
+      }
+      
+      if (char === '(') parenCount++;
+      if (char === ')') {
+        parenCount--;
+        if (parenCount === 0) {
+          endIdx = i;
+          break;
+        }
+      }
+    }
+    
+    if (endIdx > startIdx) {
+      const argText = fileContent.slice(startIdx, endIdx).trim();
+      queries.push(argText);
+    }
+  }
+  return queries;
+}
+
+function safeEvalObject(objText) {
+  if (!objText) return null;
+  if (!objText.startsWith('{') || !objText.endsWith('}')) {
+    return null;
+  }
+  try {
+    const sandbox = new Proxy({}, {
+      has() { return true; },
+      get(target, prop) {
+        if (prop === 'Symbol(Symbol.toPrimitive)') return undefined;
+        return `__DYNAMIC_${String(prop)}__`;
+      }
+    });
+    const fn = new Function('sandbox', `with(sandbox) { return (${objText}); }`);
+    return fn(sandbox);
+  } catch (e) {
+    console.warn('[ForgeWP Query Parser] safeEvalObject failed for:', objText, e.message);
+    return null;
+  }
+}
+
+function scanForQueries(themeRoot) {
+  const srcDir = path.join(themeRoot, 'src');
+  if (!existsSync(srcDir)) return [];
+
+  const queries = [];
+  const walk = (dir) => {
+    if (!existsSync(dir)) return;
+    const files = readdirSync(dir);
+    for (const file of files) {
+      const fullPath = path.join(dir, file);
+      const stat = statSync(fullPath);
+      if (stat.isDirectory()) {
+        walk(fullPath);
+      } else if (/\.(js|jsx|ts|tsx)$/.test(file)) {
+        const content = readFileSync(fullPath, 'utf8');
+        if (content.includes('useWpQuery')) {
+          const rawArgsList = extractUseWpQueryArgs(content);
+          for (const rawArgs of rawArgsList) {
+            if (!rawArgs) continue;
+            const parsed = safeEvalObject(rawArgs);
+            if (parsed && typeof parsed === 'object') {
+              if (!parsed.postType) {
+                parsed.postType = 'post';
+              }
+              if (!parsed.queryId) {
+                const baseName = path.basename(file, path.extname(file));
+                const postTypePart = String(parsed.postType).toLowerCase();
+                const cleanBase = baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                parsed.queryId = cleanBase + '-' + postTypePart;
+              }
+              queries.push(parsed);
+            }
+          }
+        }
+      }
+    }
+  };
+
+  walk(srcDir);
+
+  const uniqueQueries = [];
+  const seenIds = new Set();
+  for (const q of queries) {
+    const cleanId = q.queryId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    if (!seenIds.has(cleanId)) {
+      seenIds.add(cleanId);
+      uniqueQueries.push(q);
+    }
+  }
+  return uniqueQueries;
 }

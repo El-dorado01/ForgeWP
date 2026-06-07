@@ -6,6 +6,14 @@ export default defineConfig({
   version: '0.1.0',
   description: 'A lightweight static HTML ForgeWP theme starter.',
   textDomain: 'forgewp-html-starter',
+  configVersion: 1,
+  // favicon: '/Logo/favicon.svg',
+  // seo: {
+  //   sitemaps: {
+  //     postTypes: ['post', 'page'],
+  //     taxonomies: ['category', 'post_tag']
+  //   }
+  // },
   frameworkAdapter: 'html',
 
   i18n: {

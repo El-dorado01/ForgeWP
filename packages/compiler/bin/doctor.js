@@ -12,18 +12,20 @@ import { analyzeHydrationIslands, printDiagnosticsReport } from "../lib/diagnost
 console.log(`\n🩺 ${pc.bold(pc.bgCyan(pc.black("  FORGEWP SYSTEM DOCTOR  ")))}\n`);
 
 const projectRoot = process.cwd();
-let issuesFound = 0;
+let failuresFound = 0;
+let warningsFound = 0;
 
 // Load configuration and framework adapter
 let frameworkAdapter = "react";
 let adapter = null;
+let configLoadError = null;
 try {
   const config = await loadConfig(projectRoot);
   frameworkAdapter = config.frameworkAdapter || "react";
   const adapterModule = await loadFrameworkAdapter(frameworkAdapter);
   adapter = adapterModule.default || adapterModule;
 } catch (err) {
-  // Use default react adapter
+  configLoadError = err;
 }
 
 function runCheck(name, fn) {
@@ -33,14 +35,14 @@ function runCheck(name, fn) {
     if (warning) {
       console.log(pc.yellow("⚠️  WARNING"));
       console.log(pc.yellow(`     👉 ${warning}`));
-      issuesFound++;
+      warningsFound++;
     } else {
       console.log(pc.green("✅ OK"));
     }
   } catch (err) {
     console.log(pc.red("❌ FAILED"));
     console.log(pc.red(`     👉 Error: ${err.message}`));
-    issuesFound++;
+    failuresFound++;
   }
 }
 
@@ -66,6 +68,9 @@ runCheck("User Configuration & HTML Layout", () => {
     if (!existsSync(path.join(projectRoot, f))) {
       throw new Error(`Critical file "${f}" is missing from project root!`);
     }
+  }
+  if (configLoadError) {
+    throw new Error(`Failed to load wp.config.ts configuration:\n        👉 ${configLoadError.message}`);
   }
   return null;
 });
@@ -192,11 +197,17 @@ runCheck("Static Code Lint & SEO Best Practices", () => {
 
 // Final Diagnostic
 console.log("\n" + "─".repeat(60));
-if (issuesFound === 0) {
-  console.log(pc.green(`\n🎉 ${pc.bold("SYSTEM HEALTHY:")} Your ForgeWP monorepo is in perfect condition!`));
-  console.log(pc.cyan("   You are ready to compile, scaffold, and upload themes safely.\n"));
+if (failuresFound === 0) {
+  if (warningsFound > 0) {
+    console.log(pc.yellow(`\n⚠️  ${pc.bold("SYSTEM READY WITH WARNINGS:")} Found ${warningsFound} warning-level suggestion(s).`));
+    console.log(pc.cyan("   Your theme environment is healthy, but review recommendations above for best practices.\n"));
+  } else {
+    console.log(pc.green(`\n🎉 ${pc.bold("SYSTEM HEALTHY:")} Your ForgeWP monorepo is in perfect condition!`));
+    console.log(pc.cyan("   You are ready to compile, scaffold, and upload themes safely.\n"));
+  }
+  process.exit(0);
 } else {
-  console.log(pc.red(`\n❌ ${pc.bold("DIAGNOSTIC COMPLETED:")} Found ${issuesFound} active system issue(s).`));
+  console.log(pc.red(`\n❌ ${pc.bold("DIAGNOSTIC COMPLETED:")} Found ${failuresFound} critical system issue(s) and ${warningsFound} warning(s).`));
   console.log(pc.yellow(`   💡 Tip: Follow the instructions above or run "pnpm forgewp repair" to auto-heal framework internals.\n`));
   process.exit(1);
 }

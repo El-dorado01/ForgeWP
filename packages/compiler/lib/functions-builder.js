@@ -5,6 +5,96 @@ import {
   generateDynamicAcfFieldPhp,
 } from './php-builders.js';
 
+function generatePhpArgs(queryObj) {
+  const phpLines = [];
+  phpLines.push(`$args = array(`);
+  
+  if (queryObj.postType && typeof queryObj.postType === 'string') {
+    phpLines.push(`        'post_type' => '${queryObj.postType}',`);
+  } else {
+    phpLines.push(`        'post_type' => 'post',`);
+  }
+  
+  if (queryObj.postsPerPage !== undefined) {
+    const ppp = parseInt(queryObj.postsPerPage, 10);
+    phpLines.push(`        'posts_per_page' => ${isNaN(ppp) ? 10 : ppp},`);
+  } else {
+    phpLines.push(`        'posts_per_page' => 10,`);
+  }
+  
+  if (queryObj.orderby) {
+    phpLines.push(`        'orderby' => '${queryObj.orderby}',`);
+  }
+  if (queryObj.order) {
+    phpLines.push(`        'order' => '${queryObj.order}',`);
+  }
+  
+  if (queryObj.categoryName) {
+    if (String(queryObj.categoryName).startsWith('__DYNAMIC_')) {
+      const varName = String(queryObj.categoryName).replace(/^__DYNAMIC_/, '').replace(/__$/, '');
+      phpLines.push(`        'category_name' => $request->get_param('${varName}') ? sanitize_text_field($request->get_param('${varName}')) : '',`);
+    } else {
+      phpLines.push(`        'category_name' => '${queryObj.categoryName}',`);
+    }
+  }
+  
+  phpLines.push(`        'paged' => $paged,`);
+  
+  if (queryObj.taxQuery && Array.isArray(queryObj.taxQuery) && queryObj.taxQuery.length > 0) {
+    phpLines.push(`        'tax_query' => array(`);
+    for (const taxQ of queryObj.taxQuery) {
+      phpLines.push(`            array(`);
+      phpLines.push(`                'taxonomy' => '${taxQ.taxonomy}',`);
+      phpLines.push(`                'field' => '${taxQ.field || 'slug'}',`);
+      
+      const termsVal = taxQ.terms;
+      if (typeof termsVal === 'string' && termsVal.startsWith('__DYNAMIC_')) {
+        const varName = termsVal.replace(/^__DYNAMIC_/, '').replace(/__$/, '');
+        phpLines.push(`                'terms' => $request->get_param('${varName}') ? sanitize_text_field($request->get_param('${varName}')) : '',`);
+      } else if (Array.isArray(termsVal)) {
+        const termsPhp = termsVal.map(t => typeof t === 'string' ? `'${t}'` : t).join(', ');
+        phpLines.push(`                'terms' => array(${termsPhp}),`);
+      } else if (typeof termsVal === 'string') {
+        phpLines.push(`                'terms' => '${termsVal}',`);
+      } else {
+        phpLines.push(`                'terms' => ${termsVal},`);
+      }
+      phpLines.push(`            ),`);
+    }
+    phpLines.push(`        ),`);
+  }
+  
+  if (queryObj.metaQuery && Array.isArray(queryObj.metaQuery) && queryObj.metaQuery.length > 0) {
+    phpLines.push(`        'meta_query' => array(`);
+    if (queryObj.metaRelation) {
+      phpLines.push(`            'relation' => '${queryObj.metaRelation}',`);
+    }
+    for (const metaQ of queryObj.metaQuery) {
+      phpLines.push(`            array(`);
+      phpLines.push(`                'key' => '${metaQ.key}',`);
+      if (metaQ.compare) {
+        phpLines.push(`                'compare' => '${metaQ.compare}',`);
+      }
+      if (metaQ.value !== undefined) {
+        const val = metaQ.value;
+        if (typeof val === 'string' && val.startsWith('__DYNAMIC_')) {
+          const varName = val.replace(/^__DYNAMIC_/, '').replace(/__$/, '');
+          phpLines.push(`                'value' => $request->get_param('${varName}') ? sanitize_text_field($request->get_param('${varName}')) : '',`);
+        } else if (typeof val === 'string') {
+          phpLines.push(`                'value' => '${val}',`);
+        } else {
+          phpLines.push(`                'value' => ${val},`);
+        }
+      }
+      phpLines.push(`            ),`);
+    }
+    phpLines.push(`        ),`);
+  }
+  
+  phpLines.push(`    );`);
+  return phpLines.join('\n');
+}
+
 /**
  * Generate functions.php template string
  *
@@ -21,8 +111,128 @@ export function buildFunctionsPhp(
   hydrationData = null,
   i18nKeys = [],
   schemas = {},
+  queries = [],
 ) {
   const css = assets.cssFile.replace(/^assets\//, '');
+  
+  let seoPluginsPhp = '';
+  if (config.seo && config.seo.plugins) {
+    const { yoast, rankMath } = config.seo.plugins;
+    if (yoast) {
+      seoPluginsPhp += `
+/**
+ * Automatically integrate ForgeWP enqueued schemas with Yoast SEO Schema Graph.
+ */
+add_filter('wpseo_schema_graph', function($graph) {
+    $target = forgewp_resolve_head_target();
+    if (file_exists($target)) {
+        ob_start();
+        include $target;
+        $content = ob_get_clean();
+        if (preg_match_all('/<script type="application\\/ld\\+json">(.*?)<\\/script>/is', $content, $matches)) {
+            foreach ($matches[1] as $json_str) {
+                $decoded = json_decode(trim($json_str), true);
+                if (is_array($decoded) && is_array($graph)) {
+                    $graph[] = $decoded;
+                }
+            }
+        }
+    }
+    return $graph;
+});
+`;
+    }
+    if (rankMath) {
+      seoPluginsPhp += `
+/**
+ * Automatically integrate ForgeWP enqueued schemas with RankMath JSON-LD.
+ */
+add_filter('rank_math/json_ld', function($data, $jsonld) {
+    $target = forgewp_resolve_head_target();
+    if (file_exists($target)) {
+        ob_start();
+        include $target;
+        $content = ob_get_clean();
+        if (preg_match_all('/<script type="application\\/ld\\+json">(.*?)<\\/script>/is', $content, $matches)) {
+            foreach ($matches[1] as $json_str) {
+                $decoded = json_decode(trim($json_str), true);
+                if (is_array($decoded) && is_array($data)) {
+                    $data[] = $decoded;
+                }
+            }
+        }
+    }
+    return $data;
+}, 99, 2);
+`;
+    }
+  }
+  
+  // Built-in Favicon Support
+  let faviconPhp = '';
+  if (config.favicon) {
+    const faviconPath = config.favicon.replace(/^\//, ''); // Clean leading slash
+    faviconPhp = `
+/**
+ * Enqueue Favicon dynamically in WordPress head (generated from wp.config.ts).
+ */
+function forgewp_add_favicon() {
+    $uri = get_template_directory_uri() . '/${faviconPath}';
+    $ext = strtolower(pathinfo($uri, PATHINFO_EXTENSION));
+    $type = 'image/x-icon';
+    if ($ext === 'svg') {
+        $type = 'image/svg+xml';
+    } elseif ($ext === 'png') {
+        $type = 'image/png';
+    } elseif ($ext === 'gif') {
+        $type = 'image/gif';
+    } elseif ($ext === 'jpg' || $ext === 'jpeg') {
+        $type = 'image/jpeg';
+    }
+    echo '<link rel="icon" type="' . esc_attr($type) . '" href="' . esc_url($uri) . '">';
+}
+add_action('wp_head', 'forgewp_add_favicon');
+`;
+  }
+
+  // Built-in XML Segmented Sitemaps
+  let sitemapsPhp = '';
+  if (config.seo && config.seo.sitemaps) {
+    const { postTypes = [], taxonomies = [] } = config.seo.sitemaps;
+    
+    let postTypesLines = '';
+    for (const pt of postTypes) {
+      postTypesLines += `        $post_types['${pt}'] = get_post_type_object('${pt}');\n`;
+    }
+    
+    let taxonomiesLines = '';
+    for (const tax of taxonomies) {
+      taxonomiesLines += `        $taxonomies['${tax}'] = get_taxonomy('${tax}');\n`;
+    }
+
+    sitemapsPhp = `
+/**
+ * Custom XML Segmented Sitemaps Configuration (generated from wp.config.ts).
+ */
+function forgewp_register_segmented_xml_sitemaps() {
+    if (!function_exists('wp_sitemaps_get_server')) {
+        return;
+    }
+    if (defined('WPSEO_VERSION') || class_exists('RankMath') || class_exists('All_in_One_SEO_Pack') || defined('AIOSEO_VERSION')) {
+        return;
+    }
+    
+    add_filter('wp_sitemaps_post_types', function($post_types) {
+${postTypesLines}        return $post_types;
+    });
+    
+    add_filter('wp_sitemaps_taxonomies', function($taxonomies) {
+${taxonomiesLines}        return $taxonomies;
+    });
+}
+add_action('init', 'forgewp_register_segmented_xml_sitemaps', 99);
+`;
+  }
   const version = config.version.replace(/'/g, "\\'");
   const googleFonts = config.settings?.typography?.googleFonts || [];
 
@@ -1279,6 +1489,142 @@ add_action('acf/init', 'forgewp_register_acf_field_groups');
 `;
   }
 
+  let queryEndpointsPhp = '';
+  if (queries && queries.length > 0) {
+    queryEndpointsPhp += `\n\n/**\n * ── Compiled REST Query Endpoints (Milestone 2) ──\n */\n`;
+    queryEndpointsPhp += `
+if (!function_exists('forgewp_format_rest_post')) {
+    function forgewp_format_rest_post(\$post) {
+        \$id = \$post->ID;
+        \$title = get_the_title(\$post);
+        \$excerpt = get_the_excerpt(\$post);
+        
+        \$content = apply_filters('the_content', \$post->post_content);
+        \$date = get_the_date('', \$post);
+        \$author = get_the_author_meta('display_name', \$post->post_author);
+        
+        \$featured_image = 'https://picsum.photos/seed/forgewp/1200/630';
+        if (has_post_thumbnail(\$post)) {
+            \$thumbnail_url = get_the_post_thumbnail_url(\$post, 'full');
+            if (\$thumbnail_url) {
+                \$featured_image = \$thumbnail_url;
+            }
+        }
+        
+        \$permalink = get_permalink(\$post);
+        
+        \$custom_fields = array();
+        \$meta = get_post_meta(\$id);
+        if (is_array(\$meta)) {
+            foreach (\$meta as \$key => \$values) {
+                \$val = isset(\$values[0]) ? maybe_unserialize(\$values[0]) : '';
+                \$custom_fields[\$key] = \$val;
+            }
+        }
+        
+        if (function_exists('get_fields')) {
+            \$acf_fields = get_fields(\$id);
+            if (is_array(\$acf_fields)) {
+                \$custom_fields = array_merge(\$custom_fields, \$acf_fields);
+            }
+        }
+        
+        \$terms_data = array();
+        \$taxonomies = get_object_taxonomies(\$post->post_type);
+        if (is_array(\$taxonomies)) {
+            foreach (\$taxonomies as \$taxonomy) {
+                \$terms = get_the_terms(\$post, \$taxonomy);
+                if (is_array(\$terms)) {
+                    \$terms_data[\$taxonomy] = array();
+                    foreach (\$terms as \$t) {
+                        \$terms_data[\$taxonomy][] = array(
+                            'id' => \$t->term_id,
+                            'slug' => \$t->slug,
+                            'name' => html_entity_decode(\$t->name, ENT_QUOTES, 'UTF-8'),
+                        );
+                    }
+                }
+            }
+        }
+        
+        return array(
+            'ID' => \$id,
+            'title' => \$title,
+            'excerpt' => \$excerpt,
+            'content' => \$content,
+            'date' => \$date,
+            'author' => \$author,
+            'featuredImage' => \$featured_image,
+            'permalink' => \$permalink,
+            'customFields' => \$custom_fields,
+            '_terms' => \$terms_data,
+            'post_type' => \$post->post_type,
+        );
+    }
+}
+`;
+
+    queryEndpointsPhp += `
+add_action('rest_api_init', function() {`;
+    for (const q of queries) {
+      const cleanId = q.queryId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const querySlug = 'query-' + cleanId;
+      const callbackName = 'forgewp_rest_query_' + cleanId.replace(/-/g, '_');
+      queryEndpointsPhp += `
+    register_rest_route('forgewp/v1', '/${querySlug}', array(
+        'methods'             => 'GET',
+        'callback'            => '${callbackName}',
+        'permission_callback' => '__return_true',
+    ));`;
+    }
+    queryEndpointsPhp += `
+});
+`;
+
+    for (const q of queries) {
+      const cleanId = q.queryId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const callbackName = 'forgewp_rest_query_' + cleanId.replace(/-/g, '_');
+      const phpArgs = generatePhpArgs(q);
+      
+      queryEndpointsPhp += `
+function ${callbackName}(WP_REST_Request \$request) {
+    \$paged = \$request->get_param('page') ? intval(\$request->get_param('page')) : 1;
+    \$s = \$request->get_param('search');
+    if (empty(\$s)) {
+        \$s = \$request->get_param('s');
+    }
+    
+    ${phpArgs}
+    
+    if (!empty(\$s)) {
+        \$args['s'] = sanitize_text_field(\$s);
+    }
+    
+    \$lang = \$request->get_param('lang');
+    if (!empty(\$lang)) {
+        \$args['lang'] = sanitize_text_field(\$lang);
+    }
+    
+    \$query = new WP_Query(\$args);
+    \$posts = array();
+    if (\$query->have_posts()) {
+        while (\$query->have_posts()) {
+            \$query->the_post();
+            \$posts[] = forgewp_format_rest_post(\$query->post);
+        }
+        wp_reset_postdata();
+    }
+    
+    return new WP_REST_Response(array(
+        'posts'      => \$posts,
+        'total'      => intval(\$query->found_posts),
+        'totalPages' => intval(\$query->max_num_pages),
+    ), 200);
+}
+`;
+    }
+  }
+
   return `<?php
 /**
  * ${config.name} — generated by ForgeWP
@@ -1505,6 +1851,69 @@ add_action('after_setup_theme', 'forgewp_theme_setup');
 ${preconnectFilter}${blocksRegistration}${cptRegistration}${autoCreationPhp}${nativeMetaRegisters}${acfFieldGroups}
 
 /**
+ * Resolves the active template head HTML file path dynamically.
+ */
+function forgewp_resolve_head_target() {
+    $dir = get_template_directory() . '/forgewp-static';
+    
+    // 1. Custom Page Template
+    $template_slug = get_page_template_slug();
+    if ($template_slug) {
+        $clean_slug = str_replace(array('page-', '.php'), '', $template_slug);
+        $target = "{$dir}/template-{$clean_slug}-head.html";
+        if (file_exists($target)) {
+            return $target;
+        }
+    }
+    
+    // 2. Singular Custom Post Type / Post / Page
+    if (is_singular()) {
+        $post_type = get_post_type();
+        $target = "{$dir}/single-{$post_type}-head.html";
+        if (file_exists($target)) {
+            return $target;
+        }
+        $target = "{$dir}/single-head.html";
+        if (file_exists($target)) {
+            return $target;
+        }
+    }
+    
+    // 3. Taxonomy Archive
+    if (is_tax()) {
+        $tax = get_query_var('taxonomy');
+        $target = "{$dir}/taxonomy-{$tax}-head.html";
+        if (file_exists($target)) {
+            return $target;
+        }
+        $target = "{$dir}/taxonomy-head.html";
+        if (file_exists($target)) {
+            return $target;
+        }
+    }
+    
+    // 4. Post Type Archive
+    if (is_post_type_archive()) {
+        $post_type = get_query_var('post_type');
+        $target = "{$dir}/archive-{$post_type}-head.html";
+        if (file_exists($target)) {
+            return $target;
+        }
+    }
+    
+    // 5. General Archive / Category / Tag
+    if (is_archive()) {
+        $target = "{$dir}/archive-head.html";
+        if (file_exists($target)) {
+            return $target;
+        }
+    }
+    
+    // 6. Default Head
+    return "{$dir}/head.html";
+}
+
+/**
  * Custom document title filter for ForgeWP.
  * Maps title enqueued via <WpHead /> in React to WordPress.
  */
@@ -1512,11 +1921,11 @@ function forgewp_custom_document_title( $title ) {
     if ( defined('WPSEO_VERSION') || class_exists('RankMath') || class_exists('All_in_One_SEO_Pack') || defined('AIOSEO_VERSION') ) {
         return $title;
     }
-    $single_head = get_template_directory() . '/forgewp-static/single-head.html';
-    $head_file = get_template_directory() . '/forgewp-static/head.html';
-    $target = (is_single() && file_exists($single_head)) ? $single_head : $head_file;
+    $target = forgewp_resolve_head_target();
     if ( file_exists( $target ) ) {
-        $content = file_get_contents( $target );
+        ob_start();
+        include $target;
+        $content = ob_get_clean();
         if ( preg_match( '/<title>(.*?)<\\/title>/is', $content, $matches ) ) {
             return html_entity_decode( trim( $matches[1] ), ENT_QUOTES, 'UTF-8' );
         }
@@ -1524,6 +1933,7 @@ function forgewp_custom_document_title( $title ) {
     return $title;
 }
 add_filter( 'pre_get_document_title', 'forgewp_custom_document_title', 999 );
+${seoPluginsPhp}
 
 /**
  * Disable WordPress legacy emoji conversion to match native client-side rendering.
@@ -1602,15 +2012,17 @@ function forgewp_render_theme_icon($icon_slug, $class_name = '', $provider = 'lu
     if ($provider === \'custom\' && isset($custom_svgs[$icon_slug])) {
         $svg = $custom_svgs[$icon_slug];
     } else {
-        $svg = isset($svgs[$icon_slug]) ? $svgs[$icon_slug] : \'\';
+        $svg = isset($svgs[$icon_slug]) ? $svgs[$icon_slug] : '';
     }
 
     if (!empty($svg)) {
         if (!empty($class_name)) {
-            $svg = str_replace(\'<svg \', \'<svg class="\' . esc_attr($class_name) . \'" \', $svg);
+            $svg = str_replace('<svg ', '<svg class="' . esc_attr($class_name) . '" ', $svg);
         }
         echo $svg;
     }
 }
+${faviconPhp}${sitemapsPhp}${queryEndpointsPhp}
 `;
 }
+

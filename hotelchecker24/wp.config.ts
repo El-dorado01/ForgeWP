@@ -1,4 +1,5 @@
 import { defineConfig } from "@forgewp/compiler/define-config";
+import seoPlugin from "@forgewp/plugin-seo";
 
 export default defineConfig({
   name: "Hotelchecker24",
@@ -6,6 +7,20 @@ export default defineConfig({
   version: "1.0.0",
   description: "Premium Hotel Directory & Listicle Theme",
   textDomain: "hotelchecker24",
+  configVersion: 1,
+  favicon: "/Logo/hotelchecker24-logo_farbe.svg",
+  plugins: [
+    seoPlugin({
+      sitemaps: {
+        postTypes: ["hotel", "listicle"],
+        taxonomies: ["country", "category"],
+      },
+      plugins: {
+        yoast: true,
+        rankMath: true,
+      }
+    })
+  ],
   frameworkAdapter: "react",
   style: "shadcn",
   i18n: {

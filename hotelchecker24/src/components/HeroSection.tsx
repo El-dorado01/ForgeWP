@@ -1,5 +1,4 @@
-import React from 'react';
-import { useWpLocation, useWpTerms, useWpI18n, useWpMeta, useWpQuery, WpLink, useWpPageLink } from '../.forgewp/wordpress';
+import { useWpLocation, useWpTerms, useWpI18n, useWpMeta, useWpQuery, WpLink, useWpPagePath } from '../.forgewp/wordpress';
 import {
   Search,
   MapPin,
@@ -13,14 +12,7 @@ import { Button } from './ui/button';
 export function HeroSection() {
   const { __ } = useWpI18n();
   const [, setLocation] = useWpLocation();
-  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
-  const hotelsPath = React.useMemo(() => {
-    try {
-      return new URL(hotelsHref, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').pathname;
-    } catch (e) {
-      return hotelsHref;
-    }
-  }, [hotelsHref]);
+  const hotelsPath = useWpPagePath('hotels-page', '/hotels');
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState('');
   const [selectedCountry, setSelectedCountry] = React.useState('');

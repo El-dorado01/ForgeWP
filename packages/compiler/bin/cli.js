@@ -15,6 +15,7 @@ const subcommands = {
   "make:component": path.join(__dirname, "make-template.js"), // Backward compatible alias mapping
   "make:island": path.join(__dirname, "make-island.js"),
   "sync:routes": path.join(__dirname, "sync-routes.js"),
+  "sync:hooks": path.join(__dirname, "sync-hooks.js"),
   "i18n:extract": path.join(__dirname, "i18n-extract.js"),
   "i18n:translate": path.join(__dirname, "i18n-translate.js"),
   export: path.join(__dirname, "export.js"),
@@ -49,6 +50,8 @@ if (!targetScript) {
     targetScript = subcommands["make:island"];
   } else if (command === "sync-routes" || command === "sync" || command === "sync:routes") {
     targetScript = subcommands["sync:routes"];
+  } else if (command === "sync-hooks" || command === "sync:hooks") {
+    targetScript = subcommands["sync:hooks"];
   } else if (command === "i18n-extract" || command === "i18n:extract") {
     targetScript = subcommands["i18n:extract"];
   } else if (command === "i18n-translate" || command === "i18n:translate") {
@@ -96,6 +99,7 @@ function printHelp() {
     ${pc.cyan("make:template <Name>")}     Scaffold a custom post-type loop template
     ${pc.cyan("make:island <Name>")}       Scaffold an interactive selective hydration island
     ${pc.cyan("sync:routes")}             Synchronize sitemap menus with routes and scaffold pages
+    ${pc.cyan("sync:hooks")}              Propagate wordpress.tsx hooks to all workspace projects
     ${pc.cyan("i18n:extract")}            Extract translation strings to translations.json
     ${pc.cyan("i18n:translate")}          Translate missing strings via the configured engine
     ${pc.cyan("export")}                  Package your theme into an installable WP zip

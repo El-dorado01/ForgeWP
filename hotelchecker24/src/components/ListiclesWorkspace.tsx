@@ -1,6 +1,7 @@
 import React from 'react';
-import { useWpSearch, useWpLocation, useWpI18n, useWpQuery, WpLink, useWpTerms, useWpPageLink } from '../.forgewp/wordpress';
-import { Search, BookOpen, ArrowRight, User, Calendar, Tag, Newspaper } from 'lucide-react';
+import { useWpSearch, useWpLocation, useWpI18n, useWpQuery, WpLink, useWpTerms, useWpPagePath } from '../.forgewp/wordpress';
+import { Search, BookOpen, ArrowRight, User, Calendar, Tag, Newspaper, Loader2 } from 'lucide-react';
+import { Button } from './ui/button';
 
 export function ListiclesWorkspace() {
   const { __ } = useWpI18n();
@@ -18,11 +19,11 @@ export function ListiclesWorkspace() {
   }, [keyword]);
 
   // Get the real WordPress page URL (works regardless of what slug the admin set)
-  const listiclesHref = useWpPageLink('listicles-page', '/hotelvergleiche');
+  const listiclesPath = useWpPagePath('listicles-page', '/hotelvergleiche');
 
-  const { posts: listicles, loading } = useWpQuery({
+  const { posts: listicles, loading, hasMore, loadMore } = useWpQuery({
     postType: 'listicle',
-    postsPerPage: 100,
+    postsPerPage: 21,
     s: keyword,
   });
 
@@ -52,7 +53,7 @@ export function ListiclesWorkspace() {
     }
     newParams.delete('s');
     const qs = newParams.toString();
-    setLocation(qs ? `${listiclesHref}?${qs}` : listiclesHref);
+    setLocation(qs ? `${listiclesPath}?${qs}` : listiclesPath);
   };
 
   const setCategory = (slug: string) => {
@@ -63,7 +64,7 @@ export function ListiclesWorkspace() {
       newParams.delete('category');
     }
     const qs = newParams.toString();
-    setLocation(qs ? `${listiclesHref}?${qs}` : listiclesHref);
+    setLocation(qs ? `${listiclesPath}?${qs}` : listiclesPath);
   };
 
   return (
@@ -148,7 +149,7 @@ export function ListiclesWorkspace() {
               {__('Es wurden keine Beiträge für Ihre Auswahl gefunden. Passen Sie Ihre Suchbegriffe oder den Themenfilter an.')}
             </p>
             <button
-              onClick={() => { setCategory(''); setSearchInput(''); setLocation(listiclesHref); }}
+              onClick={() => { setCategory(''); setSearchInput(''); setLocation(listiclesPath); }}
               className="mt-6 bg-primary hover:bg-primary/95 text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl cursor-pointer hover:shadow-md hover:shadow-primary/20 active:scale-95 transition-all"
             >
               {__('Filter zurücksetzen')}
@@ -248,6 +249,32 @@ export function ListiclesWorkspace() {
           </>
         )}
       </div>
+
+      {/* Load More */}
+      {hasMore && !loading && (
+        <div className="flex justify-center mt-8">
+          <Button
+            onClick={loadMore}
+            disabled={loading}
+            className="bg-primary hover:bg-primary/95 text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl cursor-pointer hover:shadow-md hover:shadow-primary/20 active:scale-95 transition-all border-none"
+          >
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> {__('Lade...')}
+              </span>
+            ) : (
+              __('Mehr laden')
+            )}
+          </Button>
+        </div>
+      )}
+      {loading && listicles.length > 0 && (
+        <div className="flex justify-center mt-8">
+          <span className="flex items-center gap-2 text-slate-400 text-sm">
+            <Loader2 className="w-4 h-4 animate-spin" /> {__('Lade...')}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

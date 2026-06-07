@@ -11,6 +11,7 @@ export interface WpHeadProps {
   twitterCreator?: string;
   canonical?: string;
   keywords?: string;
+  schema?: Record<string, any>;
   children?: React.ReactNode;
 }
 
@@ -25,6 +26,7 @@ export function WpHead({
   twitterCreator,
   canonical,
   keywords,
+  schema,
   children,
 }: WpHeadProps) {
   const IS_DEV =
@@ -45,6 +47,12 @@ export function WpHead({
         {twitterCard && <meta name="twitter:card" content={twitterCard} />}
         {twitterCreator && <meta name="twitter:creator" content={twitterCreator} />}
         {canonical && <link rel="canonical" href={canonical} />}
+        {schema && (
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(schema, null, 2) }}
+          />
+        )}
         {children}
       </>
     );
@@ -64,6 +72,7 @@ export function WpHead({
       "data-twitter-card": twitterCard || undefined,
       "data-twitter-creator": twitterCreator || undefined,
       "data-canonical": canonical || undefined,
+      "data-schema": schema ? JSON.stringify(schema) : undefined,
     },
     children
   );

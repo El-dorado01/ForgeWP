@@ -1,6 +1,6 @@
 {
   "name": "@forgewp/react",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Lightweight WordPress data hooks and primitives for React — ForgeWP",
   "type": "module",
   "exports": {

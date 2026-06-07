@@ -171,12 +171,12 @@ export function SingleHotelPage() {
         <div className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-900/40 to-transparent" />
         <div className="absolute inset-x-0 top-0 h-24 bg-linear-to-b from-slate-950/40 to-transparent pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pb-12 relative z-10">
-          <nav className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300 mb-6 bg-slate-950/20 backdrop-blur-xs py-2 px-4 rounded-full w-fit border border-white/5">
-            <WpLink href={homeHref} className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
-            <ChevronRight className="w-3 h-3 text-slate-400" />
-            <WpLink href={hotelsHref} className="hover:text-primary transition-colors">{__('Hotels')}</WpLink>
-            <ChevronRight className="w-3 h-3 text-slate-400" />
-            <span className="text-slate-200 line-clamp-1">{title}</span>
+          <nav className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300 mb-6 bg-slate-950/20 backdrop-blur-xs py-2 px-4 rounded-full w-fit max-w-full min-w-0 border border-white/5">
+            <WpLink href={homeHref} className="hover:text-primary transition-colors whitespace-nowrap shrink-0">{__('Startseite')}</WpLink>
+            <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
+            <WpLink href={hotelsHref} className="hover:text-primary transition-colors whitespace-nowrap shrink-0">{__('Hotels')}</WpLink>
+            <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
+            <span className="text-slate-200 truncate min-w-0">{title}</span>
           </nav>
           
           <div className="space-y-4 max-w-4xl">

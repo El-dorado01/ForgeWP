@@ -1,27 +1,19 @@
-import React from 'react';
-import { useWpQuery, WpLink, useWpSearch, useWpLocation, useWpI18n, useWpPageLink } from '../.forgewp/wordpress';
+import { useWpQuery, WpLink, useWpSearchParams, useWpLocation, useWpI18n, useWpPagePath } from '../.forgewp/wordpress';
 import { MapPin, Star, SlidersHorizontal, X, RotateCcw, DollarSign } from 'lucide-react';
 import { Button } from './ui/button';
 
 export function HotelsGrid() {
   const { __ } = useWpI18n();
-  const searchString = useWpSearch();
+  const searchParams = useWpSearchParams();
   const [, setLocation] = useWpLocation();
-  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
-  const hotelsPath = React.useMemo(() => {
-    try {
-      return new URL(hotelsHref, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').pathname;
-    } catch (e) {
-      return hotelsHref;
-    }
-  }, [hotelsHref]);
-  const params = React.useMemo(() => new URLSearchParams(searchString), [searchString]);
+  const hotelsPath = useWpPagePath('hotels-page', '/hotels');
 
-  const keyword = params.get('q') || params.get('s') || '';
-  const country = params.get('country') || '';
-  const category = params.get('category') || '';
+  const keyword = searchParams.get('q') || searchParams.get('s') || '';
+  const country = searchParams.get('country') || '';
+  const category = searchParams.get('category') || '';
 
-  const { posts, loading } = useWpQuery({
+  const { posts, loading, hasMore, loadMore } = useWpQuery({
+    queryId: 'hotels_grid',
     postType: 'hotel',
     postsPerPage: 12,
     s: keyword,
@@ -29,7 +21,7 @@ export function HotelsGrid() {
 
   const handleResetFilters = () => setLocation(hotelsPath);
   const removeFilter = (key: 'q' | 's' | 'country' | 'category') => {
-    const newParams = new URLSearchParams(searchString);
+    const newParams = new URLSearchParams(searchParams);
     newParams.delete(key);
     if (key === 'q' || key === 's') {
       newParams.delete('q');
@@ -198,6 +190,17 @@ export function HotelsGrid() {
               </WpLink>
             );
           })}
+        </div>
+      )}
+      {hasMore && (
+        <div className='flex justify-center mt-8'>
+          <Button
+            onClick={loadMore}
+            disabled={loading}
+            className='bg-primary hover:bg-primary/95 text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl cursor-pointer hover:shadow-md hover:shadow-primary/20 active:scale-95 transition-all border-none'
+          >
+            {loading ? __('Lade...') : __('Mehr laden')}
+          </Button>
         </div>
       )}
     </div>

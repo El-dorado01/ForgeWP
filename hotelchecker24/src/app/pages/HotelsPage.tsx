@@ -26,15 +26,15 @@ export function HotelsPage() {
         <div className='absolute bottom-0 left-0 w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(146,159,93,0.09)_0%,transparent_70%)] blur-3xl pointer-events-none' />
 
         <div className='relative max-w-7xl mx-auto z-10'>
-          <nav className='flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4'>
+          <nav className="flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4 w-full min-w-0">
             <WpLink
               href={homeHref}
-              className='hover:text-primary transition-colors'
+              className="hover:text-primary transition-colors whitespace-nowrap shrink-0"
             >
               {__('Startseite')}
             </WpLink>
-            <ChevronRight className='w-4 h-4' />
-            <span className='text-slate-700'>{__('Hotels')}</span>
+            <ChevronRight className="w-4 h-4 shrink-0" />
+            <span className="text-slate-700 truncate min-w-0">{__('Hotels')}</span>
           </nav>
           <h1 className='text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-slate-900 mb-2'>
             {heroTitle}

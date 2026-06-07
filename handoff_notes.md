@@ -69,10 +69,4 @@ To compile changes and synchronize them to your local WordPress installation, fo
 
 ---
 
-## 🚀 Recommended Next Steps
-
-1. **Production Deployment**: Upload the newly built theme archive `hotelchecker24.zip` to the production site `https://hotelchecker24.com/` under **Appearance → Themes → Add New** to activate the bilingual menu fixes and column visibility updates on live.
-2. **Verify Inner Templates**: Test single hotels and listicles page layouts to confirm styling consistency and custom metadata mapping.
-3. **Contact Submission Logic**: Hook dynamic contact form components or REST APIs to standard WordPress email notifications.
-
 Best of luck! The codebase is in a highly pristine, structured, and modular state.

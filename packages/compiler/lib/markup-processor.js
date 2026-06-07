@@ -15,6 +15,12 @@ export function processMarkup(html, textDomain = 'theme') {
     'href="<?php echo esc_url( home_url( \'/\' ) ); ?>"',
   );
 
+  // Map React root link (href="/") to dynamic localized WordPress home URL
+  processed = processed.replace(
+    /href=(["'])\/\1/g,
+    'href="<?php echo esc_url( function_exists( \'pll_home_url\' ) ? pll_home_url( function_exists( \'pll_current_language\' ) ? pll_current_language() : \'\' ) : home_url( \'/\' ) ); ?>"',
+  );
+
   processed = processed.replace(
     /__FORGEWP_THE_TITLE__/g,
     '<?php echo html_entity_decode( get_the_title(), ENT_QUOTES | ENT_HTML5, \'UTF-8\' ); ?>',

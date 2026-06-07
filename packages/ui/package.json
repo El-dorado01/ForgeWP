@@ -1,6 +1,6 @@
 {
   "name": "@forgewp/ui",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Component registry for ForgeWP",
   "type": "module",
   "license": "MIT",

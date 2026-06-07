@@ -18,21 +18,21 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Configuration
-// Since this script is running from workspace root's scripts folder:
-// __dirname is <workspace-root>/scripts
-// The starter pack root is <workspace-root>/packages/starter
-const THEME_ROOT = path.resolve(__dirname, '../packages/starter');
+const THEME_NAME = process.argv[2] || 'forgewp-starter';
+const THEME_ROOT = THEME_NAME === 'forgewp-starter'
+  ? path.resolve(__dirname, '../packages/starter')
+  : path.resolve(__dirname, `../${THEME_NAME}`);
 const EXPORT_OUTPUT = path.join(
   THEME_ROOT,
   '.forgewp',
   'out',
-  'forgewp-starter',
+  THEME_NAME,
 );
+const WP_SITE_NAME = THEME_NAME === 'hotelchecker24' ? 'hotelchecker24' : 'forgewp';
 const DEFAULT_WP_THEMES_PATH =
-  'C:\\Users\\hp\\Local Sites\\forgewp\\app\\public\\wp-content\\themes';
+  `C:\\Users\\hp\\Local Sites\\${WP_SITE_NAME}\\app\\public\\wp-content\\themes`;
 const WP_THEMES_PATH =
   process.env.WORDPRESS_THEMES_PATH || DEFAULT_WP_THEMES_PATH;
-const THEME_NAME = 'forgewp-starter';
 const TARGET_THEME_PATH = path.join(WP_THEMES_PATH, THEME_NAME);
 
 console.log(`\n📦 ForgeWP Theme Sync Utility`);

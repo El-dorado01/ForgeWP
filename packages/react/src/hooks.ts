@@ -1,4 +1,4 @@
-import { useContext, useCallback, ComponentType } from 'react';
+import { useContext, useCallback, ComponentType, useState, useRef, useEffect } from 'react';
 import { WpPostContext } from './context';
 import type { WpPost, WpQueryArgs, WpQueryResults } from './types';
 
@@ -92,7 +92,16 @@ export function useWpCustomField(fieldName: string, defaultValue = ''): string {
   return defaultValue || `[custom field: ${fieldName}]`;
 }
 
-import { useEffect, useState } from 'react';
+export function useWpField(fieldName: string, defaultValue = ''): string {
+  const post = useContext(WpPostContext);
+  if (
+    post?.customFields &&
+    typeof post.customFields[fieldName] !== 'undefined'
+  ) {
+    return String(post.customFields[fieldName]);
+  }
+  return defaultValue || `[field: ${fieldName}]`;
+}
 
 /**
  * Hook to dynamically detect and adapt to prefers-reduced-motion preferences.
@@ -343,6 +352,14 @@ function executeInMemoryQuery(
   return { items, total };
 }
 
+const queryCache = new Map<string, { posts: any[]; total: number; hasMore: boolean }>();
+
+const activeQueries = new Set<{
+  args: WpQueryArgs;
+  querySelector: (params: URLSearchParams) => WpQueryArgs;
+  execute: (targetArgs: WpQueryArgs) => Promise<void>;
+}>();
+
 export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
   const {
     postType = 'post',
@@ -350,14 +367,9 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     paged = 1,
   } = args;
 
-  const [posts, setPosts] = useState<WpPost[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(paged);
-  const [totalPosts, setTotalPosts] = useState(0);
-
-  // Serialize args (excluding paged) to detect query-level param changes and reset
+  // Serialize args to detect query-level param changes and reset
   const queryKey = JSON.stringify({
+    queryId: args.queryId,
     postType,
     postsPerPage,
     s: args.s,
@@ -369,18 +381,68 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     metaRelation: args.metaRelation,
   });
 
+  let initialState = null;
+  if (typeof window !== 'undefined' && !(window as any)._forgeWpCompileTime) {
+    const stateEl = document.getElementById('forgewp-initial-state');
+    if (stateEl) {
+      try {
+        const parsed = JSON.parse(stateEl.textContent || '{}');
+        if (parsed.queries && parsed.queries[queryKey]) {
+          initialState = parsed.queries[queryKey];
+          // Pre-populate queryCache for page 1
+          const cacheKey = JSON.stringify({ ...args, paged: paged });
+          if (!queryCache.has(cacheKey)) {
+            queryCache.set(cacheKey, {
+              posts: initialState.posts,
+              hasMore: initialState.hasMore,
+              total: initialState.total || initialState.posts.length
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to parse forgewp-initial-state:', e);
+      }
+    }
+  }
+
+  const [posts, setPosts] = useState<WpPost[]>(initialState ? initialState.posts : []);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(paged);
+  const [totalPosts, setTotalPosts] = useState(initialState ? initialState.total : 0);
+  const hydratedFromSsrRef = useRef(initialState ? true : false);
+  // 'append' = loadMore behaviour; 'replace' = goToPage behaviour
+  const pageModeRef = useRef<'append' | 'replace'>('replace');
+
   const [prevQueryKey, setPrevQueryKey] = useState(queryKey);
 
   if (prevQueryKey !== queryKey) {
     setPrevQueryKey(queryKey);
     setCurrentPage(1);
     setPosts([]);
+    setTotalPosts(0);
+    pageModeRef.current = 'replace';
+    hydratedFromSsrRef.current = false;
   }
 
+  const totalPages = Math.max(1, Math.ceil(totalPosts / postsPerPage));
   const hasMore = (currentPage * postsPerPage) < totalPosts;
 
   const executeMockQuery = useCallback(
-    (page: number, accumulate: boolean) => {
+    (page: number) => {
+      const mode = pageModeRef.current;
+      // After consuming the mode, reset to 'append' for subsequent loadMore calls
+      pageModeRef.current = 'append';
+
+      const cacheKey = JSON.stringify({ ...args, paged: page });
+      if (queryCache.has(cacheKey)) {
+        const cached = queryCache.get(cacheKey)!;
+        setPosts((prev) => (mode === 'append' ? [...prev, ...cached.posts] : cached.posts));
+        setTotalPosts(cached.total);
+        setError(null);
+        return;
+      }
+
       setLoading(true);
 
       // Micro-delay simulates async feel without blocking
@@ -392,8 +454,13 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
               : [];
 
           const { items, total } = executeInMemoryQuery(mockDb, args, page);
+          queryCache.set(cacheKey, {
+            posts: items,
+            total,
+            hasMore: (page * postsPerPage) < total,
+          });
 
-          setPosts((prev) => (accumulate ? [...prev, ...items] : items));
+          setPosts((prev) => (mode === 'append' ? [...prev, ...items] : items));
           setTotalPosts(total);
           setError(null);
         } catch (err: any) {
@@ -408,17 +475,70 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
   );
 
   useEffect(() => {
-    executeMockQuery(currentPage, currentPage > 1);
+    if (hydratedFromSsrRef.current) {
+      hydratedFromSsrRef.current = false;
+      return;
+    }
+    executeMockQuery(currentPage);
   }, [executeMockQuery, currentPage]);
+
+  const querySelector = useCallback((params: URLSearchParams) => {
+    const target = { ...args };
+    if (params.has('q') || params.has('s')) {
+      target.s = params.get('q') || params.get('s') || '';
+    }
+    if (params.has('category')) {
+      target.categoryName = params.get('category') || '';
+    }
+    return target;
+  }, [args]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const item = {
+      args,
+      querySelector,
+      execute: async (targetArgs: any) => {
+        const cacheKey = JSON.stringify({ ...targetArgs, paged: 1 });
+        if (queryCache.has(cacheKey)) return;
+        try {
+          const mockDb =
+            typeof window !== 'undefined'
+              ? (window as any)._forgeWpMockPosts?.[targetArgs.postType || 'post'] || []
+              : [];
+          const { items, total } = executeInMemoryQuery(mockDb, targetArgs, 1);
+          queryCache.set(cacheKey, {
+            posts: items,
+            total,
+            hasMore: (1 * (targetArgs.postsPerPage || 10)) < total,
+          });
+        } catch (e) {}
+      }
+    };
+    activeQueries.add(item);
+    return () => {
+      activeQueries.delete(item);
+    };
+  }, [args, querySelector]);
 
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) return;
+    pageModeRef.current = 'append';
     setCurrentPage((p) => p + 1);
   }, [loading, hasMore]);
 
+  const goToPage = useCallback((targetPage: number) => {
+    if (loading) return;
+    if (targetPage < 1 || targetPage > totalPages) return;
+    pageModeRef.current = 'replace';
+    setPosts([]);
+    setCurrentPage(targetPage);
+  }, [loading, totalPages]);
+
   const refetch = useCallback(async () => {
+    pageModeRef.current = 'replace';
     setCurrentPage(1);
-    executeMockQuery(1, false);
+    executeMockQuery(1);
   }, [executeMockQuery]);
 
   return {
@@ -426,9 +546,36 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     loading,
     error,
     hasMore,
+    totalPages,
+    currentPage,
     loadMore,
+    goToPage,
     refetch,
   };
+}
+
+let prefetchTimeout: any = null;
+
+export function useWpPrefetch() {
+  const prefetch = useCallback((to: string) => {
+    if (typeof window === 'undefined') return;
+    if (prefetchTimeout) {
+      clearTimeout(prefetchTimeout);
+    }
+    prefetchTimeout = setTimeout(() => {
+      try {
+        const url = new URL(to, window.location.href);
+        const params = url.searchParams;
+        activeQueries.forEach((item) => {
+          const targetArgs = item.querySelector(params);
+          item.execute(targetArgs);
+        });
+      } catch (e) {
+        console.warn('[prefetch] Failed to parse target URL:', to, e);
+      }
+    }, 80);
+  }, []);
+  return prefetch;
 }
 
 // ── Gutenberg Block Compiler Authoring ───────────────────────────────────────────

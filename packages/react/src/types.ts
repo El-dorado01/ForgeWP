@@ -59,6 +59,7 @@ export interface WpMetaQuery {
 }
 
 export interface WpQueryArgs {
+  queryId?: string;
   postType?: string;
   postsPerPage?: number;
   categoryName?: string;
@@ -78,8 +79,20 @@ export interface WpQueryResults {
   posts: WpPost[];
   loading: boolean;
   error: string | null;
+  /** Whether there are more pages beyond the currently loaded data (for load-more/infinite scroll) */
   hasMore: boolean;
+  /** Total number of pages for the current query (from X-WP-TotalPages header) */
+  totalPages: number;
+  /** The currently active page number (1-based) */
+  currentPage: number;
+  /** Append the next page of results to the existing list (load-more / infinite scroll) */
   loadMore: () => Promise<void>;
+  /**
+   * Jump directly to a specific page, replacing the current post list.
+   * Works for numbered pagination (click "Page 3") or Prev/Next buttons.
+   * @param page - 1-based page number to navigate to
+   */
+  goToPage: (page: number) => void;
   refetch: (newArgs?: WpQueryArgs) => Promise<void>;
 }
 

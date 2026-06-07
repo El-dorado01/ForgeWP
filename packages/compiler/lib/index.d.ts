@@ -35,12 +35,32 @@ export interface ForgeWPI18nConfig {
   };
 }
 
+export interface ForgeWpSeoSitemapsConfig {
+  postTypes: string[];
+  taxonomies: string[];
+}
+
+export interface ForgeWPPlugin {
+  name: string;
+  validateConfig?: (config: ForgeWPThemeConfig, themeRoot: string) => void;
+  transformFunctionsPhp?: (php: string, config: ForgeWPThemeConfig, themeRoot: string) => string;
+}
+
 export interface ForgeWPThemeConfig {
   name: string;
   slug: string;
   version: string;
   description: string;
   textDomain: string;
+  configVersion?: number;
+  favicon?: string;
+  seo?: {
+    sitemaps?: ForgeWpSeoSitemapsConfig;
+    plugins?: {
+      yoast?: boolean;
+      rankMath?: boolean;
+    };
+  };
   frameworkAdapter?: 'react' | 'html' | 'stub';
   style?: 'forgewp' | 'shadcn';
   postTypes?: Record<string, CustomPostTypeConfig>;
@@ -60,7 +80,9 @@ export interface ForgeWPThemeConfig {
       googleFonts?: string[];
     };
   };
+  plugins?: ForgeWPPlugin[];
 }
+
 
 
 export interface ForgeWPBuildAssets {

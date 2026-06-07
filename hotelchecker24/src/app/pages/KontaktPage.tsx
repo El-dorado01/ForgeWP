@@ -107,10 +107,10 @@ export function KontaktPage() {
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(146,159,93,0.09)_0%,transparent_70%)] blur-3xl pointer-events-none" />
 
         <div className="relative max-w-7xl mx-auto z-10">
-          <nav className="flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4">
-            <WpLink href={homeHref} className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
-            <ChevronRight className="w-4 h-4" />
-            <span className="text-slate-700">{__('Kontakt')}</span>
+          <nav className="flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4 w-full min-w-0">
+            <WpLink href={homeHref} className="hover:text-primary transition-colors whitespace-nowrap shrink-0">{__('Startseite')}</WpLink>
+            <ChevronRight className="w-4 h-4 shrink-0" />
+            <span className="text-slate-700 truncate min-w-0">{__('Kontakt')}</span>
           </nav>
           
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-center">

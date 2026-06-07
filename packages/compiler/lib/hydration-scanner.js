@@ -380,6 +380,118 @@ export function runStaticLintChecks(themeRoot) {
   const violations = [];
   const filesToScan = [];
 
+  // Load CPTs, Taxonomies, and Custom Fields from wp.config.ts and cms/mock-data.json
+  const validPostTypes = new Set(["post", "page"]);
+  const postTypeTaxonomies = {
+    "post": new Set(["category", "post_tag"]),
+    "page": new Set()
+  };
+  const postTypeCustomFields = {
+    "post": new Set(),
+    "page": new Set()
+  };
+
+  // 1. Scan CPTs from wp.config.ts
+  const configPath = path.join(themeRoot, "wp.config.ts");
+  if (existsSync(configPath)) {
+    try {
+      const configContent = readFileSync(configPath, "utf8");
+      const postTypesMatch = configContent.match(/postTypes\s*:\s*\{([\s\S]*?)\}/);
+      if (postTypesMatch) {
+        const block = postTypesMatch[1];
+        const keyRegex = /\b([a-zA-Z0-9_-]+)\s*:/g;
+        let m;
+        while ((m = keyRegex.exec(block)) !== null) {
+          const pt = m[1];
+          if (pt !== 'labels' && pt !== 'singular' && pt !== 'plural' && pt !== 'translatable') {
+            validPostTypes.add(pt);
+            if (!postTypeTaxonomies[pt]) {
+              postTypeTaxonomies[pt] = new Set(["category", "post_tag"]);
+            }
+            if (!postTypeCustomFields[pt]) {
+              postTypeCustomFields[pt] = new Set();
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Scan CPTs, Taxonomies, and Custom Fields from cms/mock-data.json
+  const mockDataPath = path.join(themeRoot, "cms", "mock-data.json");
+  if (existsSync(mockDataPath)) {
+    try {
+      const mockData = JSON.parse(readFileSync(mockDataPath, "utf8"));
+      for (const pt of Object.keys(mockData)) {
+        if (
+          pt !== 'posts' &&
+          pt !== 'pages' &&
+          pt !== 'post' &&
+          pt !== 'page' &&
+          pt !== 'menus' &&
+          pt !== 'attachment' &&
+          !pt.startsWith('_')
+        ) {
+          validPostTypes.add(pt);
+          if (!postTypeTaxonomies[pt]) {
+            postTypeTaxonomies[pt] = new Set(["category", "post_tag"]);
+          }
+          if (!postTypeCustomFields[pt]) {
+            postTypeCustomFields[pt] = new Set();
+          }
+
+          const items = mockData[pt];
+          if (Array.isArray(items)) {
+            for (const item of items) {
+              if (item._terms && typeof item._terms === 'object') {
+                for (const tax of Object.keys(item._terms)) {
+                  postTypeTaxonomies[pt].add(tax);
+                }
+              }
+              if (item.customFields && typeof item.customFields === 'object') {
+                for (const key of Object.keys(item.customFields)) {
+                  postTypeCustomFields[pt].add(key);
+                }
+              }
+            }
+          }
+        } else if (pt === 'post' || pt === 'page') {
+          const items = mockData[pt];
+          if (Array.isArray(items)) {
+            for (const item of items) {
+              if (item._terms && typeof item._terms === 'object') {
+                for (const tax of Object.keys(item._terms)) {
+                  postTypeTaxonomies[pt].add(tax);
+                }
+              }
+              if (item.customFields && typeof item.customFields === 'object') {
+                for (const key of Object.keys(item.customFields)) {
+                  postTypeCustomFields[pt].add(key);
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  const validSlugs = new Set(["page"]);
+  const pagesDir = path.join(themeRoot, "src", "app", "pages");
+  if (existsSync(pagesDir)) {
+    try {
+      const pageFiles = readdirSync(pagesDir).filter(f => f.endsWith(".tsx"));
+      for (const pf of pageFiles) {
+        const pageName = pf.replace(".tsx", "");
+        if (pageName.startsWith("Single")) {
+          continue;
+        }
+        const slug = pageName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+        validSlugs.add(slug);
+      }
+    } catch {}
+  }
+
   const dirsToScan = [
     path.join(themeRoot, "src", "app"),
     path.join(themeRoot, "src", "components"),
@@ -522,6 +634,72 @@ export function runStaticLintChecks(themeRoot) {
               severity: "warning",
               lineContent: line.trim() + ` (line ${i + 1})`
             });
+          }
+        }
+      }
+
+      // 4. useWpPageLink template slug typo check
+      const pageLinkRegex = /useWpPageLink\s*\(\s*["']([^"']+)["']/g;
+      let pageLinkMatch;
+      while ((pageLinkMatch = pageLinkRegex.exec(content)) !== null) {
+        const slugUsed = pageLinkMatch[1];
+        if (!validSlugs.has(slugUsed)) {
+          violations.push({
+            type: "pagelink",
+            file: relFile,
+            message: `useWpPageLink references non-existent page template slug "${slugUsed}". Valid slugs: ${Array.from(validSlugs).join(", ")}`,
+            severity: "warning"
+          });
+        }
+      }
+
+      // 5. useWpQuery arguments audit
+      const useWpQueryRegex = /useWpQuery\s*\(\s*(\{[\s\S]*?\})\s*\)/g;
+      let queryMatch;
+      while ((queryMatch = useWpQueryRegex.exec(content)) !== null) {
+        const argsStr = queryMatch[1];
+        
+        const postTypeMatch = argsStr.match(/postType\s*:\s*['"]([^'"]+)['"]/);
+        const postType = postTypeMatch ? postTypeMatch[1] : 'post';
+
+        if (!validPostTypes.has(postType)) {
+          violations.push({
+            type: "query",
+            file: relFile,
+            message: `useWpQuery references unregistered postType "${postType}".`,
+            severity: "warning"
+          });
+        } else {
+          // Validate Taxonomies inside taxQuery
+          const taxRegex = /\btaxonomy\s*:\s*['"]([^'"]+)['"]/g;
+          let taxMatch;
+          const allowedTaxonomies = postTypeTaxonomies[postType] || new Set();
+          while ((taxMatch = taxRegex.exec(argsStr)) !== null) {
+            const taxSlug = taxMatch[1];
+            if (!allowedTaxonomies.has(taxSlug)) {
+              violations.push({
+                type: "query",
+                file: relFile,
+                message: `useWpQuery in ${path.basename(filePath)} queries taxonomy "${taxSlug}", which is not registered for postType "${postType}" in wp.config.ts.`,
+                severity: "warning"
+              });
+            }
+          }
+
+          // Validate Custom Fields inside metaQuery
+          const keyRegex = /\bkey\s*:\s*['"]([^'"]+)['"]/g;
+          let keyMatch;
+          const allowedFields = postTypeCustomFields[postType] || new Set();
+          while ((keyMatch = keyRegex.exec(argsStr)) !== null) {
+            const fieldKey = keyMatch[1];
+            if (!allowedFields.has(fieldKey)) {
+              violations.push({
+                type: "query",
+                file: relFile,
+                message: `useWpQuery in ${path.basename(filePath)} queries custom field "${fieldKey}", which is not defined for postType "${postType}" in wp.config.ts.`,
+                severity: "warning"
+              });
+            }
           }
         }
       }

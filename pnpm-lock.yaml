@@ -90,6 +90,9 @@ importers:
 
   hotelchecker24:
     dependencies:
+      '@forgewp/plugin-seo':
+        specifier: workspace:*
+        version: link:../packages/plugin-seo
       '@forgewp/react':
         specifier: workspace:*
         version: link:../packages/react
@@ -213,6 +216,12 @@ importers:
         specifier: ^6.4.2
         version: 6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.0)
 
+  packages/plugin-seo:
+    dependencies:
+      '@forgewp/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+
   packages/react:
     dependencies:
       react:
@@ -231,6 +240,9 @@ importers:
 
   packages/starter:
     dependencies:
+      '@forgewp/plugin-seo':
+        specifier: workspace:*
+        version: link:../plugin-seo
       '@forgewp/react':
         specifier: workspace:*
         version: link:../react

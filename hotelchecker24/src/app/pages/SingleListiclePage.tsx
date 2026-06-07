@@ -80,12 +80,12 @@ export function SingleListiclePage() {
       <div className="max-w-7xl mx-auto animate-fade-in duration-500">
         {/* Navigation Breadcrumbs */}
         <div className="max-w-5xl mx-auto w-full">
-          <nav className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-8 w-full">
-            <WpLink href={homeHref} className="hover:text-primary transition-colors">{__('Startseite')}</WpLink>
-            <ChevronRight className="w-3 h-3 text-slate-300" />
-            <WpLink href={listiclesHref} className="hover:text-primary transition-colors">{__('Hotelvergleiche')}</WpLink>
-            <ChevronRight className="w-3 h-3 text-slate-300" />
-            <span className="text-slate-500 line-clamp-1">{title}</span>
+          <nav className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-8 w-full min-w-0">
+            <WpLink href={homeHref} className="hover:text-primary transition-colors whitespace-nowrap shrink-0">{__('Startseite')}</WpLink>
+            <ChevronRight className="w-3 h-3 text-slate-300 shrink-0" />
+            <WpLink href={listiclesHref} className="hover:text-primary transition-colors whitespace-nowrap shrink-0">{__('Hotelvergleiche')}</WpLink>
+            <ChevronRight className="w-3 h-3 text-slate-300 shrink-0" />
+            <span className="text-slate-500 truncate min-w-0">{title}</span>
           </nav>
         </div>
 

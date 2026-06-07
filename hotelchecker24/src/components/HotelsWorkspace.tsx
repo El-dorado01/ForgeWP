@@ -1,26 +1,18 @@
 import React from 'react';
-import { useWpSearch, useWpLocation, useWpI18n, useWpTerms, useWpPageLink } from '../.forgewp/wordpress';
+import { useWpSearchParams, useWpLocation, useWpI18n, useWpTerms, useWpPagePath } from '../.forgewp/wordpress';
 import { Search, SlidersHorizontal, MapPin, Tag } from 'lucide-react';
 import { HotelsGrid } from './HotelsGrid';
 import { Hydrate } from '@forgewp/react';
 
 export function HotelsWorkspace() {
   const { __ } = useWpI18n();
-  const searchString = useWpSearch();
+  const searchParams = useWpSearchParams();
   const [, setLocation] = useWpLocation();
-  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
-  const hotelsPath = React.useMemo(() => {
-    try {
-      return new URL(hotelsHref, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').pathname;
-    } catch (e) {
-      return hotelsHref;
-    }
-  }, [hotelsHref]);
-  const params = React.useMemo(() => new URLSearchParams(searchString), [searchString]);
+  const hotelsPath = useWpPagePath('hotels-page', '/hotels');
 
-  const keyword = params.get('q') || params.get('s') || '';
-  const country = params.get('country') || '';
-  const category = params.get('category') || '';
+  const keyword = searchParams.get('q') || searchParams.get('s') || '';
+  const country = searchParams.get('country') || '';
+  const category = searchParams.get('category') || '';
 
   const [searchInput, setSearchInput] = React.useState(keyword);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
@@ -44,7 +36,7 @@ export function HotelsWorkspace() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const newParams = new URLSearchParams(searchString);
+    const newParams = new URLSearchParams(searchParams);
     if (searchInput.trim()) {
       newParams.set('q', searchInput.trim());
     } else {
@@ -56,7 +48,7 @@ export function HotelsWorkspace() {
   };
 
   const setFilter = (key: 'country' | 'category', value: string) => {
-    const newParams = new URLSearchParams(searchString);
+    const newParams = new URLSearchParams(searchParams);
     if (value) {
       newParams.set(key, value);
     } else {

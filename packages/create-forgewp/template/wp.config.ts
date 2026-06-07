@@ -1,4 +1,5 @@
 import { defineConfig } from '@forgewp/compiler/define-config';
+// import seoPlugin from '@forgewp/plugin-seo';
 
 export default defineConfig({
   name: 'ForgeWP Starter',
@@ -6,6 +7,20 @@ export default defineConfig({
   version: '0.1.0',
   description: 'A clean default canvas for building block-themes with ForgeWP.',
   textDomain: 'forgewp-starter',
+  configVersion: 1,
+  // favicon: '/Logo/favicon.svg',
+  // plugins: [
+  //   seoPlugin({
+  //     sitemaps: {
+  //       postTypes: ['post', 'page'],
+  //       taxonomies: ['category', 'post_tag']
+  //     },
+  //     plugins: {
+  //       yoast: true,
+  //       rankMath: true
+  //     }
+  //   })
+  // ],
   style: 'forgewp', // "forgewp" (sharp corners) or "shadcn" (smooth modern curves)
   frameworkAdapter: 'react',
 
