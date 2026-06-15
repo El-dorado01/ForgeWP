@@ -119,7 +119,7 @@ export default function Navbar() {
           {/* Logo (Left) */}
           <div className='flex-1 flex justify-start items-center'>
             <a
-              href='/parallax'
+              href='/'
               className='font-heading font-black text-2xl tracking-tighter flex items-center gap-0.5 select-none hover:opacity-95 transition-all duration-500 text-zinc-900'
             >
               CD<span className='text-brand'>.</span>
