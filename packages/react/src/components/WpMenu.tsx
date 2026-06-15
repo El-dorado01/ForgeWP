@@ -1,9 +1,10 @@
+import { useWpMenu } from "../hooks";
 import type { WpMenuItem, WpMenuLocation } from "../types";
 
 export interface WpMenuProps {
   /**
-   * Items to render — injected by the data bridge in src/.forgewp/wordpress.tsx.
-   * You do not need to pass this yourself; use the location prop instead.
+   * Optional manual items. If not passed, it will load dynamically
+   * using the useWpMenu hook for the specified location.
    */
   items?: WpMenuItem[];
   /** Menu location key — matches a key in your cms/menus.json */
@@ -22,11 +23,14 @@ export interface WpMenuProps {
  * registered to the given location.
  */
 export function WpMenu({
-  items = [],
-  location: _location = "primary",
+  items: manualItems,
+  location = "primary",
   className = "",
   linkClassName = "",
 }: WpMenuProps) {
+  const { items: dynamicItems } = useWpMenu(location);
+  const items = manualItems || dynamicItems;
+
   return (
     <nav className={className}>
       {items.map((item, idx) => (

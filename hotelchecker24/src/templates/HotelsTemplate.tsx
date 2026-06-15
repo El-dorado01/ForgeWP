@@ -50,10 +50,6 @@ export default function HotelsTemplate() {
               <span className="font-bold text-slate-800">{useWpCustomField("rating")}</span>
             </div>
             <div className="flex justify-between border-t border-slate-100 pt-2 text-xs font-mono text-slate-500">
-              <span>Price Range:</span>
-              <span className="font-bold text-slate-800">{useWpCustomField("price_range")}</span>
-            </div>
-            <div className="flex justify-between border-t border-slate-100 pt-2 text-xs font-mono text-slate-500">
               <span>Location:</span>
               <span className="font-bold text-slate-800">{useWpCustomField("location")}</span>
             </div>

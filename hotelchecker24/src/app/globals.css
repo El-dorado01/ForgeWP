@@ -1,12 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&family=Lora:ital,wght@0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
 @theme {
   /* Font Family Mappings */
   --font-sans: var(--wp--preset--font-family--sans, "Ubuntu", "Segoe UI", system-ui, sans-serif);
-  --font-serif: var(--wp--preset--font-family--serif, "Lora", Georgia, serif);
-  --font-mono: var(--wp--preset--font-family--mono, var(--font-serif));
+  --font-serif: var(--wp--preset--font-family--serif, "Ubuntu", var(--font-sans));
+  --font-mono: var(--wp--preset--font-family--mono, var(--font-sans));
   --font-heading: var(--wp--preset--font-family--heading, "Ubuntu", var(--font-sans));
 
   /* Color Palette Mappings */
@@ -40,7 +40,10 @@
     text-rendering: optimizeLegibility;
   }
   body {
-    @apply min-h-screen bg-bg-light font-sans text-text-slate;
+    @apply bg-bg-light font-sans text-text-slate;
+  }
+  body:not(.editor-styles-wrapper):not(#tinymce):not(.mce-content-body) {
+    min-height: 100vh;
   }
 }
 
@@ -65,7 +68,7 @@
  
   /* Schriften */
   --hc-sans: "Ubuntu","Segoe UI",system-ui,sans-serif;
-  --hc-serif:"Lora",Georgia,serif;
+  --hc-serif:"Ubuntu", sans-serif;
  
   /* Lese-Grundeinstellung */
   font-family: var(--hc-sans);
@@ -499,5 +502,10 @@
     left: .2rem;
     font-size: 1.85rem;
   }
+}
+
+/* Prevent Gutenberg editor iframe height feedback loop caused by min-h-screen on body */
+.editor-styles-wrapper {
+  min-height: auto !important;
 }
 

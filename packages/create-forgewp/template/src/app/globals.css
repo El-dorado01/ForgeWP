@@ -39,6 +39,14 @@
     text-rendering: optimizeLegibility;
   }
   body {
-    @apply min-h-screen bg-bg-light font-sans text-text-slate;
+    @apply bg-bg-light font-sans text-text-slate;
   }
+  body:not(.editor-styles-wrapper):not(#tinymce):not(.mce-content-body) {
+    min-height: 100vh;
+  }
+}
+
+/* Prevent Gutenberg editor iframe height feedback loop caused by min-h-screen on body */
+.editor-styles-wrapper {
+  min-height: auto !important;
 }

@@ -47,6 +47,11 @@ export function processMarkup(html, textDomain = 'theme') {
   );
 
   processed = processed.replace(
+    /__FORGEWP_THE_MODIFIED_DATE__/g,
+    '<?php echo esc_html( get_the_modified_date() ); ?>',
+  );
+
+  processed = processed.replace(
     /__FORGEWP_THE_AUTHOR__/g,
     '<?php echo esc_html( get_the_author() ); ?>',
   );

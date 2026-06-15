@@ -23,6 +23,7 @@ export interface WpPost {
   excerpt: string;
   content: string;
   date: string;
+  modified?: string;
   author: string;
   featuredImage: string | WpAttachment;
   permalink?: string;

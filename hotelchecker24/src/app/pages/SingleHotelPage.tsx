@@ -24,7 +24,6 @@ import {
   Star,
   ArrowLeft,
   User,
-  DollarSign,
   Award,
   Globe,
   Mail,
@@ -115,9 +114,6 @@ export function SingleHotelPage() {
   const rating =
     useWpCustomField('rating') ||
     String(devPost?.customFields?.rating || '4.8');
-  const priceRange =
-    useWpCustomField('price_range') ||
-    String(devPost?.customFields?.price_range || '$$$');
   const address =
     useWpCustomField('location') ||
     String(devPost?.customFields?.location || '');
@@ -256,16 +252,6 @@ export function SingleHotelPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shrink-0 text-amber-600">
-                  <DollarSign className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <div className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 leading-none">{__('Preiskategorie')}</div>
-                  <div className="text-base font-black text-slate-900 mt-1 leading-none">{priceRange}</div>
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1 font-mono leading-none">{__('Luxusstufe')}</div>
-                </div>
-              </div>
 
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0 text-slate-700">
@@ -340,10 +326,7 @@ export const editable = defineEditable({
     label: 'Rating (Expert Score)',
     default: '4.8',
   }),
-  price_range: text({
-    label: 'Price Range',
-    default: '$$$',
-  }),
+
   location: text({
     label: 'Location (Address)',
     default: 'Schubertring 10-12, 1010 Vienna',

@@ -1,6 +1,6 @@
 import { useContext, useCallback, ComponentType, useState, useRef, useEffect } from 'react';
 import { WpPostContext } from './context';
-import type { WpPost, WpQueryArgs, WpQueryResults } from './types';
+import type { WpPost, WpQueryArgs, WpQueryResults, WpMenuItem } from './types';
 
 /**
  * @forgewp/react — WordPress Data Hooks
@@ -54,6 +54,19 @@ export function useWpPermalink(): string {
 export function useWpDate(): string {
   const post = useContext(WpPostContext);
   return (
+    post?.date ??
+    new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  );
+}
+
+export function useWpModifiedDate(): string {
+  const post = useContext(WpPostContext);
+  return (
+    post?.modified ??
     post?.date ??
     new Date().toLocaleDateString('en-US', {
       year: 'numeric',
@@ -205,6 +218,21 @@ export function useWpPageLink(name: string, fallback: string): string {
     }
   }
   return fallback;
+}
+
+export function useWpMenu(location: string = 'primary'): { items: WpMenuItem[]; loading: boolean } {
+  if (typeof window === 'undefined') {
+    return { items: [], loading: true };
+  }
+
+  const win = window as any;
+  const items = win.forgeWpHydration?.menus?.[location] ||
+    win._forgeWpMockMenus?.[location] || [
+      { title: 'Home', url: '/' },
+      { title: 'Blog', url: '/post' },
+    ];
+
+  return { items, loading: false };
 }
 
 // ── Isomorphic Query Hook ─────────────────────────────────────────────────────

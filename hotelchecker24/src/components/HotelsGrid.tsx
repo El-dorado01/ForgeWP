@@ -1,5 +1,5 @@
 import { useWpQuery, WpLink, useWpSearchParams, useWpLocation, useWpI18n, useWpPagePath } from '../.forgewp/wordpress';
-import { MapPin, Star, SlidersHorizontal, X, RotateCcw, DollarSign } from 'lucide-react';
+import { MapPin, Star, SlidersHorizontal, X, RotateCcw } from 'lucide-react';
 import { Button } from './ui/button';
 
 export function HotelsGrid() {
@@ -129,7 +129,6 @@ export function HotelsGrid() {
             const postAny = hotel as any;
             const rating = String(hotel.customFields?.rating || '4.8');
             const city = String(hotel.customFields?.city || hotel.customFields?.location || '');
-            const priceRange = String(hotel.customFields?.price_range || '$$$');
             const starsVal = parseInt(String(hotel.customFields?.stars || '5'), 10) || 5;
             const categoryTerms = postAny._terms?.category || [];
             const categoryName = categoryTerms.length > 0 ? categoryTerms[0].name : __('Boutique Hotel');
@@ -154,10 +153,6 @@ export function HotelsGrid() {
                   <div className='absolute top-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-700 flex items-center gap-1 shadow-xs'>
                     <MapPin className='w-3 h-3 text-primary' />
                     <span>{city}</span>
-                  </div>
-                  <div className='absolute top-3 right-3 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-700 flex items-center gap-1 shadow-xs'>
-                    <DollarSign className='w-3 h-3 text-amber-500' />
-                    <span>{priceRange}</span>
                   </div>
                 </div>
                 <div className='p-5 flex flex-col grow'>

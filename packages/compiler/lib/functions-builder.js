@@ -2023,6 +2023,22 @@ function forgewp_render_theme_icon($icon_slug, $class_name = '', $provider = 'lu
     }
 }
 ${faviconPhp}${sitemapsPhp}${queryEndpointsPhp}
+
+/**
+ * Prevent TinyMCE Classic Editor auto-resize height expansion feedback loop.
+ */
+function forgewp_disable_editor_autoresize($init_array) {
+    if (isset($init_array['plugins'])) {
+        $plugins = explode(',', $init_array['plugins']);
+        $key = array_search('wpautoresize', $plugins);
+        if ($key !== false) {
+            unset($plugins[$key]);
+            $init_array['plugins'] = implode(',', $plugins);
+        }
+    }
+    return $init_array;
+}
+add_filter('tiny_mce_before_init', 'forgewp_disable_editor_autoresize');
 `;
 }
 

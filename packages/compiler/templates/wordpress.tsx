@@ -26,6 +26,7 @@ import {
   useWpExcerpt as _useWpExcerpt,
   useWpPermalink as _useWpPermalink,
   useWpDate as _useWpDate,
+  useWpModifiedDate as _useWpModifiedDate,
   useWpAuthor as _useWpAuthor,
   useWpFeaturedImage as _useWpFeaturedImage,
   useWpCustomField as _useWpCustomField,
@@ -40,6 +41,7 @@ import {
   WpPostContext,
   useWpMeta as _useWpMeta,
   useWpPageLink as _useWpPageLink,
+  useWpMenu as _useWpMenu,
   BlockArea as _BlockArea,
   defineEditable,
   text,
@@ -56,6 +58,7 @@ export { WpPostContext, defineEditable, text, richText, image, boolean, repeater
 import type {
   WpQueryLoopProps,
   WpMenuProps,
+  WpMenuItem,
   WpHeadProps,
   WpImageProps,
   WpAttachment,
@@ -93,6 +96,7 @@ if (IS_DEV) {
   if (typeof window !== 'undefined') {
     (window as any)._forgeWpMockSiteSettings = siteSettings;
     (window as any)._forgeWpMockPosts = mockData;
+    (window as any)._forgeWpMockMenus = menusData;
   }
 }
 
@@ -119,6 +123,10 @@ export function useWpPermalink(): string {
 export function useWpDate(): string {
   if (IS_DEV) return _useWpDate();
   return '__FORGEWP_THE_DATE__';
+}
+export function useWpModifiedDate(): string {
+  if (IS_DEV) return _useWpModifiedDate();
+  return '__FORGEWP_THE_MODIFIED_DATE__';
 }
 export function useWpAuthor(): string {
   if (IS_DEV) return _useWpAuthor();
@@ -383,7 +391,14 @@ async function fetchWpApi(args: any, page: number) {
           ? wp.content.rendered
           : wp.content || '',
       date: wp.date
-        ? new Date(wp.date).toLocaleDateString('en-US', {
+        ? new Date(wp.date).toLocaleDateString(currentLang === 'de' ? 'de-DE' : 'en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : '',
+      modified: wp.modified
+        ? new Date(wp.modified).toLocaleDateString(currentLang === 'de' ? 'de-DE' : 'en-US', {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
@@ -466,27 +481,24 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
 
   let initialState = null;
   if (typeof window !== 'undefined' && !(window as any)._forgeWpCompileTime) {
-    const isWpProduction = typeof (window as any).forgeWpHydration !== 'undefined';
-    if (!isWpProduction) {
-      const stateEl = document.getElementById('forgewp-initial-state');
-      if (stateEl) {
-        try {
-          const parsed = JSON.parse(stateEl.textContent || '{}');
-          if (parsed.queries && parsed.queries[queryKey]) {
-            initialState = parsed.queries[queryKey];
-            // Pre-populate queryCache for page 1
-            const cacheKey = JSON.stringify({ ...args, paged: paged });
-            if (!queryCache.has(cacheKey)) {
-              queryCache.set(cacheKey, {
-                posts: initialState.posts,
-                hasMore: initialState.hasMore,
-                total: initialState.total || initialState.posts.length
-              });
-            }
+    const stateEl = document.getElementById('forgewp-initial-state');
+    if (stateEl) {
+      try {
+        const parsed = JSON.parse(stateEl.textContent || '{}');
+        if (parsed.queries && parsed.queries[queryKey]) {
+          initialState = parsed.queries[queryKey];
+          // Pre-populate queryCache for page 1
+          const cacheKey = JSON.stringify({ ...args, paged: paged });
+          if (!queryCache.has(cacheKey)) {
+            queryCache.set(cacheKey, {
+              posts: initialState.posts,
+              hasMore: initialState.hasMore,
+              total: initialState.total || initialState.posts.length
+            });
           }
-        } catch (e) {
-          console.warn('Failed to parse forgewp-initial-state:', e);
         }
+      } catch (e) {
+        console.warn('Failed to parse forgewp-initial-state:', e);
       }
     }
   }
@@ -798,6 +810,23 @@ export function WpLoop({ children }: { children: React.ReactNode }) {
   );
 }
 
+// ── useWpMenu ────────────────────────────────────────────────────────────────
+
+export function useWpMenu(location: string = 'primary'): { items: WpMenuItem[]; loading: boolean } {
+  if (IS_DEV) {
+    return _useWpMenu(location);
+  }
+
+  // Node SSR (Compile-time)
+  if (typeof window === "undefined" || (window as any)._forgeWpCompileTime) {
+    return { items: [], loading: true };
+  }
+
+  // Browser production hydration client
+  const items = (window as any).forgeWpHydration?.menus?.[location] || [];
+  return { items, loading: false };
+}
+
 // ── WpMenu — data bridge wraps @forgewp/react with menus.json ────────────────
 
 export function WpMenu({
@@ -805,12 +834,9 @@ export function WpMenu({
   className = '',
   linkClassName = '',
 }: WpMenuProps) {
+  const { items } = useWpMenu(location);
+
   if (IS_DEV) {
-    const items = (menusData as any)?.[location] ||
-      (mockData as any).menu?.[location] || [
-        { title: 'Home', url: '/' },
-        { title: 'Blog', url: '/post' },
-      ];
     return (
       <_WpMenu
         items={items}
@@ -823,7 +849,6 @@ export function WpMenu({
 
   // Production browser hydration client: render menu items from localized PHP data
   if (typeof window !== "undefined" && !(window as any)._forgeWpCompileTime) {
-    const items = (window as any).forgeWpHydration?.menus?.[location] || [];
     if (items.length > 0) {
       return (
         <nav className={className}>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useWpQuery, useWpCustomField, useWpI18n, WpLink, decodeHtmlEntities } from '../.forgewp/wordpress';
-import { Award, Star, MapPin, DollarSign, ExternalLink } from 'lucide-react';
+import { Award, Star, MapPin, ExternalLink } from 'lucide-react';
 
 interface ListicleRankedHotelsProps {
   listicleId: number | string;
@@ -81,7 +81,6 @@ export function ListicleRankedHotels({ listicleId }: ListicleRankedHotelsProps) 
       {featuredHotels.map((h, index) => {
         try {
           const rating = h.customFields?.rating || '4.8';
-          const priceRange = h.customFields?.price_range || '$$$';
           const address = h.customFields?.location || '';
           const starsVal = h.customFields?.stars || '5';
           let stars = parseInt(starsVal, 10) || 5;
@@ -160,10 +159,6 @@ export function ListicleRankedHotels({ listicleId }: ListicleRankedHotelsProps) 
                       <div className="flex items-center gap-1.5">
                         <Award className="w-4 h-4 text-[#929f5d]" />
                         <span className="text-xs font-mono font-bold text-slate-600">{rating} / 5.0</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <DollarSign className="w-4 h-4 text-amber-600" />
-                        <span className="text-xs font-mono font-bold text-slate-600">{priceRange}</span>
                       </div>
                     </div>
 

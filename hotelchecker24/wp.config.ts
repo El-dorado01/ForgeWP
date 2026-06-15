@@ -66,12 +66,11 @@ export default defineConfig({
       fontFamilies: [
         { name: "Ubuntu", slug: "sans", fontFamily: "Ubuntu, system-ui, sans-serif" },
         { name: "Ubuntu Heading", slug: "heading", fontFamily: "Ubuntu, system-ui, sans-serif" },
-        { name: "Serif (Lora)", slug: "serif", fontFamily: "Lora, Georgia, serif" },
-        { name: "Mono (Serif)", slug: "mono", fontFamily: "Lora, Georgia, serif" },
+        { name: "Ubuntu Serif Fallback", slug: "serif", fontFamily: "Ubuntu, system-ui, sans-serif" },
+        { name: "Ubuntu Mono Fallback", slug: "mono", fontFamily: "Ubuntu, system-ui, sans-serif" },
       ],
       googleFonts: [
         "Ubuntu:wght@300;400;500;700",
-        "Lora:ital,wght@0,400;0,500;1,400",
       ],
     },
   },

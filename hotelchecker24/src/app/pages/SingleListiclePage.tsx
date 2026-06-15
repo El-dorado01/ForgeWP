@@ -8,7 +8,7 @@ import {
   useWpFeaturedImage,
   useWpCustomField,
   useWpAuthor,
-  useWpDate,
+  useWpModifiedDate,
   useWpI18n,
   useWpLanguage,
   useWpPageLink,
@@ -50,7 +50,7 @@ export function SingleListiclePage() {
   const title = useWpTitle() || devPost?.title || __('Kuratierter Hotelvergleich');
   const content = useWpContent() || devPost?.content || `<p>${__('Lade Inhalt...')}</p>`;
   const excerpt = useWpExcerpt() || devPost?.excerpt || '';
-  const date = useWpDate() || devPost?.date || '24. Mai 2026';
+  const date = useWpModifiedDate() || devPost?.modified || devPost?.date || '24. Mai 2026';
   const author = useWpAuthor() || devPost?.author || __('Hotelchecker24 Redaktion');
   
   const rawImage = useWpFeaturedImage();
@@ -104,7 +104,7 @@ export function SingleListiclePage() {
             </div>
             <div className="flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <span>{date}</span>
+              <span>{__('Zuletzt aktualisiert:')} {date}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <BookOpen className="w-3.5 h-3.5 text-slate-400" />

@@ -23,3 +23,8 @@ body {
 #root {
   padding: 3rem;
 }
+
+/* Prevent Gutenberg editor iframe height feedback loop caused by min-height on body */
+.editor-styles-wrapper {
+  min-height: auto !important;
+}
