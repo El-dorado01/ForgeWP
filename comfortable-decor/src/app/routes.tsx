@@ -19,11 +19,8 @@ import ParallaxLandingPage from "./landing-pages/parallax";
 export default function AppRoutes() {
   return (
     <Switch>
-      {/* Home preview — now the premium parallax page */}
-      <Route path="/" component={ParallaxLandingPage} />
-
-      {/* Teaser page */}
-      <Route path="/teaser" component={HomePage} />
+      {/* Home preview */}
+      <Route path="/" component={HomePage} />
 
       {/* New Landing Page Design variant */}
       <Route path="/new" component={NewPage} />
