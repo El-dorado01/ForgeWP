@@ -55,9 +55,14 @@ export function onMakeBlock(themeRoot, { pascalCase, pc }) {
   console.log(`   Block "${pascalCase}" was not created.\n`);
 }
 
-export function onMakeComponent(themeRoot, { pascalCase, pc }) {
-  console.log(pc.yellow(`\n⚠️  The Static HTML framework adapter does not support custom loop components.`));
-  console.log(`   Component "${pascalCase}" was not created.\n`);
+export function onMakeLoop(themeRoot, { pascalCase, pc }) {
+  console.log(pc.yellow(`\n⚠️  The Static HTML framework adapter does not support custom loops.`));
+  console.log(`   Loop "${pascalCase}" was not created.\n`);
+}
+
+export function onMakePage(themeRoot, { pascalCase, pc }) {
+  console.log(pc.yellow(`\n⚠️  The Static HTML framework adapter does not support custom page templates.`));
+  console.log(`   Page "${pascalCase}" was not created.\n`);
 }
 
 export function onSyncRoutes(themeRoot, { pc }) {

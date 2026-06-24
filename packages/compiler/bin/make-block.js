@@ -2,6 +2,8 @@
 
 import { existsSync } from "node:fs";
 import path from "node:path";
+import readline from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
 import pc from "picocolors";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
@@ -18,6 +20,15 @@ if (nameIndex !== -1 && args[nameIndex + 1]) {
   if (nameEqual) {
     rawBlockName = nameEqual.split("=")[1];
   }
+}
+
+if (!rawBlockName) {
+  const rl = readline.createInterface({ input, output });
+  try {
+    const answer = await rl.question(pc.cyan("? Enter a block name: "));
+    rawBlockName = answer.trim();
+  } catch (err) {}
+  rl.close();
 }
 
 if (!rawBlockName) {

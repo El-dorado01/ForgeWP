@@ -212,17 +212,30 @@ export async function generateTheme({
     }
   }
 
+  const manifestPath = path.join(themeRoot, 'dist', '.vite', 'manifest.json');
+  let viteManifest = {};
+  if (existsSync(manifestPath)) {
+    try {
+      viteManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    } catch (e) {
+      console.warn('Failed to parse Vite manifest.json:', e.message);
+    }
+  }
+
+  const replaceAssetPlaceholders = (markup) => {
+    if (!markup) return '';
+    return markup.replace(/__FORGEWP_ASSET__([a-zA-Z0-9_\-\.\/]+)/g, (match, srcPath) => {
+      const manifestEntry = viteManifest[srcPath];
+      if (manifestEntry && manifestEntry.file) {
+        return `<?php echo esc_url( get_template_directory_uri() ); ?>/${manifestEntry.file}`;
+      }
+      return `<?php echo esc_url( get_template_directory_uri() ); ?>/${srcPath}`;
+    });
+  };
+
   let hydrationManifestJson = '{}';
   if (hasHydration) {
-    const manifestPath = path.join(themeRoot, 'dist', '.vite', 'manifest.json');
-    let viteManifest = {};
-    if (existsSync(manifestPath)) {
-      try {
-        viteManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-      } catch (e) {
-        console.warn('Failed to parse Vite manifest.json:', e.message);
-      }
-    } else {
+    if (!existsSync(manifestPath)) {
       console.warn(
         'Hydration manifest not found at dist/.vite/manifest.json. Hydration asset generation may be incomplete.',
       );
@@ -621,24 +634,24 @@ export async function generateTheme({
 
   const staticDir = path.join(outDir, 'forgewp-static');
   mkdirSync(staticDir, { recursive: true });
-  writeFileSync(path.join(staticDir, 'content.html'), contentHtml, 'utf8');
-  writeFileSync(path.join(staticDir, 'header.html'), processedHeader, 'utf8');
-  writeFileSync(path.join(staticDir, 'footer.html'), processedFooter, 'utf8');
+  writeFileSync(path.join(staticDir, 'content.html'), replaceAssetPlaceholders(contentHtml), 'utf8');
+  writeFileSync(path.join(staticDir, 'header.html'), replaceAssetPlaceholders(processedHeader), 'utf8');
+  writeFileSync(path.join(staticDir, 'footer.html'), replaceAssetPlaceholders(processedFooter), 'utf8');
   if (headHtml) {
-    writeFileSync(path.join(staticDir, 'head.html'), headHtml, 'utf8');
+    writeFileSync(path.join(staticDir, 'head.html'), replaceAssetPlaceholders(headHtml), 'utf8');
   }
   if (singleHeadHtml) {
     writeFileSync(
       path.join(staticDir, 'single-head.html'),
-      singleHeadHtml,
+      replaceAssetPlaceholders(singleHeadHtml),
       'utf8',
     );
   }
   if (processedSingle) {
-    writeFileSync(path.join(staticDir, 'single.html'), processedSingle, 'utf8');
+    writeFileSync(path.join(staticDir, 'single.html'), replaceAssetPlaceholders(processedSingle), 'utf8');
   }
   if (processedNotFound) {
-    writeFileSync(path.join(staticDir, '404.html'), processedNotFound, 'utf8');
+    writeFileSync(path.join(staticDir, '404.html'), replaceAssetPlaceholders(processedNotFound), 'utf8');
   }
 
   // Archive page (category / tag / date archives)
@@ -656,7 +669,7 @@ export async function generateTheme({
     processedArchive = processedArchive.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
     writeFileSync(
       path.join(staticDir, 'archive.html'),
-      processedArchive,
+      replaceAssetPlaceholders(processedArchive),
       'utf8',
     );
   }
@@ -840,13 +853,13 @@ if (window.forgeWpBlocks) {
         }
         processedHtml = processedHtml.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
 
-        writeFileSync(path.join(staticDir, file), processedHtml, 'utf8');
+        writeFileSync(path.join(staticDir, file), replaceAssetPlaceholders(processedHtml), 'utf8');
 
         const headFile = file.replace('.html', '-head.html');
         if (existsSync(path.join(forgewpDir, headFile))) {
           writeFileSync(
             path.join(staticDir, headFile),
-            readFileSync(path.join(forgewpDir, headFile), 'utf8'),
+            replaceAssetPlaceholders(readFileSync(path.join(forgewpDir, headFile), 'utf8')),
             'utf8',
           );
         }
@@ -889,6 +902,11 @@ get_footer();
     }
   }
 
+  const authManifest = {
+    protectedPages: [],
+    authGates: [],
+  };
+
   // Dynamic Custom Page Templates Compiler
   if (existsSync(forgewpDir)) {
     const templateFiles = readdirSync(forgewpDir);
@@ -901,7 +919,163 @@ get_footer();
         const slug = file.replace('.html', '');
         const rawHtml = readFileSync(path.join(forgewpDir, file), 'utf8');
 
-        let processedHtml = processMarkup(rawHtml, config.textDomain);
+        let isProtected = false;
+        let allowedCapability = null;
+        let redirectUrl = null;
+
+        if (rawHtml.includes('<forgewp-require-auth')) {
+          isProtected = true;
+          const match = rawHtml.match(/<forgewp-require-auth\s+([^>]*)\/?>/i);
+          if (match) {
+            const attrsStr = match[1];
+            const getAttr = (name) => {
+              const regex = new RegExp(
+                `(?:${name}|${name.toLowerCase()})=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
+                'i',
+              );
+              const m = attrsStr.match(regex);
+              return m ? m[1] || m[2] || m[3] || '' : '';
+            };
+            allowedCapability = getAttr('allowed') || null;
+            redirectUrl = getAttr('redirect') || null;
+          }
+        }
+
+        if (isProtected) {
+          authManifest.protectedPages.push({
+            page: slug.replace('template-', ''),
+            allowed: allowedCapability,
+            redirect: redirectUrl,
+          });
+        }
+
+        if (rawHtml.includes('forgewp-auth-gate-start')) {
+          authManifest.authGates.push({
+            page: slug.replace('template-', ''),
+            type: 'logged_in',
+          });
+        }
+
+        if (rawHtml.includes('forgewp-capability-gate-start')) {
+          const match = rawHtml.match(/forgewp-capability-gate-start\s+allowed="([^"]*)"/);
+          authManifest.authGates.push({
+            page: slug.replace('template-', ''),
+            type: 'capability',
+            allowed: match ? match[1] : null,
+          });
+        }
+
+        let redirectPhp = '';
+        let cleanedRawHtml = rawHtml;
+        if (rawHtml.includes('<forgewp-require-auth')) {
+          const match = rawHtml.match(/<forgewp-require-auth\s+([^>]*)\/?>/i);
+          if (match) {
+            const attrsStr = match[1];
+            const getAttr = (name) => {
+              const regex = new RegExp(
+                `(?:${name}|${name.toLowerCase()})=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
+                'i',
+              );
+              const m = attrsStr.match(regex);
+              return m ? m[1] || m[2] || m[3] || '' : '';
+            };
+
+            const allowed = getAttr('allowed');
+            const redirect = getAttr('redirect');
+
+            let redirectUrlExpr = 'wp_login_url()';
+            let redirectSetup = '';
+            if (redirect) {
+              if (redirect.startsWith('__FORGEWP_PAGELINK_')) {
+                const match = redirect.match(/__FORGEWP_PAGELINK_([a-zA-Z0-9_-]+)_DEFAULT_(.*?)__/);
+                if (match) {
+                  const name = match[1];
+                  const decoded = decodeURIComponent(match[2]);
+                  redirectSetup = `    $redirect_url = home_url('${decoded.replace(/'/g, "\\'")}');
+    $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
+    $get_pages_args = array('meta_key' => '_wp_page_template', 'meta_value' => 'page-${name}.php', 'number' => 1);
+    if (!empty($current_lang)) {
+        $get_pages_args['lang'] = $current_lang;
+    }
+    $matched_pages = get_pages($get_pages_args);
+    if (!empty($matched_pages)) {
+        $redirect_url = get_permalink($matched_pages[0]->ID);
+    }`;
+                  redirectUrlExpr = '$redirect_url';
+                } else {
+                  const matchPlain = redirect.match(/__FORGEWP_PAGELINK_([a-zA-Z0-9_-]+)__/);
+                  if (matchPlain) {
+                    const name = matchPlain[1];
+                    redirectSetup = `    $redirect_url = home_url('/');
+    $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
+    $get_pages_args = array('meta_key' => '_wp_page_template', 'meta_value' => 'page-${name}.php', 'number' => 1);
+    if (!empty($current_lang)) {
+        $get_pages_args['lang'] = $current_lang;
+    }
+    $matched_pages = get_pages($get_pages_args);
+    if (!empty($matched_pages)) {
+        $redirect_url = get_permalink($matched_pages[0]->ID);
+    }`;
+                    redirectUrlExpr = '$redirect_url';
+                  } else {
+                    redirectUrlExpr = `home_url('${redirect}')`;
+                  }
+                }
+              } else if (redirect.startsWith('template:')) {
+                const name = redirect.replace('template:', '');
+                redirectSetup = `    $redirect_url = home_url('/');
+    $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
+    $get_pages_args = array('meta_key' => '_wp_page_template', 'meta_value' => 'page-${name}.php', 'number' => 1);
+    if (!empty($current_lang)) {
+        $get_pages_args['lang'] = $current_lang;
+    }
+    $matched_pages = get_pages($get_pages_args);
+    if (!empty($matched_pages)) {
+        $redirect_url = get_permalink($matched_pages[0]->ID);
+    }`;
+                redirectUrlExpr = '$redirect_url';
+              } else {
+                redirectUrlExpr = `home_url('${redirect}')`;
+              }
+            }
+
+            redirectPhp = `
+if ( ! is_user_logged_in() ) {
+${redirectSetup ? redirectSetup + '\n' : ''}    wp_safe_redirect( ${redirectUrlExpr} );
+    exit;
+} else {
+    $email_verification_enabled = get_option( 'forgewp_auth_email_verification_enabled' ) === '1';
+    $verified_meta = get_user_meta( get_current_user_id(), 'forgewp_email_verified', true );
+    $email_verified = ( $verified_meta === '' ) || ( $verified_meta === '1' ) || ( $verified_meta === true );
+    if ( $email_verification_enabled && ! $email_verified ) {
+        $verify_url = home_url( '/verify-email' );
+        $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
+        $get_pages_args = array('meta_key' => '_wp_page_template', 'meta_value' => 'page-verify-email-page.php', 'number' => 1);
+        if (!empty($current_lang)) {
+            $get_pages_args['lang'] = $current_lang;
+        }
+        $matched_pages = get_pages($get_pages_args);
+        if (!empty($matched_pages)) {
+            $verify_url = get_permalink($matched_pages[0]->ID);
+        }
+        wp_safe_redirect( $verify_url );
+        exit;
+    }
+}`;
+
+            if (allowed) {
+              redirectPhp += `
+if ( ! current_user_can( '${allowed}' ) ) {
+    wp_safe_redirect( home_url( '/' ) );
+    exit;
+}`;
+            }
+          }
+          cleanedRawHtml = rawHtml.replace(/<forgewp-require-auth\s*([^>]*)\/?>/gi, '');
+          cleanedRawHtml = cleanedRawHtml.replace(/<\/forgewp-require-auth>/gi, '');
+        }
+
+        let processedHtml = processMarkup(cleanedRawHtml, config.textDomain);
         if (processedHeader) {
           const replaced = processedHtml.replace(processedHeader, '');
           processedHtml = replaced !== processedHtml ? replaced : processedHtml.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
@@ -916,13 +1090,13 @@ get_footer();
           processedHtml = projectHooks.processTemplateMarkup(slug, processedHtml, config);
         }
 
-        writeFileSync(path.join(staticDir, file), processedHtml, 'utf8');
+        writeFileSync(path.join(staticDir, file), replaceAssetPlaceholders(processedHtml), 'utf8');
 
         const headFile = file.replace('.html', '-head.html');
         if (existsSync(path.join(forgewpDir, headFile))) {
           writeFileSync(
             path.join(staticDir, headFile),
-            readFileSync(path.join(forgewpDir, headFile), 'utf8'),
+            replaceAssetPlaceholders(readFileSync(path.join(forgewpDir, headFile), 'utf8')),
             'utf8',
           );
         }
@@ -939,7 +1113,7 @@ get_footer();
  *
  * @package ${config.textDomain}
  */
-
+${redirectPhp}
 get_header();
 
 $markup_file = get_template_directory() . '/forgewp-static/${file}';
@@ -994,6 +1168,22 @@ get_footer();
         ...themeJson.settings.color,
         ...config.settings.color,
       };
+
+      // Smartly extract background and text colors from palette to style the WP editor canvas
+      if (config.settings.color.palette && Array.isArray(config.settings.color.palette)) {
+        if (!themeJson.styles) themeJson.styles = {};
+        if (!themeJson.styles.color) themeJson.styles.color = {};
+
+        const bgPreset = config.settings.color.palette.find(p => p && p.slug === 'background');
+        const textPreset = config.settings.color.palette.find(p => p && (p.slug === 'text' || p.slug === 'primary'));
+
+        if (bgPreset && !themeJson.styles.color.background) {
+          themeJson.styles.color.background = bgPreset.color;
+        }
+        if (textPreset && !themeJson.styles.color.text) {
+          themeJson.styles.color.text = textPreset.color;
+        }
+      }
     }
 
     // Typography (fontSizes, fontFamilies)
@@ -1008,6 +1198,12 @@ get_footer();
   writeFileSync(
     path.join(outDir, 'theme.json'),
     JSON.stringify(themeJson, null, 2),
+    'utf8',
+  );
+
+  writeFileSync(
+    path.join(outDir, 'auth-manifest.json'),
+    JSON.stringify(authManifest, null, 2),
     'utf8',
   );
 

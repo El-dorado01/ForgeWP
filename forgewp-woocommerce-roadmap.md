@@ -9,7 +9,7 @@ In typical headless e-commerce setups, integrating WooCommerce requires complete
 
 **ForgeWP's approach is static-first with isomorphic hydration:**
 1. **Server-Side PHP (Fast Initial Load)**: The compiler transpiles React catalog pages into native, server-rendered WooCommerce PHP templates, using standard, secure queries (`wc_get_products()`) for maximum speed and SEO optimization.
-2. **Client-Side Micro-Hydration**: Dynamic parts (cart counters, checkout panels, variation swatches) are isolated as micro-hydration islands (`<Hydrate trigger="interaction">`) that communicate asynchronously with the native WooCommerce Store API.
+2. **Client-Side Micro-Hydration**: Dynamic parts (cart counters, checkout panels, variation swatches, review submissions) are isolated as micro-hydration islands (`<Hydrate trigger="interaction">`) that communicate asynchronously with the native WooCommerce Store API.
 3. **Session Cookie Preservation**: All AJAX/Fetch requests pass standard credentials, preserving native WordPress/WooCommerce session cookies seamlessly.
 
 ```mermaid
@@ -34,12 +34,13 @@ graph TD
 To allow full developer experience (DX) and offline design styling, we must simulate the WooCommerce database inside the local JSON file.
 
 *   **Mock Schema Extensions (`cms/mock-data.json`)**:
-    Add standardized structures simulating products, categories, cart states, and coupon records:
+    Add standardized structures simulating products (Simple, Variable, Grouped, External, Virtual), reviews, and discount coupons:
     ```json
     {
       "product": [
         {
           "id": 101,
+          "type": "simple",
           "title": "Minimalist Brutalist Hoodie",
           "price": "49.99",
           "regular_price": "59.99",
@@ -47,7 +48,55 @@ To allow full developer experience (DX) and offline design styling, we must simu
           "sku": "FWP-BRUT-01",
           "stock_status": "instock",
           "images": [{ "url": "https://picsum.photos/seed/hoodie/600/600" }],
-          "categories": ["Apparel", "Brutalist"]
+          "categories": ["Apparel", "Brutalist"],
+          "average_rating": "4.6",
+          "rating_count": 8,
+          "reviews": [
+            { "id": 1, "author": "Alex Reed", "content": "Excellent quality", "rating": 5, "date": "2026-06-18" }
+          ]
+        },
+        {
+          "id": 102,
+          "type": "variable",
+          "title": "Raw Edge Heavy Tee",
+          "sku": "FWP-TEE-02",
+          "stock_status": "instock",
+          "attributes": [
+            { "name": "Size", "options": ["S", "M", "L"] },
+            { "name": "Color", "options": ["Concrete", "Coal"] }
+          ],
+          "variations": [
+            {
+              "id": 1021,
+              "attributes": { "Size": "S", "Color": "Concrete" },
+              "price": "29.99",
+              "stock_status": "instock",
+              "image": { "url": "https://picsum.photos/seed/concrete-tee/600/600" }
+            },
+            {
+              "id": 1022,
+              "attributes": { "Size": "M", "Color": "Coal" },
+              "price": "34.99",
+              "stock_status": "instock",
+              "image": { "url": "https://picsum.photos/seed/coal-tee/600/600" }
+            }
+          ]
+        },
+        {
+          "id": 103,
+          "type": "grouped",
+          "title": "Studio Concrete Capsule Pack",
+          "grouped_products": [101, 102],
+          "sku": "FWP-PACK-03"
+        },
+        {
+          "id": 104,
+          "type": "external",
+          "title": "Brutalist Typography & Layouts Book",
+          "price": "19.99",
+          "sku": "FWP-BOOK-04",
+          "external_url": "https://external-publisher.com/book",
+          "button_text": "Purchase from Publisher"
         }
       ]
     }
@@ -67,25 +116,29 @@ To keep the core framework bundle lean and modular, we will create a new, option
 Because WooCommerce is vast and handles sensitive e-commerce operations, the `@forgewp/woocommerce` package must expose a complete suite of components and hooks categorized by functional area:
 
 #### 1. Catalog & Product Detail Components
-*   `<WpProductLoop postsPerPage={12} category="slug" orderBy="date" order="desc">`: Maps directly to an optimized `wc_get_products()` query block.
-*   `<WpProductGallery productId={id} />`: Renders interactive product image galleries with support for variation images.
-*   `<WpProductPrice productId={id} />`: Renders dynamic pricing, handling discounts, sale badges, tax inclusions, and variable product price ranges.
+*   `<WpProductLoop postsPerPage={12} category="slug" orderBy="date" order="desc">`: Maps directly to an optimized `wc_get_products()` query block. Supports rendering child listings for Grouped products.
+*   `<WpProductGallery productId={id} />`: Renders interactive product image galleries with support for dynamic variation image swapping.
+*   `<WpProductPrice productId={id} />`: Renders dynamic pricing, handling discounts, sale badges, tax inclusions, and variable product price ranges (e.g., "$29.99 - $34.99").
 *   `<WpProductVariationSelector productId={id} />`: Handles dropdowns/swatches for variable product attributes (size, color, etc.) and updates the selected variation state.
 *   `<WpProductStockStatus productId={id} />`: Renders real-time stock levels, low-stock thresholds, and backorder flags.
+*   `<WpRelatedProducts productId={id} limit={4} />`: Pulls related products dynamically using standard WooCommerce recommendation algorithms (`wc_get_related_products`).
+*   `<WpProductReviews productId={id} />`: Displays a paginated list of product reviews/ratings and renders a micro-hydration form for authenticated/guest review submissions.
 
 #### 2. Shopping Cart Components & Hooks
 *   `<WpCartProvider>`: The global React context provider that synchronizes local cart actions with the WooCommerce Store API.
-*   `<WpCartLineItems />`: Lists all items in the cart, featuring quantity selectors and line item removal.
+*   `<WpCartLineItems />`: Lists all items in the cart, featuring quantity selectors and line item removal. Supports grouped add/remove actions.
 *   `<WpCartCouponForm />`: Standardized input form to apply and display active cart discount coupons.
+*   `<WpCartShippingCalculator />`: Form to calculate shipping costs early based on postcode, city, and country selection.
 *   `useWpCart()`: Hook to access cart stats, trigger item additions, update line quantities, calculate taxes, and estimate shipping fees:
     ```typescript
     const { 
-      cart,          // Full cart object
-      itemCount,     // Total items count
-      cartTotal,     // Subtotal + shipping + taxes
-      addToCart,     // function(productId, quantity, variationData)
-      updateQuantity,// function(lineKey, qty)
-      removeItem,    // function(lineKey)
+      cart,           // Full cart object
+      itemCount,      // Total items count
+      cartTotal,      // Subtotal + shipping + taxes
+      addToCart,      // function(productId, quantity, variationData)
+      addToCartBatch, // function([{ productId, quantity, variationData }]) for Grouped products
+      updateQuantity, // function(lineKey, qty)
+      removeItem,     // function(lineKey)
       isLoading 
     } = useWpCart();
     ```
@@ -110,30 +163,26 @@ Because WooCommerce is vast and handles sensitive e-commerce operations, the `@f
 *   `<WpOrderHistory />`: Renders the customer's purchase history with complete download capabilities for virtual/downloadable products.
 *   `useWpCustomer()`: Coordinates customer authentication, handles session cookies, dynamic registration validation, and updates profile metadata.
 
----
+#### 5. Product Search & Faceted Filtering
+*   `<WpProductFilters />`: Container component that displays e-commerce filter widgets (price slider range, attribute multi-checkboxes, category trees, and sorting dropdowns).
+*   `useWpProductFilters()`: Core state machine hook for managing URL search query states, selected attributes, active price bounds, and triggering query updates:
+    ```typescript
+    const {
+      activeFilters, // Selected attributes, categories, and ranges
+      setFilter,     // function(attributeName, value, active)
+      setPriceRange, // function(min, max)
+      setSortBy,     // function(sortOption)
+      resetFilters   // function()
+    } = useWpProductFilters();
+    ```
 
-```typescript
-// Example: Unified Entrypoint E-commerce Integration
-import { useWpCart, useWpCustomer } from "../../.forgewp/wordpress";
+#### 6. Wishlist & Favorites System
+*   `<WpWishlistButton productId={id} />`: Add/remove toggle button that handles saving favorited products.
+*   `<WpWishlistList />`: Displays the list of customer-favorited products with quick cart-addition links.
+*   `useWpWishlist()`: Syncs favorites using local storage for guest clients and database metadata for logged-in users.
 
-export default function MiniCartAndProfile() {
-  const { itemCount, cartTotal } = useWpCart();
-  const { isLoggedIn, customer } = useWpCustomer();
-  
-  return (
-    <div className="flex items-center gap-4">
-      <button className="border-4 border-black p-3 font-mono font-black uppercase bg-accent shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-        Cart ({itemCount} — ${cartTotal})
-      </button>
-      {isLoggedIn ? (
-        <span className="font-mono font-bold">Hi, {customer.firstName}!</span>
-      ) : (
-        <a href="/my-account" className="underline font-mono">Sign In</a>
-      )}
-    </div>
-  );
-}
-```
+#### 7. Global Store Notices
+*   `<WpStoreNotice />`: Renders global WooCommerce announcement bars (e.g. demo store warning or seasonal sales) managed from the WP Admin panel.
 
 ---
 
@@ -160,6 +209,12 @@ The compiler (`packages/compiler/lib/markup-processor.js`) will parse e-commerce
         setup_postdata(get_the_ID());
     ?>
     ```
+*   **Support for External/Affiliate and Grouped Products**:
+    *   **Grouped product children**: Compile checks to output sub-products using `$product->get_children()`.
+    *   **External action swap**: Transpile product button targets dynamically. If an external product type is matched, swap standard add-to-cart operations with:
+        `<?php echo esc_url($product->add_to_cart_url()); ?>` and use button label text `<?php echo esc_html($product->single_add_to_cart_text()); ?>`.
+*   **Faceted Filters Compilation**:
+    Transpile `<WpProductFilters>` into a combination of native WooCommerce attribute query variables (`$_GET['filter_color']`) and price queries to maintain server-side render capability for search engines.
 *   **Dynamic Tag Replacement Matrix**:
     *   `useWpProductPrice()` ➜ `<?php echo $product->get_price_html(); ?>`
     *   `useWpProductSKU()` ➜ `<?php echo esc_html($product->get_sku()); ?>`
@@ -168,7 +223,7 @@ The compiler (`packages/compiler/lib/markup-processor.js`) will parse e-commerce
 ---
 
 ### 📅 Phase 4: Dynamic Cart & Checkout Hydration Islands
-Since checkout operations and carts require live server-side calculations (taxes, shipping, item additions), these components must run as **Micro-Hydration Islands**.
+Since checkout operations, carts, wishlist sync, and review submissions require live calculations, these components must run as **Micro-Hydration Islands**.
 
 ```tsx
 // src/app/pages/CartPage.tsx
@@ -190,10 +245,9 @@ export default function CartPage() {
 ```
 
 *   **Store API Bridge**:
-    The framework's JavaScript runtime will expose a lightweight cart synchronizer targeting WooCommerce's built-in Store API endpoint (`/wp-json/wc/store/v1/cart`):
-    *   **Get Cart**: Retrieves total items, pricing, and lines from WooCommerce PHP sessions.
-    *   **Add Item**: Sends an optimized POST request preserving nonces.
-    *   **Coupon Applying**: Updates discounts in real-time.
+    The framework's JavaScript runtime will expose a lightweight cart/favorites/review synchronizer targeting WooCommerce's Store API endpoints:
+    *   **Cart Endpoint**: `/wp-json/wc/store/v1/cart`
+    *   **Reviews Endpoint**: `/wp-json/wc/store/v1/products/reviews`
 
 ---
 
@@ -209,7 +263,7 @@ Guarantee maximum e-commerce site performance, robust security, and seamless che
     Integrate verification checks within `validate-export.js` to ensure:
     1.  All dynamic e-commerce loops utilize WooCommerce's built-in optimized pagination wrappers (`wc_get_products()`).
     2.  No heavy JavaScript bundle runs in standard listing blocks, maintaining the **Minimal JS by default** philosophy.
-    3.  Critical CSS for e-commerce badges and price cards are inlined to pass Core Web Vitals checks.
+    3.  Critical CSS for e-commerce badges, prices, and filter widgets are inlined to pass Core Web Vitals checks.
 
 ---
 

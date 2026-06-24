@@ -87,6 +87,13 @@ function syncTemplate(srcDir, destDir, requiredFiles, templateName) {
   console.log(`Synced ${path.relative(root, srcDir)} → ${path.relative(root, destDir)}`);
 }
 
+// Copy auth templates to starter/resources/auth
+cpSync(
+  path.join(root, "packages", "compiler", "templates", "auth"),
+  path.join(root, "packages", "starter", "resources", "auth"),
+  { recursive: true }
+);
+
 // ── React starter ────────────────────────────────────────────────────────────
 syncTemplate(
   path.join(root, "packages", "starter"),

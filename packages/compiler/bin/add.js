@@ -2,18 +2,21 @@
 import { addComponent } from "../lib/add-component.js";
 
 const args = process.argv.slice(2);
-let component = args.find(a => !a.startsWith("-"));
+let components = args.filter(a => !a.startsWith("-"));
 
 // Support --name navbar or --name=navbar
 const nameIndex = args.indexOf("--name");
 if (nameIndex !== -1 && args[nameIndex + 1]) {
-  component = args[nameIndex + 1];
+  components.push(args[nameIndex + 1]);
 } else {
   const nameEqual = args.find(a => a.startsWith("--name="));
   if (nameEqual) {
-    component = nameEqual.split("=")[1];
+    components.push(nameEqual.split("=")[1]);
   }
 }
+
+// Clean and deduplicate the component list
+components = Array.from(new Set(components.map(c => c.trim()).filter(Boolean)));
 
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -35,12 +38,18 @@ try {
 
 const style = args.find(a => a.startsWith("--style="))?.split("=")[1] || projectStyle;
 
-if (!component) {
-  console.error("Usage: forgewp add <component> [--style=forgewp|shadcn] or forgewp add --name <component>");
+if (components.length === 0) {
+  console.error("Usage: forgewp add <component1> [component2] ... [--style=forgewp|shadcn]");
   process.exit(1);
 }
 
-addComponent(component, { style }).catch((err) => {
+async function run() {
+  for (const component of components) {
+    await addComponent(component, { style });
+  }
+}
+
+run().catch((err) => {
   console.error(err.message);
   process.exit(1);
 });

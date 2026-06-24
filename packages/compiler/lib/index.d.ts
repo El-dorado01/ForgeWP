@@ -54,6 +54,8 @@ export interface ForgeWPThemeConfig {
   textDomain: string;
   configVersion?: number;
   favicon?: string;
+  headerPath?: string;
+  footerPath?: string;
   seo?: {
     sitemaps?: ForgeWpSeoSitemapsConfig;
     plugins?: {
@@ -63,6 +65,31 @@ export interface ForgeWPThemeConfig {
   };
   frameworkAdapter?: 'react' | 'html' | 'stub';
   style?: 'forgewp' | 'shadcn';
+  headless?: {
+    apiUrl?: string;
+    jwtAuth?: boolean;
+  };
+  auth?: {
+    loginField?: 'usernameOnly' | 'emailOnly' | 'usernameAndEmail';
+    defaultRole?: string;
+    reservedUsernames?: string[];
+    features?: {
+      registration?: boolean;
+      emailVerification?: boolean;
+      blockLoginUntilVerified?: boolean;
+      autoLoginAfterSignup?: boolean;
+    };
+    emails?: {
+      verification?: {
+        subject?: string;
+        body?: string;
+      };
+      passwordReset?: {
+        subject?: string;
+        body?: string;
+      };
+    };
+  };
   postTypes?: Record<string, CustomPostTypeConfig>;
   i18n?: ForgeWPI18nConfig;
   settings?: {
@@ -118,13 +145,20 @@ export interface ForgeWPFrameworkAdapter {
       pc: any;
     },
   ): Promise<void> | void;
-  onMakeComponent?(
+  onMakeLoop?(
     themeRoot: string,
     options: {
       pascalCase: string;
       postType: string;
       customFields: string[];
       automaticallySeeded: boolean;
+      pc: any;
+    },
+  ): Promise<void> | void;
+  onMakePage?(
+    themeRoot: string,
+    options: {
+      pascalCase: string;
       pc: any;
     },
   ): Promise<void> | void;
@@ -177,3 +211,6 @@ export function resolveFrameworkAdapter(adapterName?: string): string;
 export function loadFrameworkAdapter(
   adapterName?: string,
 ): Promise<ForgeWPFrameworkAdapterModule>;
+
+export function forgewpPageConfigPlugin(): any;
+

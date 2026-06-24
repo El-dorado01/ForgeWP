@@ -1,0 +1,26 @@
+{
+  "name": "@forgewp/auth",
+  "version": "0.1.0",
+  "description": "General-purpose Authentication and capability gate components/hooks for ForgeWP",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "react": ">=17.0.0",
+    "@forgewp/react": "*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.4",
+    "@forgewp/react": "workspace:*",
+    "typescript": "^5.8.3",
+    "react": "^19.0.0"
+  },
+  "license": "MIT"
+}

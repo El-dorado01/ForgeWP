@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import pc from "picocolors";
 import { exec } from "node:child_process";
@@ -98,6 +98,56 @@ async function main() {
   const violations = runStaticLintChecks(projectRoot);
   analysis.violations = violations;
 
+  // 6.5. Run Auth Security checks & parse manifest
+  const authManifestPath = path.join(projectRoot, ".forgewp", "out", config.slug, "auth-manifest.json");
+  let authManifest = { protectedPages: [], authGates: [] };
+  if (existsSync(authManifestPath)) {
+    try {
+      authManifest = JSON.parse(readFileSync(authManifestPath, "utf8"));
+    } catch {}
+  }
+
+  const authWarnings = [];
+  const pagesDir = path.join(projectRoot, "src", "app", "pages");
+  if (existsSync(pagesDir)) {
+    const collectPagesRecursive = (dir, list = []) => {
+      const items = readdirSync(dir, { withFileTypes: true });
+      for (const item of items) {
+        const fullPath = path.join(dir, item.name);
+        if (item.isDirectory()) {
+          collectPagesRecursive(fullPath, list);
+        } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+          list.push(fullPath);
+        }
+      }
+      return list;
+    };
+    try {
+      const pageFiles = collectPagesRecursive(pagesDir);
+      for (const file of pageFiles) {
+        const content = readFileSync(file, "utf8");
+        const hasAuthHooks = content.includes("useWpAuth") || content.includes("useWpUser");
+        if (hasAuthHooks) {
+          const fileBasename = path.basename(file, path.extname(file));
+          const slug = fileBasename
+            .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+            .toLowerCase();
+          
+          const isPageProtected = authManifest.protectedPages.some(
+            p => p.page === slug || p.page === slug.replace(/-page$/, "")
+          );
+          
+          if (!isPageProtected) {
+            authWarnings.push({
+              file: path.relative(projectRoot, file),
+              message: `Page utilizes authentication hooks (useWpAuth/useWpUser) but is not protected by server-side page guards.`
+            });
+          }
+        }
+      }
+    } catch {}
+  }
+
   // 7. Generate HTML report
   let reportPath;
   try {
@@ -114,6 +164,21 @@ async function main() {
   
   const totalJsKb = analysis.results.reduce((acc, curr) => acc + curr.sizeKb, 0);
   console.log(`  Total Client JS Weight: ${totalJsKb > 200 ? pc.red(totalJsKb.toFixed(1) + " kB") : pc.green(totalJsKb.toFixed(1) + " kB")}`);
+
+  console.log(`\n🔍 ${pc.bold("ForgeWP Auth Analysis")}`);
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  console.log(`  Protected Pages: ${pc.cyan(authManifest.protectedPages.length)}`);
+  console.log(`  Auth Gates: ${pc.cyan(authManifest.authGates.filter(g => g.type === 'logged_in').length)}`);
+  console.log(`  Capability Gates: ${pc.cyan(authManifest.authGates.filter(g => g.type === 'capability').length)}`);
+
+  if (authWarnings.length > 0) {
+    console.log(`\n⚠️  ${pc.bold(pc.yellow("SECURITY WARNINGS"))}`);
+    for (const w of authWarnings) {
+      console.log(`   ${pc.yellow("⚠️  WARN")} ${pc.bold(w.file)}: ${w.message}`);
+    }
+  } else {
+    console.log(`\n✅ ${pc.green(pc.bold("Security Audit Passed:"))} No unprotected page auth hook usages detected.`);
+  }
 
   if (violations.length > 0) {
     console.log(`\n⚠️  ${pc.bold(pc.yellow("THEME LINT WARNINGS & SEO RECOMMENDATIONS"))}`);

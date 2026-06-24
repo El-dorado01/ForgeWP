@@ -113,6 +113,918 @@ export function buildFunctionsPhp(
   schemas = {},
   queries = [],
 ) {
+  let hasAuth = false;
+  try {
+    const packageJsonPath = path.join(themeRoot, 'package.json');
+    if (existsSync(packageJsonPath)) {
+      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+      if (
+        (pkg.dependencies && pkg.dependencies['@forgewp/auth']) ||
+        (pkg.devDependencies && pkg.devDependencies['@forgewp/auth']) ||
+        (pkg.peerDependencies && pkg.peerDependencies['@forgewp/auth'])
+      ) {
+        hasAuth = true;
+      }
+    }
+  } catch (e) {}
+
+  const defaultLoginField = config.auth?.loginField || 'usernameAndEmail';
+  const defaultRegistrationEnabled = config.auth?.features?.registration !== false ? '1' : '0';
+  const defaultEmailVerificationEnabled = config.auth?.features?.emailVerification === true ? '1' : '0';
+  const defaultBlockLoginUntilVerified = config.auth?.features?.blockLoginUntilVerified === true ? '1' : '0';
+  const defaultAutoLoginAfterSignup = config.auth?.features?.autoLoginAfterSignup !== false ? '1' : '0';
+  const defaultDefaultRole = config.auth?.defaultRole || 'subscriber';
+  const defaultVerificationEmailSubject = config.auth?.emails?.verification?.subject || 'Please Verify Your Email';
+  const defaultVerificationEmailBody = config.auth?.emails?.verification?.body || 'Please click the link below to verify your email address:\n\n{verification_url}';
+  const defaultPasswordResetEmailSubject = config.auth?.emails?.passwordReset?.subject || 'Password Reset Request';
+  const defaultPasswordResetEmailBody = config.auth?.emails?.passwordReset?.body || 'Click this link to reset your password:\n\n{reset_url}';
+
+  const reservedUsernames = config.auth?.reservedUsernames || ['admin', 'system', 'root'];
+  const reservedUsernamesPhp = reservedUsernames.map(u => `'${u.toLowerCase().replace(/'/g, "\\'")}'`).join(', ');
+
+  let currentUserHydrationField = '';
+  let authControllersPhp = '';
+
+  if (hasAuth) {
+    currentUserHydrationField = "\n                'currentUser' => forgewp_get_current_user_hydration_payload(),";
+    authControllersPhp = `
+/**
+ * ── ForgeWP REST Authentication Controllers ─────────────────────────────────
+ */
+
+function forgewp_get_current_user_hydration_payload() {
+    if ( ! is_user_logged_in() ) {
+        return null;
+    }
+    $user = wp_get_current_user();
+    if ( ! $user || $user->ID === 0 ) {
+        return null;
+    }
+    $capabilities = array();
+    if ( is_array( $user->allcaps ) ) {
+        foreach ( $user->allcaps as $cap => $value ) {
+            if ( $value ) {
+                $capabilities[] = $cap;
+            }
+        }
+    }
+
+    $verified_meta = get_user_meta( $user->ID, 'forgewp_email_verified', true );
+    $email_verified = ( $verified_meta === '' ) || ( $verified_meta === '1' ) || ( $verified_meta === true );
+
+    return array(
+        'id'            => $user->ID,
+        'username'      => $user->user_login,
+        'email'         => $user->user_email,
+        'displayName'   => $user->display_name,
+        'roles'         => array_values( $user->roles ),
+        'avatarUrl'     => get_avatar_url( $user->ID ),
+        'capabilities'  => $capabilities,
+        'emailVerified' => $email_verified,
+    );
+}
+
+/**
+ * Register dynamic authentication settings in WP Admin Settings Submenu page.
+ */
+add_action( 'admin_menu', 'forgewp_auth_admin_menu' );
+function forgewp_auth_admin_menu() {
+    add_options_page(
+        'ForgeWP Auth Settings',
+        'ForgeWP Auth',
+        'manage_options',
+        'forgewp-auth-settings',
+        'forgewp_auth_settings_page_render'
+    );
+}
+
+function forgewp_auth_settings_page_render() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        return;
+    }
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+        <form action="options.php" method="post">
+            <?php
+            settings_fields( 'forgewp_auth_settings_group' );
+            do_settings_sections( 'forgewp-auth-settings' );
+            submit_button( 'Save Settings' );
+            ?>
+        </form>
+    </div>
+    <?php
+}
+
+add_action( 'admin_init', 'forgewp_register_auth_settings' );
+function forgewp_register_auth_settings() {
+    // Keep forgewp_auth_login_field on general for backward compatibility
+    register_setting( 'general', 'forgewp_auth_login_field', array(
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default'           => '${defaultLoginField}',
+    ) );
+
+    register_setting( 'forgewp_auth_settings_group', 'forgewp_auth_login_field', array(
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default'           => '${defaultLoginField}',
+    ) );
+    register_setting( 'forgewp_auth_settings_group', 'forgewp_auth_registration_enabled', array(
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default'           => '${defaultRegistrationEnabled}',
+    ) );
+    register_setting( 'forgewp_auth_settings_group', 'forgewp_auth_email_verification_enabled', array(
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default'           => '${defaultEmailVerificationEnabled}',
+    ) );
+    register_setting( 'forgewp_auth_settings_group', 'forgewp_auth_block_login_until_verified', array(
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default'           => '${defaultBlockLoginUntilVerified}',
+    ) );
+    register_setting( 'forgewp_auth_settings_group', 'forgewp_auth_default_role', array(
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default'           => '${defaultDefaultRole}',
+    ) );
+    register_setting( 'forgewp_auth_settings_group', 'forgewp_auth_verification_email_subject', array(
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default'           => '${defaultVerificationEmailSubject.replace(/'/g, "\\'")}',
+    ) );
+    register_setting( 'forgewp_auth_settings_group', 'forgewp_auth_verification_email_body', array(
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_textarea_field',
+        'default'           => '${defaultVerificationEmailBody.replace(/\r?\n/g, '\\n').replace(/'/g, "\\'")}',
+    ) );
+    register_setting( 'forgewp_auth_settings_group', 'forgewp_auth_password_reset_email_subject', array(
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default'           => '${defaultPasswordResetEmailSubject.replace(/'/g, "\\'")}',
+    ) );
+    register_setting( 'forgewp_auth_settings_group', 'forgewp_auth_password_reset_email_body', array(
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_textarea_field',
+        'default'           => '${defaultPasswordResetEmailBody.replace(/\r?\n/g, '\\n').replace(/'/g, "\\'")}',
+    ) );
+
+    add_settings_section(
+        'forgewp_auth_settings_section',
+        'Authentication & Registration Configurations',
+        'forgewp_auth_settings_section_render',
+        'forgewp-auth-settings'
+    );
+
+    add_settings_field(
+        'forgewp_auth_login_field',
+        'Allowed Login Fields',
+        'forgewp_auth_login_field_render',
+        'forgewp-auth-settings',
+        'forgewp_auth_settings_section'
+    );
+    add_settings_field(
+        'forgewp_auth_registration_enabled',
+        'Enable Public Registration',
+        'forgewp_auth_registration_enabled_render',
+        'forgewp-auth-settings',
+        'forgewp_auth_settings_section'
+    );
+    add_settings_field(
+        'forgewp_auth_email_verification_enabled',
+        'Require Email Verification',
+        'forgewp_auth_email_verification_enabled_render',
+        'forgewp-auth-settings',
+        'forgewp_auth_settings_section'
+    );
+    add_settings_field(
+        'forgewp_auth_block_login_until_verified',
+        'Block Login for Unverified Users',
+        'forgewp_auth_block_login_until_verified_render',
+        'forgewp-auth-settings',
+        'forgewp_auth_settings_section'
+    );
+    add_settings_field(
+        'forgewp_auth_default_role',
+        'Default User Role',
+        'forgewp_auth_default_role_render',
+        'forgewp-auth-settings',
+        'forgewp_auth_settings_section'
+    );
+    add_settings_field(
+        'forgewp_auth_verification_email_subject',
+        'Verification Email Subject',
+        'forgewp_auth_verification_email_subject_render',
+        'forgewp-auth-settings',
+        'forgewp_auth_settings_section'
+    );
+    add_settings_field(
+        'forgewp_auth_verification_email_body',
+        'Verification Email Body',
+        'forgewp_auth_verification_email_body_render',
+        'forgewp-auth-settings',
+        'forgewp_auth_settings_section'
+    );
+    add_settings_field(
+        'forgewp_auth_password_reset_email_subject',
+        'Password Reset Email Subject',
+        'forgewp_auth_password_reset_email_subject_render',
+        'forgewp-auth-settings',
+        'forgewp_auth_settings_section'
+    );
+    add_settings_field(
+        'forgewp_auth_password_reset_email_body',
+        'Password Reset Email Body',
+        'forgewp_auth_password_reset_email_body_render',
+        'forgewp-auth-settings',
+        'forgewp_auth_settings_section'
+    );
+
+    add_settings_field(
+        'forgewp_auth_login_field',
+        'Allowed Login Fields',
+        'forgewp_auth_login_field_render',
+        'general'
+    );
+}
+
+// Keep WordPress General Membership and ForgeWP Auth Public Registration in sync
+function forgewp_sync_registration_options( $option, $value ) {
+    static $in_sync = false;
+    if ( $in_sync ) {
+        return;
+    }
+    $in_sync = true;
+    if ( $option === 'forgewp_auth_registration_enabled' ) {
+        update_option( 'users_can_register', $value );
+    } elseif ( $option === 'users_can_register' ) {
+        update_option( 'forgewp_auth_registration_enabled', $value );
+    }
+    $in_sync = false;
+}
+add_action( 'update_option_forgewp_auth_registration_enabled', function($old, $new) { forgewp_sync_registration_options('forgewp_auth_registration_enabled', $new); }, 10, 2 );
+add_action( 'update_option_users_can_register', function($old, $new) { forgewp_sync_registration_options('users_can_register', $new); }, 10, 2 );
+add_action( 'add_option_forgewp_auth_registration_enabled', function($option, $value) { forgewp_sync_registration_options('forgewp_auth_registration_enabled', $value); }, 10, 2 );
+add_action( 'add_option_users_can_register', function($option, $value) { forgewp_sync_registration_options('users_can_register', $value); }, 10, 2 );
+
+/**
+ * Display custom fields dynamically on User Profile edit screen in wp-admin
+ */
+function forgewp_show_custom_user_profile_fields( $user ) {
+    $keys = get_option( 'forgewp_registered_user_meta_keys', array() );
+    if ( empty( $keys ) ) {
+        return;
+    }
+    ?>
+    <h3>ForgeWP Custom Profile Details</h3>
+    <table class="form-table">
+        <?php foreach ( $keys as $key ) : 
+            $clean_key = sanitize_key( $key );
+            $label = ucwords( str_replace( array( '_', '-' ), ' ', $clean_key ) );
+            $value = get_user_meta( $user->ID, $clean_key, true );
+            ?>
+            <tr>
+                <th><label for="<?php echo esc_attr( $clean_key ); ?>"><?php echo esc_html( $label ); ?></label></th>
+                <td>
+                    <input type="text" name="<?php echo esc_attr( $clean_key ); ?>" id="<?php echo esc_attr( $clean_key ); ?>" value="<?php echo esc_attr( $value ); ?>" class="regular-text" />
+                </td>
+            </tr>
+        <?php endforeach; ?>
+    </table>
+    <?php
+}
+add_action( 'show_user_profile', 'forgewp_show_custom_user_profile_fields' );
+add_action( 'edit_user_profile', 'forgewp_show_custom_user_profile_fields' );
+
+/**
+ * Save custom fields dynamically from User Profile edit screen in wp-admin
+ */
+function forgewp_save_custom_user_profile_fields( $user_id ) {
+    if ( ! current_user_can( 'edit_user', $user_id ) ) {
+        return false;
+    }
+    $keys = get_option( 'forgewp_registered_user_meta_keys', array() );
+    if ( empty( $keys ) ) {
+        return;
+    }
+    foreach ( $keys as $key ) {
+        $clean_key = sanitize_key( $key );
+        if ( isset( $_POST[ $clean_key ] ) ) {
+            update_user_meta( $user_id, $clean_key, sanitize_text_field( $_POST[ $clean_key ] ) );
+        }
+    }
+}
+add_action( 'personal_options_update', 'forgewp_save_custom_user_profile_fields' );
+add_action( 'edit_user_profile_update', 'forgewp_save_custom_user_profile_fields' );
+
+function forgewp_auth_settings_section_render() {
+    echo '<p>Configure settings for ForgeWP authentication and registration.</p>';
+}
+
+function forgewp_auth_login_field_render() {
+    $value = get_option( 'forgewp_auth_login_field', '${defaultLoginField}' );
+    ?>
+    <select name="forgewp_auth_login_field">
+        <option value="usernameAndEmail" <?php selected( $value, 'usernameAndEmail' ); ?>>Username or Email (Default)</option>
+        <option value="usernameOnly" <?php selected( $value, 'usernameOnly' ); ?>>Username Only</option>
+        <option value="emailOnly" <?php selected( $value, 'emailOnly' ); ?>>Email Only</option>
+    </select>
+    <p class="description">Select which credentials users can log in with.</p>
+    <?php
+}
+
+function forgewp_auth_registration_enabled_render() {
+    $value = get_option( 'forgewp_auth_registration_enabled', '${defaultRegistrationEnabled}' );
+    ?>
+    <input type="checkbox" name="forgewp_auth_registration_enabled" value="1" <?php checked( $value, '1' ); ?> />
+    <span class="description">Allow new users to sign up via registration API.</span>
+    <?php
+}
+
+function forgewp_auth_email_verification_enabled_render() {
+    $value = get_option( 'forgewp_auth_email_verification_enabled', '${defaultEmailVerificationEnabled}' );
+    ?>
+    <input type="checkbox" name="forgewp_auth_email_verification_enabled" value="1" <?php checked( $value, '1' ); ?> />
+    <span class="description">Require new users to click verification links in email.</span>
+    <?php
+}
+
+function forgewp_auth_block_login_until_verified_render() {
+    $value = get_option( 'forgewp_auth_block_login_until_verified', '${defaultBlockLoginUntilVerified}' );
+    ?>
+    <input type="checkbox" name="forgewp_auth_block_login_until_verified" value="1" <?php checked( $value, '1' ); ?> />
+    <span class="description">Prevent users from logging in unless their email address is verified.</span>
+    <?php
+}
+
+// Intercept logins to block unverified email addresses if option is enabled
+add_filter( 'wp_authenticate_user', 'forgewp_auth_check_verification_before_login', 30, 2 );
+function forgewp_auth_check_verification_before_login( $user, $password ) {
+    if ( is_wp_error( $user ) ) {
+        return $user;
+    }
+    $block_login = get_option( 'forgewp_auth_block_login_until_verified', '${defaultBlockLoginUntilVerified}' ) === '1';
+    if ( $block_login ) {
+        $email_verified = get_user_meta( $user->ID, 'forgewp_email_verified', true );
+        if ( $email_verified !== '1' ) {
+            return new WP_Error( 'email_unverified', 'Your email address has not been verified yet. Please check your inbox for the verification link.', array( 'status' => 403 ) );
+        }
+    }
+    return $user;
+}
+
+function forgewp_auth_default_role_render() {
+    $value = get_option( 'forgewp_auth_default_role', '${defaultDefaultRole}' );
+    $roles = wp_roles()->get_names();
+    ?>
+    <select name="forgewp_auth_default_role">
+        <?php foreach ( $roles as $role_key => $role_name ) : ?>
+            <option value="<?php echo esc_attr( $role_key ); ?>" <?php selected( $value, $role_key ); ?>>
+                <?php echo esc_html( $role_name ); ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
+    <span class="description">Default role assigned to newly registered users.</span>
+    <?php
+}
+
+function forgewp_auth_verification_email_subject_render() {
+    $value = get_option( 'forgewp_auth_verification_email_subject', '${defaultVerificationEmailSubject.replace(/'/g, "\\'")}' );
+    ?>
+    <input type="text" name="forgewp_auth_verification_email_subject" value="<?php echo esc_attr( $value ); ?>" class="large-text" />
+    <?php
+}
+
+function forgewp_auth_verification_email_body_render() {
+    $value = get_option( 'forgewp_auth_verification_email_body', '${defaultVerificationEmailBody.replace(/\r?\n/g, '\\n').replace(/'/g, "\\'")}' );
+    ?>
+    <textarea name="forgewp_auth_verification_email_body" rows="6" class="large-text code"><?php echo esc_textarea( $value ); ?></textarea>
+    <p class="description">Use placeholders: <code>{username}</code>, <code>{email}</code>, <code>{verification_url}</code></p>
+    <?php
+}
+
+function forgewp_auth_password_reset_email_subject_render() {
+    $value = get_option( 'forgewp_auth_password_reset_email_subject', '${defaultPasswordResetEmailSubject.replace(/'/g, "\\'")}' );
+    ?>
+    <input type="text" name="forgewp_auth_password_reset_email_subject" value="<?php echo esc_attr( $value ); ?>" class="large-text" />
+    <?php
+}
+
+function forgewp_auth_password_reset_email_body_render() {
+    $value = get_option( 'forgewp_auth_password_reset_email_body', '${defaultPasswordResetEmailBody.replace(/\r?\n/g, '\\n').replace(/'/g, "\\'")}' );
+    ?>
+    <textarea name="forgewp_auth_password_reset_email_body" rows="6" class="large-text code"><?php echo esc_textarea( $value ); ?></textarea>
+    <p class="description">Use placeholders: <code>{username}</code>, <code>{reset_url}</code></p>
+    <?php
+}
+
+/**
+ * Enforce login field policy globally.
+ */
+add_filter( 'authenticate', 'forgewp_enforce_login_field_policy', 9, 3 );
+function forgewp_enforce_login_field_policy( $user, $username, $password ) {
+    if ( empty( $username ) ) {
+        return $user;
+    }
+
+    $policy = get_option( 'forgewp_auth_login_field', '${defaultLoginField}' );
+
+    if ( $policy === 'usernameOnly' && is_email( $username ) ) {
+        return new WP_Error( 'invalid_login_field', 'Logins are restricted to usernames only.' );
+    }
+
+    if ( $policy === 'emailOnly' && ! is_email( $username ) ) {
+        return new WP_Error( 'invalid_login_field', 'Logins are restricted to email addresses only.' );
+    }
+
+    return $user;
+}
+
+/**
+ * Intercept mail in local development environment and log to cms/email-logs.json.
+ */
+add_filter( 'pre_wp_mail', 'forgewp_intercept_mail', 10, 2 );
+function forgewp_intercept_mail( $bypass, $mail_data ) {
+    $is_dev = false;
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        $is_dev = true;
+    }
+    if ( defined( 'WP_ENV' ) && WP_ENV === 'development' ) {
+        $is_dev = true;
+    }
+    if ( isset( $_SERVER['HTTP_HOST'] ) ) {
+        $host = $_SERVER['HTTP_HOST'];
+        if ( $host === 'localhost' || $host === '127.0.0.1' || strpos( $host, '.local' ) !== false ) {
+            $is_dev = true;
+        }
+    }
+    if ( ! $is_dev ) {
+        return $bypass;
+    }
+
+    $cms_dir = get_template_directory() . '/cms';
+    if ( ! file_exists( $cms_dir ) ) {
+        wp_mkdir_p( $cms_dir );
+    }
+    $log_file = $cms_dir . '/email-logs.json';
+    $emails = array();
+    if ( file_exists( $log_file ) ) {
+        $existing = json_decode( file_get_contents( $log_file ), true );
+        if ( is_array( $existing ) ) {
+            $emails = $existing;
+        }
+    }
+
+    $verification_url = '';
+    if ( preg_match( '/https?:\\/\\/[^\\s]+/i', $mail_data['message'], $matches ) ) {
+        $verification_url = $matches[0];
+    }
+
+    $emails[] = array(
+        'to'               => $mail_data['to'],
+        'subject'          => $mail_data['subject'],
+        'message'          => $mail_data['message'],
+        'verification_url' => $verification_url,
+        'timestamp'        => time(),
+    );
+
+    file_put_contents( $log_file, json_encode( $emails, JSON_PRETTY_PRINT ) );
+    return true;
+}
+
+/**
+ * Helper to dynamically determine the frontend origin.
+ */
+function forgewp_get_frontend_origin() {
+    $origin = '';
+    if ( ! empty( $_SERVER['HTTP_ORIGIN'] ) ) {
+        $origin = $_SERVER['HTTP_ORIGIN'];
+    } elseif ( ! empty( $_SERVER['HTTP_REFERER'] ) ) {
+        $parts = wp_parse_url( $_SERVER['HTTP_REFERER'] );
+        if ( isset( $parts['scheme'] ) && isset( $parts['host'] ) ) {
+            $origin = $parts['scheme'] . '://' . $parts['host'];
+            if ( isset( $parts['port'] ) ) {
+                $origin .= ':' . $parts['port'];
+            }
+        }
+    }
+    if ( empty( $origin ) ) {
+        $origin = home_url();
+    }
+    return rtrim( $origin, '/' );
+}
+
+add_action( 'rest_api_init', function () {
+    register_rest_route( 'forgewp/v1/auth', '/login', array(
+        'methods'             => 'POST',
+        'callback'            => 'forgewp_rest_login',
+        'permission_callback' => '__return_true',
+    ) );
+
+    register_rest_route( 'forgewp/v1/auth', '/logout', array(
+        'methods'             => 'POST',
+        'callback'            => 'forgewp_rest_logout',
+        'permission_callback' => '__return_true',
+    ) );
+
+    register_rest_route( 'forgewp/v1/auth', '/register', array(
+        'methods'             => 'POST',
+        'callback'            => 'forgewp_rest_register',
+        'permission_callback' => '__return_true',
+    ) );
+
+    register_rest_route( 'forgewp/v1/auth', '/lost-password', array(
+        'methods'             => 'POST',
+        'callback'            => 'forgewp_rest_lost_password',
+        'permission_callback' => '__return_true',
+    ) );
+
+    register_rest_route( 'forgewp/v1/auth', '/reset-password', array(
+        'methods'             => 'POST',
+        'callback'            => 'forgewp_rest_reset_password',
+        'permission_callback' => '__return_true',
+    ) );
+
+    register_rest_route( 'forgewp/v1/auth', '/verify-email', array(
+        'methods'             => 'POST',
+        'callback'            => 'forgewp_rest_verify_email',
+        'permission_callback' => '__return_true',
+    ) );
+
+    register_rest_route( 'forgewp/v1/auth', '/resend-verification', array(
+        'methods'             => 'POST',
+        'callback'            => 'forgewp_rest_resend_verification',
+        'permission_callback' => '__return_true',
+    ) );
+
+    register_rest_route( 'forgewp/v1/auth', '/config', array(
+        'methods'             => 'GET',
+        'callback'            => 'forgewp_rest_auth_config',
+        'permission_callback' => '__return_true',
+    ) );
+} );
+
+function forgewp_rest_auth_config() {
+    return rest_ensure_response( array(
+        'loginField'               => get_option( 'forgewp_auth_login_field', '${defaultLoginField}' ),
+        'emailVerificationEnabled' => get_option( 'forgewp_auth_email_verification_enabled', '${defaultEmailVerificationEnabled}' ) === '1',
+    ) );
+}
+
+function forgewp_rest_login( $request ) {
+    $params = $request->get_json_params();
+    $username = isset( $params['username'] ) ? sanitize_text_field( $params['username'] ) : '';
+    $password = isset( $params['password'] ) ? $params['password'] : '';
+
+    if ( empty( $username ) || empty( $password ) ) {
+        return new WP_Error( 'rest_missing_fields', 'Username and password are required.', array( 'status' => 400 ) );
+    }
+
+    $creds = array(
+        'user_login'    => $username,
+        'user_password' => $password,
+        'remember'      => true,
+    );
+
+    $user = wp_signon( $creds, is_ssl() );
+
+    if ( is_wp_error( $user ) ) {
+        return new WP_Error( 'rest_forbidden', $user->get_error_message(), array( 'status' => 403 ) );
+    }
+
+    wp_set_current_user( $user->ID );
+
+    return rest_ensure_response( forgewp_get_current_user_hydration_payload() );
+}
+
+function forgewp_rest_logout() {
+    wp_logout();
+    return rest_ensure_response( array( 'success' => true ) );
+}
+
+function forgewp_rest_register( $request ) {
+    $registration_enabled = get_option( 'forgewp_auth_registration_enabled', '${defaultRegistrationEnabled}' );
+    $users_can_register = get_option( 'users_can_register' );
+    if ( $registration_enabled !== '1' || $users_can_register !== '1' ) {
+        return new WP_Error( 'rest_registration_disabled', 'User registration is disabled on this site.', array( 'status' => 403 ) );
+    }
+
+    $params = $request->get_json_params();
+    $username = isset( $params['username'] ) ? sanitize_text_field( $params['username'] ) : '';
+    $email = isset( $params['email'] ) ? sanitize_email( $params['email'] ) : '';
+    $password = isset( $params['password'] ) ? $params['password'] : '';
+
+    if ( empty( $username ) || empty( $email ) || empty( $password ) ) {
+        return new WP_Error( 'rest_missing_fields', 'Username, email, and password are required.', array( 'status' => 400 ) );
+    }
+
+    // Reserved usernames validation
+    $reserved = array(${reservedUsernamesPhp});
+    if ( in_array( strtolower( $username ), $reserved ) ) {
+        return new WP_Error( 'rest_invalid_username', 'This username is reserved and cannot be registered.', array( 'status' => 400 ) );
+    }
+
+    if ( username_exists( $username ) ) {
+        return new WP_Error( 'rest_username_exists', 'Username already exists.', array( 'status' => 400 ) );
+    }
+
+    if ( email_exists( $email ) ) {
+        return new WP_Error( 'rest_email_exists', 'Email address already exists.', array( 'status' => 400 ) );
+    }
+
+    $user_id = wp_create_user( $username, $password, $email );
+
+    if ( is_wp_error( $user_id ) ) {
+        return new WP_Error( 'rest_registration_failed', $user_id->get_error_message(), array( 'status' => 500 ) );
+    }
+
+    $user = new WP_User( $user_id );
+    $default_role = get_option( 'forgewp_auth_default_role', '${defaultDefaultRole}' );
+    $user->set_role( $default_role );
+
+    // Save custom profile fields / metadata
+    $metadata = isset( $params['metadata'] ) && is_array( $params['metadata'] ) ? $params['metadata'] : array();
+    if ( ! empty( $metadata ) ) {
+        $existing_keys = get_option( 'forgewp_registered_user_meta_keys', array() );
+        if ( ! is_array( $existing_keys ) ) {
+            $existing_keys = array();
+        }
+        $new_keys = array();
+        foreach ( array_keys( $metadata ) as $key ) {
+            $clean_key = sanitize_key( $key );
+            if ( ! empty( $clean_key ) ) {
+                $new_keys[] = $clean_key;
+            }
+        }
+        $updated_keys = array_unique( array_merge( $existing_keys, $new_keys ) );
+        if ( $updated_keys !== $existing_keys ) {
+            update_option( 'forgewp_registered_user_meta_keys', $updated_keys );
+        }
+    }
+
+    foreach ( $metadata as $meta_key => $meta_val ) {
+        $clean_key = sanitize_key( $meta_key );
+        if ( ! empty( $clean_key ) ) {
+            if ( is_array( $meta_val ) ) {
+                $clean_val = map_deep( $meta_val, 'sanitize_text_field' );
+            } else {
+                $clean_val = sanitize_text_field( $meta_val );
+            }
+            update_user_meta( $user_id, $clean_key, $clean_val );
+        }
+    }
+
+    $verification_enabled = get_option( 'forgewp_auth_email_verification_enabled', '${defaultEmailVerificationEnabled}' ) === '1';
+
+    if ( $verification_enabled ) {
+        update_user_meta( $user_id, 'forgewp_email_verified', '0' );
+
+        $token = wp_generate_password( 32, false );
+        set_transient( 'forgewp_verify_email_' . $token, $user_id, DAY_IN_SECONDS );
+
+        $origin = forgewp_get_frontend_origin();
+        $verification_url = $origin . '/verify-email?userId=' . $user_id . '&token=' . $token;
+
+        $subject = get_option( 'forgewp_auth_verification_email_subject', '${defaultVerificationEmailSubject.replace(/'/g, "\\'")}' );
+        $body = get_option( 'forgewp_auth_verification_email_body', '${defaultVerificationEmailBody.replace(/\r?\n/g, '\\n').replace(/'/g, "\\'")}' );
+
+        $body = str_replace(
+            array( '{username}', '{email}', '{verification_url}' ),
+            array( $username, $email, $verification_url ),
+            $body
+        );
+
+        wp_mail( $email, $subject, $body );
+
+        return rest_ensure_response( array(
+            'success'              => true,
+            'requiresVerification' => true,
+        ) );
+    } else {
+        update_user_meta( $user_id, 'forgewp_email_verified', '1' );
+
+        $auto_login = '${defaultAutoLoginAfterSignup}' === '1';
+        if ( $auto_login ) {
+            $creds = array(
+                'user_login'    => $username,
+                'user_password' => $password,
+                'remember'      => true,
+            );
+            $signed_in_user = wp_signon( $creds, is_ssl() );
+            if ( ! is_wp_error( $signed_in_user ) ) {
+                wp_set_current_user( $signed_in_user->ID );
+            }
+            return rest_ensure_response( forgewp_get_current_user_hydration_payload() );
+        }
+
+        return rest_ensure_response( array(
+            'success'              => true,
+            'requiresVerification' => false,
+        ) );
+    }
+}
+
+function forgewp_rest_verify_email( $request ) {
+    $params = $request->get_json_params();
+    $user_id = isset( $params['userId'] ) ? intval( $params['userId'] ) : 0;
+    $token = isset( $params['token'] ) ? sanitize_text_field( $params['token'] ) : '';
+
+    if ( ! $user_id || ! $token ) {
+        return new WP_Error( 'rest_missing_fields', 'User ID and token are required.', array( 'status' => 400 ) );
+    }
+
+    $transient_name = 'forgewp_verify_email_' . $token;
+    $stored_user_id = get_transient( $transient_name );
+
+    if ( ! $stored_user_id || intval( $stored_user_id ) !== $user_id ) {
+        return new WP_Error( 'rest_invalid_token', 'Invalid or expired verification token.', array( 'status' => 400 ) );
+    }
+
+    update_user_meta( $user_id, 'forgewp_email_verified', '1' );
+    delete_transient( $transient_name );
+
+    $user = get_user_by( 'id', $user_id );
+    if ( $user ) {
+        wp_set_current_user( $user_id );
+        wp_set_auth_cookie( $user_id, true );
+    }
+
+    return rest_ensure_response( array(
+        'success' => true,
+        'user'    => forgewp_get_current_user_hydration_payload(),
+    ) );
+}
+
+function forgewp_rest_resend_verification( $request ) {
+    $params = $request->get_json_params();
+    $login_input = isset( $params['email'] ) ? sanitize_text_field( $params['email'] ) : '';
+    $login_field = get_option( 'forgewp_auth_login_field', '${defaultLoginField}' );
+
+    if ( empty( $login_input ) ) {
+        $required_msg = 'Username or email is required.';
+        if ( $login_field === 'emailOnly' ) {
+            $required_msg = 'Email is required.';
+        } elseif ( $login_field === 'usernameOnly' ) {
+            $required_msg = 'Username is required.';
+        }
+        return new WP_Error( 'rest_missing_fields', $required_msg, array( 'status' => 400 ) );
+    }
+
+    $user = null;
+    if ( is_email( $login_input ) ) {
+        $user = get_user_by( 'email', $login_input );
+    }
+    if ( ! $user ) {
+        $user = get_user_by( 'login', $login_input );
+    }
+
+    if ( ! $user ) {
+        $error_msg = 'No account found with this email address or username.';
+        if ( $login_field === 'emailOnly' ) {
+            $error_msg = 'No account found with this email address.';
+        } elseif ( $login_field === 'usernameOnly' ) {
+            $error_msg = 'No account found with this username.';
+        }
+        return new WP_Error( 'rest_invalid_user', $error_msg, array( 'status' => 404 ) );
+    }
+
+    $email = $user->user_email;
+
+    $verified = get_user_meta( $user->ID, 'forgewp_email_verified', true );
+    if ( $verified === '1' ) {
+        return new WP_Error( 'rest_already_verified', 'This email address is already verified.', array( 'status' => 400 ) );
+    }
+
+    $token = wp_generate_password( 32, false );
+    set_transient( 'forgewp_verify_email_' . $token, $user->ID, DAY_IN_SECONDS );
+
+    $origin = forgewp_get_frontend_origin();
+    $verification_url = $origin . '/verify-email?userId=' . $user->ID . '&token=' . $token;
+
+    $subject = get_option( 'forgewp_auth_verification_email_subject', '${defaultVerificationEmailSubject.replace(/'/g, "\\'")}' );
+    $body = get_option( 'forgewp_auth_verification_email_body', '${defaultVerificationEmailBody.replace(/\r?\n/g, '\\n').replace(/'/g, "\\'")}' );
+
+    $body = str_replace(
+        array( '{username}', '{email}', '{verification_url}' ),
+        array( $user->user_login, $email, $verification_url ),
+        $body
+    );
+
+    wp_mail( $email, $subject, $body );
+
+    return rest_ensure_response( array(
+        'success' => true
+    ) );
+}
+
+function forgewp_rest_lost_password( $request ) {
+    $params = $request->get_json_params();
+    $user_login = isset( $params['user_login'] ) ? sanitize_text_field( $params['user_login'] ) : '';
+
+    if ( empty( $user_login ) ) {
+        return new WP_Error( 'rest_missing_fields', 'Email or username is required.', array( 'status' => 400 ) );
+    }
+
+    if ( ! function_exists( 'retrieve_password' ) ) {
+        require_once ABSPATH . 'wp-login.php';
+    }
+
+    $errors = retrieve_password( $user_login );
+
+    if ( is_wp_error( $errors ) ) {
+        return new WP_Error( 'rest_recovery_failed', $errors->get_error_message(), array( 'status' => 400 ) );
+    }
+
+    return rest_ensure_response( array( 'success' => true ) );
+}
+
+function forgewp_rest_reset_password( $request ) {
+    $params = $request->get_json_params();
+    $user_login = isset( $params['login'] ) ? sanitize_text_field( $params['login'] ) : '';
+    $key = isset( $params['key'] ) ? sanitize_text_field( $params['key'] ) : '';
+    $password = isset( $params['password'] ) ? $params['password'] : '';
+
+    if ( empty( $user_login ) || empty( $key ) || empty( $password ) ) {
+        return new WP_Error( 'rest_missing_fields', 'Username, key, and password are required.', array( 'status' => 400 ) );
+    }
+
+    if ( ! function_exists( 'check_password_reset_key' ) ) {
+        require_once ABSPATH . 'wp-login.php';
+    }
+
+    $user = check_password_reset_key( $key, $user_login );
+
+    if ( is_wp_error( $user ) ) {
+        return new WP_Error( 'rest_invalid_key', 'The password reset link is invalid or has expired.', array( 'status' => 400 ) );
+    }
+
+    reset_password( $user, $password );
+
+    return rest_ensure_response( array( 'success' => true ) );
+}
+
+/**
+ * Intercept retrieve password mail subject and body to support custom template and headless redirect.
+ */
+add_filter( 'retrieve_password_title', 'forgewp_retrieve_password_title', 10, 3 );
+function forgewp_retrieve_password_title( $title, $user_login, $user_data ) {
+    $custom_subject = get_option( 'forgewp_auth_password_reset_email_subject', '${defaultPasswordResetEmailSubject.replace(/'/g, "\\'")}' );
+    if ( ! empty( $custom_subject ) ) {
+        return $custom_subject;
+    }
+    return $title;
+}
+
+add_filter( 'retrieve_password_message', 'forgewp_retrieve_password_message', 10, 4 );
+function forgewp_retrieve_password_message( $message, $key, $user_login, $user_data ) {
+    $origin = forgewp_get_frontend_origin();
+    $reset_url = $origin . '/reset-password?key=' . $key . '&login=' . rawurlencode( $user_login );
+
+    $custom_body = get_option( 'forgewp_auth_password_reset_email_body', '${defaultPasswordResetEmailBody.replace(/\r?\n/g, '\\n').replace(/'/g, "\\'")}' );
+    if ( ! empty( $custom_body ) ) {
+        $body = str_replace(
+            array( '{username}', '{reset_url}' ),
+            array( $user_login, $reset_url ),
+            $custom_body
+        );
+        return $body;
+    }
+
+    $message = "Hello!\\n\\nYou asked us to reset your password for your account: " . $user_login . "\\n\\nIf this was a mistake, just ignore this email.\\n\\nTo reset your password, visit the following link:\\n\\n" . $reset_url . "\\n";
+    return $message;
+}
+
+function forgewp_auth_head_hydration() {
+    $payload = forgewp_get_current_user_hydration_payload();
+    $login_field = get_option( 'forgewp_auth_login_field', '${defaultLoginField}' );
+    $verification_enabled = get_option( 'forgewp_auth_email_verification_enabled', '${defaultEmailVerificationEnabled}' ) === '1';
+    
+    $session_data = array(
+        'loggedIn' => ! empty( $payload ),
+        'user' => $payload,
+        'loginField' => $login_field,
+        'emailVerificationEnabled' => $verification_enabled,
+    );
+    ?>
+    <script type="application/json" id="forgewp-session">
+    <?php echo wp_json_encode($session_data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>
+    </script>
+    <script id="forgewp-auth-hydration">
+        if (!window.forgeWpHydration) {
+            window.forgeWpHydration = {};
+        }
+        window.forgeWpHydration.currentUser = <?php echo wp_json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
+        window.forgeWpHydration.loginField = <?php echo wp_json_encode($login_field); ?>;
+        window.forgeWpHydration.emailVerificationEnabled = <?php echo wp_json_encode($verification_enabled); ?>;
+    </script>
+    <?php
+}
+add_action('wp_head', 'forgewp_auth_head_hydration', 1);
+`;
+  }
+
   const css = assets.cssFile.replace(/^assets\//, '');
   
   let seoPluginsPhp = '';
@@ -1031,6 +1943,18 @@ add_action('after_switch_theme', 'forgewp_set_default_footer_text');
       })
       .join(',\n');
 
+    let headlessScript = '';
+    if (config.headless) {
+      const headlessApiUrl = config.headless.apiUrl || '';
+      const headlessJwtAuth = !!config.headless.jwtAuth;
+      headlessScript = `
+        wp_add_inline_script(
+            '${config.textDomain}-react-runtime',
+            'window.FORGEWP_API_URL = ' . wp_json_encode('${headlessApiUrl}') . '; window.FORGEWP_JWT_AUTH = ${headlessJwtAuth ? 'true' : 'false'};',
+            'before'
+        );`;
+    }
+
     // Load mock site settings for hydration payloads
     let siteSettingsJson = {};
     const siteSettingsPath = path.join(themeRoot, 'cms', 'site-settings.json');
@@ -1122,6 +2046,7 @@ add_action('after_switch_theme', 'forgewp_set_default_footer_text');
             FORGEWP_THEME_VERSION,
             true
         );
+${headlessScript}
 
         $menu_locations = get_nav_menu_locations();
         $hydrated_menus = array();
@@ -1173,10 +2098,11 @@ ${page_links_php}
         // Inject hydration manifest mappings dynamically
         wp_add_inline_script(
             '${config.textDomain}-react-runtime',
-            'window.forgeWpHydration = ' . wp_json_encode(array(
+            'window.forgeWpHydration = Object.assign(window.forgeWpHydration || {}, ' . wp_json_encode(array(
                 'themeUri' => $theme_uri,
                 'menus' => $hydrated_menus,
                 'pageLinks' => $page_links,
+                'loginField' => get_option( 'forgewp_auth_login_field', '${defaultLoginField}' ),${currentUserHydrationField}
                 'manifest' => array(
 ${manifestPairs}
                 ),
@@ -1188,7 +2114,7 @@ ${optionsPairs}
 ${themeModsPairs}
                     ),
                 ),
-            ), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) . ';',
+            ), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) . ');',
             'before'
         );
 
@@ -2022,7 +2948,7 @@ function forgewp_render_theme_icon($icon_slug, $class_name = '', $provider = 'lu
         echo $svg;
     }
 }
-${faviconPhp}${sitemapsPhp}${queryEndpointsPhp}
+${faviconPhp}${sitemapsPhp}${queryEndpointsPhp}${authControllersPhp}
 
 /**
  * Prevent TinyMCE Classic Editor auto-resize height expansion feedback loop.

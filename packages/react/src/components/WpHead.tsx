@@ -29,12 +29,11 @@ export function WpHead({
   schema,
   children,
 }: WpHeadProps) {
-  const IS_DEV =
-    typeof import.meta !== "undefined" &&
-    // @ts-ignore
-    import.meta.env?.DEV === true;
+  const IS_DECOUPLED =
+    (typeof import.meta !== "undefined" && import.meta.env?.DEV === true) ||
+    (typeof window !== "undefined" && !(window as any).forgeWpHydration);
 
-  if (IS_DEV) {
+  if (IS_DECOUPLED) {
     return (
       <>
         {title && <title>{title}</title>}

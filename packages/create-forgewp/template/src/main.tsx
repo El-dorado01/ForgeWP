@@ -9,8 +9,8 @@ import "./app/globals.css";
 
 // Expose React and ReactDOM globally for dynamic hydration runtime
 if (typeof window !== "undefined") {
-  (window as any).React = React;
-  (window as any).ReactDOM = ReactDOM;
+  window.React = React;
+  window.ReactDOM = ReactDOM;
 }
 
 const root = document.getElementById("root");

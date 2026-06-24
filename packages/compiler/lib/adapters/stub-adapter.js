@@ -40,8 +40,12 @@ export function onMakeBlock(themeRoot, { pascalCase, pc }) {
   console.log(pc.yellow(`\n⚠️  The Stub framework adapter does not support custom Gutenberg blocks.`));
 }
 
-export function onMakeComponent(themeRoot, { pascalCase, pc }) {
-  console.log(pc.yellow(`\n⚠️  The Stub framework adapter does not support custom loop components.`));
+export function onMakeLoop(themeRoot, { pascalCase, pc }) {
+  console.log(pc.yellow(`\n⚠️  The Stub framework adapter does not support custom loops.`));
+}
+
+export function onMakePage(themeRoot, { pascalCase, pc }) {
+  console.log(pc.yellow(`\n⚠️  The Stub framework adapter does not support custom page templates.`));
 }
 
 export function onSyncRoutes(themeRoot, { pc }) {

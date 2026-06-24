@@ -2,6 +2,8 @@
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import path from "node:path";
+import readline from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
 import pc from "picocolors";
 
 const args = process.argv.slice(2);
@@ -16,6 +18,15 @@ if (nameIndex !== -1 && args[nameIndex + 1]) {
   if (nameEqual) {
     rawName = nameEqual.split("=")[1];
   }
+}
+
+if (!rawName) {
+  const rl = readline.createInterface({ input, output });
+  try {
+    const answer = await rl.question(pc.cyan("? Enter a post type name: "));
+    rawName = answer.trim();
+  } catch (err) {}
+  rl.close();
 }
 
 if (!rawName) {

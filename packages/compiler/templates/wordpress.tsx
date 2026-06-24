@@ -76,6 +76,10 @@ const IS_DEV =
   // @ts-ignore
   import.meta.env?.DEV === true;
 
+const IS_DECOUPLED =
+  IS_DEV ||
+  (typeof window !== 'undefined' && !(window as any).forgeWpHydration);
+
 export function decodeHtmlEntities(str: string): string {
   if (!str) return '';
   if (typeof window === 'undefined') {
@@ -92,6 +96,13 @@ export function decodeHtmlEntities(str: string): string {
   return txt.value;
 }
 
+function getDevMockPosts(): any {
+  if (typeof window !== 'undefined' && (window as any)._forgeWpMockPosts) {
+    return (window as any)._forgeWpMockPosts;
+  }
+  return mockData;
+}
+
 if (IS_DEV) {
   if (typeof window !== 'undefined') {
     (window as any)._forgeWpMockSiteSettings = siteSettings;
@@ -105,39 +116,39 @@ if (IS_DEV) {
 // In prod: compiler replaces the call with the PHP equivalent below.
 
 export function useWpTitle(): string {
-  if (IS_DEV) return _useWpTitle();
+  if (IS_DECOUPLED) return _useWpTitle();
   return '__FORGEWP_THE_TITLE__';
 }
 export function useWpContent(): string {
-  if (IS_DEV) return _useWpContent();
+  if (IS_DECOUPLED) return _useWpContent();
   return '__FORGEWP_THE_CONTENT__';
 }
 export function useWpExcerpt(): string {
-  if (IS_DEV) return _useWpExcerpt();
+  if (IS_DECOUPLED) return _useWpExcerpt();
   return '__FORGEWP_THE_EXCERPT__';
 }
 export function useWpPermalink(): string {
-  if (IS_DEV) return _useWpPermalink();
+  if (IS_DECOUPLED) return _useWpPermalink();
   return '__FORGEWP_THE_PERMALINK__';
 }
 export function useWpDate(): string {
-  if (IS_DEV) return _useWpDate();
+  if (IS_DECOUPLED) return _useWpDate();
   return '__FORGEWP_THE_DATE__';
 }
 export function useWpModifiedDate(): string {
-  if (IS_DEV) return _useWpModifiedDate();
+  if (IS_DECOUPLED) return _useWpModifiedDate();
   return '__FORGEWP_THE_MODIFIED_DATE__';
 }
 export function useWpAuthor(): string {
-  if (IS_DEV) return _useWpAuthor();
+  if (IS_DECOUPLED) return _useWpAuthor();
   return '__FORGEWP_THE_AUTHOR__';
 }
 export function useWpFeaturedImage(): string {
-  if (IS_DEV) return _useWpFeaturedImage();
+  if (IS_DECOUPLED) return _useWpFeaturedImage();
   return '__FORGEWP_THE_POST_THUMBNAIL_URL__';
 }
 export function useWpCustomField(fieldName: string, defaultValue = ''): any {
-  if (IS_DEV) return _useWpCustomField(fieldName, defaultValue);
+  if (IS_DECOUPLED) return _useWpCustomField(fieldName, defaultValue);
 
   if (typeof window !== 'undefined') {
     const win = window as any;
@@ -154,7 +165,7 @@ export function useWpCustomField(fieldName: string, defaultValue = ''): any {
 }
 
 export function useWpField(fieldName: string, defaultValue = ''): any {
-  if (IS_DEV) return _useWpField(fieldName, defaultValue);
+  if (IS_DECOUPLED) return _useWpField(fieldName, defaultValue);
 
   if (typeof window !== 'undefined') {
     const win = window as any;
@@ -171,7 +182,7 @@ export function useWpField(fieldName: string, defaultValue = ''): any {
 }
 
 export function useWpMeta<T>(key: string, defaultValue: T): T {
-  if (IS_DEV) return _useWpMeta(key, defaultValue);
+  if (IS_DECOUPLED) return _useWpMeta(key, defaultValue);
 
   // Browser-side hydration: check for forgeWpHydration data first
   if (typeof window !== 'undefined') {
@@ -195,7 +206,7 @@ export function useWpMeta<T>(key: string, defaultValue: T): T {
 }
 
 export function useWpOption(optionName: string, defaultValue = ''): string {
-  if (IS_DEV) return _useWpOption(optionName, defaultValue);
+  if (IS_DECOUPLED) return _useWpOption(optionName, defaultValue);
 
   // Browser-side hydration: check for forgeWpHydration data first
   if (typeof window !== 'undefined') {
@@ -219,7 +230,7 @@ export function useWpOption(optionName: string, defaultValue = ''): string {
 }
 
 export function useWpThemeMod(modName: string, defaultValue = ''): string {
-  if (IS_DEV) return _useWpThemeMod(modName, defaultValue);
+  if (IS_DECOUPLED) return _useWpThemeMod(modName, defaultValue);
 
   // Browser-side hydration: check for forgeWpHydration data first
   if (typeof window !== 'undefined') {
@@ -243,7 +254,7 @@ export function useWpThemeMod(modName: string, defaultValue = ''): string {
 }
 
 export function useWpThemeUri(): string {
-  if (IS_DEV) return _useWpThemeUri();
+  if (IS_DECOUPLED) return _useWpThemeUri();
   if (typeof window !== 'undefined' && !(window as any)._forgeWpCompileTime) {
     return (window as any).forgeWpHydration?.themeUri || '';
   }
@@ -251,7 +262,7 @@ export function useWpThemeUri(): string {
 }
 
 export function useWpPageLink(name: string, fallback: string): string {
-  if (IS_DEV) return _useWpPageLink(name, fallback);
+  if (IS_DECOUPLED) return _useWpPageLink(name, fallback);
   if (typeof window !== 'undefined' && !(window as any)._forgeWpCompileTime) {
     const win = window as any;
     if (win.forgeWpHydration?.pageLinks?.[name]) {
@@ -322,16 +333,30 @@ async function fetchWpApi(args: any, page: number) {
     params.append('lang', currentLang);
   }
 
-  const homeUrl = (window as any).forgeWpHydration?.siteSettings?.options?.home || '';
-  let apiBase = '';
-  if (homeUrl) {
-    try {
-      apiBase = new URL(homeUrl).pathname.replace(new RegExp('/$'), '');
-    } catch (e) {}
-  }
+  const apiBase = (typeof window !== 'undefined' && (window as any).FORGEWP_API_URL) ||
+    (import.meta as any).env?.VITE_WP_API_URL ||
+    (typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.env && ((globalThis as any).process.env.NEXT_PUBLIC_WP_API_URL || (globalThis as any).process.env.WP_API_URL)) ||
+    (() => {
+      const homeUrl = (window as any).forgeWpHydration?.siteSettings?.options?.home || '';
+      if (homeUrl) {
+        try {
+          return new URL(homeUrl).pathname.replace(/\/$/, '');
+        } catch (e) {}
+      }
+      return '';
+    })();
   const fetchUrl = `${apiBase}/wp-json/wp/v2/${endpoint}?${params.toString()}`;
   console.log(`[useWpQuery] Fetching CPT "${postType}" from URL:`, fetchUrl);
-  const response = await fetch(fetchUrl);
+
+  const headers: Record<string, string> = {};
+  if (typeof window !== 'undefined') {
+    const token = window.localStorage.getItem('forgewp_jwt_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
+  const response = await fetch(fetchUrl, { headers });
   if (!response.ok) {
     throw new Error(
       `WordPress API returned ${response.status}: ${response.statusText}`,
@@ -681,7 +706,7 @@ export interface WpTerm {
 
 export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolean; error: string | null } {
   if (IS_DEV) {
-    const raw: any[] = (mockData as any)?.[`_taxonomy_${taxonomy}`] || [];
+    const raw: any[] = (getDevMockPosts() as any)?.[`_taxonomy_${taxonomy}`] || [];
     const terms: WpTerm[] = raw.map((t: any) => ({
       id: t.id ?? 0,
       name: t.name ?? '',
@@ -706,18 +731,32 @@ export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolea
   React.useEffect(() => {
     let cancelled = false;
     const endpoint = taxonomy === 'category' ? 'categories' : taxonomy === 'post_tag' ? 'tags' : taxonomy;
-    const homeUrl = (window as any).forgeWpHydration?.siteSettings?.options?.home || '';
-    let apiBase = '';
-    if (homeUrl) {
-      try {
-        apiBase = new URL(homeUrl).pathname.replace(new RegExp('/$'), '');
-      } catch (e) {}
-    }
+    const apiBase = (typeof window !== 'undefined' && (window as any).FORGEWP_API_URL) ||
+      (import.meta as any).env?.VITE_WP_API_URL ||
+      (typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.env && ((globalThis as any).process.env.NEXT_PUBLIC_WP_API_URL || (globalThis as any).process.env.WP_API_URL)) ||
+      (() => {
+        const homeUrl = (window as any).forgeWpHydration?.siteSettings?.options?.home || '';
+        if (homeUrl) {
+          try {
+            return new URL(homeUrl).pathname.replace(/\/$/, '');
+          } catch (e) {}
+        }
+        return '';
+      })();
     const currentLang = (window as any).forgeWpLocale || (window as any).forgeWpTranslations?.currentLanguage;
     const langParam = currentLang ? `&lang=${currentLang}` : '';
     const fetchUrl = `${apiBase}/wp-json/wp/v2/${endpoint}?per_page=100&_fields=id,name,slug,description,count,acf,meta${langParam}`;
     console.log(`[useWpTerms] Fetching taxonomy "${taxonomy}" from URL:`, fetchUrl);
-    fetch(fetchUrl)
+
+    const headers: Record<string, string> = {};
+    if (typeof window !== 'undefined') {
+      const token = window.localStorage.getItem('forgewp_jwt_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
+    fetch(fetchUrl, { headers })
       .then((res) => {
         if (!res.ok) throw new Error(`WP Terms API ${taxonomy}: ${res.status}`);
         return res.json();
@@ -760,10 +799,27 @@ export function WpQueryLoop({
   postType = 'post',
   postsPerPage = 3,
   categoryName = '',
+  orderby = '',
+  order = '',
   children,
-}: WpQueryLoopProps) {
+}: WpQueryLoopProps & { orderby?: string; order?: string }) {
   if (IS_DEV) {
-    const posts = (mockData as any)?.[postType] || [];
+    let posts = (getDevMockPosts() as any)?.[postType] || [];
+    if (orderby === 'rand') {
+      posts = [...posts].sort(() => Math.random() - 0.5);
+    } else if (orderby === 'title') {
+      posts = [...posts].sort((a, b) => {
+        const titleA = a.title || '';
+        const titleB = b.title || '';
+        return order === 'ASC' ? titleA.localeCompare(titleB) : titleB.localeCompare(titleA);
+      });
+    } else if (orderby === 'date') {
+      posts = [...posts].sort((a, b) => {
+        const dateA = new Date(a.date || 0).getTime();
+        const dateB = new Date(b.date || 0).getTime();
+        return order === 'ASC' ? dateA - dateB : dateB - dateA;
+      });
+    }
     return (
       <_WpQueryLoop
         posts={posts}
@@ -784,6 +840,8 @@ export function WpQueryLoop({
         postType={postType}
         postsPerPage={postsPerPage}
         categoryName={categoryName}
+        orderby={orderby}
+        order={order}
       />
       {children}
       {/* @ts-ignore */}
@@ -796,7 +854,7 @@ export function WpQueryLoop({
 
 export function WpLoop({ children }: { children: React.ReactNode }) {
   if (IS_DEV) {
-    const posts = (mockData as any)?.post || [];
+    const posts = (getDevMockPosts() as any)?.post || [];
     return <_WpQueryLoop posts={posts}>{children}</_WpQueryLoop>;
   }
   return (
@@ -884,7 +942,7 @@ export function WpMenu({
 
 // ── BlockArea ────────────────────────────────────────────────────────────────
 export function BlockArea(props: BlockAreaProps) {
-  if (IS_DEV) {
+  if (IS_DECOUPLED) {
     return <_BlockArea {...props} />;
   }
   return (
@@ -895,7 +953,7 @@ export function BlockArea(props: BlockAreaProps) {
 
 // ── WpShortcode ──────────────────────────────────────────────────────────────
 export function WpShortcode({ code }: WpShortcodeProps) {
-  if (IS_DEV) {
+  if (IS_DECOUPLED) {
     return <_WpShortcode code={code} />;
   }
   return (
@@ -905,7 +963,7 @@ export function WpShortcode({ code }: WpShortcodeProps) {
 }
 
 export function WpHead(props: WpHeadProps) {
-  if (IS_DEV) {
+  if (IS_DECOUPLED) {
     return <_WpHead {...props} />;
   }
   return (
@@ -927,8 +985,8 @@ export function WpHead(props: WpHeadProps) {
 export type { WpHeadProps, WpImageProps, WpAttachment, WpRepeaterProps, WpIconProps };
 
 export function WpImage(props: WpImageProps) {
-  if (IS_DEV) {
-    const attachments = (mockData as any)?.attachment || [];
+  if (IS_DECOUPLED) {
+    const attachments = (getDevMockPosts() as any)?.attachment || [];
     return (
       <_WpImage
         {...props}
@@ -942,7 +1000,7 @@ export function WpImage(props: WpImageProps) {
 // ── Routing Wrappers for Dev SPA vs Production Multi-Page WordPress ───────────
 
 export function WpLink({ href, className, children, ...props }: any) {
-  if (IS_DEV) {
+  if (IS_DECOUPLED) {
     return (
       <WouterLink href={href} className={className} {...props}>
         {children}
@@ -978,7 +1036,7 @@ export function useWpI18n() {
     return text;
   };
 
-  if (IS_DEV) {
+  if (IS_DECOUPLED) {
     return {
       __: (text: string) => {
         if (typeof window === "undefined") {
@@ -1056,7 +1114,7 @@ function navigateTo(to: string) {
 }
 
 export function useWpPrefetch() {
-  if (IS_DEV) {
+  if (IS_DECOUPLED) {
     return _useWpPrefetch();
   }
   const prefetch = React.useCallback((to: string) => {
@@ -1082,7 +1140,7 @@ export function useWpPrefetch() {
 
 export function useWpLocation() {
   const prefetch = useWpPrefetch();
-  if (IS_DEV) {
+  if (IS_DECOUPLED) {
     const [wLoc, wNavigate] = useWouterLocation();
     return [wLoc, wNavigate, prefetch] as const;
   }
@@ -1103,7 +1161,7 @@ export function useWpLocation() {
 export { useWpLocation as useLocation };
 
 export function useWpSearch() {
-  if (IS_DEV) {
+  if (IS_DECOUPLED) {
     return useWouterSearch();
   }
   const [search, setSearch] = React.useState(typeof window !== "undefined" ? window.location.search : "");
@@ -1125,7 +1183,7 @@ export function useWpSearchParams(): URLSearchParams {
 
 
 export function useWpLanguage() {
-  if (IS_DEV) {
+  if (IS_DECOUPLED) {
     const translations = translationsData || {};
     const languages = Object.keys(translations).length > 0 ? Object.keys(translations) : ['de', 'en'];
     const defaultLanguage = languages[0] || 'de';
@@ -1220,6 +1278,8 @@ declare global {
             postType?: string;
             postsPerPage?: number;
             categoryName?: string;
+            orderby?: string;
+            order?: string;
           },
           HTMLElement
         >;
@@ -1288,6 +1348,39 @@ declare global {
             name?: string;
             provider?: string;
             class?: string;
+          },
+          HTMLElement
+        >;
+        'forgewp-auth-gate-start': React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement>,
+          HTMLElement
+        >;
+        'forgewp-auth-gate-fallback': React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement>,
+          HTMLElement
+        >;
+        'forgewp-auth-gate-end': React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement>,
+          HTMLElement
+        >;
+        'forgewp-capability-gate-start': React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement> & {
+            allowed?: string;
+          },
+          HTMLElement
+        >;
+        'forgewp-capability-gate-fallback': React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement>,
+          HTMLElement
+        >;
+        'forgewp-capability-gate-end': React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement>,
+          HTMLElement
+        >;
+        'forgewp-require-auth': React.DetailedHTMLProps<
+          React.HTMLAttributes<HTMLElement> & {
+            allowed?: string;
+            redirect?: string;
           },
           HTMLElement
         >;

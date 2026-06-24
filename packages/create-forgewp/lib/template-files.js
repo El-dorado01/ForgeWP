@@ -5,7 +5,6 @@ export const REQUIRED_TEMPLATE_FILES = [
   'vite.config.ts',
   'tsconfig.json',
   'wp.config.ts',
-  'src/lib/forgewp-config.ts',
   'src/main.tsx',
   'src/app/layout.tsx',
   'src/app/page.tsx',

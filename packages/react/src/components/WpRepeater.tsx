@@ -18,14 +18,13 @@ export function WpRepeater<T extends Record<string, any>>({
   defaultValue = [],
   children,
 }: WpRepeaterProps<T>) {
-  const IS_DEV =
-    typeof import.meta !== "undefined" &&
-    // @ts-ignore
-    import.meta.env?.DEV === true;
+  const IS_DECOUPLED =
+    (typeof import.meta !== "undefined" && import.meta.env?.DEV === true) ||
+    (typeof window !== "undefined" && !(window as any).forgeWpHydration);
 
   const post = useContext(WpPostContext);
 
-  if (IS_DEV) {
+  if (IS_DECOUPLED) {
     const data = post?.customFields?.[name] || defaultValue || [];
     const dataArray = Array.isArray(data) ? data : [];
     return (

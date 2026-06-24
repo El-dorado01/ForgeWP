@@ -120,8 +120,8 @@ function parseArgs(argv) {
     process.exit(1);
   }
 
-  if (args.style && !['forgewp', 'shadcn'].includes(args.style)) {
-    console.error(pc.red(`Unsupported style: ${args.style}`));
+  if (args.style && args.style !== 'shadcn') {
+    console.error(pc.red(`Style preset '${args.style}' is coming soon. Only 'shadcn' style is supported for now.`));
     process.exit(1);
   }
 
@@ -158,10 +158,20 @@ async function gatherConfig(cli, defaults) {
         name: 'style',
         message: `${pc.cyan('✔')} Choose aesthetic style preset`,
         choices: [
-          { title: 'ForgeWP (Sharp geometric corners)', value: 'forgewp' },
           { title: 'Shadcn (Smooth modern curves)', value: 'shadcn' },
+          { title: 'ForgeWP (Sharp geometric corners) (Coming Soon)', value: 'forgewp', disabled: true },
         ],
-        initial: cli.style === 'shadcn' ? 1 : 0,
+        initial: 0,
+      },
+      {
+        type: (prev, values) => values.adapter === 'react' ? 'multiselect' : null,
+        name: 'features',
+        message: `${pc.cyan('✔')} Select optional features to include`,
+        choices: [
+          { title: 'WooCommerce E-Commerce', value: 'ecommerce', selected: true },
+          { title: 'Developer Auth Sandbox', value: 'auth', selected: false }
+        ],
+        hint: '- Space to select. Enter to submit'
       },
       {
         type: cli.noInstall ? null : 'confirm',
@@ -207,6 +217,7 @@ async function gatherConfig(cli, defaults) {
     textDomain: slug,
     adapter,
     style: response.style ?? defaults.style,
+    features: response.features ?? defaults.features,
     install: response.install ?? false,
     packageManager: response.packageManager ?? detectPackageManager(),
   };
@@ -339,7 +350,8 @@ async function main() {
     description: `A premium block-theme built with React, Tailwind CSS, and ForgeWP.`,
     textDomain: slug,
     adapter: cli.adapter || 'react',
-    style: cli.style || 'forgewp',
+    style: cli.style || 'shadcn',
+    features: ['ecommerce'],
     version: '0.1.0',
     install: !cli.noInstall,
     packageManager: detectPackageManager(),

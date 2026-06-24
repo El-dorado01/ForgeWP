@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800;900&display=swap');
+@import 'tailwindcss';
+@plugin "tailwindcss-animate";
+
+@theme {
+  /* Font Family Mappings */
+  --font-sans: var(
+    --wp--preset--font-family--sans,
+    'Segoe UI',
+    system-ui,
+    sans-serif
+  );
+  --font-serif: var(--wp--preset--font-family--serif, Georgia, serif);
+  --font-heading: 'Space Grotesk', var(--font-sans);
+
+  /* Color Palette Mappings */
+  --color-brand: var(--wp--preset--color--brand, oklch(0.61 0.22 42.5));
+  --color-brand-foreground: #ffffff;
+  --color-secondary: var(--wp--preset--color--secondary, #4f46e5);
+  --color-accent: var(--wp--preset--color--accent, #f59e0b);
+  --color-bg-light: var(--wp--preset--color--background, #fafafa);
+  --color-text-slate: var(--wp--preset--color--text, #0f172a);
+
+  /* Shadcn Core Theme Compatibility (Tailwind v4) */
+  --color-background: var(--wp--preset--color--background, #fafafa);
+  --color-foreground: var(--wp--preset--color--text, #0f172a);
+  --color-primary: #18181b;
+  --color-primary-foreground: #ffffff;
+  --color-card: #ffffff;
+  --color-card-foreground: var(--wp--preset--color--text, #0f172a);
+  --color-border: #e4e4e7;
+  --color-input: #e4e4e7;
+  --color-ring: #18181b;
+  --color-muted: #f4f4f5;
+  --color-muted-foreground: #71717a;
+}
+
+@layer base {
+  *, ::before, ::after {
+    border-color: var(--color-border);
+  }
+  html,
+  body {
+    @apply antialiased;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-bg-light font-sans text-text-slate;
+  }
+  body:not(.editor-styles-wrapper):not(#tinymce):not(.mce-content-body) {
+    min-height: 100vh;
+  }
+}
+
+/* Prevent Gutenberg editor iframe height feedback loop caused by min-h-screen on body */
+.editor-styles-wrapper {
+  min-height: auto !important;
+}

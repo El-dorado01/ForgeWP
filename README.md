@@ -23,7 +23,7 @@ The ForgeWP ecosystem consists of three core pillars:
 - **Sharp Aesthetics**: Zero border-radius by default. A brutalist, premium design system.
 - **Resilient "Self-Healing" Architecture**: An active framework immune system that auto-repairs missing configuration files or corrupted internal hooks on dev server boot.
 - **Dynamic Gutenberg Integration**: Scaffold React blocks with attributes using simple command line parameters (`pnpm forgewp make:block`).
-- **Post-Type Loop Components**: Instantly build loop layouts synced with dynamic simulated databases (`pnpm forgewp make:component`).
+- **Post-Type Loop Components**: Instantly build loop layouts synced with dynamic simulated databases (`pnpm forgewp make:loop`).
 - **Static-First Performance**: Extreme speed and safety by transpiling React trees into standard zero-dependency WordPress PHP templates.
 - **shadcn/ui Integration**: Native support for standard libraries with automatic "Sharpening" visual transforms.
 
@@ -37,7 +37,8 @@ The ForgeWP ecosystem consists of three core pillars:
 | **`repair`** | Force heal/restore framework blueprints. | `pnpm forgewp repair` |
 | **`clean`** | Prune workspace cache & build folders. | `pnpm forgewp clean` |
 | **`make:block`** | Scaffold Gutenberg editor blocks. | `pnpm forgewp make:block PromoBlock --attributes=heading` |
-| **`make:component`** | Scaffold custom post type grid loops. | `pnpm forgewp make:component JobList --postType=job` |
+| **`make:loop`** | Scaffold custom post type grid loops. | `pnpm forgewp make:loop JobList --postType=job` |
+| **`make:page`** | Scaffold custom WordPress page templates. | `pnpm forgewp make:page AboutUs` |
 | **`make:post-type`** | Register mock database custom fields. | `pnpm forgewp make:post-type event --customFields=v_name` |
 | **`add`** | Add shadcn or registry elements. | `pnpm forgewp add navbar` |
 | **`export`** | Compile and package into production ZIP. | `pnpm forgewp export` |

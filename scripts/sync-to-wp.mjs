@@ -28,7 +28,13 @@ const EXPORT_OUTPUT = path.join(
   'out',
   THEME_NAME,
 );
-const WP_SITE_NAME = THEME_NAME === 'hotelchecker24' ? 'hotelchecker24' : 'forgewp';
+let WP_SITE_NAME = ['hotelchecker24', 'comfortable-decor'].includes(THEME_NAME) ? THEME_NAME : 'forgewp';
+if (fs.existsSync('C:\\Users\\hp\\Local Sites\\ForgeWP')) {
+  WP_SITE_NAME = 'ForgeWP';
+} else if (fs.existsSync('C:\\Users\\hp\\Local Sites\\forgewp')) {
+  WP_SITE_NAME = 'forgewp';
+}
+
 const DEFAULT_WP_THEMES_PATH =
   `C:\\Users\\hp\\Local Sites\\${WP_SITE_NAME}\\app\\public\\wp-content\\themes`;
 const WP_THEMES_PATH =

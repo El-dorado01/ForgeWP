@@ -520,12 +520,12 @@ pnpm forgewp make:post-type portfolio --customFields=client_name,project_budget,
 
 ---
 
-## 3. Schema-Hydrated Loop Component Scaffolder (`forgewp make:component`)
+## 3. Schema-Hydrated Loop Scaffolder (`forgewp make:loop`)
 
 ForgeWP features a powerful CLI utility that dynamically generates fully designed React grid loops synced to your mock database schema.
 
 ```bash
-pnpm forgewp make:component PortfolioGrid --postType=portfolio
+pnpm forgewp make:loop PortfolioGrid --postType=portfolio
 ```
 
 ### Script Execution Flow
@@ -789,11 +789,18 @@ graph TD
 During compilation (`pnpm export`), the compiler scans the `src/app/pages/` directory for any `.tsx` files. 
 You can build full static layouts (like `ContactPage.tsx` or `PrivacyPolicyPage.tsx`) using standard React components, Tailwind styling, and standard imports.
 
-## 2. SSR Compilation and Dynamic Resolution
+## 2. Scaffolding Custom Pages (`forgewp make:page`)
+ForgeWP provides a dedicated command to scaffold page template components inside the `src/app/pages/` directory:
+```bash
+pnpm forgewp make:page AboutUsPage
+```
+This automatically registers the template shell with standard Brutalist blocks and hooks (e.g. `useWpTitle()`), ready to be designed and compiled.
+
+## 3. SSR Compilation and Dynamic Resolution
 The compiler uses the native Node.js dynamic `import()` function to load each page. It smartly resolves both **default exports** and **named exports** (e.g. `export function AboutUsPage()`), ensuring your components are always found.
 It then server-side renders (SSR) your entire React tree into a `.html` template file.
 
-## 3. Template Generation
+## 4. Template Generation
 Finally, the compiler reads the SSR HTML, strips out the redundant global `headerHtml` and `footerHtml` sections, and generates a dedicated native WordPress PHP file (e.g. `page-about-us-page.php`). 
 It automatically formats the filename into a readable string and injects the official WordPress Template Header:
 ```php

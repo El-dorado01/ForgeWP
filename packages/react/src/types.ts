@@ -97,3 +97,31 @@ export interface WpQueryResults {
   refetch: (newArgs?: WpQueryArgs) => Promise<void>;
 }
 
+declare global {
+  interface ForgeWpHydration {
+    post?: any;
+    currentFeaturedImage?: string;
+    themeUri?: string;
+    pageLinks?: Record<string, string>;
+    menus?: Record<string, any[]>;
+    siteSettings?: any;
+    _compileTime?: boolean;
+  }
+
+  interface Window {
+    _forgeWpMockPosts?: Record<string, any[]>;
+    _forgeWpMockSiteSettings?: any;
+    _forgeWpMockMenus?: Record<string, any[]>;
+    _forgeWpCompileTime?: boolean;
+    forgeWpHydration?: ForgeWpHydration;
+    forgeWpLocale?: string;
+    forgeWpTranslations?: {
+      currentLanguage?: string;
+      translations?: Record<string, any>;
+    };
+    React?: any;
+    ReactDOM?: any;
+  }
+}
+
+

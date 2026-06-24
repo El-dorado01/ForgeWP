@@ -171,8 +171,10 @@ export function buildHeaderPhp(config) {
   <?php wp_head(); ?>
   <style>
     /* Reset WP link underlines to match React/Tailwind expected styling */
-    a { text-decoration: none !important; }
-    a:hover { text-decoration: none !important; }
+    a { text-decoration: none; }
+    a:hover { text-decoration: none; }
+    .underline { text-decoration: underline !important; }
+    .hover\\:underline:hover { text-decoration: underline !important; }
   </style>
 </head>
 <body <?php body_class(); ?>>

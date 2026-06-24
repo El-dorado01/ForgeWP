@@ -84,7 +84,7 @@ graph TD
     *   `forgewp repair`: Automatically regenerates framework-critical internal files (e.g., config types, SEO headers, color preset wrappers) from integrated `blueprints.js` templates if accidentally altered.
     *   `forgewp sync:routes`: Maps routes specified in `src/app/routes.tsx` to native WordPress pages automatically.
     *   `forgewp make:block`: Scaffolds standard block assets, PHP entry points, and React frontends.
-    *   `forgewp make:component` / `forgewp make:post-type`: Easily creates dynamic assets and theme database schemas.
+    *   `forgewp make:loop` / `forgewp make:post-type`: Easily creates dynamic assets and theme database schemas.
 *   **shadcn-style Registry Engine (`packages/create-forgewp`):**
     *   Integrates a modular component registry in `lib/registry.js` supporting shadcn-style component scaffolding.
     *   Supports adding preconfigured styles or custom items directly to the working workspace (`pnpm forgewp add navbar`).

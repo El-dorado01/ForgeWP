@@ -256,6 +256,8 @@ if (function_exists('pll_the_languages')) {
         getAttr('postsPerPage') || getAttr('postsperpage') || '10';
       const categoryName =
         getAttr('categoryName') || getAttr('categoryname') || '';
+      const orderby = getAttr('orderby') || '';
+      const order = getAttr('order') || '';
       const metaKey = getAttr('metaKey') || getAttr('metakey') || '';
       const metaValue = getAttr('metaValue') || getAttr('metavalue') || '';
       const metaCompare = getAttr('metaCompare') || getAttr('metacompare') || '=';
@@ -283,6 +285,12 @@ if (function_exists('pll_the_languages')) {
 
       let phpArgs = `      'post_type' => '${postType}',\n      'posts_per_page' => ${postsPerPage},`;
       
+      if (orderby !== '') {
+        phpArgs += `\n      'orderby' => '${orderby}',`;
+      }
+      if (order !== '') {
+        phpArgs += `\n      'order' => '${order}',`;
+      }
       if (categoryName !== '') {
         phpArgs += `\n      'category_name' => '${categoryName}',`;
       }
@@ -424,6 +432,44 @@ ${phpArgs}
   );
   processed = processed.replace(/<\/forgewp-icon-placeholder>/g, '');
 
+  // ── Authentication & Capability Gates ──
+  processed = processed.replace(
+    /<forgewp-auth-gate-start\s*\/?>/g,
+    '<?php if ( is_user_logged_in() ) : ?>',
+  );
+  processed = processed.replace(/<\/forgewp-auth-gate-start>/g, '');
+
+  processed = processed.replace(
+    /<forgewp-auth-gate-fallback\s*\/?>/g,
+    '<?php else : ?>',
+  );
+  processed = processed.replace(/<\/forgewp-auth-gate-fallback>/g, '');
+
+  processed = processed.replace(
+    /<forgewp-auth-gate-end\s*\/?>/g,
+    '<?php endif; ?>',
+  );
+  processed = processed.replace(/<\/forgewp-auth-gate-end>/g, '');
+
+  processed = processed.replace(
+    /<forgewp-capability-gate-start\s+[^>]*allowed="([^"]+)"\s*\/?>/g,
+    "<?php if ( current_user_can( '$1' ) ) : ?>",
+  );
+  processed = processed.replace(/<\/forgewp-capability-gate-start>/g, '');
+
+  processed = processed.replace(
+    /<forgewp-capability-gate-fallback\s*\/?>/g,
+    '<?php else : ?>',
+  );
+  processed = processed.replace(/<\/forgewp-capability-gate-fallback>/g, '');
+
+  processed = processed.replace(
+    /<forgewp-capability-gate-end\s*\/?>/g,
+    '<?php endif; ?>',
+  );
+  processed = processed.replace(/<\/forgewp-capability-gate-end>/g, '');
+
+
   processed = processed.replace(
     /__FORGEWP_REPEATER_FIELD_([a-zA-Z0-9_-]+)__/g,
     (match, fieldName) => `<?php echo esc_html($row['${fieldName}']); ?>`
@@ -563,6 +609,65 @@ ${phpArgs}
   processed = processed.replace(
     /__FORGEWP_THEME_URI__/g,
     "<?php echo esc_url( get_template_directory_uri() ); ?>",
+  );
+
+  // ── WooCommerce Product Loop Blocks ──
+  processed = processed.replace(
+    /<forgewp-product-loop-start\s+([^>]*)\/?>/g,
+    (match, attrsStr) => {
+      const getAttr = (name) => {
+        const regex = new RegExp(
+          `(?:${name}|${name.toLowerCase()})=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
+          'i',
+        );
+        const m = attrsStr.match(regex);
+        return m ? m[1] || m[2] || m[3] || '' : '';
+      };
+
+      const category = getAttr('category') || '';
+      const limit = getAttr('limit') || '10';
+      const orderBy = getAttr('orderBy') || getAttr('orderby') || 'date';
+      const order = getAttr('order') || 'desc';
+      const status = getAttr('status') || 'publish';
+
+      let catQuery = '';
+      if (category !== '') {
+        catQuery = `\n      'category' => array('${category}'),`;
+      }
+
+      return `<?php
+  $query_args = array(
+      'limit' => ${limit},
+      'orderby' => '${orderBy}',
+      'order' => '${order}',
+      'status' => '${status}',${catQuery}
+  );
+  $products = wc_get_products($query_args);
+  foreach ($products as $product) {
+      global $product;
+      setup_postdata(get_the_ID());
+  ?>`;
+    },
+  );
+  processed = processed.replace(/<\/forgewp-product-loop-start>/g, '');
+  processed = processed.replace(
+    /<forgewp-product-loop-end\s*\/?>/g,
+    '<?php\n  }\n  wp_reset_postdata();\n  ?>',
+  );
+  processed = processed.replace(/<\/forgewp-product-loop-end>/g, '');
+
+  // ── WooCommerce Dynamic Hook Replacements ──
+  processed = processed.replace(
+    /__FORGEWP_PRODUCT_PRICE__/g,
+    '<?php global $product; echo wp_kses_post( $product->get_price_html() ); ?>'
+  );
+  processed = processed.replace(
+    /__FORGEWP_PRODUCT_SKU__/g,
+    '<?php global $product; echo esc_html( $product->get_sku() ); ?>'
+  );
+  processed = processed.replace(
+    /__FORGEWP_PRODUCT_RATING__/g,
+    '<?php global $product; echo wp_kses_post( wc_get_rating_html( $product->get_average_rating() ) ); ?>'
   );
 
   return processed;

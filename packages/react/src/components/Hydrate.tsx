@@ -101,7 +101,7 @@ export function Hydrate({
   const propsData = children.props ? JSON.stringify(children.props) : "{}";
 
   // SSR bypass guard for client-only elements
-  const isSSR = typeof window === "undefined";
+  const isSSR = typeof window === "undefined" || window._forgeWpCompileTime;
   const shouldRender = !clientOnly || !isSSR;
 
   return (

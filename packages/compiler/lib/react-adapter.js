@@ -799,15 +799,15 @@ ${attributesRegistry}
   console.log(`\n🎉 Run ${pc.cyan('pnpm export')} to automatically register it inside your WordPress theme!\n`);
 }
 
-export function onMakeTemplate(themeRoot, { pascalCase, postType, customFields, automaticallySeeded, pc }) {
-  const templatesDir = path.join(themeRoot, 'src', 'templates');
-  if (!existsSync(templatesDir)) {
-    mkdirSync(templatesDir, { recursive: true });
+export function onMakeLoop(themeRoot, { pascalCase, postType, customFields, automaticallySeeded, pc }) {
+  const loopsDir = path.join(themeRoot, 'src', 'loops');
+  if (!existsSync(loopsDir)) {
+    mkdirSync(loopsDir, { recursive: true });
   }
 
-  const targetFile = path.join(templatesDir, `${pascalCase}.tsx`);
+  const targetFile = path.join(loopsDir, `${pascalCase}.tsx`);
   if (existsSync(targetFile)) {
-    console.error(pc.red(`\n❌ Error: Template "${pascalCase}.tsx" already exists at src/templates/\n`));
+    console.error(pc.red(`\n❌ Error: Loop "${pascalCase}.tsx" already exists at src/loops/\n`));
     process.exit(1);
   }
 
@@ -828,12 +828,12 @@ export function onMakeTemplate(themeRoot, { pascalCase, postType, customFields, 
     customFieldsMarkup = `{/* No custom fields registered in mock-data.json. Add fields by running forgewp make:post-type */}\n            <p className="text-xs text-zinc-500 font-mono italic">No custom fields configured for post type: ${postType}</p>`;
   }
 
-  const templateTemplate = `import { WpQueryLoop, useWpTitle, useWpFeaturedImage, useWpExcerpt, useWpPermalink, useWpCustomField } from "@/.forgewp/wordpress";
+  const loopTemplate = `import { WpQueryLoop, useWpTitle, useWpFeaturedImage, useWpExcerpt, useWpPermalink, useWpCustomField } from "@/.forgewp/wordpress";
 
 /**
- * ⚡ ForgeWP Custom Post Type Template — "${pascalCase}"
+ * ⚡ ForgeWP Custom Post Type Loop — "${pascalCase}"
  * 
- * This loop template dynamically queries and renders records of the "${postType}" post type.
+ * This loop dynamically queries and renders records of the "${postType}" post type.
  * In local development, the post data and custom fields are fetched dynamically from
  * your local JSON database file at: \`cms/mock-data.json\`.
  */
@@ -844,13 +844,13 @@ export default function ${pascalCase}() {
         {/* Header Banner */}
         <div className="mb-12 border border-slate-100 bg-white p-8 shadow-xl shadow-slate-100/50">
           <span className="inline-block bg-primary/5 text-primary border border-primary/10 text-xs font-mono font-bold uppercase tracking-wider px-3 py-1 mb-4">
-            Loop Template
+            Post Loop
           </span>
           <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight text-slate-900">
             Latest ${postType.charAt(0).toUpperCase() + postType.slice(1)} Feed
           </h1>
           <p className="text-sm font-mono font-medium text-slate-500 mt-2">
-            Dynamic Post-Type Template &bull; Querying: "${postType}"
+            Dynamic Post-Type Loop &bull; Querying: "${postType}"
           </p>
         </div>
 
@@ -886,26 +886,21 @@ export default function ${pascalCase}() {
 }
 `;
 
-  writeFileSync(targetFile, templateTemplate, 'utf8');
+  writeFileSync(targetFile, loopTemplate, 'utf8');
 
   if (automaticallySeeded) {
     console.log(pc.yellow(`\n⚠️  Post type "${postType}" was missing from local database (mock-data.json).`));
     console.log(`   We have automatically registered it and seeded default custom fields for you!`);
   }
 
-  console.log(pc.green(`\n⚡ Loop Template "${pascalCase}" successfully created!`));
-  console.log(`   Location: ${pc.cyan(`src/templates/${pascalCase}.tsx`)}`);
+  console.log(pc.green(`\n⚡ Post Loop "${pascalCase}" successfully created!`));
+  console.log(`   Location: ${pc.cyan(`src/loops/${pascalCase}.tsx`)}`);
   console.log(`   Target Post Type: ${pc.yellow(postType)}`);
   if (customFields.length > 0) {
     console.log(`   Seeded Custom Fields: ${pc.yellow(customFields.join(', '))}`);
   }
   console.log(`\n🎉 You can now import it directly inside your pages:`);
-  console.log(`   ${pc.cyan(`import ${pascalCase} from "@/templates/${pascalCase}";`)}\n`);
-}
-
-// Backward compatible proxy forwarding make:component parameters straight to onMakeTemplate
-export function onMakeComponent(themeRoot, options) {
-  return onMakeTemplate(themeRoot, options);
+  console.log(`   ${pc.cyan(`import ${pascalCase} from "@/loops/${pascalCase}";`)}\n`);
 }
 
 export function onMakeIsland(themeRoot, { pascalCase, pc }) {
@@ -990,6 +985,67 @@ export default function ${pascalCase}({ label = "React State Island (${pascalCas
   console.log(`   ${pc.cyan(`<Hydrate trigger="visible" preload="near-visible">\n     <${pascalCase} />\n   </Hydrate>`)}\n`);
 }
 
+export function onMakePage(themeRoot, { pascalCase, pc }) {
+  const pagesDir = path.join(themeRoot, 'src', 'app', 'pages');
+  if (!existsSync(pagesDir)) {
+    mkdirSync(pagesDir, { recursive: true });
+  }
+
+  const targetFile = path.join(pagesDir, `${pascalCase}.tsx`);
+  if (existsSync(targetFile)) {
+    console.error(pc.red(`\n❌ Error: Page Template "${pascalCase}.tsx" already exists at src/app/pages/\n`));
+    process.exit(1);
+  }
+
+  const pageTemplate = `import { WpHead, useWpTitle, useWpExcerpt } from "../../.forgewp/wordpress";
+
+/**
+ * ⚡ ForgeWP Custom Page Template — "${pascalCase}"
+ * 
+ * This file compiles into a standalone WordPress Custom Page Template.
+ * You can select it in the WordPress page editor dropdown as "Template: ${pascalCase}".
+ */
+export function ${pascalCase}() {
+  return (
+    <main className="container mx-auto px-6 py-12 font-sans text-slate-900">
+      <WpHead 
+        title="${pascalCase}" 
+        description="Dynamic WordPress Custom Page Template ${pascalCase} compiled with ForgeWP." 
+      />
+
+      {/* Hero Header Area */}
+      <header className="border-b border-slate-100 pb-6 mb-12">
+        <span className="inline-block bg-primary/5 text-primary border border-primary/10 text-xs font-mono font-bold uppercase tracking-wider px-3 py-1 mb-4">
+          Page Template
+        </span>
+        <h1 className="text-5xl font-black tracking-tight uppercase text-slate-900">
+          {useWpTitle() || "${pascalCase}"}
+        </h1>
+        <p className="text-slate-500 mt-2 text-sm leading-relaxed">
+          {useWpExcerpt() || "Custom page layout designed dynamically."}
+        </p>
+      </header>
+
+      {/* Page Content layout */}
+      <div className="bg-white border border-slate-100 p-8 shadow-lg max-w-none prose prose-slate">
+        <p className="text-slate-600 leading-relaxed">
+          Welcome to your new custom page template! You can design anything here in React, using standard HTML/JSX tags and Tailwind classes.
+        </p>
+      </div>
+    </main>
+  );
+}
+`;
+
+  writeFileSync(targetFile, pageTemplate, 'utf8');
+
+  console.log(pc.green(`\n⚡ Custom Page Template "${pascalCase}" successfully created!`));
+  console.log(`   Location: ${pc.cyan(`src/app/pages/${pascalCase}.tsx`)}`);
+  console.log(`   WordPress Template Name: ${pc.yellow(pascalCase)}`);
+  console.log(`\n🎉 To link it in your application routing:`);
+  console.log(`   Add it inside your ${pc.cyan('src/app/routes.tsx')} file.\n`);
+}
+
 export function onSyncRoutes(themeRoot, { routesToScaffold, isForce, pc }) {
   function toPascalCase(str) {
     return str
@@ -1021,6 +1077,9 @@ export function onSyncRoutes(themeRoot, { routesToScaffold, isForce, pc }) {
  * 
  * To force reset this page back to boilerplate defaults, run:
  * 'pnpm forgewp sync:routes --force'
+ * 
+ * This file compiles into a standalone WordPress Custom Page Template.
+ * You can select it in the WordPress page editor dropdown as "Template: ${componentName}".
  */
 import { WpHead } from "../../.forgewp/wordpress";
 import { WpQueryLoop, useWpTitle, useWpExcerpt, useWpFeaturedImage } from "../../.forgewp/wordpress";
@@ -1154,7 +1213,7 @@ export function Single${pascalCpt}Page() {
   // In production, forgeWpHydration.post.id holds the real WP numeric ID
   const hydrationId =
     typeof window !== 'undefined'
-      ? (window as any).forgeWpHydration?.post?.id || 0
+      ? window.forgeWpHydration?.post?.id || 0
       : 0;
   const id = hydrationId || routeParam;
 
@@ -1174,8 +1233,8 @@ export function Single${pascalCpt}Page() {
     useWpContent() || devPost?.content || "<p>Loading details...</p>";
   const rawImage = useWpFeaturedImage();
   const hydrationImage =
-    typeof window !== 'undefined' && !(window as any)._forgeWpCompileTime
-      ? (window as any).forgeWpHydration?.currentFeaturedImage || ""
+    typeof window !== 'undefined' && !window._forgeWpCompileTime
+      ? window.forgeWpHydration?.currentFeaturedImage || ""
       : "";
   const restImage =
     typeof devPost?.featuredImage === "object" && devPost?.featuredImage !== null

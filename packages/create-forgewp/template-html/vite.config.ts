@@ -61,5 +61,15 @@ export default defineConfig(async () => {
         input: getHydrationRollupInputs(__dirname),
       },
     },
+    experimental: {
+      renderBuiltUrl(filename: string, { hostType }: { hostType: 'js' | 'css' | 'html' }) {
+        if (hostType === 'js') {
+          return {
+            runtime: `(window.forgeWpHydration?.themeUri || '') + '/' + ${JSON.stringify(filename)}`
+          };
+        }
+        return { relative: true };
+      }
+    }
   };
 });

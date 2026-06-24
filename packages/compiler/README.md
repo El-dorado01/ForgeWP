@@ -34,17 +34,25 @@ Dynamically scaffolds dynamic WordPress blocks authored in React with options fo
 pnpm forgewp make:block HeroBlock --attributes=heading,text,image,buttonText
 ```
 
-### 4. Post-Type Loop Component Scaffolder
+### 4. Post-Type Loop Scaffolder
 
 Instantly scaffolds beautifully designed React loop grid components bound to custom WordPress post types (ACF-like integration):
 
 ```bash
-pnpm forgewp make:component PortfolioGrid --postType=portfolio
+pnpm forgewp make:loop PortfolioGrid --postType=portfolio
 ```
 
 _Note: If the requested post type does not exist in `cms/mock-data.json`, the compiler will automatically register and seed it for you!_
 
-### 5. Resilient Framework Immunity & Diagnostics
+### 5. Custom Page Template Scaffolder
+
+Scaffold custom standalone WordPress Page Templates written in React:
+
+```bash
+pnpm forgewp make:page AboutUs
+```
+
+### 6. Resilient Framework Immunity & Diagnostics
 
 Keep your monorepo perfectly healthy, clean, and self-healing:
 

@@ -28,9 +28,17 @@
   --color-primary-foreground: #ffffff;
   --color-card: var(--wp--preset--color--background, #fafafa);
   --color-card-foreground: var(--wp--preset--color--text, #0f172a);
+  --color-border: #e4e4e7;
+  --color-input: #e4e4e7;
+  --color-ring: oklch(0.61 0.22 42.5);
+  --color-muted: #f4f4f5;
+  --color-muted-foreground: #71717a;
 }
 
 @layer base {
+  *, ::before, ::after {
+    border-color: var(--color-border);
+  }
   html,
   body {
     @apply antialiased;

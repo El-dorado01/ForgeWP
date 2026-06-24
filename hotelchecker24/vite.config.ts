@@ -47,6 +47,11 @@ export default defineConfig(async () => {
     adapter.default?.getHydrationRollupInputs;
 
   return {
+    envPrefix: ['VITE_', 'FORGEWP_'],
+    define: {
+      'import.meta.env.FORGEWP_API_URL': JSON.stringify(config.headless?.apiUrl || ''),
+      'import.meta.env.FORGEWP_JWT_AUTH': JSON.stringify(config.headless?.jwtAuth || false),
+    },
     plugins: [
       react(),
       tailwindcss(),

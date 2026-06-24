@@ -19,12 +19,11 @@ export function WpIcon({
   className = "",
   ...otherProps
 }: WpIconProps) {
-  const IS_DEV =
-    typeof import.meta !== "undefined" &&
-    // @ts-ignore
-    import.meta.env?.DEV === true;
+  const IS_DECOUPLED =
+    (typeof import.meta !== "undefined" && import.meta.env?.DEV === true) ||
+    (typeof window !== "undefined" && !(window as any).forgeWpHydration);
 
-  if (IS_DEV) {
+  if (IS_DECOUPLED) {
     if (provider === "lucide") {
       const toPascalCase = (str: string) => {
         if (!str) return "";

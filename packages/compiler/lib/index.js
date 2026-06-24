@@ -17,4 +17,4 @@ export {
   analyzeHydrationIslands,
   generateVisualReport,
 } from './diagnostics.js';
-
+export { forgewpPageConfigPlugin } from './page-config-plugin.js';

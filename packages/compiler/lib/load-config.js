@@ -56,6 +56,104 @@ export async function loadConfig(themeRoot) {
     }
   }
 
+  // Validate headerPath
+  if (config.headerPath !== undefined) {
+    if (typeof config.headerPath !== 'string') {
+      throw new Error('headerPath must be a string pointing to a header component file');
+    }
+    const absPath = path.isAbsolute(config.headerPath) ? config.headerPath : path.join(themeRoot, config.headerPath);
+    if (!existsSync(absPath)) {
+      console.warn(
+        '\x1b[33m%s\x1b[0m',
+        `⚠️  [ForgeWP Warning]: Header component file not found at "${config.headerPath}".`
+      );
+    }
+  }
+
+  // Validate footerPath
+  if (config.footerPath !== undefined) {
+    if (typeof config.footerPath !== 'string') {
+      throw new Error('footerPath must be a string pointing to a footer component file');
+    }
+    const absPath = path.isAbsolute(config.footerPath) ? config.footerPath : path.join(themeRoot, config.footerPath);
+    if (!existsSync(absPath)) {
+      console.warn(
+        '\x1b[33m%s\x1b[0m',
+        `⚠️  [ForgeWP Warning]: Footer component file not found at "${config.footerPath}".`
+      );
+    }
+  }
+
+  // Validate headless
+  if (config.headless !== undefined) {
+    if (typeof config.headless !== 'object' || config.headless === null) {
+      throw new Error('headless configuration must be an object');
+    }
+    if (config.headless.apiUrl !== undefined && typeof config.headless.apiUrl !== 'string') {
+      throw new Error('headless.apiUrl must be a string');
+    }
+    if (config.headless.jwtAuth !== undefined && typeof config.headless.jwtAuth !== 'boolean') {
+      throw new Error('headless.jwtAuth must be a boolean');
+    }
+  }
+
+  // Validate auth
+  if (config.auth !== undefined) {
+    if (typeof config.auth !== 'object' || config.auth === null) {
+      throw new Error('auth configuration must be an object');
+    }
+    if (
+      config.auth.loginField !== undefined &&
+      !['usernameOnly', 'emailOnly', 'usernameAndEmail'].includes(config.auth.loginField)
+    ) {
+      throw new Error('auth.loginField must be "usernameOnly", "emailOnly", or "usernameAndEmail"');
+    }
+    if (config.auth.defaultRole !== undefined && typeof config.auth.defaultRole !== 'string') {
+      throw new Error('auth.defaultRole must be a string');
+    }
+    if (config.auth.reservedUsernames !== undefined) {
+      if (!Array.isArray(config.auth.reservedUsernames) || config.auth.reservedUsernames.some((u) => typeof u !== 'string')) {
+        throw new Error('auth.reservedUsernames must be an array of strings');
+      }
+    }
+    if (config.auth.features !== undefined) {
+      if (typeof config.auth.features !== 'object' || config.auth.features === null) {
+        throw new Error('auth.features must be an object');
+      }
+      if (config.auth.features.registration !== undefined && typeof config.auth.features.registration !== 'boolean') {
+        throw new Error('auth.features.registration must be a boolean');
+      }
+      if (config.auth.features.emailVerification !== undefined && typeof config.auth.features.emailVerification !== 'boolean') {
+        throw new Error('auth.features.emailVerification must be a boolean');
+      }
+      if (config.auth.features.blockLoginUntilVerified !== undefined && typeof config.auth.features.blockLoginUntilVerified !== 'boolean') {
+        throw new Error('auth.features.blockLoginUntilVerified must be a boolean');
+      }
+      if (config.auth.features.autoLoginAfterSignup !== undefined && typeof config.auth.features.autoLoginAfterSignup !== 'boolean') {
+        throw new Error('auth.features.autoLoginAfterSignup must be a boolean');
+      }
+      if (config.auth.features.blockLoginUntilVerified === true && config.auth.features.autoLoginAfterSignup === true) {
+        console.warn('\x1b[33m%s\x1b[0m', '⚠️  Warning: Both blockLoginUntilVerified and autoLoginAfterSignup are set to true. Unverified users will be blocked from auto-logging in after signup.');
+      }
+    }
+    if (config.auth.emails !== undefined) {
+      if (typeof config.auth.emails !== 'object' || config.auth.emails === null) {
+        throw new Error('auth.emails must be an object');
+      }
+      if (config.auth.emails.verification !== undefined) {
+        if (typeof config.auth.emails.verification !== 'object' || config.auth.emails.verification === null) {
+          throw new Error('auth.emails.verification must be an object');
+        }
+        if (config.auth.emails.verification.subject !== undefined && typeof config.auth.emails.verification.subject !== 'string') {
+          throw new Error('auth.emails.verification.subject must be a string');
+        }
+        if (config.auth.emails.verification.body !== undefined && typeof config.auth.emails.verification.body !== 'string') {
+          throw new Error('auth.emails.verification.body must be a string');
+        }
+      }
+    }
+  }
+
   // Validate seo
   if (config.seo !== undefined) {
     if (typeof config.seo !== 'object' || config.seo === null) {

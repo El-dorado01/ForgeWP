@@ -173,6 +173,55 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
     if (!fs.existsSync(screenshotOut)) summary.missing.push(screenshotOut.replace(process.cwd() + path.sep, ''));
   }
 
+  // WooCommerce Specific Audits
+  const packageJsonPath = path.join(themeRoot, 'package.json');
+  let isWooCommerce = false;
+  if (fs.existsSync(packageJsonPath)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+      isWooCommerce = !!(pkg.dependencies?.['@forgewp/woocommerce'] || pkg.devDependencies?.['@forgewp/woocommerce']);
+    } catch (e) {}
+  }
+
+  if (isWooCommerce) {
+    if (fs.existsSync(outDir)) {
+      const phpFiles = fs.readdirSync(outDir)
+        .filter((file) => file.endsWith('.php'))
+        .map((file) => path.join(outDir, file));
+
+      for (const phpFile of phpFiles) {
+        const content = fs.readFileSync(phpFile, 'utf8');
+
+        // 1. XSS / Escaping Audits: Look for unescaped get_price_html()
+        if (content.includes('get_price_html()') && !content.includes('wp_kses_post')) {
+          summary.warnings.push(`${path.basename(phpFile)}: Found unescaped get_price_html(). Wrap with wp_kses_post() for XSS safety.`);
+        }
+
+        // Look for unescaped wc_get_rating_html()
+        if (content.includes('wc_get_rating_html') && !content.includes('wp_kses_post')) {
+          summary.warnings.push(`${path.basename(phpFile)}: Found unescaped wc_get_rating_html(). Wrap with wp_kses_post() for XSS safety.`);
+        }
+
+        // 2. Loop optimization checks
+        if (content.includes("post_type' => 'product'") && !content.includes('wc_get_products')) {
+          summary.warnings.push(`${path.basename(phpFile)}: Catalog loop should use wc_get_products() pagination wrappers instead of raw post_type => product query.`);
+        }
+      }
+    }
+
+    // 3. Hydrator Resource Hygiene check
+    const islands = scanForHydrationIslands(themeRoot);
+    if (islands.length === 0) {
+      const functionsPhpPath = path.join(outDir, 'functions.php');
+      if (fs.existsSync(functionsPhpPath)) {
+        const functionsPhp = fs.readFileSync(functionsPhpPath, 'utf8');
+        if (functionsPhp.includes('forgewp-hydrator.js') || functionsPhp.includes('forgewp-woocommerce')) {
+          summary.warnings.push('functions.php: Enqueuing forgewp-hydrator.js or registering woocommerce scripts even though no hydration islands were detected.');
+        }
+      }
+    }
+  }
+
   // If strict, treat warnings as missing
   if (strict && summary.warnings.length > 0) {
     summary.missing.push(...summary.warnings);

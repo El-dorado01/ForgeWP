@@ -126,10 +126,8 @@ export function scanForHydrationIslands(themeRoot) {
  * @returns {string|null} The absolute path to the component file, or null if not found.
  */
 export function findComponentPath(themeRoot, kebabName) {
-  const compDirs = [
-    path.join(themeRoot, "src", "components"),
-    path.join(themeRoot, "src", "components", "ui"),
-  ];
+  const compDir = path.join(themeRoot, "src", "components");
+  if (!existsSync(compDir)) return null;
 
   // Convert kebab-case back to PascalCase and check candidates
   const pascalName = kebabName
@@ -144,19 +142,28 @@ export function findComponentPath(themeRoot, kebabName) {
     `${kebabName}.ts`,
   ];
 
-  for (const dir of compDirs) {
-    if (!existsSync(dir)) continue;
+  let result = null;
+
+  function searchRecursive(dir) {
+    if (result) return;
     try {
-      const files = readdirSync(dir);
-      for (const file of files) {
-        if (candidates.includes(file)) {
-          return path.join(dir, file);
+      const items = readdirSync(dir, { withFileTypes: true });
+      for (const item of items) {
+        const fullPath = path.join(dir, item.name);
+        if (item.isDirectory()) {
+          searchRecursive(fullPath);
+        } else if (item.isFile()) {
+          if (candidates.includes(item.name)) {
+            result = fullPath;
+            return;
+          }
         }
       }
     } catch {}
   }
 
-  return null;
+  searchRecursive(compDir);
+  return result;
 }
 
 /**
@@ -417,63 +424,68 @@ export function runStaticLintChecks(themeRoot) {
     } catch {}
   }
 
-  // 2. Scan CPTs, Taxonomies, and Custom Fields from cms/mock-data.json
-  const mockDataPath = path.join(themeRoot, "cms", "mock-data.json");
-  if (existsSync(mockDataPath)) {
-    try {
-      const mockData = JSON.parse(readFileSync(mockDataPath, "utf8"));
-      for (const pt of Object.keys(mockData)) {
-        if (
-          pt !== 'posts' &&
-          pt !== 'pages' &&
-          pt !== 'post' &&
-          pt !== 'page' &&
-          pt !== 'menus' &&
-          pt !== 'attachment' &&
-          !pt.startsWith('_')
-        ) {
-          validPostTypes.add(pt);
-          if (!postTypeTaxonomies[pt]) {
-            postTypeTaxonomies[pt] = new Set(["category", "post_tag"]);
-          }
-          if (!postTypeCustomFields[pt]) {
-            postTypeCustomFields[pt] = new Set();
-          }
+  // 2. Scan CPTs, Taxonomies, and Custom Fields from cms/mock-data.json and cms/products.json
+  const dataFiles = [
+    path.join(themeRoot, "cms", "mock-data.json"),
+    path.join(themeRoot, "cms", "products.json")
+  ];
+  for (const dbPath of dataFiles) {
+    if (existsSync(dbPath)) {
+      try {
+        const mockData = JSON.parse(readFileSync(dbPath, "utf8"));
+        for (const pt of Object.keys(mockData)) {
+          if (
+            pt !== 'posts' &&
+            pt !== 'pages' &&
+            pt !== 'post' &&
+            pt !== 'page' &&
+            pt !== 'menus' &&
+            pt !== 'attachment' &&
+            !pt.startsWith('_')
+          ) {
+            validPostTypes.add(pt);
+            if (!postTypeTaxonomies[pt]) {
+              postTypeTaxonomies[pt] = new Set(["category", "post_tag"]);
+            }
+            if (!postTypeCustomFields[pt]) {
+              postTypeCustomFields[pt] = new Set();
+            }
 
-          const items = mockData[pt];
-          if (Array.isArray(items)) {
-            for (const item of items) {
-              if (item._terms && typeof item._terms === 'object') {
-                for (const tax of Object.keys(item._terms)) {
-                  postTypeTaxonomies[pt].add(tax);
+            const items = mockData[pt];
+            if (Array.isArray(items)) {
+              for (const item of items) {
+                if (item._terms && typeof item._terms === 'object') {
+                  for (const tax of Object.keys(item._terms)) {
+                    postTypeTaxonomies[pt].add(tax);
+                  }
                 }
-              }
-              if (item.customFields && typeof item.customFields === 'object') {
-                for (const key of Object.keys(item.customFields)) {
-                  postTypeCustomFields[pt].add(key);
+                if (item.customFields && typeof item.customFields === 'object') {
+                  for (const key of Object.keys(item.customFields)) {
+                    postTypeCustomFields[pt].add(key);
+                  }
                 }
               }
             }
-          }
-        } else if (pt === 'post' || pt === 'page') {
-          const items = mockData[pt];
-          if (Array.isArray(items)) {
-            for (const item of items) {
-              if (item._terms && typeof item._terms === 'object') {
-                for (const tax of Object.keys(item._terms)) {
-                  postTypeTaxonomies[pt].add(tax);
+          } else if (pt === 'post' || pt === 'page') {
+            const items = mockData[pt];
+            if (Array.isArray(items)) {
+              for (const item of items) {
+                if (item._terms && typeof item._terms === 'object') {
+                  for (const tax of Object.keys(item._terms)) {
+                    postTypeTaxonomies[pt].add(tax);
+                  }
                 }
-              }
-              if (item.customFields && typeof item.customFields === 'object') {
-                for (const key of Object.keys(item.customFields)) {
-                  postTypeCustomFields[pt].add(key);
+                if (item.customFields && typeof item.customFields === 'object') {
+                  for (const key of Object.keys(item.customFields)) {
+                    postTypeCustomFields[pt].add(key);
+                  }
                 }
               }
             }
           }
         }
-      }
-    } catch {}
+      } catch {}
+    }
   }
 
   const validSlugs = new Set(["page"]);

@@ -1,9 +1,11 @@
 {
-  "_comment": "ForgeWP navigation menus powered by the HTML starter.",
+  "_comment": "⚡ ForgeWP Navigation Menus — Edit this file to add/remove links in local dev.",
   "primary": [
-    { "title": "Home", "url": "/" },
-    { "title": "About", "url": "/about" },
-    { "title": "Contact", "url": "/contact" }
+    { "title": "Hotelvergleiche", "url": "/hotelvergleiche" },
+    { "title": "Hotels", "url": "/hotels" },
+    { "title": "Über uns", "url": "/about" }
   ],
-  "utility": [{ "title": "Help", "url": "/help" }]
+  "utility": [
+    { "title": "Kontakt", "url": "/contact" }
+  ]
 }

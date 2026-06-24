@@ -45,14 +45,12 @@ if (typeof globalThis.window === "undefined") {
     querySelector: () => null,
     querySelectorAll: () => [],
   } as any;
+  globalThis.SVGElement = class SVGElement {} as any;
 }
 
 const { renderToStaticMarkup } = require("react-dom/server");
 
 const appUrl = pathToFileURL(path.join(themeRoot, "src", "app", "page.tsx")).href;
-const headerPath = path.join(themeRoot, "src", "components", "SiteHeader.tsx");
-const headerUrl = pathToFileURL(headerPath).href;
-const footerUrl = pathToFileURL(path.join(themeRoot, "src", "components", "SiteFooter.tsx")).href;
 const layoutUrl = pathToFileURL(path.join(themeRoot, "src", "app", "layout.tsx")).href;
 const layoutPath = path.join(themeRoot, "src", "app", "layout.tsx");
 
@@ -106,16 +104,30 @@ function renderPage(PageComponent: any): string {
 }
 
 let textDomain = "forgewp";
+let themeConfig: any = {};
 try {
   const wpConfigPath = path.join(themeRoot, "wp.config.ts");
   if (existsSync(wpConfigPath)) {
-    const configContent = readFileSync(wpConfigPath, "utf8");
-    const domainMatch = configContent.match(/textDomain\s*:\s*['"]([^'"]+)['"]/);
-    if (domainMatch) {
-      textDomain = domainMatch[1];
+    const wpConfigUrl = pathToFileURL(wpConfigPath).href;
+    const configModule = await import(wpConfigUrl);
+    themeConfig = configModule.default || configModule;
+    if (themeConfig.textDomain) {
+      textDomain = themeConfig.textDomain;
     }
   }
-} catch (e) {}
+} catch (e) {
+  // fallback if import fails
+  try {
+    const wpConfigPath = path.join(themeRoot, "wp.config.ts");
+    if (existsSync(wpConfigPath)) {
+      const configContent = readFileSync(wpConfigPath, "utf8");
+      const domainMatch = configContent.match(/textDomain\s*:\s*['"]([^'"]+)['"]/);
+      if (domainMatch) {
+        textDomain = domainMatch[1];
+      }
+    }
+  } catch (e2) {}
+}
 
 function translateExpressionToPhp(expression: string, propName: string): string {
   expression = expression.trim();
@@ -367,42 +379,97 @@ function buildHeadHtml(
 }
 
 // ── Render header / footer fragments ─────────────────────────────────────────
-const footerPath = path.join(themeRoot, "src", "components", "SiteFooter.tsx");
+let headerFile = "";
+let headerCompName = "";
+
+if (themeConfig.headerPath) {
+  const absolutePath = path.isAbsolute(themeConfig.headerPath) ? themeConfig.headerPath : path.join(themeRoot, themeConfig.headerPath);
+  if (existsSync(absolutePath)) {
+    headerFile = absolutePath;
+    headerCompName = path.basename(absolutePath, path.extname(absolutePath));
+  }
+}
+
+if (!headerFile) {
+  const headerFallbacks = [
+    "src/components/SiteHeader.tsx",
+    "src/components/Header.tsx",
+    "src/components/Navbar.tsx",
+    "src/components/NavBar.tsx",
+    "src/components/Navigation.tsx"
+  ];
+  for (const relPath of headerFallbacks) {
+    const p = path.join(themeRoot, relPath);
+    if (existsSync(p)) {
+      headerFile = p;
+      headerCompName = path.basename(p, path.extname(p));
+      break;
+    }
+  }
+}
 
 let headerHtml = "";
-if (existsSync(headerPath)) {
+if (headerFile) {
   try {
+    const headerUrl = pathToFileURL(headerFile).href;
     const module = await import(headerUrl);
-    const SiteHeader = module.SiteHeader || module.default;
-    if (!SiteHeader) {
-      throw new Error("SiteHeader component not found in export (expects named export 'SiteHeader' or default export).");
+    const HeaderComponent = module[headerCompName] || module.default;
+    if (!HeaderComponent) {
+      throw new Error(`${headerCompName} component not found in export (expects named export '${headerCompName}' or default export).`);
     }
-    headerHtml = renderToStaticMarkup(React.createElement(SiteHeader));
+    headerHtml = renderToStaticMarkup(React.createElement(HeaderComponent));
   } catch (err: any) {
-    console.error(`\n[ForgeWP Compiler Error] Failed to load or render the Site Header component (src/components/SiteHeader.tsx).`);
+    console.error(`\n[ForgeWP Compiler Error] Failed to load or render the Header component (${headerFile}).`);
     console.error(`Error details: ${err.stack || err.message || err}\n`);
     process.exit(1);
   }
 } else {
-  console.warn("SiteHeader (src/components/SiteHeader.tsx) not found, skipping separate render");
+  console.warn("No separate Header component found, skipping separate header render");
+}
+
+let footerFile = "";
+let footerCompName = "";
+
+if (themeConfig.footerPath) {
+  const absolutePath = path.isAbsolute(themeConfig.footerPath) ? themeConfig.footerPath : path.join(themeRoot, themeConfig.footerPath);
+  if (existsSync(absolutePath)) {
+    footerFile = absolutePath;
+    footerCompName = path.basename(absolutePath, path.extname(absolutePath));
+  }
+}
+
+if (!footerFile) {
+  const footerFallbacks = [
+    "src/components/SiteFooter.tsx",
+    "src/components/Footer.tsx"
+  ];
+  for (const relPath of footerFallbacks) {
+    const p = path.join(themeRoot, relPath);
+    if (existsSync(p)) {
+      footerFile = p;
+      footerCompName = path.basename(p, path.extname(p));
+      break;
+    }
+  }
 }
 
 let footerHtml = "";
-if (existsSync(footerPath)) {
+if (footerFile) {
   try {
+    const footerUrl = pathToFileURL(footerFile).href;
     const module = await import(footerUrl);
-    const SiteFooter = module.SiteFooter || module.default;
-    if (!SiteFooter) {
-      throw new Error("SiteFooter component not found in export (expects named export 'SiteFooter' or default export).");
+    const FooterComponent = module[footerCompName] || module.default;
+    if (!FooterComponent) {
+      throw new Error(`${footerCompName} component not found in export (expects named export '${footerCompName}' or default export).`);
     }
-    footerHtml = renderToStaticMarkup(React.createElement(SiteFooter));
+    footerHtml = renderToStaticMarkup(React.createElement(FooterComponent));
   } catch (err: any) {
-    console.error(`\n[ForgeWP Compiler Error] Failed to load or render the Site Footer component (src/components/SiteFooter.tsx).`);
+    console.error(`\n[ForgeWP Compiler Error] Failed to load or render the Footer component (${footerFile}).`);
     console.error(`Error details: ${err.stack || err.message || err}\n`);
     process.exit(1);
   }
 } else {
-  console.warn("SiteFooter (src/components/SiteFooter.tsx) not found, skipping separate render");
+  console.warn("No separate Footer component found, skipping separate footer render");
 }
 
 // ── Render pages ──────────────────────────────────────────────────────────────
@@ -522,7 +589,13 @@ if (existsSync(pagesDir)) {
         const pageName = pageFile.replace(".tsx", "");
         const slug = pageName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 
-        const finalHtml = cleanCustomHtml + stateScript;
+        let finalHtml = cleanCustomHtml + stateScript;
+        if (module.pageConfig && typeof module.pageConfig === "object" && module.pageConfig.protected) {
+          const allowedAttr = module.pageConfig.allowed ? ` allowed="${module.pageConfig.allowed}"` : "";
+          const redirectAttr = module.pageConfig.redirect ? ` redirect="${module.pageConfig.redirect}"` : "";
+          finalHtml = `<forgewp-require-auth${allowedAttr}${redirectAttr}></forgewp-require-auth>` + finalHtml;
+        }
+
         writeFileSync(path.join(outDir, `template-${slug}.html`), finalHtml, "utf8");
         console.warn(`WROTE template-${slug}.html to ${outDir}`);
         

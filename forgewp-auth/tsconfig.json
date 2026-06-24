@@ -1,0 +1,46 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@forgewp/react": [
+        "../../react/src/index.ts"
+      ],
+      "@forgewp/compiler": [
+        "../../compiler/lib/index.d.ts"
+      ],
+      "@forgewp/compiler/*": [
+        "../../compiler/*"
+      ],
+      "@forgewp/auth": [
+        "../../auth/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "src",
+    "wp.config.ts",
+    "vite.config.ts"
+  ]
+}

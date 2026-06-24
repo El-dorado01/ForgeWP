@@ -11,9 +11,10 @@ const subcommands = {
   add: path.join(__dirname, "add.js"),
   "make:block": path.join(__dirname, "make-block.js"),
   "make:post-type": path.join(__dirname, "make-post-type.js"),
-  "make:template": path.join(__dirname, "make-template.js"),
-  "make:component": path.join(__dirname, "make-template.js"), // Backward compatible alias mapping
+  "make:loop": path.join(__dirname, "make-loop.js"),
+  "make:page": path.join(__dirname, "make-page.js"),
   "make:island": path.join(__dirname, "make-island.js"),
+  "make:sandbox": path.join(__dirname, "make-sandbox.js"),
   "sync:routes": path.join(__dirname, "sync-routes.js"),
   "sync:hooks": path.join(__dirname, "sync-hooks.js"),
   "i18n:extract": path.join(__dirname, "i18n-extract.js"),
@@ -42,12 +43,14 @@ if (!targetScript) {
     targetScript = subcommands["make:block"];
   } else if (command === "make-post-type" || command === "post-type" || command === "make:post-type") {
     targetScript = subcommands["make:post-type"];
-  } else if (command === "make-template" || command === "template" || command === "make:template") {
-    targetScript = subcommands["make:template"];
-  } else if (command === "make-component" || command === "component" || command === "make:component") {
-    targetScript = subcommands["make:component"];
+  } else if (command === "make-loop" || command === "loop" || command === "make:loop") {
+    targetScript = subcommands["make:loop"];
+  } else if (command === "make-page" || command === "page" || command === "make:page") {
+    targetScript = subcommands["make:page"];
   } else if (command === "make-island" || command === "island" || command === "make:island") {
     targetScript = subcommands["make:island"];
+  } else if (command === "make-sandbox" || command === "sandbox" || command === "make:sandbox") {
+    targetScript = subcommands["make:sandbox"];
   } else if (command === "sync-routes" || command === "sync" || command === "sync:routes") {
     targetScript = subcommands["sync:routes"];
   } else if (command === "sync-hooks" || command === "sync:hooks") {
@@ -75,10 +78,6 @@ const commandArgs = args.slice(1);
 // Run the subcommand using spawn, inheriting stdio for rich interactivity
 const child = spawn(process.execPath, [targetScript, ...commandArgs], {
   stdio: "inherit",
-  env: {
-    ...process.env,
-    FORGEWP_LEGACY_ALIAS: (command === "make:component" || command === "make-component" || command === "component") ? "1" : "0",
-  },
 });
 
 child.on("close", (code) => {
@@ -96,8 +95,10 @@ function printHelp() {
     ${pc.cyan("add <component>")}          Add registry components (e.g. navbar)
     ${pc.cyan("make:block <Name>")}        Scaffold a type-safe Gutenberg Block via defineBlock()
     ${pc.cyan("make:post-type <slug>")}    Register a custom mock post-type (e.g. portfolio)
-    ${pc.cyan("make:template <Name>")}     Scaffold a custom post-type loop template
+    ${pc.cyan("make:loop <Name>")}         Scaffold a custom post-type loop feed component
+    ${pc.cyan("make:page <Name>")}         Scaffold a custom WordPress Page Template
     ${pc.cyan("make:island <Name>")}       Scaffold an interactive selective hydration island
+    ${pc.cyan("make:sandbox <type>")}         Scaffold sandbox mock databases (e.g. ecommerce, auth)
     ${pc.cyan("sync:routes")}             Synchronize sitemap menus with routes and scaffold pages
     ${pc.cyan("sync:hooks")}              Propagate wordpress.tsx hooks to all workspace projects
     ${pc.cyan("i18n:extract")}            Extract translation strings to translations.json
@@ -113,7 +114,10 @@ function printHelp() {
     pnpm forgewp add navbar
     pnpm forgewp make:block HeroBlock --attributes=title,subtitle
     pnpm forgewp make:post-type portfolio --customFields=client_name
-    pnpm forgewp make:template PortfolioGrid --postType=portfolio
+    pnpm forgewp make:sandbox ecommerce
+    pnpm forgewp make:sandbox auth
+    pnpm forgewp make:loop PortfolioGrid --postType=portfolio
+    pnpm forgewp make:page AboutUs
     pnpm forgewp make:island CounterIsland
     pnpm forgewp sync:routes
     pnpm forgewp doctor
