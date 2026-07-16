@@ -8,6 +8,7 @@
  */
 
 import { translateReplaceTrim } from "./php-transpiler.js";
+import { tryParseSource, traverse, markLegacyFallback } from "./ast-parser.js";
 
 const JS_KEYWORDS = new Set([
   'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue',
@@ -22,13 +23,137 @@ const JS_KEYWORDS = new Set([
 ]);
 
 /**
- * Strip common TypeScript syntax so the remaining text is valid plain JS.
- * Not a full TS parser — covers the patterns that show up in component JSX,
- * helpers, and local const initializers.
+ * Strip TypeScript syntax so the remaining text is valid plain JS.
+ *
+ * AST-based (see ast-parser.js): parses `code` with @babel/parser once,
+ * walks it for TS-only node types (type annotations, `as`/`satisfies` casts,
+ * non-null assertions, generic call type args, interface/type declarations),
+ * and deletes exactly those byte ranges from the original text — offsets
+ * come straight from the AST, so nested generics/casts can never be
+ * misidentified the way a regex boundary can (the bug class this replaces:
+ * cast-stripping corrupting an adjacent computed property, a ternary branch
+ * read as a typed param list, etc.).
+ *
+ * Many callers still pass text fragments produced by older brace-balancing
+ * extraction (a function body's statements up to `return`, a bare JSX
+ * subtree) rather than standalone-parseable source — `code` is parsed with
+ * `allowReturnOutsideFunction` to cover the common fragment shapes, but
+ * anything that still fails to parse falls back to the legacy regex/text-
+ * scanning implementation so behavior never regresses on those cases.
  */
 export function stripTypeScriptSyntax(code) {
   if (!code || typeof code !== 'string') return code;
 
+  const ast = tryParseSource(code);
+  if (ast) {
+    try {
+      return spliceRanges(code, collectTsStripRanges(ast, code));
+    } catch {
+      // Fall through to the legacy text-based stripper below.
+    }
+  }
+  markLegacyFallback('source-sanitize:stripTypeScriptSyntax');
+  return stripTypeScriptSyntaxLegacy(code);
+}
+
+/**
+ * Collect [start, end) byte ranges of TS-only syntax to delete from `code`,
+ * per the AST produced by ast-parser.js's parseSource.
+ */
+function collectTsStripRanges(ast, code) {
+  const ranges = [];
+
+  function addTypeParamsRange(node) {
+    if (node.typeParameters) {
+      ranges.push([node.typeParameters.start, node.typeParameters.end]);
+    }
+  }
+
+  traverse(ast, {
+    ImportDeclaration(path) {
+      if (path.node.importKind === 'type') ranges.push([path.node.start, path.node.end]);
+    },
+    ExportNamedDeclaration(path) {
+      if (path.node.exportKind === 'type') ranges.push([path.node.start, path.node.end]);
+    },
+    TSInterfaceDeclaration(path) {
+      ranges.push([path.node.start, path.node.end]);
+    },
+    TSTypeAliasDeclaration(path) {
+      ranges.push([path.node.start, path.node.end]);
+    },
+    TSTypeAnnotation(path) {
+      // `name?: Type` — the `?` optional marker isn't part of this node's own
+      // range (it belongs to the owning Identifier/pattern), so extend the
+      // deletion left across it when present.
+      let start = path.node.start;
+      const parent = path.parent;
+      if (parent && parent.optional) {
+        let i = start - 1;
+        while (i >= 0 && /\s/.test(code[i])) i--;
+        if (i >= 0 && code[i] === '?') start = i;
+      }
+      ranges.push([start, path.node.end]);
+    },
+    TSAsExpression(path) {
+      ranges.push([path.node.expression.end, path.node.end]);
+    },
+    TSSatisfiesExpression(path) {
+      ranges.push([path.node.expression.end, path.node.end]);
+    },
+    TSNonNullExpression(path) {
+      ranges.push([path.node.expression.end, path.node.end]);
+    },
+    CallExpression(path) {
+      addTypeParamsRange(path.node);
+    },
+    NewExpression(path) {
+      addTypeParamsRange(path.node);
+    },
+    FunctionDeclaration(path) {
+      addTypeParamsRange(path.node);
+    },
+    FunctionExpression(path) {
+      addTypeParamsRange(path.node);
+    },
+    ArrowFunctionExpression(path) {
+      addTypeParamsRange(path.node);
+    },
+  });
+
+  return ranges;
+}
+
+/** Delete a set of (possibly overlapping/nested) [start, end) ranges from `code`. */
+function spliceRanges(code, ranges) {
+  if (ranges.length === 0) return code;
+  const sorted = ranges.slice().sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const [start, end] of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1]) {
+      last[1] = Math.max(last[1], end);
+    } else {
+      merged.push([start, end]);
+    }
+  }
+  let out = '';
+  let cursor = 0;
+  for (const [start, end] of merged) {
+    if (start > cursor) out += code.slice(cursor, start);
+    cursor = Math.max(cursor, end);
+  }
+  out += code.slice(cursor);
+  return out;
+}
+
+/**
+ * Legacy regex/text-scanning TS stripper — fallback for text fragments that
+ * don't parse standalone (see stripTypeScriptSyntax above). Not a full TS
+ * parser — covers the patterns that show up in component JSX, helpers, and
+ * local const initializers.
+ */
+function stripTypeScriptSyntaxLegacy(code) {
   let s = code;
 
   // Remove multi-line and single-line type-only import/export noise if present
@@ -540,9 +665,65 @@ export function findCalledHelperNames(code) {
  * Extract a top-level function or const-arrow helper by name from a source file.
  * Returns the full declaration string (function / const), or null.
  */
+/**
+ * AST-first extraction: parse the whole module (clean TSX — virtually always
+ * parseable) and take the top-level declaration's exact byte range off
+ * program.body. Replaces the legacy scanner's two genuinely fragile jobs —
+ * finding where a single-expression arrow body ENDS (depth-counted scan for
+ * `;`) and telling a param-destructure `{` apart from the body `{` — with
+ * parser facts (scratch categories E/F).
+ */
+// extractSameFileHelpers' BFS probes extractTopLevelHelper once per candidate
+// name (dozens per block) against the same module source — parse each unique
+// source once, not once per probe, or the whole-theme compile time explodes.
+const helperAstCache = new Map();
+
+function parseModuleCached(sourceCode) {
+  if (helperAstCache.has(sourceCode)) return helperAstCache.get(sourceCode);
+  if (helperAstCache.size > 64) helperAstCache.clear();
+  const ast = tryParseSource(sourceCode);
+  helperAstCache.set(sourceCode, ast);
+  return ast;
+}
+
+function extractTopLevelHelperAst(sourceCode, name) {
+  const ast = parseModuleCached(sourceCode);
+  if (!ast) return null;
+  for (const stmt of ast.program.body) {
+    let decl = stmt;
+    if (decl.type === 'ExportNamedDeclaration' && decl.declaration) decl = decl.declaration;
+    if (decl.type === 'FunctionDeclaration' && decl.id && decl.id.name === name) {
+      return sourceCode.slice(stmt.start, stmt.end).trim();
+    }
+    // Single-declarator const/let only — a multi-declarator statement
+    // (`const a = 1, cell = …;`) has no clean per-declarator slice, and the
+    // legacy regex never matched those either.
+    if (decl.type === 'VariableDeclaration' && decl.declarations.length === 1) {
+      const d = decl.declarations[0];
+      if (
+        d.id.type === 'Identifier' && d.id.name === name && d.init &&
+        (d.init.type === 'ArrowFunctionExpression' || d.init.type === 'FunctionExpression')
+      ) {
+        return sourceCode.slice(stmt.start, stmt.end).trim();
+      }
+    }
+  }
+  return null;
+}
+
 export function extractTopLevelHelper(sourceCode, name) {
   if (!sourceCode || !name) return null;
 
+  const fromAst = extractTopLevelHelperAst(sourceCode, name);
+  if (fromAst) return fromAst;
+  const legacy = extractTopLevelHelperLegacy(sourceCode, name);
+  // Only a legacy result the AST path MISSED proves the fallback matters —
+  // most probes are speculative names that exist in neither.
+  if (legacy) markLegacyFallback('source-sanitize:extractTopLevelHelper-legacy-contributed');
+  return legacy;
+}
+
+function extractTopLevelHelperLegacy(sourceCode, name) {
   const patterns = [
     // function name(
     new RegExp(`(?:export\\s+)?function\\s+${name}\\s*\\(`, 'm'),

@@ -28,6 +28,9 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@babel/parser": "^8.0.4",
+    "@babel/traverse": "^8.0.4",
+    "@babel/types": "^8.0.4",
     "@forgewp/ui": "workspace:*",
     "archiver": "^7.0.1",
     "jiti": "^2.6.1",
@@ -36,9 +39,11 @@
     "select2": "^4.1.0"
   },
   "devDependencies": {
-    "@types/node": "^22.19.19"
+    "@types/node": "^22.19.19",
+    "vitest": "^4.1.10"
   },
   "scripts": {
+    "test": "vitest run",
     "test:export-fixture": "node test/export-fixture/run-export-fixture.js",
     "test:auth-transpilation": "node test/auth-transpilation.js",
     "test:adapter-runtime": "node test/adapter-loader.js",

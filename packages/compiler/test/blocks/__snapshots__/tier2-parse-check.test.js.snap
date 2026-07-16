@@ -1,0 +1,237 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`editor-transpiler: .map() over a destructured-and-renamed icon object > compiles a bound-variable .map(({ icon: Icon, ... }) => ...) ("socialList" style) 1`] = `
+"createElement("div", null, socialList.map(({ icon: Icon, label, handle, href }) => (
+  createElement("a", { key: label, href: href }, createElement(Icon, { className: "i" }), handle)
+)))"
+`;
+
+exports[`editor-transpiler: .map() over a destructured-and-renamed icon object > compiles an inline array literal .map(({ icon: Icon, ... }) => ...) 1`] = `
+"createElement("div", null, (
+  [
+    { icon: Phone, label: 'Telefon', value: phone, href: 'tel:1', color: 'c' },
+  ]
+).map(({ icon: Icon, label, value, href, color }) => (
+  createElement("div", { key: label, className: "row" }, createElement(Icon, { className: "w-4 h-4" }), createElement("span", null, __(label)))
+)))"
+`;
+
+exports[`editor-transpiler: ImpressumContent.tsx return JSX > compiles cleanly with only TS-stripping applied 1`] = `
+"createElement("div", { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-12 sm:py-16" }, createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-8" }, createElement("div", { className: "md:col-span-2 bg-white rounded-2xl p-6 sm:p-8 shadow-xs space-y-6" }, createElement("div", null, editText(
+              companyHeading,
+              'companyHeading',
+              'text-xs font-mono font-bold uppercase tracking-widest text-[#929f5d] mb-2 block',
+              'h2',
+            ), editText(
+              companyName,
+              'companyName',
+              'text-lg font-black text-slate-900 uppercase tracking-tight block',
+              'p',
+            ), editText(
+              companyLegalForm,
+              'companyLegalForm',
+              'text-slate-500 text-sm mt-1 block',
+              'p',
+            )), createElement("div", { className: "h-px bg-slate-100" }), createElement("div", { className: "flex gap-4" }, createElement("div", { className: "w-10 h-10 rounded-xl bg-[#929f5d]/10 flex items-center justify-center shrink-0 text-[#929f5d]" }, createElement(MapPin, { className: "w-4 h-4" })), createElement("div", null, editText(
+                addressHeading,
+                'addressHeading',
+                'text-xs font-mono font-bold uppercase tracking-widest text-slate-400 mb-1 block',
+                'h3',
+              ), editText(addressLine1, 'addressLine1', 'text-sm font-bold text-slate-800 block', 'p'), editText(addressLine2, 'addressLine2', 'text-sm font-bold text-slate-800 block', 'p'), editText(
+                addressCountry,
+                'addressCountry',
+                'text-sm font-semibold text-slate-500 mt-0.5 block',
+                'p',
+              ))), createElement("div", { className: "h-px bg-slate-100" }), createElement("div", { className: "flex gap-4" }, createElement("div", { className: "w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 text-blue-600" }, createElement(Mail, { className: "w-4 h-4" })), createElement("div", null, editText(
+                contactHeading,
+                'contactHeading',
+                'text-xs font-mono font-bold uppercase tracking-widest text-slate-400 mb-1 block',
+                'h3',
+              ), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.contactEmail); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ contactEmail: val }),
+        className: "text-sm font-bold text-slate-800 block",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("a", { href: \`mailto:\${contactEmail}\`, className: "text-sm font-bold text-slate-800 hover:text-primary transition-colors" }, contactEmail)), createElement("p", { className: "text-xs font-semibold text-slate-500 mt-1" }, setAttributes ? (createElement(wp.element.Fragment, null, createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.contactWebsiteLabel); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ contactWebsiteLabel: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }), ' ', createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.contactWebsiteDisplay); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ contactWebsiteDisplay: val }),
+        className: "underline",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }))) : (createElement(wp.element.Fragment, null, contactWebsiteLabel, ' ', createElement("a", { href: contactWebsiteUrl, target: "_blank", rel: "noopener noreferrer", className: "underline hover:text-primary" }, contactWebsiteDisplay)))))), createElement("div", { className: "h-px bg-slate-100" }), createElement("div", { className: "flex gap-4" }, createElement("div", { className: "w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 text-slate-600" }, createElement(Landmark, { className: "w-4 h-4" })), createElement("div", { className: "space-y-2 w-full" }, editText(
+                registerHeading,
+                'registerHeading',
+                'text-xs font-mono font-bold uppercase tracking-widest text-slate-400 mb-1 block',
+                'h3',
+              ), createElement("div", { className: "grid grid-cols-2 gap-4 text-xs font-bold text-slate-700" }, createElement("div", null, editText(
+                    registerNumberLabel,
+                    'registerNumberLabel',
+                    'text-slate-400 block font-normal uppercase tracking-wider text-[10px] mb-0.5',
+                    'span',
+                  ), editText(registerNumber, 'registerNumber', 'block', 'span')), createElement("div", null, editText(
+                    vatLabel,
+                    'vatLabel',
+                    'text-slate-400 block font-normal uppercase tracking-wider text-[10px] mb-0.5',
+                    'span',
+                  ), editText(vatId, 'vatId', 'block', 'span'))), createElement("div", { className: "text-xs font-bold text-slate-700 pt-1" }, editText(
+                  courtLabel,
+                  'courtLabel',
+                  'text-slate-400 block font-normal uppercase tracking-wider text-[10px] mb-0.5',
+                  'span',
+                ), editText(courtName, 'courtName', 'block', 'span'))))), createElement("div", { className: "bg-slate-100/60 rounded-2xl p-6 shadow-xs h-fit space-y-5" }, createElement("h2", { className: "text-sm font-black uppercase text-slate-800 pb-3 flex items-center gap-2" }, createElement(ShieldCheck, { className: "w-4 h-4 text-primary shrink-0" }), editText(legalHeading, 'legalHeading', '', 'span')), createElement("div", { className: "space-y-4" }, createElement("div", null, editText(
+                businessPurposeLabel,
+                'businessPurposeLabel',
+                'text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1 block',
+                'h3',
+              ), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "div",
+        value: (function(){ var __v = (attributes.businessPurpose); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ businessPurpose: val }),
+        className: "text-xs font-semibold text-slate-700 leading-relaxed"
+      })) : (createElement("div", { className: "text-xs font-semibold text-slate-700 leading-relaxed", dangerouslySetInnerHTML: { __html: businessPurpose } }))), createElement("div", null, editText(
+                authorityLabel,
+                'authorityLabel',
+                'text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1 block',
+                'h3',
+              ), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "div",
+        value: (function(){ var __v = (attributes.authority); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ authority: val }),
+        className: "text-xs font-semibold text-slate-700 leading-relaxed"
+      })) : (createElement("div", { className: "text-xs font-semibold text-slate-700 leading-relaxed", dangerouslySetInnerHTML: { __html: authority } }))), createElement("div", null, editText(
+                trademarkLabel,
+                'trademarkLabel',
+                'text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1 block',
+                'h3',
+              ), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "div",
+        value: (function(){ var __v = (attributes.trademark); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ trademark: val }),
+        className: "text-xs font-semibold text-slate-700 leading-relaxed"
+      })) : (createElement("div", { className: "text-xs font-semibold text-slate-700 leading-relaxed", dangerouslySetInnerHTML: { __html: trademark } })))))))"
+`;
+
+exports[`editor-transpiler: ValueIcon helper (AboutValues.tsx) > parses ValueIcon extracted directly from the real AboutValues.tsx source 1`] = `
+"function ValueIcon({ name, className }) {
+  const slug = (name || 'award').toLowerCase();
+  const Static = VALUE_ICONS[slug];
+  if (Static) return createElement(Static, { className: className, "aria-hidden": true });
+  return forgeWpRenderIcon(slug, className, "lucide");
+}"
+`;
+
+exports[`editor-transpiler: ValueIcon helper (AboutValues.tsx) > parses the inline ValueIcon function after strip + preamble transpile 1`] = `
+"function ValueIcon({ name, className }) {
+  const slug = (name || 'award').toLowerCase();
+  const Static = VALUE_ICONS[slug];
+  if (Static) return createElement(Static, { className: className, "aria-hidden": true });
+  return forgeWpRenderIcon(slug, className, "lucide");
+}"
+`;
+
+exports[`editor-transpiler: ValueIcon helper (AboutValues.tsx) > resolves same-file helpers referenced by the ValueIcon rows.map usage 1`] = `
+[
+  "ValueIcon",
+]
+`;
+
+exports[`editor-transpiler: contact-email dual-host ternary (WpEditable vs. <a>) > produces the expected element-tree shape and parses 1`] = `
+[
+  "text:""",
+  "expr:ConditionalExpression",
+  "text:""",
+]
+`;
+
+exports[`editor-transpiler: contact-email dual-host ternary (WpEditable vs. <a>) > produces the expected element-tree shape and parses 2`] = `
+"createElement("div", null, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.contactEmail); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ contactEmail: val }),
+        className: "text-sm font-bold text-slate-800 block",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("a", { href: \`mailto:\${contactEmail}\`, className: "text-sm font-bold text-slate-800 hover:text-primary transition-colors" }, contactEmail)))"
+`;
+
+exports[`editor-transpiler: editText helper preamble (ImpressumContent.tsx) > transpiles the editText helper to createElement calls with no raw JSX left over 1`] = `
+"const editText = (
+    value,
+    key,
+    className,
+    tagName = 'span',
+  ) =>
+    setAttributes ? (
+      createElement(wp.blockEditor.RichText, {
+        tagName: tagName,
+        value: (function(){ var __v = (value); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ [key]: val }),
+        className: className
+      })
+    ) : tagName === 'div' ? (
+      createElement("div", { className: className, dangerouslySetInnerHTML: { __html: value } })
+    ) : tagName === 'p' ? (
+      createElement("p", { className: className }, value)
+    ) : tagName === 'h2' ? (
+      createElement("h2", { className: className }, value)
+    ) : tagName === 'h3' ? (
+      createElement("h3", { className: className }, value)
+    ) : (
+      createElement("span", { className: className }, value)
+    );"
+`;
+
+exports[`editor-transpiler: nested-fragment / dangerouslySetInnerHTML / array-of-editText ternaries > compiles the "arrayEditText" ternary shape without mangling 1`] = `"createElement("div", null, [editText(x, 'x', 'c', 'span'), editText(y, 'y', 'c', 'span')])"`;
+
+exports[`editor-transpiler: nested-fragment / dangerouslySetInnerHTML / array-of-editText ternaries > compiles the "fragment" ternary shape without mangling 1`] = `
+"createElement("div", null, setAttributes ? (createElement(wp.element.Fragment, null, createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.a); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (v) => setAttributes({ a: v }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }), ' ', createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.b); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (v) => setAttributes({ b: v }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }))) : (createElement(wp.element.Fragment, null, a, ' ', createElement("a", { href: url }, b))))"
+`;
+
+exports[`editor-transpiler: nested-fragment / dangerouslySetInnerHTML / array-of-editText ternaries > compiles the "nestedHtml" ternary shape without mangling 1`] = `
+"createElement("div", null, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "div",
+        value: (function(){ var __v = (attributes.businessPurpose); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ businessPurpose: val }),
+        className: "text-xs"
+      })) : (createElement("div", { className: "text-xs", dangerouslySetInnerHTML: { __html: businessPurpose } })))"
+`;
+
+exports[`source-sanitize: same-file helper extraction (ContactDetails.tsx TikTok/Pinterest icons) > finds the called helper names and extracts matching same-file helpers 1`] = `
+[
+  "getSocialHandle",
+  "TiktokIcon",
+  "PinterestIcon",
+]
+`;
+
+exports[`source-sanitize: same-file helper extraction (ContactDetails.tsx TikTok/Pinterest icons) > finds the called helper names and extracts matching same-file helpers 2`] = `
+[
+  "getSocialHandle",
+  "TiktokIcon",
+  "PinterestIcon",
+]
+`;

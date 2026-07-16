@@ -29,6 +29,7 @@ import {
   translateJsExpressionToPhp,
   extractCurlyExpression,
   inlineJsxRenderHelperCalls,
+  generatePhpMarkupFromJsx,
 } from "./php-transpiler.js";
 import {
   stripTypeScriptSyntax,
@@ -40,6 +41,7 @@ import {
   stripTopLevelHelperDecl,
 } from "./source-sanitize.js";
 import { buildEditorScopeInjections } from "./editor-scope.js";
+import { markLegacyFallback } from "./ast-parser.js";
 import { isComponentInteractive, readComponentSource } from "../hydration/is-interactive.js";
 import { splitInteractiveIslands } from "../hydration/island-split.js";
 
@@ -1405,6 +1407,33 @@ $grid_class  = ${JSON.stringify(gridClass ? `forgewp-block-shell__grid ${gridCla
                 `${phpName}(`,
               );
             }
+          }
+
+          // AST-based markup emission (Phase 2 Step 4, PHP half): parses
+          // phpMarkup once and emits render.php markup directly via
+          // recursive node.type-keyed emitters — see generatePhpMarkupFromJsx's
+          // doc comment in php-transpiler.js. Every text pass below this point
+          // (icon/WpEditable/dangerouslySetInnerHTML substitution, attribute
+          // escaping, className rename, ternary/conditional/loop transpile,
+          // tag unwrapping, …) only matches specific literal patterns
+          // (`<WpIcon`, `className=`, `{expr}`, …) that no longer appear in
+          // this function's output for anything it successfully resolved —
+          // so they remain safe, idempotent no-ops there, while still fully
+          // processing the one thing it deliberately leaves as verbatim JSX
+          // text: a `.map()` loop whose array target isn't a simple
+          // attribute/local-var/split-string shape (a static array literal,
+          // an `as const` cast, …), which needs transpileStaticArrayObjectMap's
+          // cross-file resolution, not a property of the JSX subtree alone.
+          const astPhpMarkup = generatePhpMarkupFromJsx(phpMarkup, settings, {
+            localVars,
+            freeFunctions: phpFreeFunctions,
+            themeRoot,
+          });
+          if (astPhpMarkup === null) {
+            markLegacyFallback('index:generatePhpMarkupFromJsx');
+          }
+          if (astPhpMarkup !== null) {
+            phpMarkup = astPhpMarkup;
           }
 
           if (settings.importMap) {

@@ -1,6 +1,111 @@
 import { existsSync, readdirSync, readFileSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { readComponentSource } from "../hydration/is-interactive.js";
+import { tryParseSource, traverse, markLegacyFallback } from "./ast-parser.js";
+
+/**
+ * Statically evaluate a pure-data expression node (Phase 3): object/array
+ * literals, string/number/boolean/null literals, expressionless template
+ * literals, unary +/-/!, spreads of statically-known values, `as const` /
+ * satisfies unwrapping, identifiers resolved from `bindings`, and calls to
+ * whitelisted `callables` (the defineEditable field helpers) whose arguments
+ * are themselves static. Anything else throws — the caller decides whether
+ * to fall back to the legacy `new Function` eval. No arbitrary code
+ * execution on this path, and no stub-scope maintenance.
+ */
+function evaluateStaticNode(node, bindings = {}, callables = {}) {
+  switch (node.type) {
+    case 'StringLiteral':
+    case 'NumericLiteral':
+    case 'BooleanLiteral':
+      return node.value;
+    case 'NullLiteral':
+      return null;
+    case 'Identifier':
+      if (node.name === 'undefined') return undefined;
+      if (Object.prototype.hasOwnProperty.call(bindings, node.name)) return bindings[node.name];
+      throw new Error(`unresolvable identifier "${node.name}"`);
+    case 'TemplateLiteral':
+      if (node.expressions.length === 0) return node.quasis[0].value.cooked;
+      throw new Error('template literal with expressions');
+    case 'UnaryExpression': {
+      const v = evaluateStaticNode(node.argument, bindings, callables);
+      if (node.operator === '-') return -v;
+      if (node.operator === '+') return +v;
+      if (node.operator === '!') return !v;
+      throw new Error(`unary ${node.operator}`);
+    }
+    case 'TSAsExpression':
+    case 'TSSatisfiesExpression':
+    case 'TSNonNullExpression':
+    case 'TSTypeAssertion':
+    case 'ParenthesizedExpression':
+      return evaluateStaticNode(node.expression, bindings, callables);
+    case 'ArrayExpression': {
+      const arr = [];
+      for (const el of node.elements) {
+        if (el === null) continue;
+        if (el.type === 'SpreadElement') {
+          arr.push(...evaluateStaticNode(el.argument, bindings, callables));
+        } else {
+          arr.push(evaluateStaticNode(el, bindings, callables));
+        }
+      }
+      return arr;
+    }
+    case 'ObjectExpression': {
+      const obj = {};
+      for (const prop of node.properties) {
+        if (prop.type === 'SpreadElement') {
+          Object.assign(obj, evaluateStaticNode(prop.argument, bindings, callables));
+          continue;
+        }
+        if (prop.type !== 'ObjectProperty' || prop.computed) throw new Error(`object ${prop.type}`);
+        const key = prop.key.type === 'Identifier' ? prop.key.name
+          : (prop.key.type === 'StringLiteral' || prop.key.type === 'NumericLiteral') ? String(prop.key.value)
+          : null;
+        if (key === null) throw new Error('non-static object key');
+        obj[key] = evaluateStaticNode(prop.value, bindings, callables);
+      }
+      return obj;
+    }
+    case 'CallExpression': {
+      if (node.callee.type === 'Identifier' && Object.prototype.hasOwnProperty.call(callables, node.callee.name)) {
+        const args = node.arguments.map((a) => evaluateStaticNode(a, bindings, callables));
+        return callables[node.callee.name](...args);
+      }
+      throw new Error(`call to ${node.callee.type === 'Identifier' ? node.callee.name : node.callee.type}`);
+    }
+    default:
+      throw new Error(node.type);
+  }
+}
+
+/** Static-eval a standalone pure-data literal string (a pickEditable map,
+ * a keywords array, …). Throws when it isn't parseable static data. */
+function evaluateStaticLiteral(src) {
+  const ast = tryParseSource(`(${src})`);
+  const stmt = ast && ast.program.body[0];
+  if (!stmt || stmt.type !== 'ExpressionStatement') throw new Error('not an expression');
+  return evaluateStaticNode(stmt.expression);
+}
+
+/** Locate the first `name(...)` CallExpression in parsed `code` and return
+ * its argument nodes plus the AST/code pair, or null. */
+function findCallExpression(code, name) {
+  const ast = tryParseSource(code);
+  if (!ast) return null;
+  let found = null;
+  traverse(ast, {
+    CallExpression(p) {
+      if (!found && p.node.callee.type === 'Identifier' && p.node.callee.name === name) {
+        found = p.node;
+        p.stop();
+      }
+    },
+  });
+  return found ? { node: found, ast } : null;
+}
 
 /** @type {{ message: string, code?: string }[]} */
 let editableIssues = [];
@@ -367,101 +472,53 @@ function getRelativeImportPath(fromDir, toFile) {
   return relative;
 }
 
+/** AST-first: locate defineBlock(...)'s ObjectExpression argument and
+ * statically evaluate it — `edit`/`save` become null (they're functions,
+ * exactly what the legacy regex-neutering approximated), everything else is
+ * pure data. Throws on unexpected shapes → caller falls back to legacy. */
+function parseDefineBlockAst(code) {
+  const found = findCallExpression(code, 'defineBlock');
+  if (!found) return null;
+  const arg = found.node.arguments[0];
+  if (!arg || arg.type !== 'ObjectExpression') return null;
+  const out = {};
+  for (const prop of arg.properties) {
+    if (prop.type === 'SpreadElement') {
+      Object.assign(out, evaluateStaticNode(prop.argument));
+      continue;
+    }
+    if (prop.type === 'ObjectMethod') {
+      const key = prop.key.type === 'Identifier' ? prop.key.name : null;
+      if (key === 'edit' || key === 'save') { out[key] = null; continue; }
+      throw new Error(`method ${key}`);
+    }
+    if (prop.type !== 'ObjectProperty' || prop.computed) throw new Error(prop.type);
+    const key = prop.key.type === 'Identifier' ? prop.key.name : prop.key.type === 'StringLiteral' ? prop.key.value : null;
+    if (key === null) throw new Error('non-static key');
+    if (
+      (key === 'edit' || key === 'save') &&
+      (prop.value.type === 'ArrowFunctionExpression' || prop.value.type === 'FunctionExpression')
+    ) {
+      out[key] = null;
+      continue;
+    }
+    out[key] = evaluateStaticNode(prop.value);
+  }
+  return out;
+}
+
 export function parseDefineBlock(code, blockSlug) {
-  const startIndex = code.indexOf('defineBlock(');
-  if (startIndex === -1) return null;
-
-  let depth = 1;
-  let i = startIndex + 'defineBlock('.length;
-  let blockContent = '';
-
-  while (i < code.length && depth > 0) {
-    const char = code[i];
-    if (char === '(') depth++;
-    else if (char === ')') depth--;
-
-    if (depth > 0) {
-      blockContent += char;
-    }
-    i++;
-  }
-
-  let cleanBlockContent = blockContent;
-
-  const metaKeys =
-    'save|name|title|category|icon|attributes|description|keywords|innerBlocks|shell';
-
-  cleanBlockContent = cleanBlockContent.replace(
-    new RegExp(
-      `edit\\s*:\\s*([\\s\\S]*?)(?=,\\s*(?:${metaKeys})\\s*:|\\s*\\}$)`,
-    ),
-    'edit: null',
-  );
-  cleanBlockContent = cleanBlockContent.replace(
-    new RegExp(
-      `save\\s*:\\s*([\\s\\S]*?)(?=,\\s*(?:edit|${metaKeys})\\s*:|\\s*\\}$)`,
-    ),
-    'save: null',
-  );
-
   try {
-    const evalFn = new Function(`return (${cleanBlockContent});`);
-    return evalFn();
-  } catch (e) {
-    console.warn(`[Gutenberg Block Compiler] parseDefineBlock eval failed:`, e.message);
-    
-    const nameMatch = blockContent.match(/name\s*:\s*["']([^"']+)["']/);
-    const titleMatch = blockContent.match(/title\s*:\s*["']([^"']+)["']/);
-    const categoryMatch = blockContent.match(/category\s*:\s*["']([^"']+)["']/);
-    const iconMatch = blockContent.match(/icon\s*:\s*["']([^"']+)["']/);
-    const descMatch = blockContent.match(/description\s*:\s*["']([^"']+)["']/);
-    const keywordsMatch = blockContent.match(/keywords\s*:\s*(\[[^\]]*\])/);
-
-    let keywords = [];
-    if (keywordsMatch) {
-      try {
-        const keywordsEval = new Function(`return ${keywordsMatch[1]};`);
-        keywords = keywordsEval();
-      } catch {}
-    }
-
-    let attributes = {};
-    const attrMatch = blockContent.match(/attributes\s*:\s*(\{[\s\S]*?\})(?:\s*,\s*(?:edit|save|innerBlocks|shell)|\s*\})/);
-    if (attrMatch) {
-      try {
-        const attrEval = new Function(`return ${attrMatch[1]};`);
-        attributes = attrEval();
-      } catch {}
-    }
-
-    let innerBlocks = undefined;
-    const ibMatch = blockContent.match(/innerBlocks\s*:\s*(\{[\s\S]*?\})(?:\s*,\s*(?:edit|save|shell|name|title|attributes)|\s*\})/);
-    if (ibMatch) {
-      try {
-        innerBlocks = new Function(`return (${ibMatch[1]});`)();
-      } catch {}
-    }
-
-    let shell = undefined;
-    const shellMatch = blockContent.match(/shell\s*:\s*(\{[\s\S]*?\})(?:\s*,\s*(?:edit|save|innerBlocks|name|title|attributes)|\s*\})/);
-    if (shellMatch) {
-      try {
-        shell = new Function(`return (${shellMatch[1]});`)();
-      } catch {}
-    }
-
-    return {
-      name: nameMatch ? nameMatch[1] : blockSlug,
-      title: titleMatch ? titleMatch[1] : blockSlug,
-      category: categoryMatch ? categoryMatch[1] : 'design',
-      icon: iconMatch ? iconMatch[1] : 'info',
-      description: descMatch ? descMatch[1] : '',
-      keywords,
-      attributes,
-      ...(innerBlocks ? { innerBlocks } : {}),
-      ...(shell ? { shell } : {}),
-    };
+    const fromAst = parseDefineBlockAst(code);
+    if (fromAst) return fromAst;
+  } catch {
+    // fall through to the legacy brace-scan + eval below
   }
+
+  // Legacy new Function eval deleted (Phase 4) - static AST evaluation is
+  // the only engine; marker kept as a field signal.
+  markLegacyFallback('scanner:parseDefineBlock-would-have-tried-legacy');
+  return null;
 }
 
 /** Normalize innerBlocks names to forgewp/* and sanitize template. */
@@ -496,6 +553,30 @@ export function normalizeInnerBlocksConfig(ib) {
 export function extractFileConstBindings(sourceCode) {
   const bindings = {};
   if (!sourceCode) return bindings;
+
+  // AST-first: read top-level const declarations off program.body and
+  // statically evaluate pure-data initializers; function/arrow/JSX inits
+  // throw inside evaluateStaticNode and are simply skipped — the same
+  // "only pure data" filter the legacy scan approximated by first-character
+  // sniffing. Falls through to the legacy regex scan only if the module
+  // itself doesn't parse.
+  const ast = tryParseSource(sourceCode);
+  if (ast) {
+    for (let stmt of ast.program.body) {
+      if (stmt.type === 'ExportNamedDeclaration' && stmt.declaration) stmt = stmt.declaration;
+      if (stmt.type !== 'VariableDeclaration' || stmt.kind !== 'const') continue;
+      for (const d of stmt.declarations) {
+        if (d.id.type !== 'Identifier' || !d.init) continue;
+        if (/^[A-Z]/.test(d.id.name) && d.id.name.endsWith('Props')) continue;
+        try {
+          bindings[d.id.name] = evaluateStaticNode(d.init);
+        } catch {
+          // not pure data — skip, same as legacy
+        }
+      }
+    }
+    return bindings;
+  }
 
   // Match export const / const Name = ... at start of a statement
   const declRx = /(?:^|\n)\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::\s*[^=]+)?=\s*/g;
@@ -855,36 +936,26 @@ function splitTopLevelArgs(src) {
  * Eval a field-object literal with the same helpers as defineEditable.
  */
 function evalEditableObjectLiteral(objSrc, fileCode) {
+  // Static-eval-first: parse the literal as a lone expression and evaluate
+  // with the field helpers + same-file const bindings — no code execution.
   try {
-    const text = (opts = {}) => ({ type: 'text', ...opts });
-    const richText = (opts = {}) => ({ type: 'richText', ...opts });
-    const image = (opts = {}) => ({ type: 'image', ...opts });
-    const boolean = (opts = {}) => ({ type: 'boolean', ...opts });
-    const repeater = (opts = {}) => ({ type: 'repeater', ...opts });
-    const color = (opts = {}) => ({ type: 'color', ...opts });
-    const url = (opts = {}) => ({ type: 'url', ...opts });
-    const select = (opts = {}) => ({ type: 'select', ...opts });
-    const number = (opts = {}) => ({ type: 'number', ...opts });
-    const icon = (opts = {}) => ({ type: 'icon', provider: 'lucide', ...opts });
-    const fileBindings = extractFileConstBindings(fileCode || '');
-    const bindingNames = Object.keys(fileBindings);
-    const helperNames = [
-      'text', 'richText', 'image', 'boolean', 'repeater', 'color', 'url', 'select', 'number', 'icon',
-    ];
-    const helpers = [text, richText, image, boolean, repeater, color, url, select, number, icon];
-    const evalFn = new Function(
-      ...helperNames,
-      ...bindingNames,
-      `return (${objSrc});`,
-    );
-    return evalFn(...helpers, ...bindingNames.map((n) => fileBindings[n]));
-  } catch (e) {
-    reportEditableIssue(
-      `mergeEditable object literal eval failed: ${e.message}`,
-      'merge-eval',
-    );
-    return null;
+    const ast = tryParseSource(`(${objSrc})`);
+    const stmt = ast && ast.program.body[0];
+    if (stmt && stmt.type === 'ExpressionStatement') {
+      return evaluateStaticNode(
+        stmt.expression,
+        extractFileConstBindings(fileCode || ''),
+        EDITABLE_FIELD_HELPERS,
+      );
+    }
+  } catch {
+    // fall through to the legacy eval below
   }
+  reportEditableIssue(
+    `mergeEditable object literal eval failed (not static data)`,
+    'merge-eval',
+  );
+  return null;
 }
 
 /**
@@ -986,7 +1057,14 @@ export function parsePickEditableExpression(expr, fileCode, filePath, themeRoot)
   const refName = m[1];
   let map;
   try {
-    map = new Function(`return (${m[2]});`)();
+    // Static-first — the map is pure data ({ attr: 'schema_key' } or
+    // ['key', …]); non-static shapes are a hard error (legacy eval deleted).
+    try {
+      map = evaluateStaticLiteral(m[2]);
+    } catch (e) {
+      markLegacyFallback('scanner:pickEditable-map-would-have-tried-legacy');
+      throw e;
+    }
   } catch (e) {
     reportEditableIssue(
       `pickEditable map eval failed in ${filePath}: ${e.message}`,
@@ -1074,7 +1152,13 @@ export function extractPickAttrMetaMap(code) {
     if (end < 0) continue;
     const lit = code.slice(braceStart, end);
     try {
-      const map = new Function(`return (${lit});`)();
+      let map;
+      try {
+        map = evaluateStaticLiteral(lit);
+      } catch (e) {
+        markLegacyFallback('scanner:pick-attr-meta-map-would-have-tried-legacy');
+        throw e;
+      }
       if (map && typeof map === 'object' && !Array.isArray(map)) {
         // Only keep string→string mappings (attr → meta key)
         const out = {};
@@ -1118,55 +1202,38 @@ export function parsePickEditableCall(code, filePath, themeRoot) {
   return parsePickEditableExpression(fromPick.slice(0, end), code, filePath, themeRoot);
 }
 
+const EDITABLE_FIELD_HELPERS = {
+  text: (opts = {}) => ({ type: 'text', ...opts }),
+  richText: (opts = {}) => ({ type: 'richText', ...opts }),
+  image: (opts = {}) => ({ type: 'image', ...opts }),
+  boolean: (opts = {}) => ({ type: 'boolean', ...opts }),
+  repeater: (opts = {}) => ({ type: 'repeater', ...opts }),
+  color: (opts = {}) => ({ type: 'color', ...opts }),
+  url: (opts = {}) => ({ type: 'url', ...opts }),
+  select: (opts = {}) => ({ type: 'select', ...opts }),
+  number: (opts = {}) => ({ type: 'number', ...opts }),
+  icon: (opts = {}) => ({ type: 'icon', provider: 'lucide', ...opts }),
+};
+
 export function parseDefineEditable(code) {
-  const startIndex = code.indexOf('defineEditable(');
-  if (startIndex === -1) return null;
-
-  let depth = 1;
-  let i = startIndex + 'defineEditable('.length;
-  let editableContent = '';
-
-  while (i < code.length && depth > 0) {
-    const char = code[i];
-    if (char === '(') depth++;
-    else if (char === ')') depth--;
-
-    if (depth > 0) {
-      editableContent += char;
-    }
-    i++;
-  }
-
+  // AST-first: static evaluation with the field helpers as the only
+  // callables and same-file const literals as the only identifiers — no
+  // `new Function` execution of theme-author code on this path.
   try {
-    const text = (opts = {}) => ({ type: 'text', ...opts });
-    const richText = (opts = {}) => ({ type: 'richText', ...opts });
-    const image = (opts = {}) => ({ type: 'image', ...opts });
-    const boolean = (opts = {}) => ({ type: 'boolean', ...opts });
-    const repeater = (opts = {}) => ({ type: 'repeater', ...opts });
-    const color = (opts = {}) => ({ type: 'color', ...opts });
-    const url = (opts = {}) => ({ type: 'url', ...opts });
-    const select = (opts = {}) => ({ type: 'select', ...opts });
-    const number = (opts = {}) => ({ type: 'number', ...opts });
-    const icon = (opts = {}) => ({ type: 'icon', provider: 'lucide', ...opts });
-
-    // Inject same-file const bindings so options: ICON_ALLOWLIST works naturally
-    const fileBindings = extractFileConstBindings(code);
-    const bindingNames = Object.keys(fileBindings);
-    const helperNames = [
-      'text', 'richText', 'image', 'boolean', 'repeater', 'color', 'url', 'select', 'number', 'icon',
-    ];
-    const helpers = [text, richText, image, boolean, repeater, color, url, select, number, icon];
-
-    const evalFn = new Function(
-      ...helperNames,
-      ...bindingNames,
-      `return (${editableContent});`,
-    );
-    return evalFn(...helpers, ...bindingNames.map((n) => fileBindings[n]));
-  } catch (e) {
-    console.warn(`[Gutenberg Block Compiler] parseDefineEditable eval failed:`, e.message);
-    return null;
+    const found = findCallExpression(code, 'defineEditable');
+    if (found && found.node.arguments[0]) {
+      return evaluateStaticNode(
+        found.node.arguments[0],
+        extractFileConstBindings(code),
+        EDITABLE_FIELD_HELPERS,
+      );
+    }
+  } catch {
+    // fall through to the legacy eval below
   }
+
+  markLegacyFallback('scanner:parseDefineEditable-would-have-tried-legacy');
+  return null;
 }
 
 export function mapEditableFieldToAttribute(field) {

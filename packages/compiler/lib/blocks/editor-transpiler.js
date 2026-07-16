@@ -1,4 +1,6 @@
 import { findHtmlTagEnd, resolveIconToSvgHtml } from "./shared-utils.js";
+import { markLegacyFallback, tryParseSource } from "./ast-parser.js";
+import { rewriteAttrRefsSafely } from "./source-sanitize.js";
 
 const _iconResolveCache = new Map();
 
@@ -96,7 +98,38 @@ export function parseAttributes(attrStr) {
   return attrs;
 }
 
+/**
+ * Parse a JSX string into an AST for generateReactCreateElement to consume.
+ *
+ * AST-based: parses `jsx` with @babel/parser (see ast-parser.js) and, when it
+ * parses cleanly as a single JSX expression, returns the real
+ * JSXElement/JSXFragment node directly — retiring the hand-rolled tokenizer
+ * (parseJsxToAstLegacy below) for every case it can, along with the whole
+ * class of bugs it had (nested ternaries containing fragments, generic-vs-
+ * comparison `<` ambiguity, etc. — real syntax the tokenizer can't represent
+ * doesn't need representing once a real parser is doing the work).
+ *
+ * `jsx` is sometimes not standalone-parseable — e.g. multiple adjacent root
+ * elements with no wrapping fragment, which the legacy tokenizer tolerated
+ * (it isn't a real parser) but real JSX syntax forbids — so a parse failure
+ * falls back to the legacy tokenizer.
+ */
 export function parseJsxToAst(jsx) {
+  if (typeof jsx === 'string' && jsx.trim()) {
+    const ast = tryParseSource(jsx);
+    const body = ast && ast.program.body;
+    if (body && body.length === 1 && body[0].type === 'ExpressionStatement') {
+      const expr = body[0].expression;
+      if (expr.type === 'JSXElement' || expr.type === 'JSXFragment') {
+        return { realAst: true, node: expr, source: jsx };
+      }
+    }
+  }
+  markLegacyFallback('editor-transpiler:parseJsxToAst');
+  return parseJsxToAstLegacy(jsx);
+}
+
+function parseJsxToAstLegacy(jsx) {
   const tokens = [];
   let index = 0;
   
@@ -503,8 +536,382 @@ function transpileCurlyExpressions(val) {
   return `\`${literalParts.join('')}\``;
 }
 
+function getJsxElementName(nameNode) {
+  if (nameNode.type === 'JSXIdentifier') return nameNode.name;
+  if (nameNode.type === 'JSXMemberExpression') {
+    return `${getJsxElementName(nameNode.object)}.${nameNode.property.name}`;
+  }
+  if (nameNode.type === 'JSXNamespacedName') {
+    return `${nameNode.namespace.name}:${nameNode.name.name}`;
+  }
+  return '';
+}
+
+/** Legacy-compatible `{name: value}` map from real JSXAttribute nodes — value
+ * is `true` (boolean shorthand), a string literal's value, or the `{...}`
+ * (braces included) source text of an expression attribute — matching what
+ * parseAttributes() produced, so the WpIcon/WpEditable/prop-building logic
+ * below (ported from generateReactCreateElement's legacy 'element' branch)
+ * needs no changes to consume it. */
+function readRealJsxAttributes(openingElement, code) {
+  const attributes = {};
+  for (const attr of openingElement.attributes) {
+    if (attr.type !== 'JSXAttribute') continue; // spreads: legacy never modeled these either
+    const name = getJsxElementName(attr.name) || (attr.name.type === 'JSXIdentifier' ? attr.name.name : '');
+    if (!attr.value) {
+      attributes[name] = true;
+    } else if (attr.value.type === 'StringLiteral') {
+      attributes[name] = attr.value.value;
+    } else if (attr.value.type === 'JSXExpressionContainer') {
+      attributes[name] = code.slice(attr.value.start, attr.value.end);
+    }
+  }
+  return attributes;
+}
+
+/**
+ * Rewrite bare block-attribute identifiers to `attributes.X` in a verbatim
+ * source slice (a ternary/`&&` condition, a `.map()` array target, …) —
+ * mirrors the narrower ad hoc regex the legacy children-loop applied to
+ * ternary/`&&` conditions specifically, generalized via the same safe
+ * rewriter index.js already uses for attribute-value expressions, and
+ * applied uniformly to every non-JSX expression this emitter passes through
+ * verbatim (also covers cases legacy's condition-only regex didn't reach,
+ * like a `.filter()` predicate).
+ */
+function rewriteBareAttrRefs(text, blockSettings) {
+  const attrKeys = Object.keys((blockSettings && blockSettings.attributes) || {});
+  if (attrKeys.length === 0) return text;
+  return rewriteAttrRefsSafely(text, attrKeys);
+}
+
+/**
+ * Emit a plain JS expression (a ternary condition, `.map()` callback body,
+ * `&&` right-hand side, arbitrary helper call, …) that may contain nested
+ * JSX anywhere inside it. Splices each outermost JSX subtree's byte range
+ * with its createElement(...) translation and leaves every other character —
+ * the ternary/`&&`/`.map()` shell itself — verbatim from the original
+ * source, then rewrites bare attribute references throughout. This is the
+ * generalized replacement for the old regex-matched ternary/`&&`/loop-header
+ * patterns: it works for any JS expression shape a real parser can produce,
+ * not just the handful the old patterns anticipated.
+ */
+/**
+ * Emit a plain JS expression (a ternary, `&&`, `.map()` call, arbitrary
+ * helper call, …) that may contain nested JSX anywhere inside it.
+ *
+ * Recursive emitters keyed on node.type for the shapes that need bare
+ * attr-key rewriting — ConditionalExpression and LogicalExpression rewrite
+ * only their own condition (`test/left`), exactly where legacy's phpCond
+ * regex applied it; a bare identifier BRANCH result (e.g. a local `const
+ * badge = badgeProp ?? badgeMeta` dual-host variable that happens to share
+ * its name with a block attribute key) must NOT be rewritten — legacy never
+ * touched branch content, only conditions, and conflating the two would
+ * silently replace an in-scope local variable read with the wrong value.
+ * CallExpression rewrites a bare attr-key `.map()`/`.filter()` array target
+ * the same way legacy's dedicated loop-header handling did. Everything else
+ * falls through to a generic "splice nested JSX, leave the rest verbatim"
+ * pass with no rewriting — the safe default for shapes with no known
+ * condition-like part (a plain identifier, a helper call, …).
+ */
+function emitExpressionWithNestedJsx(exprNode, code, blockSettings) {
+  if (exprNode.type === 'JSXElement' || exprNode.type === 'JSXFragment') {
+    return generateFromRealJsxNode(exprNode, code, blockSettings);
+  }
+
+  if (exprNode.type === 'ConditionalExpression') {
+    const cond = rewriteBareAttrRefs(code.slice(exprNode.test.start, exprNode.test.end), blockSettings);
+    const trueCode = emitExpressionWithNestedJsx(exprNode.consequent, code, blockSettings);
+    const falseCode = emitExpressionWithNestedJsx(exprNode.alternate, code, blockSettings);
+    return `${cond} ? (${trueCode}) : (${falseCode})`;
+  }
+
+  if (exprNode.type === 'LogicalExpression' && exprNode.operator === '&&') {
+    const cond = rewriteBareAttrRefs(code.slice(exprNode.left.start, exprNode.left.end), blockSettings);
+    const rightCode = emitExpressionWithNestedJsx(exprNode.right, code, blockSettings);
+    return `${cond} && (${rightCode})`;
+  }
+
+  const spans = [];
+  collectOutermostJsx(exprNode, spans, code, blockSettings);
+
+  if (exprNode.type === 'CallExpression' && exprNode.callee.type === 'MemberExpression') {
+    const obj = exprNode.callee.object;
+    const objText = code.slice(obj.start, obj.end);
+    const rewrittenObj = rewriteBareAttrRefs(objText, blockSettings);
+    if (rewrittenObj !== objText) {
+      spans.push({ start: obj.start, end: obj.end, replacement: rewrittenObj });
+    }
+  }
+
+  if (spans.length === 0) {
+    return code.slice(exprNode.start, exprNode.end);
+  }
+
+  // Splice each span's replacement into the verbatim source, no further
+  // rewriting of the surrounding text (see function doc above).
+  spans.sort((a, b) => a.start - b.start);
+  let out = '';
+  let cursor = exprNode.start;
+  for (const span of spans) {
+    out += code.slice(cursor, span.start);
+    out += span.replacement;
+    cursor = span.end;
+  }
+  out += code.slice(cursor, exprNode.end);
+  return out;
+}
+
+const AST_NODE_METADATA_KEYS = new Set([
+  'loc', 'start', 'end', 'range', 'extra', 'leadingComments',
+  'trailingComments', 'innerComments', 'comments',
+]);
+
+/** Find JSXElement/JSXFragment descendants without descending into ones already found. */
+function collectOutermostJsx(node, out, code, blockSettings) {
+  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
+  if (node.type === 'JSXElement' || node.type === 'JSXFragment') {
+    out.push({
+      start: node.start,
+      end: node.end,
+      replacement: generateFromRealJsxNode(node, code, blockSettings),
+    });
+    return;
+  }
+  for (const key of Object.keys(node)) {
+    if (AST_NODE_METADATA_KEYS.has(key)) continue;
+    const val = node[key];
+    if (Array.isArray(val)) {
+      for (const item of val) {
+        if (item && typeof item.type === 'string') collectOutermostJsx(item, out, code, blockSettings);
+      }
+    } else if (val && typeof val.type === 'string') {
+      collectOutermostJsx(val, out, code, blockSettings);
+    }
+  }
+}
+
+/** Real JSXElement/JSXFragment children → array of createElement(...) arg code strings. */
+function emitRealJsxChildren(children, code, blockSettings) {
+  const out = [];
+  for (const child of children) {
+    if (child.type === 'JSXText') {
+      const val = child.value.trim();
+      if (val) out.push(JSON.stringify(val));
+      continue;
+    }
+    if (child.type === 'JSXExpressionContainer') {
+      if (child.expression.type === 'JSXEmptyExpression') continue; // {/* comment */}
+      out.push(emitExpressionWithNestedJsx(child.expression, code, blockSettings));
+      continue;
+    }
+    if (child.type === 'JSXElement' || child.type === 'JSXFragment') {
+      out.push(generateFromRealJsxNode(child, code, blockSettings));
+      continue;
+    }
+    if (child.type === 'JSXSpreadChild') {
+      out.push(emitExpressionWithNestedJsx(child.expression, code, blockSettings));
+    }
+  }
+  return out;
+}
+
+/**
+ * Real-AST counterpart of generateReactCreateElement's legacy 'element'
+ * branch. The WpIcon / WpEditable / generic-element-prop-building logic is
+ * ported verbatim from that branch (same behavior, same edge-case handling)
+ * — only attribute reading (readRealJsxAttributes) and child-list
+ * computation (emitRealJsxChildren, above) differ, since those are exactly
+ * the two things a real parser does more reliably than the legacy tokenizer.
+ */
+function generateFromRealJsxNode(node, code, blockSettings) {
+  if (node.type === 'JSXFragment') {
+    const childCodes = emitRealJsxChildren(node.children, code, blockSettings).filter(Boolean);
+    if (childCodes.length === 0) return 'null';
+    if (childCodes.length === 1) return childCodes[0];
+    return `createElement(wp.element.Fragment, null, ${childCodes.join(', ')})`;
+  }
+
+  const tagName = getJsxElementName(node.openingElement.name);
+  const attributes = readRealJsxAttributes(node.openingElement, code);
+
+  // React short fragments <>…</>, and an explicit <Fragment> tag alike.
+  if (tagName === 'Fragment') {
+    const childCodes = emitRealJsxChildren(node.children, code, blockSettings).filter(Boolean);
+    if (childCodes.length === 0) return 'null';
+    if (childCodes.length === 1) return childCodes[0];
+    return `createElement(wp.element.Fragment, null, ${childCodes.join(', ')})`;
+  }
+
+  // Dynamic icon from slug (repeater / attributes) — resolved at editor runtime via registry
+  if (tagName === 'WpIcon') {
+    let nameExpr = String(attributes.name || '""').trim();
+    if (nameExpr.startsWith('{') && nameExpr.endsWith('}')) {
+      nameExpr = nameExpr.slice(1, -1).trim();
+    } else if (!(nameExpr.startsWith('"') || nameExpr.startsWith("'") || nameExpr.startsWith('`'))) {
+      if (/^[a-zA-Z_$]/.test(nameExpr) && !nameExpr.includes('.')) {
+        nameExpr = JSON.stringify(nameExpr);
+      }
+    }
+    if (blockSettings && blockSettings.attributes && /^[a-zA-Z_$][\w$]*$/.test(nameExpr)) {
+      if (Object.prototype.hasOwnProperty.call(blockSettings.attributes, nameExpr)) {
+        nameExpr = `attributes.${nameExpr}`;
+      }
+    }
+    let classExpr = '""';
+    if (attributes.className) {
+      const raw = String(attributes.className).trim();
+      classExpr = raw.startsWith('{') && raw.endsWith('}')
+        ? raw.slice(1, -1).trim()
+        : JSON.stringify(raw);
+    }
+    const providerRaw = String(attributes.provider || 'lucide').replace(/['"]/g, '');
+    return `forgeWpRenderIcon(${nameExpr}, ${classExpr}, ${JSON.stringify(providerRaw)})`;
+  }
+
+  if (tagName === 'WpEditable') {
+    const tagRaw = String(attributes.tagName || 'div').trim();
+    let tagExpr;
+    let tagLiteral = 'div';
+    if (tagRaw.startsWith('{') && tagRaw.endsWith('}')) {
+      tagExpr = tagRaw.slice(1, -1).trim();
+      const lit = tagExpr.match(/^['"]([\w-]+)['"]$/);
+      if (lit) tagLiteral = lit[1];
+      else tagLiteral = '';
+    } else {
+      tagLiteral = tagRaw.replace(/['"]/g, '') || 'div';
+      tagExpr = JSON.stringify(tagLiteral);
+    }
+
+    let valStr = String(attributes.value || '').trim();
+    if (valStr.startsWith('{') && valStr.endsWith('}')) {
+      valStr = valStr.slice(1, -1).trim();
+    }
+
+    const isDotted = valStr.includes('.');
+    let varName = 'value';
+    const varMatch = valStr.match(/(?:attributes|props)?\.?([a-zA-Z0-9_-]+)$/);
+    if (varMatch) {
+      varName = varMatch[1];
+    }
+    const isAttrKey =
+      blockSettings &&
+      blockSettings.attributes &&
+      Object.prototype.hasOwnProperty.call(blockSettings.attributes, varName);
+    const valueExpr = isDotted
+      ? valStr
+      : isAttrKey
+        ? `attributes.${varName}`
+        : valStr;
+
+    const className = attributes.className
+      ? (attributes.className.startsWith('{')
+          ? attributes.className.slice(1, -1)
+          : JSON.stringify(attributes.className))
+      : '""';
+
+    const isLoopRowAccess = isDotted && !/^(?:attributes|props)\./.test(valStr);
+    const attrConfig = (!isLoopRowAccess && blockSettings && blockSettings.attributes) ? blockSettings.attributes[varName] : null;
+
+    const isSingleLine =
+      (tagLiteral && ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span'].includes(tagLiteral)) ||
+      (attrConfig && attrConfig.control === 'text') ||
+      attributes.disableLineBreaks !== undefined;
+
+    const singleLineProps = isSingleLine
+      ? ',\n        disableLineBreaks: true,\n        allowedFormats: []'
+      : '';
+
+    const isMultiParagraph = attrConfig && attrConfig.control === 'richText' &&
+      typeof attrConfig.default === 'string' && /<p[\s>]/i.test(attrConfig.default);
+    const multilineProps = isMultiParagraph ? ",\n        multiline: 'p'" : '';
+
+    let rawOnChange = String(attributes.onChange || '').trim();
+    if (rawOnChange.startsWith('{') && rawOnChange.endsWith('}')) {
+      rawOnChange = rawOnChange.slice(1, -1).trim();
+    }
+    rawOnChange = rawOnChange.replace(/\(\s*([a-zA-Z0-9_$]+)\s*:\s*[^),]+\)\s*=>/, '($1) =>');
+
+    const standardSet =
+      rawOnChange.match(
+        /^\(\s*([a-zA-Z0-9_$]+)\s*\)\s*=>\s*setAttributes\s*\(\s*\{\s*([a-zA-Z0-9_$]+)\s*:\s*\1\s*\}\s*\)\s*$/,
+      ) ||
+      rawOnChange.match(
+        /^\(\s*([a-zA-Z0-9_$]+)\s*\)\s*=>\s*setAttributes\s*&&\s*setAttributes\s*\(\s*\{\s*([a-zA-Z0-9_$]+)\s*:\s*\1\s*\}\s*\)\s*$/,
+      );
+
+    let onChangeExpr;
+    if (standardSet) {
+      const p = standardSet[1];
+      const field = standardSet[2];
+      onChangeExpr = `(${p}) => setAttributes({ ${field}: ${p} })`;
+    } else if (
+      rawOnChange &&
+      !/setAttributes\s*\(\s*\{\s*attributes\./.test(rawOnChange) &&
+      !/setAttributes\s*\(\s*\{\s*props\./.test(rawOnChange)
+    ) {
+      onChangeExpr = rawOnChange;
+    } else {
+      onChangeExpr = `function(val) { setAttributes({ ${varName}: val }); }`;
+    }
+
+    return `createElement(wp.blockEditor.RichText, {
+        tagName: ${tagExpr},
+        value: (function(){ var __v = (${valueExpr}); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: ${onChangeExpr},
+        className: ${className}${singleLineProps}${multilineProps}
+      })`;
+  }
+
+  const props = {};
+  for (const [key, val] of Object.entries(attributes)) {
+    const propKey = key === 'className' ? 'className' : key;
+    if (val === true || val === '') {
+      props[propKey] = 'true';
+    } else if (typeof val === 'string' && val.startsWith('{') && val.endsWith('}')) {
+      // No bare-attr-ref rewriting here — matches legacy: attribute-value
+      // expressions are rewritten upstream (index.js's own `={...}` pass)
+      // before this ever runs; only child-position expressions (ternary/`&&`
+      // conditions, .map() targets) get rewritten at this level, same as
+      // legacy's own phpCond regex only applied there.
+      props[propKey] = val.slice(1, -1).trim();
+    } else {
+      props[propKey] = JSON.stringify(val);
+    }
+  }
+
+  const formatPropKey = (k) =>
+    /^[A-Za-z_$][\w$]*$/.test(k) ? k : JSON.stringify(k);
+
+  const propsStr = Object.keys(props).length > 0
+    ? `{ ${Object.entries(props).map(([k, v]) => `${formatPropKey(k)}: ${v}`).join(', ')} }`
+    : 'null';
+
+  const childCodesList = emitRealJsxChildren(node.children, code, blockSettings).filter(Boolean);
+  const childrenStr = childCodesList.join(', ');
+
+  const isPascalCase = /^[A-Z]/.test(tagName);
+  if (isPascalCase && blockSettings && blockSettings.importMap && blockSettings.importMap[tagName] && blockSettings.themeRoot) {
+    const packageName = blockSettings.importMap[tagName];
+    const rawClassName = attributes.className || '';
+    const classNameStr = rawClassName.startsWith('{') && rawClassName.endsWith('}')
+      ? rawClassName.slice(1, -1).trim()
+      : rawClassName;
+    const resolved = resolveIconToCreateElement(tagName, packageName, blockSettings.themeRoot, classNameStr);
+    if (resolved) return resolved;
+  }
+
+  const isHost = !isPascalCase || tagName.includes('-') || tagName === 'Fragment';
+  const typeExpr = isHost ? JSON.stringify(tagName) : tagName;
+  return `createElement(${typeExpr}, ${propsStr}${childrenStr ? `, ${childrenStr}` : ''})`;
+}
+
 export function generateReactCreateElement(node, blockSettings) {
   if (!node) return 'null';
+
+  if (node.realAst) {
+    return generateFromRealJsxNode(node.node, node.source, blockSettings);
+  }
 
   if (node.type === 'root') {
     if (node.children.length === 1) {

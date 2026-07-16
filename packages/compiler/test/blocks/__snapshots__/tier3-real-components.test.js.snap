@@ -1,0 +1,2129 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`compileBlocks against real hotelchecker24 components > "about-hero" customEditJsx parses and contains no mangled-ternary markers 1`] = `
+"(() => {
+var defaults = {"hero_badge":"Seit 2019 — Das unabhängige Luxushotel-Magazin","hero_title":"Wir kuratieren Ihr Reiseerlebnis","hero_subtitle":"Hotelchecker24 ist Österreichs führendes unabhängiges Magazin für Luxus- und Boutique-Hotels. Unser Redaktionsteam bereist die Welt, bewertet Hotels nach strengen Kriterien und teilt ehrliche, fundierte Empfehlungen.","hero_image_1":"https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=500&q=80","hero_image_2":"https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80","hero_primary_label":"Hotels entdecken","hero_secondary_label":"Kontakt aufnehmen","stats":[{"value":"500+","label":"Hotels bewertet"},{"value":"40","label":"Länder"},{"value":"80k","label":"Leser / Monat"},{"value":"6","label":"Jahre Erfahrung"}],"mission_badge":"Unsere Mission","mission_title":"Ehrliche Empfehlungen.\\nKeine Kompromisse.","mission_content":"<p>Hotelchecker24 wurde 2019 in Wien gegründet, mit einem einfachen Versprechen: Hotels so zu bewerten, wie es eine gute Freundin mit Insider-Wissen tun würde — offen, ehrlich und ohne Werbeauftrag.</p><p>Wir lehnen bezahlte Platzierungen und gesponserte Inhalte konsequent ab. Jedes Hotel, das wir empfehlen, hat unsere Redakteure persönlich überzeugt. Dafür nehmen wir uns die Zeit, die andere nicht aufwenden.</p><p>Das Ergebnis: Eine kuratierte Auswahl an Unterkünften, der Sie vertrauen können — ob Stadtreise, Alpenerholung oder fernöstliches Abenteuer.</p>","mission_cta_label":"Unsere Berichte lesen","values":[{"icon":"award","title":"Unabhängige Bewertung","description":"Alle Hotels werden anonym von unseren Redakteuren besucht — keine bezahlten Platzierungen.","color":"text-primary bg-primary/10"},{"icon":"shield","title":"Vertrauen & Transparenz","description":"Unsere Kriterien sind öffentlich einsehbar. Wir legen offen, nach welchen Maßstäben wir urteilen.","color":"text-blue-600 bg-blue-50"},{"icon":"globe","title":"Globale Reichweite","description":"Über 500 Hotels in 40 Ländern bewertet — von Stadthotels bis zu abgelegenen Luxusresorts.","color":"text-[#929f5d] bg-[#929f5d]/10"},{"icon":"users","title":"Community-First","description":"Mehr als 80.000 monatliche Leser vertrauen unseren Empfehlungen für ihre Reiseentscheidungen.","color":"text-amber-600 bg-amber-50"}],"team_badge":"Das Team","team_title":"Unsere Redaktion","team_subtitle":"Ein kleines, leidenschaftliches Team von Reiseexperten, Journalisten und Hotelbewertungsprofis.","team_members":[{"name":"Isabella von Habsburg","role":"Chefredakteurin","bio":"Über 15 Jahre Erfahrung in der Luxushotellerie. Spezialisiert auf alpinen Wellness-Tourismus.","avatar":"https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80"},{"name":"Matteo Bianchi","role":"Reiseredakteur","bio":"Kenner des mediterranen Raums. Hat über 200 Hotels in Italien, Griechenland und Spanien bewertet.","avatar":"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80"},{"name":"Sophie Lehmann","role":"Destinations-Expertin","bio":"Spezialistin für City-Hotels und Boutique-Unterkünfte im deutschsprachigen Raum.","avatar":"https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=200&q=80"},{"name":"Lars Eriksson","role":"Nordeuropa-Korrespondent","bio":"Reist für uns durch Skandinavien und berichtet über Design-Hotels und Naturresorts.","avatar":"https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80"}],"latest_listicles_badge":"Aus der Redaktion","latest_listicles_heading":"Aktuelle Berichte","latest_listicles_link_label":"Alle anzeigen","latest_listicles_mobile_link_label":"Alle Berichte","cta_heading":"Ihr nächstes","cta_heading_colored":"Traumhotel","cta_heading_end":"wartet auf Sie","cta_subtitle":"Entdecken Sie unsere kuratierte Auswahl an Luxushotels, Boutique-Resorts und einzigartigen Unterkünften weltweit.","cta_primary_label":"Hotels entdecken","cta_secondary_label":"Kontakt aufnehmen"};
+// Dual-host prop aliases (block attributes → local names used in components)
+var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
+var badgeProp = (typeof __attr["badge"] !== 'undefined') ? __attr["badge"] : (typeof __attr["badgeProp"] !== 'undefined' ? __attr["badgeProp"] : undefined);
+var titleProp = (typeof __attr["title"] !== 'undefined') ? __attr["title"] : (typeof __attr["titleProp"] !== 'undefined' ? __attr["titleProp"] : undefined);
+var subtitleProp = (typeof __attr["subtitle"] !== 'undefined') ? __attr["subtitle"] : (typeof __attr["subtitleProp"] !== 'undefined' ? __attr["subtitleProp"] : undefined);
+var image1Prop = (typeof __attr["image1"] !== 'undefined') ? __attr["image1"] : (typeof __attr["image1Prop"] !== 'undefined' ? __attr["image1Prop"] : undefined);
+var image2Prop = (typeof __attr["image2"] !== 'undefined') ? __attr["image2"] : (typeof __attr["image2Prop"] !== 'undefined' ? __attr["image2Prop"] : undefined);
+var primaryProp = (typeof __attr["primaryButtonLabel"] !== 'undefined') ? __attr["primaryButtonLabel"] : (typeof __attr["primaryProp"] !== 'undefined' ? __attr["primaryProp"] : undefined);
+var secondaryProp = (typeof __attr["secondaryButtonLabel"] !== 'undefined') ? __attr["secondaryButtonLabel"] : (typeof __attr["secondaryProp"] !== 'undefined' ? __attr["secondaryProp"] : undefined);
+
+
+  const badgeMeta = useWpMeta('hero_badge', defaults.hero_badge);
+  const titleMeta = useWpMeta('hero_title', defaults.hero_title);
+  const subtitleMeta = useWpMeta('hero_subtitle', defaults.hero_subtitle);
+  const image1Meta = useWpMeta('hero_image_1', defaults.hero_image_1);
+  const image2Meta = useWpMeta('hero_image_2', defaults.hero_image_2);
+  const primaryMeta = useWpMeta('hero_primary_label', defaults.hero_primary_label);
+  const secondaryMeta = useWpMeta('hero_secondary_label', defaults.hero_secondary_label);
+
+  const badge = badgeProp ?? badgeMeta;
+  const title = titleProp ?? titleMeta;
+  const subtitle = subtitleProp ?? subtitleMeta;
+  const primaryButtonLabel = primaryProp ?? primaryMeta;
+  const secondaryButtonLabel = secondaryProp ?? secondaryMeta;
+  const img1 = (image1Prop && (image1Prop).url) || image1Prop || image1Meta || '';
+  const img2 = (image2Prop && (image2Prop).url) || image2Prop || image2Meta || '';
+  const homeHref = useWpPageLink('front-page', '/');
+  const contactHref = useWpPageLink('kontakt-page', '/contact');
+  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
+
+  
+return createElement("div", { className: (("relative overflow-hidden bg-slate-50 w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "absolute top-0 right-0 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(109,155,174,0.13)_0%,transparent_70%)] blur-3xl pointer-events-none" }), createElement("div", { className: "absolute bottom-0 left-0 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(146,159,93,0.09)_0%,transparent_70%)] blur-3xl pointer-events-none" }), createElement("div", { className: "relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10" }, createElement("nav", { className: "flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4 w-full min-w-0" }, createElement(WpLink, { href: homeHref, className: "hover:text-primary transition-colors whitespace-nowrap shrink-0" }, "Startseite"), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4 shrink-0"}, createElement("path", {"d":"m9 18 6-6-6-6"})), createElement("span", { className: "text-slate-700 truncate min-w-0" }, "Über uns")), createElement("div", { className: "grid grid-cols-1 lg:grid-cols-5 gap-10 items-center" }, createElement("div", { className: "lg:col-span-3 max-w-2xl" }, createElement("span", { className: "inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full mb-4" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-3.5 h-3.5 fill-primary"}, createElement("path", {"d":"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"})), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.badge); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ badge: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (badge)), createElement("h1", { className: "text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-slate-900 mb-4 whitespace-pre-line" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.title); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ title: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (title)), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "div",
+        value: (function(){ var __v = (attributes.subtitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ subtitle: val }),
+        className: "text-slate-500 text-sm sm:text-base leading-relaxed mb-6"
+      })) : (createElement("div", { className: "text-slate-500 text-sm sm:text-base leading-relaxed mb-6", dangerouslySetInnerHTML: { __html: attributes.subtitle } })), createElement("div", { className: "flex flex-wrap gap-3" }, createElement(WpLink, { href: hotelsHref, className: "relative overflow-hidden inline-flex items-center justify-center bg-primary text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl transition-colors duration-500 group select-none shadow-none cursor-pointer active:scale-95 shrink-0 hover:bg-primary/90" }, createElement("span", { className: "relative z-10 flex items-center gap-2" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.primaryButtonLabel); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ primaryButtonLabel: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (primaryButtonLabel), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4"}, createElement("path", {"d":"M5 12h14"}), createElement("path", {"d":"m12 5 7 7-7 7"})))), createElement(WpLink, { href: contactHref, className: "inline-flex items-center gap-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 shrink-0" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.secondaryButtonLabel); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ secondaryButtonLabel: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (secondaryButtonLabel)))), createElement("div", { className: "lg:col-span-2 relative hidden lg:flex items-center justify-center h-[340px] select-none" }, createElement("div", { className: "absolute top-4 right-10 w-64 h-72 rounded-2xl overflow-hidden shadow-lg rotate-6 hover:rotate-2 transition-transform duration-500 ease-out" }, createElement("img", { src: img1, alt: "Resort Pool", className: "w-full h-full object-cover select-none pointer-events-none" })), createElement("div", { className: "absolute bottom-4 left-6 w-60 h-64 rounded-2xl overflow-hidden shadow-2xl -rotate-6 hover:rotate-0 transition-transform duration-500 ease-out z-10" }, createElement("img", { src: img2, alt: "Luxury Suite", className: "w-full h-full object-cover select-none pointer-events-none" }))))));
+})()"
+`;
+
+exports[`compileBlocks against real hotelchecker24 components > "about-values" customEditJsx parses and contains no mangled-ternary markers 1`] = `
+"(() => {
+var defaults = {"hero_badge":"Seit 2019 — Das unabhängige Luxushotel-Magazin","hero_title":"Wir kuratieren Ihr Reiseerlebnis","hero_subtitle":"Hotelchecker24 ist Österreichs führendes unabhängiges Magazin für Luxus- und Boutique-Hotels. Unser Redaktionsteam bereist die Welt, bewertet Hotels nach strengen Kriterien und teilt ehrliche, fundierte Empfehlungen.","hero_image_1":"https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=500&q=80","hero_image_2":"https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80","hero_primary_label":"Hotels entdecken","hero_secondary_label":"Kontakt aufnehmen","stats":[{"value":"500+","label":"Hotels bewertet"},{"value":"40","label":"Länder"},{"value":"80k","label":"Leser / Monat"},{"value":"6","label":"Jahre Erfahrung"}],"mission_badge":"Unsere Mission","mission_title":"Ehrliche Empfehlungen.\\nKeine Kompromisse.","mission_content":"<p>Hotelchecker24 wurde 2019 in Wien gegründet, mit einem einfachen Versprechen: Hotels so zu bewerten, wie es eine gute Freundin mit Insider-Wissen tun würde — offen, ehrlich und ohne Werbeauftrag.</p><p>Wir lehnen bezahlte Platzierungen und gesponserte Inhalte konsequent ab. Jedes Hotel, das wir empfehlen, hat unsere Redakteure persönlich überzeugt. Dafür nehmen wir uns die Zeit, die andere nicht aufwenden.</p><p>Das Ergebnis: Eine kuratierte Auswahl an Unterkünften, der Sie vertrauen können — ob Stadtreise, Alpenerholung oder fernöstliches Abenteuer.</p>","mission_cta_label":"Unsere Berichte lesen","values":[{"icon":"award","title":"Unabhängige Bewertung","description":"Alle Hotels werden anonym von unseren Redakteuren besucht — keine bezahlten Platzierungen.","color":"text-primary bg-primary/10"},{"icon":"shield","title":"Vertrauen & Transparenz","description":"Unsere Kriterien sind öffentlich einsehbar. Wir legen offen, nach welchen Maßstäben wir urteilen.","color":"text-blue-600 bg-blue-50"},{"icon":"globe","title":"Globale Reichweite","description":"Über 500 Hotels in 40 Ländern bewertet — von Stadthotels bis zu abgelegenen Luxusresorts.","color":"text-[#929f5d] bg-[#929f5d]/10"},{"icon":"users","title":"Community-First","description":"Mehr als 80.000 monatliche Leser vertrauen unseren Empfehlungen für ihre Reiseentscheidungen.","color":"text-amber-600 bg-amber-50"}],"team_badge":"Das Team","team_title":"Unsere Redaktion","team_subtitle":"Ein kleines, leidenschaftliches Team von Reiseexperten, Journalisten und Hotelbewertungsprofis.","team_members":[{"name":"Isabella von Habsburg","role":"Chefredakteurin","bio":"Über 15 Jahre Erfahrung in der Luxushotellerie. Spezialisiert auf alpinen Wellness-Tourismus.","avatar":"https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80"},{"name":"Matteo Bianchi","role":"Reiseredakteur","bio":"Kenner des mediterranen Raums. Hat über 200 Hotels in Italien, Griechenland und Spanien bewertet.","avatar":"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80"},{"name":"Sophie Lehmann","role":"Destinations-Expertin","bio":"Spezialistin für City-Hotels und Boutique-Unterkünfte im deutschsprachigen Raum.","avatar":"https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=200&q=80"},{"name":"Lars Eriksson","role":"Nordeuropa-Korrespondent","bio":"Reist für uns durch Skandinavien und berichtet über Design-Hotels und Naturresorts.","avatar":"https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80"}],"latest_listicles_badge":"Aus der Redaktion","latest_listicles_heading":"Aktuelle Berichte","latest_listicles_link_label":"Alle anzeigen","latest_listicles_mobile_link_label":"Alle Berichte","cta_heading":"Ihr nächstes","cta_heading_colored":"Traumhotel","cta_heading_end":"wartet auf Sie","cta_subtitle":"Entdecken Sie unsere kuratierte Auswahl an Luxushotels, Boutique-Resorts und einzigartigen Unterkünften weltweit.","cta_primary_label":"Hotels entdecken","cta_secondary_label":"Kontakt aufnehmen"};
+// Icon map stub for VALUE_ICONS
+var VALUE_ICONS = { "award": function(pr) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("award", pr && (pr.className || pr.class) || '', 'lucide') : null; }, "shield": function(pr) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("shield", pr && (pr.className || pr.class) || '', 'lucide') : null; }, "globe": function(pr) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("globe", pr && (pr.className || pr.class) || '', 'lucide') : null; }, "users": function(pr) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("users", pr && (pr.className || pr.class) || '', 'lucide') : null; }, "star": function(pr) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("star", pr && (pr.className || pr.class) || '', 'lucide') : null; } };
+// Dual-host prop aliases (block attributes → local names used in components)
+var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
+var valuesProp = (typeof __attr["values"] !== 'undefined') ? __attr["values"] : (typeof __attr["valuesProp"] !== 'undefined' ? __attr["valuesProp"] : undefined);
+
+function ValueIcon({ name, className }) {
+  const slug = (name || 'award').toLowerCase();
+  const Static = VALUE_ICONS[slug];
+  if (Static) return createElement(Static, { className: className, "aria-hidden": true });
+  return forgeWpRenderIcon(slug, className, "lucide");
+}
+
+
+  const valuesMeta = useWpMeta('values', defaults.values);
+  const rows = Array.isArray(valuesProp)
+    ? valuesProp
+    : Array.isArray(valuesMeta)
+      ? valuesMeta
+      : (defaults.values);
+
+  
+return createElement("div", { className: (("grid grid-cols-1 sm:grid-cols-2 gap-4 w-full min-w-0") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, rows.map((row, index) => (
+        createElement("div", { key: index, className: "bg-white rounded-2xl p-5 shadow-xs hover:shadow-md transition-shadow" }, createElement("div", { className: 'w-10 h-10 rounded-xl flex items-center justify-center mb-3 ' +
+              (row.color?.replace(/\\bborder[^\\s]*/g, '').trim() ||
+                'text-primary bg-primary/10') }, createElement(ValueIcon, { name: row.icon, className: "w-5 h-5" })), setAttributes ? (createElement(wp.element.Fragment, null, createElement(wp.blockEditor.RichText, {
+        tagName: "h3",
+        value: (function(){ var __v = (row.title || ''); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) =>
+                  setAttributes({
+                    values: rows.map((r, i) => (i === index ? { ...r, title: val } : r)),
+                  }),
+        className: "text-sm sm:text-base font-black uppercase tracking-tight text-slate-900 mb-1.5 leading-snug",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }), createElement(wp.blockEditor.RichText, {
+        tagName: "p",
+        value: (function(){ var __v = (row.description || ''); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) =>
+                  setAttributes({
+                    values: rows.map((r, i) => (i === index ? { ...r, description: val } : r)),
+                  }),
+        className: "text-xs sm:text-sm text-slate-500 leading-relaxed"
+      }))) : (createElement(wp.element.Fragment, null, createElement("h3", { className: "text-sm sm:text-base font-black uppercase tracking-tight text-slate-900 mb-1.5 leading-snug" }, row.title), createElement("p", { className: "text-xs sm:text-sm text-slate-500 leading-relaxed" }, row.description))))
+      )));
+})()"
+`;
+
+exports[`compileBlocks against real hotelchecker24 components > "contact-details" customEditJsx parses and contains no mangled-ternary markers 1`] = `
+"(() => {
+var defaults = {"hero_badge":"Wir sind für Sie da","hero_title":"Schreiben Sie uns","hero_subtitle":"Fragen zu Hotels, Kooperationsanfragen oder Feedback — unsere Redaktion antwortet innerhalb von 24 Stunden.","card_image":"https://images.unsplash.com/photo-1516550893923-42d28e5677af?auto=format&fit=crop&w=400&q=80","card_badge":"Hauptredaktion Wien","form_title":"Kontaktformular","form_description":"Alle Felder sind Pflichtfelder, sofern nicht anders angegeben.","details_heading":"Kontaktdaten","social_heading":"Social Media"};
+// Icon component stubs (lucide etc. → forgeWpRenderIcon)
+var Mail = function(p) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("mail", p && (p.className || p.class) || '', 'lucide') : null; };
+var Phone = function(p) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("phone", p && (p.className || p.class) || '', 'lucide') : null; };
+var MapPin = function(p) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("map-pin", p && (p.className || p.class) || '', 'lucide') : null; };
+var Clock = function(p) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("clock", p && (p.className || p.class) || '', 'lucide') : null; };
+var Globe = function(p) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("globe", p && (p.className || p.class) || '', 'lucide') : null; };
+var Instagram = function(p) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("instagram", p && (p.className || p.class) || '', 'lucide') : null; };
+var Facebook = function(p) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("facebook", p && (p.className || p.class) || '', 'lucide') : null; };
+var Twitter = function(p) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("twitter", p && (p.className || p.class) || '', 'lucide') : null; };
+var Youtube = function(p) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("youtube", p && (p.className || p.class) || '', 'lucide') : null; };
+var Linkedin = function(p) { return (typeof forgeWpRenderIcon === 'function') ? forgeWpRenderIcon("linkedin", p && (p.className || p.class) || '', 'lucide') : null; };
+// Dual-host prop aliases (block attributes → local names used in components)
+var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
+var detailsHeadingProp = (typeof __attr["detailsHeading"] !== 'undefined') ? __attr["detailsHeading"] : (typeof __attr["detailsHeadingProp"] !== 'undefined' ? __attr["detailsHeadingProp"] : undefined);
+var socialHeadingProp = (typeof __attr["socialHeading"] !== 'undefined') ? __attr["socialHeading"] : (typeof __attr["socialHeadingProp"] !== 'undefined' ? __attr["socialHeadingProp"] : undefined);
+
+const getSocialHandle = (url, defaultHandle) => {
+    if (!url) return defaultHandle;
+    try {
+      const parts = url.replace(/\\/$/, '').split('/');
+      return parts.length > 0 ? parts[parts.length - 1] : defaultHandle;
+    } catch {
+      return defaultHandle;
+    }
+  };
+
+const TiktokIcon = (props) => (createElement("svg", { viewBox: "0 0 24 24", fill: "currentColor", className: props.className }, createElement("path", { d: "M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .57.04.84.13V9.25a6.29 6.29 0 0 0-1.84-.27A6.3 6.3 0 0 0 2 15.28a6.3 6.3 0 0 0 10.3 4.84V8a8.29 8.29 0 0 0 5.3 1.9v-3.2a4.81 4.81 0 0 1 1.99-.01z" })));
+
+const PinterestIcon = (props) => (createElement("svg", { viewBox: "0 0 24 24", fill: "currentColor", className: props.className }, createElement("path", { d: "M12 0C5.37 0 0 5.37 0 12c0 5.08 3.16 9.42 7.63 11.16-.1-.95-.2-2.4 0-3.43l1.24-5.27s-.32-.64-.32-1.57c0-1.48.86-2.58 1.92-2.58.9 0 1.34.68 1.34 1.5 0 .9-.58 2.27-.88 3.53-.25 1.06.53 1.92 1.58 1.92 1.9 0 3.36-2 3.36-4.88 0-2.55-1.83-4.33-4.44-4.33-3.03 0-4.8 2.27-4.8 4.6 0 .92.35 1.9.8 2.44.09.1.1.18.07.3l-.3 1.22c-.05.2-.16.24-.37.14C4.85 16.48 4 13.9 4 11.42c0-4.07 2.96-7.8 8.52-7.8 4.47 0 7.95 3.19 7.95 7.45 0 4.44-2.8 8.02-6.7 8.02-1.3 0-2.53-.68-2.95-1.48l-.8 3.05c-.29 1.1-.1 2.47-.02 2.62.94.29 1.93.44 2.97.44 6.63 0 12-5.37 12-12S18.63 0 12 0z" })));
+
+
+  const { __ } = useWpI18n();
+  const phone = useWpOption('contact_phone', '+43 1 234 5678');
+  const email = useWpOption('contact_email', 'office@max-online.at');
+  const address = useWpOption(
+    'contact_address',
+    'Coronablick 7, A-3652 Leiben, Österreich',
+  );
+  const hours = useWpOption('business_hours', 'Mo–Fr 09:00–18:00 Uhr');
+
+  const facebookUrl = useWpOption('social_facebook', '');
+  const instagramUrl = useWpOption('social_instagram', '');
+  const twitterUrl = useWpOption('social_twitter', '');
+  const youtubeUrl = useWpOption('social_youtube', '');
+  const tiktokUrl = useWpOption('social_tiktok', '');
+  const linkedinUrl = useWpOption('social_linkedin', '');
+  const pinterestUrl = useWpOption('social_pinterest', '');
+  const siteUrl = useWpOption('siteurl', 'https://hotelchecker24.com');
+
+  const detailsHeadingMeta = useWpMeta(
+    'details_heading',
+    defaults.details_heading,
+  );
+  const socialHeadingMeta = useWpMeta(
+    'social_heading',
+    defaults.social_heading,
+  );
+  const detailsHeading = detailsHeadingProp ?? detailsHeadingMeta;
+  const socialHeading = socialHeadingProp ?? socialHeadingMeta;
+
+  const socialList = [
+    {
+      icon: Instagram,
+      label: 'Instagram',
+      handle: instagramUrl
+        ? \`@\${getSocialHandle(instagramUrl, 'hotelchecker24')}\`
+        : '',
+      href: instagramUrl,
+    },
+    {
+      icon: Facebook,
+      label: 'Facebook',
+      handle: facebookUrl
+        ? getSocialHandle(facebookUrl, 'Hotelchecker24')
+        : '',
+      href: facebookUrl,
+    },
+    {
+      icon: Twitter,
+      label: 'Twitter / X',
+      handle: twitterUrl
+        ? \`@\${getSocialHandle(twitterUrl, 'hotelchecker24')}\`
+        : '',
+      href: twitterUrl,
+    },
+    {
+      icon: Youtube,
+      label: 'YouTube',
+      handle: youtubeUrl ? getSocialHandle(youtubeUrl, 'Hotelchecker24') : '',
+      href: youtubeUrl,
+    },
+    {
+      icon: TiktokIcon,
+      label: 'TikTok',
+      handle: tiktokUrl
+        ? \`@\${getSocialHandle(tiktokUrl, 'hotelchecker24')}\`
+        : '',
+      href: tiktokUrl,
+    },
+    {
+      icon: Linkedin,
+      label: 'LinkedIn',
+      handle: linkedinUrl
+        ? getSocialHandle(linkedinUrl, 'Hotelchecker24')
+        : '',
+      href: linkedinUrl,
+    },
+    {
+      icon: PinterestIcon,
+      label: 'Pinterest',
+      handle: pinterestUrl
+        ? getSocialHandle(pinterestUrl, 'Hotelchecker24')
+        : '',
+      href: pinterestUrl,
+    },
+    {
+      icon: Globe,
+      label: 'Website',
+      handle: siteUrl
+        ? siteUrl.replace(/^https?:\\/\\/(www\\.)?/, '')
+        : 'hotelchecker24.com',
+      href: siteUrl,
+    },
+  ].filter((s) => s.href && s.href.trim() !== '');
+
+
+  
+return createElement("aside", { className: (("space-y-5 w-full min-w-0") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "bg-white rounded-2xl p-6 shadow-xs space-y-5" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "h2",
+        value: (function(){ var __v = (attributes.detailsHeading); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ detailsHeading: val }),
+        className: "text-sm font-bold text-slate-600 pb-3",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("h2", { className: "text-sm font-bold text-slate-600 pb-3" }, attributes.detailsHeading)), (
+          [
+            {
+              icon: Phone,
+              label: 'Telefon',
+              value: phone,
+              href: \`tel:\${phone}\`,
+              color: 'text-primary bg-primary/10',
+            },
+            {
+              icon: Mail,
+              label: 'E-Mail',
+              value: email,
+              href: \`mailto:\${email}\`,
+              color: 'text-blue-600 bg-blue-50',
+            },
+            {
+              icon: MapPin,
+              label: 'Adresse',
+              value: address,
+              href: undefined,
+              color: 'text-[#929f5d] bg-[#929f5d]/10',
+            },
+            {
+              icon: Clock,
+              label: 'Öffnungszeiten',
+              value: hours,
+              href: undefined,
+              color: 'text-amber-600 bg-amber-50',
+            },
+          ]
+        ).map(({ icon: Icon, label, value, href, color }) => (
+          createElement("div", { key: label, className: "flex items-start gap-4" }, createElement("div", { className: \`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 \${color}\` }, createElement(Icon, { className: "w-4 h-4" })), createElement("div", { className: "min-w-0" }, createElement("div", { className: "text-xs font-semibold text-slate-500 mb-0.5" }, __(label)), href ? (createElement("a", { href: href, className: "text-sm font-bold text-slate-800 hover:text-primary transition-colors break-all" }, value)) : (createElement("p", { className: "text-sm font-bold text-slate-800 leading-snug" }, value))))
+        ))), socialList.length > 0 && (createElement("div", { className: "bg-white rounded-2xl p-6 shadow-xs" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "h2",
+        value: (function(){ var __v = (attributes.socialHeading); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ socialHeading: val }),
+        className: "text-xs font-mono font-black uppercase tracking-widest text-slate-400 pb-3 mb-4",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("h2", { className: "text-xs font-mono font-black uppercase tracking-widest text-slate-400 pb-3 mb-4" }, attributes.socialHeading)), createElement("div", { className: "space-y-2" }, socialList.map(({ icon: Icon, label, handle, href }) => (
+              createElement("a", { key: label, href: href, target: "_blank", rel: "noopener noreferrer", className: "flex items-center justify-between p-3 rounded-xl transition-all duration-300 group hover:shadow-xs hover:bg-slate-50" }, createElement("div", { className: "flex items-center gap-3" }, createElement("div", { className: "w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-primary transition-all" }, createElement(Icon, { className: "w-3.5 h-3.5 text-slate-500 group-hover:text-white" })), createElement("div", null, createElement("div", { className: "text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400" }, label), createElement("div", { className: "text-xs font-bold text-slate-800" }, handle))), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-300 shrink-0"}, createElement("path", {"d":"M5 12h14"}), createElement("path", {"d":"m12 5 7 7-7 7"})))
+            ))))));
+})()"
+`;
+
+exports[`compileBlocks against real hotelchecker24 components > "contact-form-section" customEditJsx parses and contains no mangled-ternary markers 1`] = `
+"(() => {
+var defaults = {"hero_badge":"Wir sind für Sie da","hero_title":"Schreiben Sie uns","hero_subtitle":"Fragen zu Hotels, Kooperationsanfragen oder Feedback — unsere Redaktion antwortet innerhalb von 24 Stunden.","card_image":"https://images.unsplash.com/photo-1516550893923-42d28e5677af?auto=format&fit=crop&w=400&q=80","card_badge":"Hauptredaktion Wien","form_title":"Kontaktformular","form_description":"Alle Felder sind Pflichtfelder, sofern nicht anders angegeben.","details_heading":"Kontaktdaten","social_heading":"Social Media"};
+// Dual-host prop aliases (block attributes → local names used in components)
+var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
+var titleProp = (typeof __attr["formTitle"] !== 'undefined') ? __attr["formTitle"] : (typeof __attr["titleProp"] !== 'undefined' ? __attr["titleProp"] : undefined);
+var descProp = (typeof __attr["formDescription"] !== 'undefined') ? __attr["formDescription"] : (typeof __attr["descProp"] !== 'undefined' ? __attr["descProp"] : undefined);
+
+
+  const titleMeta = useWpMeta('form_title', defaults.form_title);
+  const descMeta = useWpMeta('form_description', defaults.form_description);
+
+  const formTitle = titleProp ?? titleMeta;
+  const formDescription = descProp ?? descMeta;
+
+  
+return createElement("div", { className: (("w-full min-w-0") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, setAttributes && (createElement("div", { className: "mb-3 space-y-1" }, createElement(wp.blockEditor.RichText, {
+        tagName: "div",
+        value: (function(){ var __v = (attributes.formTitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ formTitle: val }),
+        className: "text-xs font-mono text-slate-400",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }), createElement(wp.blockEditor.RichText, {
+        tagName: "div",
+        value: (function(){ var __v = (attributes.formDescription); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ formDescription: val }),
+        className: "text-xs font-mono text-slate-400",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }))), createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "ContactForm - interactive preview"), createElement("span", { style: {display:'block'} }, "This section is interactive on the live site (forms, state, live data). Edit text and options in the block sidebar under Block Settings, or use any inline fields shown on the canvas above/below this box. The full interactive UI appears on the visitor page.")));
+})()"
+`;
+
+exports[`compileBlocks against real hotelchecker24 components > "contact-hero" customEditJsx parses and contains no mangled-ternary markers 1`] = `
+"(() => {
+var defaults = {"hero_badge":"Wir sind für Sie da","hero_title":"Schreiben Sie uns","hero_subtitle":"Fragen zu Hotels, Kooperationsanfragen oder Feedback — unsere Redaktion antwortet innerhalb von 24 Stunden.","card_image":"https://images.unsplash.com/photo-1516550893923-42d28e5677af?auto=format&fit=crop&w=400&q=80","card_badge":"Hauptredaktion Wien","form_title":"Kontaktformular","form_description":"Alle Felder sind Pflichtfelder, sofern nicht anders angegeben.","details_heading":"Kontaktdaten","social_heading":"Social Media"};
+// Dual-host prop aliases (block attributes → local names used in components)
+var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
+var badgeProp = (typeof __attr["badge"] !== 'undefined') ? __attr["badge"] : (typeof __attr["badgeProp"] !== 'undefined' ? __attr["badgeProp"] : undefined);
+var titleProp = (typeof __attr["title"] !== 'undefined') ? __attr["title"] : (typeof __attr["titleProp"] !== 'undefined' ? __attr["titleProp"] : undefined);
+var subtitleProp = (typeof __attr["subtitle"] !== 'undefined') ? __attr["subtitle"] : (typeof __attr["subtitleProp"] !== 'undefined' ? __attr["subtitleProp"] : undefined);
+var cardImageProp = (typeof __attr["cardImage"] !== 'undefined') ? __attr["cardImage"] : (typeof __attr["cardImageProp"] !== 'undefined' ? __attr["cardImageProp"] : undefined);
+var cardBadgeProp = (typeof __attr["cardBadge"] !== 'undefined') ? __attr["cardBadge"] : (typeof __attr["cardBadgeProp"] !== 'undefined' ? __attr["cardBadgeProp"] : undefined);
+
+
+  const { __ } = useWpI18n();
+  const homeHref = useWpPageLink('front-page', '/');
+
+  const badgeMeta = useWpMeta('hero_badge', defaults.hero_badge);
+  const titleMeta = useWpMeta('hero_title', defaults.hero_title);
+  const subtitleMeta = useWpMeta('hero_subtitle', defaults.hero_subtitle);
+  const cardImageMeta = useWpMeta('card_image', defaults.card_image);
+  const cardBadgeMeta = useWpMeta('card_badge', defaults.card_badge);
+
+  const badge = badgeProp ?? badgeMeta;
+  const title = titleProp ?? titleMeta;
+  const subtitle = subtitleProp ?? subtitleMeta;
+  const cardImage = (cardImageProp && (cardImageProp).url) || cardImageProp || cardImageMeta || '';
+  const cardBadge = cardBadgeProp ?? cardBadgeMeta;
+
+  
+return createElement("div", { className: (("relative overflow-hidden bg-slate-50 w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(109,155,174,0.13)_0%,transparent_70%)] blur-3xl pointer-events-none" }), createElement("div", { className: "absolute bottom-0 left-0 w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(146,159,93,0.09)_0%,transparent_70%)] blur-3xl pointer-events-none" }), createElement("div", { className: "relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10" }, createElement("nav", { className: "flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4 w-full min-w-0" }, createElement(WpLink, { href: homeHref, className: "hover:text-primary transition-colors whitespace-nowrap shrink-0" }, __('Startseite')), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4 shrink-0"}, createElement("path", {"d":"m9 18 6-6-6-6"})), createElement("span", { className: "text-slate-700 truncate min-w-0" }, __('Kontakt'))), createElement("div", { className: "grid grid-cols-1 lg:grid-cols-5 gap-10 items-center" }, createElement("div", { className: "lg:col-span-3 max-w-2xl" }, createElement("span", { className: "inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full mb-3" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-3.5 h-3.5"}, createElement("path", {"d":"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"})), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.badge); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ badge: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (badge)), createElement("h1", { className: "text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-slate-900 mb-2" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.title); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ title: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (title)), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "p",
+        value: (function(){ var __v = (attributes.subtitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ subtitle: val }),
+        className: "text-slate-500 text-sm sm:text-base leading-relaxed",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("p", { className: "text-slate-500 text-sm sm:text-base leading-relaxed" }, attributes.subtitle))), createElement("div", { className: "lg:col-span-2 relative hidden lg:flex items-center justify-center h-[200px] select-none" }, createElement("div", { className: "relative w-72 h-44 rounded-2xl overflow-hidden shadow-xl rotate-2 hover:rotate-0 transition-transform duration-500 ease-out" }, createElement("img", { src: attributes.cardImage, alt: __('Wien Redaktion'), className: "w-full h-full object-cover select-none pointer-events-none" }), createElement("div", { className: "absolute inset-0 bg-linear-to-t from-slate-950/40 via-transparent to-transparent pointer-events-none" }), createElement("div", { className: "absolute bottom-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg text-[10px] font-bold text-slate-800 shadow-xs flex items-center gap-1" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-3 h-3 text-primary"}, createElement("path", {"d":"M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"}), createElement("circle", {"cx":"12","cy":"10","r":"3"})), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.cardBadge); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ cardBadge: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("span", null, attributes.cardBadge))))))));
+})()"
+`;
+
+exports[`compileBlocks against real hotelchecker24 components > "destinations" customEditJsx parses and contains no mangled-ternary markers 1`] = `
+"(() => {
+var defaults = {"hero_title":"Handverlesene","hero_title_colored":"Boutique- & Luxushotels","hero_subtitle":"Hotelchecker24 ist Ihre unabhängige Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa.","hero_search_placeholder":"Hotelname oder Stadt suchen...","trust_stat1_value":"500+","trust_stat1_label":"Kuratierte Hotels","trust_stat2_value":"4","trust_stat2_label":"Länder abgedeckt","trust_stat3_value":"100%","trust_stat3_label":"Unabhängig & redaktionell","trust_stat4_value":"DE / EN","trust_stat4_label":"Deutsch & Englisch","featured_badge":"Empfohlen","featured_heading":"Ausgewählte Hotels","featured_subtitle":"Von unserer Redaktion handverlesen — außergewöhnliche Aufenthalte in ganz Europa.","featured_link_label":"Alle Hotels","editorial_badge":"Redaktionell & Unabhängig","editorial_heading":"Kuratiert von","editorial_heading_colored":"echten Reisenden","editorial_description":"Kein bezahltes Ranking. Kein Algorithmus. Nur ehrliche, redaktionell geprüfte Empfehlungen von unserem Team, das die Hotels selbst besucht hat.","editorial_cta_label":"Alle Hotelvergleiche lesen","editorial_feature1_label":"Vor-Ort-Besuche","editorial_feature1_desc":"Jedes Hotel wird persönlich getestet","editorial_feature2_label":"Keine Werbung","editorial_feature2_desc":"Vollständig redaktionell unabhängig","editorial_feature3_label":"DE & EN","editorial_feature3_desc":"Inhalte auf Deutsch und Englisch","editorial_feature4_label":"Laufend aktuell","editorial_feature4_desc":"Regelmäßige neue Empfehlungen","listicles_badge":"Magazin","listicles_heading":"Aktuelle Hotelvergleiche","listicles_subtitle":"Tiefgehende Reiseberichte und Empfehlungen von unserer Redaktion.","listicles_link_label":"Alle Vergleiche","destinations_heading":"Nach Reiseziel entdecken","destinations_subtitle":"Handverlesene Hotels in den schönsten Reisezielen Europas."};
+function DestinationsGrid() { return undefined; }
+// Dual-host prop aliases (block attributes → local names used in components)
+var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
+var headingProp = (typeof __attr["heading"] !== 'undefined') ? __attr["heading"] : (typeof __attr["headingProp"] !== 'undefined' ? __attr["headingProp"] : undefined);
+var subtitleProp = (typeof __attr["subtitle"] !== 'undefined') ? __attr["subtitle"] : (typeof __attr["subtitleProp"] !== 'undefined' ? __attr["subtitleProp"] : undefined);
+
+
+  const headingMeta = useWpMeta('destinations_heading', defaults.destinations_heading);
+  const subtitleMeta = useWpMeta('destinations_subtitle', defaults.destinations_subtitle);
+
+  const heading = headingProp ?? headingMeta;
+  const subtitle = subtitleProp ?? subtitleMeta;
+
+  
+return createElement("section", { className: (("w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" }, createElement("div", { className: "text-center mb-10" }, createElement("h2", { className: "text-3xl font-sans font-black text-slate-800 uppercase tracking-tight" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.heading); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ heading: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (heading)), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "p",
+        value: (function(){ var __v = (attributes.subtitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ subtitle: val }),
+        className: "text-slate-500 text-sm mt-2",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("p", { className: "text-slate-500 text-sm mt-2" }, attributes.subtitle))), createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "DestinationsGrid - interactive preview"), createElement("span", { style: {display:'block'} }, "This section loads live data (hotels, terms, posts) on the visitor page. Edit headings and labels in the block sidebar under Block Settings, or use any inline fields shown on the canvas above this box. The live grid/list appears on the frontend after save."))));
+})()"
+`;
+
+exports[`compileBlocks against real hotelchecker24 components > "editorial-strip" customEditJsx parses and contains no mangled-ternary markers 1`] = `
+"(() => {
+var defaults = {"hero_title":"Handverlesene","hero_title_colored":"Boutique- & Luxushotels","hero_subtitle":"Hotelchecker24 ist Ihre unabhängige Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa.","hero_search_placeholder":"Hotelname oder Stadt suchen...","trust_stat1_value":"500+","trust_stat1_label":"Kuratierte Hotels","trust_stat2_value":"4","trust_stat2_label":"Länder abgedeckt","trust_stat3_value":"100%","trust_stat3_label":"Unabhängig & redaktionell","trust_stat4_value":"DE / EN","trust_stat4_label":"Deutsch & Englisch","featured_badge":"Empfohlen","featured_heading":"Ausgewählte Hotels","featured_subtitle":"Von unserer Redaktion handverlesen — außergewöhnliche Aufenthalte in ganz Europa.","featured_link_label":"Alle Hotels","editorial_badge":"Redaktionell & Unabhängig","editorial_heading":"Kuratiert von","editorial_heading_colored":"echten Reisenden","editorial_description":"Kein bezahltes Ranking. Kein Algorithmus. Nur ehrliche, redaktionell geprüfte Empfehlungen von unserem Team, das die Hotels selbst besucht hat.","editorial_cta_label":"Alle Hotelvergleiche lesen","editorial_feature1_label":"Vor-Ort-Besuche","editorial_feature1_desc":"Jedes Hotel wird persönlich getestet","editorial_feature2_label":"Keine Werbung","editorial_feature2_desc":"Vollständig redaktionell unabhängig","editorial_feature3_label":"DE & EN","editorial_feature3_desc":"Inhalte auf Deutsch und Englisch","editorial_feature4_label":"Laufend aktuell","editorial_feature4_desc":"Regelmäßige neue Empfehlungen","listicles_badge":"Magazin","listicles_heading":"Aktuelle Hotelvergleiche","listicles_subtitle":"Tiefgehende Reiseberichte und Empfehlungen von unserer Redaktion.","listicles_link_label":"Alle Vergleiche","destinations_heading":"Nach Reiseziel entdecken","destinations_subtitle":"Handverlesene Hotels in den schönsten Reisezielen Europas."};
+// Dual-host prop aliases (block attributes → local names used in components)
+var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
+var badgeProp = (typeof __attr["badge"] !== 'undefined') ? __attr["badge"] : (typeof __attr["badgeProp"] !== 'undefined' ? __attr["badgeProp"] : undefined);
+var headingProp = (typeof __attr["heading"] !== 'undefined') ? __attr["heading"] : (typeof __attr["headingProp"] !== 'undefined' ? __attr["headingProp"] : undefined);
+var headingColoredProp = (typeof __attr["headingColored"] !== 'undefined') ? __attr["headingColored"] : (typeof __attr["headingColoredProp"] !== 'undefined' ? __attr["headingColoredProp"] : undefined);
+var descriptionProp = (typeof __attr["description"] !== 'undefined') ? __attr["description"] : (typeof __attr["descriptionProp"] !== 'undefined' ? __attr["descriptionProp"] : undefined);
+var ctaLabelProp = (typeof __attr["ctaLabel"] !== 'undefined') ? __attr["ctaLabel"] : (typeof __attr["ctaLabelProp"] !== 'undefined' ? __attr["ctaLabelProp"] : undefined);
+var f1lProp = (typeof __attr["feature1Label"] !== 'undefined') ? __attr["feature1Label"] : (typeof __attr["f1lProp"] !== 'undefined' ? __attr["f1lProp"] : undefined);
+var f1dProp = (typeof __attr["feature1Desc"] !== 'undefined') ? __attr["feature1Desc"] : (typeof __attr["f1dProp"] !== 'undefined' ? __attr["f1dProp"] : undefined);
+var f2lProp = (typeof __attr["feature2Label"] !== 'undefined') ? __attr["feature2Label"] : (typeof __attr["f2lProp"] !== 'undefined' ? __attr["f2lProp"] : undefined);
+var f2dProp = (typeof __attr["feature2Desc"] !== 'undefined') ? __attr["feature2Desc"] : (typeof __attr["f2dProp"] !== 'undefined' ? __attr["f2dProp"] : undefined);
+var f3lProp = (typeof __attr["feature3Label"] !== 'undefined') ? __attr["feature3Label"] : (typeof __attr["f3lProp"] !== 'undefined' ? __attr["f3lProp"] : undefined);
+var f3dProp = (typeof __attr["feature3Desc"] !== 'undefined') ? __attr["feature3Desc"] : (typeof __attr["f3dProp"] !== 'undefined' ? __attr["f3dProp"] : undefined);
+var f4lProp = (typeof __attr["feature4Label"] !== 'undefined') ? __attr["feature4Label"] : (typeof __attr["f4lProp"] !== 'undefined' ? __attr["f4lProp"] : undefined);
+var f4dProp = (typeof __attr["feature4Desc"] !== 'undefined') ? __attr["feature4Desc"] : (typeof __attr["f4dProp"] !== 'undefined' ? __attr["f4dProp"] : undefined);
+
+
+  const badgeMeta = useWpMeta('editorial_badge', defaults.editorial_badge);
+  const headingMeta = useWpMeta('editorial_heading', defaults.editorial_heading);
+  const headingColoredMeta = useWpMeta(
+    'editorial_heading_colored',
+    defaults.editorial_heading_colored,
+  );
+  const descriptionMeta = useWpMeta('editorial_description', defaults.editorial_description);
+  const ctaLabelMeta = useWpMeta('editorial_cta_label', defaults.editorial_cta_label);
+  const f1lMeta = useWpMeta('editorial_feature1_label', defaults.editorial_feature1_label);
+  const f1dMeta = useWpMeta('editorial_feature1_desc', defaults.editorial_feature1_desc);
+  const f2lMeta = useWpMeta('editorial_feature2_label', defaults.editorial_feature2_label);
+  const f2dMeta = useWpMeta('editorial_feature2_desc', defaults.editorial_feature2_desc);
+  const f3lMeta = useWpMeta('editorial_feature3_label', defaults.editorial_feature3_label);
+  const f3dMeta = useWpMeta('editorial_feature3_desc', defaults.editorial_feature3_desc);
+  const f4lMeta = useWpMeta('editorial_feature4_label', defaults.editorial_feature4_label);
+  const f4dMeta = useWpMeta('editorial_feature4_desc', defaults.editorial_feature4_desc);
+
+  const badge = badgeProp ?? badgeMeta;
+  const heading = headingProp ?? headingMeta;
+  const headingColored = headingColoredProp ?? headingColoredMeta;
+  const description = descriptionProp ?? descriptionMeta;
+  const ctaLabel = ctaLabelProp ?? ctaLabelMeta;
+  const feature1Label = f1lProp ?? f1lMeta;
+  const feature1Desc = f1dProp ?? f1dMeta;
+  const feature2Label = f2lProp ?? f2lMeta;
+  const feature2Desc = f2dProp ?? f2dMeta;
+  const feature3Label = f3lProp ?? f3lMeta;
+  const feature3Desc = f3dProp ?? f3dMeta;
+  const feature4Label = f4lProp ?? f4lMeta;
+  const feature4Desc = f4dProp ?? f4dMeta;
+
+  const listiclesHref = useWpPageLink('listicles-page', '/hotelvergleiche');
+
+  
+return createElement("section", { className: (("w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" }, createElement("div", { className: "bg-[#121416] rounded-3xl overflow-hidden px-8 sm:px-12 py-12 grid grid-cols-1 md:grid-cols-2 gap-10 items-center relative" }, createElement("div", { className: "absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(146,159,93,0.15)_0%,transparent_60%)] pointer-events-none" }), createElement("div", { className: "relative z-10" }, createElement("span", { className: "text-[10px] font-bold uppercase tracking-widest text-[#929f5d] bg-[#929f5d]/10 border border-[#929f5d]/20 px-3 py-1 rounded-md inline-block mb-4" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.badge); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ badge: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (badge)), createElement("h2", { className: "text-3xl sm:text-4xl font-black text-white uppercase tracking-tight leading-tight mb-4" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.heading); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ heading: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (heading), createElement("br", null), createElement("span", { className: "text-[#929f5d]" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.headingColored); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ headingColored: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (headingColored))), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "p",
+        value: (function(){ var __v = (attributes.description); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ description: val }),
+        className: "text-slate-400 text-sm leading-relaxed mb-6 max-w-sm",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("p", { className: "text-slate-400 text-sm leading-relaxed mb-6 max-w-sm" }, attributes.description)), createElement(WpLink, { href: listiclesHref, className: "inline-flex items-center gap-2 bg-[#929f5d] hover:bg-[#929f5d]/90 text-white text-xs font-bold uppercase tracking-wider px-6 py-3 rounded-full transition-all duration-300 active:scale-95" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.ctaLabel); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ ctaLabel: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (ctaLabel), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-3.5 h-3.5"}, createElement("path", {"d":"M5 12h14"}), createElement("path", {"d":"m12 5 7 7-7 7"})))), createElement("div", { className: "relative z-10 grid grid-cols-2 gap-3" }, createElement("div", { className: "bg-white/5 border border-white/10 rounded-2xl p-4" }, createElement("span", { className: "text-[10px] font-mono font-black text-[#929f5d]" }, "01"), createElement("p", { className: "text-white text-xs font-bold uppercase tracking-wide mt-1" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.feature1Label); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ feature1Label: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (feature1Label)), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "p",
+        value: (function(){ var __v = (attributes.feature1Desc); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ feature1Desc: val }),
+        className: "text-slate-500 text-[10px] mt-1 leading-snug",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("p", { className: "text-slate-500 text-[10px] mt-1 leading-snug" }, attributes.feature1Desc))), createElement("div", { className: "bg-white/5 border border-white/10 rounded-2xl p-4" }, createElement("span", { className: "text-[10px] font-mono font-black text-[#929f5d]" }, "02"), createElement("p", { className: "text-white text-xs font-bold uppercase tracking-wide mt-1" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.feature2Label); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ feature2Label: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (feature2Label)), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "p",
+        value: (function(){ var __v = (attributes.feature2Desc); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ feature2Desc: val }),
+        className: "text-slate-500 text-[10px] mt-1 leading-snug",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("p", { className: "text-slate-500 text-[10px] mt-1 leading-snug" }, attributes.feature2Desc))), createElement("div", { className: "bg-white/5 border border-white/10 rounded-2xl p-4" }, createElement("span", { className: "text-[10px] font-mono font-black text-[#929f5d]" }, "03"), createElement("p", { className: "text-white text-xs font-bold uppercase tracking-wide mt-1" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.feature3Label); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ feature3Label: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (feature3Label)), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "p",
+        value: (function(){ var __v = (attributes.feature3Desc); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ feature3Desc: val }),
+        className: "text-slate-500 text-[10px] mt-1 leading-snug",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("p", { className: "text-slate-500 text-[10px] mt-1 leading-snug" }, attributes.feature3Desc))), createElement("div", { className: "bg-white/5 border border-white/10 rounded-2xl p-4" }, createElement("span", { className: "text-[10px] font-mono font-black text-[#929f5d]" }, "04"), createElement("p", { className: "text-white text-xs font-bold uppercase tracking-wide mt-1" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.feature4Label); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ feature4Label: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (feature4Label)), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "p",
+        value: (function(){ var __v = (attributes.feature4Desc); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ feature4Desc: val }),
+        className: "text-slate-500 text-[10px] mt-1 leading-snug",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("p", { className: "text-slate-500 text-[10px] mt-1 leading-snug" }, attributes.feature4Desc)))))));
+})()"
+`;
+
+exports[`compileBlocks against real hotelchecker24 components > "featured-hotels" customEditJsx parses and contains no mangled-ternary markers 1`] = `
+"(() => {
+var defaults = {"hero_title":"Handverlesene","hero_title_colored":"Boutique- & Luxushotels","hero_subtitle":"Hotelchecker24 ist Ihre unabhängige Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa.","hero_search_placeholder":"Hotelname oder Stadt suchen...","trust_stat1_value":"500+","trust_stat1_label":"Kuratierte Hotels","trust_stat2_value":"4","trust_stat2_label":"Länder abgedeckt","trust_stat3_value":"100%","trust_stat3_label":"Unabhängig & redaktionell","trust_stat4_value":"DE / EN","trust_stat4_label":"Deutsch & Englisch","featured_badge":"Empfohlen","featured_heading":"Ausgewählte Hotels","featured_subtitle":"Von unserer Redaktion handverlesen — außergewöhnliche Aufenthalte in ganz Europa.","featured_link_label":"Alle Hotels","editorial_badge":"Redaktionell & Unabhängig","editorial_heading":"Kuratiert von","editorial_heading_colored":"echten Reisenden","editorial_description":"Kein bezahltes Ranking. Kein Algorithmus. Nur ehrliche, redaktionell geprüfte Empfehlungen von unserem Team, das die Hotels selbst besucht hat.","editorial_cta_label":"Alle Hotelvergleiche lesen","editorial_feature1_label":"Vor-Ort-Besuche","editorial_feature1_desc":"Jedes Hotel wird persönlich getestet","editorial_feature2_label":"Keine Werbung","editorial_feature2_desc":"Vollständig redaktionell unabhängig","editorial_feature3_label":"DE & EN","editorial_feature3_desc":"Inhalte auf Deutsch und Englisch","editorial_feature4_label":"Laufend aktuell","editorial_feature4_desc":"Regelmäßige neue Empfehlungen","listicles_badge":"Magazin","listicles_heading":"Aktuelle Hotelvergleiche","listicles_subtitle":"Tiefgehende Reiseberichte und Empfehlungen von unserer Redaktion.","listicles_link_label":"Alle Vergleiche","destinations_heading":"Nach Reiseziel entdecken","destinations_subtitle":"Handverlesene Hotels in den schönsten Reisezielen Europas."};
+function FeaturedHotelsGrid() { return undefined; }
+// Dual-host prop aliases (block attributes → local names used in components)
+var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
+var badgeProp = (typeof __attr["badge"] !== 'undefined') ? __attr["badge"] : (typeof __attr["badgeProp"] !== 'undefined' ? __attr["badgeProp"] : undefined);
+var headingProp = (typeof __attr["heading"] !== 'undefined') ? __attr["heading"] : (typeof __attr["headingProp"] !== 'undefined' ? __attr["headingProp"] : undefined);
+var subtitleProp = (typeof __attr["subtitle"] !== 'undefined') ? __attr["subtitle"] : (typeof __attr["subtitleProp"] !== 'undefined' ? __attr["subtitleProp"] : undefined);
+var linkProp = (typeof __attr["linkLabel"] !== 'undefined') ? __attr["linkLabel"] : (typeof __attr["linkProp"] !== 'undefined' ? __attr["linkProp"] : undefined);
+
+
+  const badgeMeta = useWpMeta('featured_badge', defaults.featured_badge);
+  const headingMeta = useWpMeta('featured_heading', defaults.featured_heading);
+  const subtitleMeta = useWpMeta('featured_subtitle', defaults.featured_subtitle);
+  const linkMeta = useWpMeta('featured_link_label', defaults.featured_link_label);
+
+  const badge = badgeProp ?? badgeMeta;
+  const heading = headingProp ?? headingMeta;
+  const subtitle = subtitleProp ?? subtitleMeta;
+  const linkLabel = linkProp ?? linkMeta;
+
+  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
+
+  
+return createElement("section", { className: (("w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" }, createElement("div", { className: "flex items-end justify-between mb-10" }, createElement("div", null, createElement("span", { className: "text-[10px] font-bold uppercase tracking-widest text-[#929f5d] bg-[#929f5d]/10 px-3 py-1 rounded-full" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.badge); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ badge: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (badge)), createElement("h2", { className: "text-3xl font-sans font-black text-slate-800 uppercase tracking-tight mt-3" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.heading); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ heading: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (heading)), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "p",
+        value: (function(){ var __v = (attributes.subtitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ subtitle: val }),
+        className: "text-slate-500 text-sm mt-1 max-w-md",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("p", { className: "text-slate-500 text-sm mt-1 max-w-md" }, attributes.subtitle))), createElement(WpLink, { href: hotelsHref, className: "hidden md:inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:text-primary/80 transition-colors" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.linkLabel); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ linkLabel: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (linkLabel), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-3.5 h-3.5"}, createElement("path", {"d":"M5 12h14"}), createElement("path", {"d":"m12 5 7 7-7 7"})))), createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "FeaturedHotelsGrid - interactive preview"), createElement("span", { style: {display:'block'} }, "This section loads live data (hotels, terms, posts) on the visitor page. Edit headings and labels in the block sidebar under Block Settings, or use any inline fields shown on the canvas above this box. The live grid/list appears on the frontend after save."))));
+})()"
+`;
+
+exports[`compileBlocks against real hotelchecker24 components > "hero-section" customEditJsx parses and contains no mangled-ternary markers 1`] = `
+"(() => {
+var defaults = {"hero_title":"Handverlesene","hero_title_colored":"Boutique- & Luxushotels","hero_subtitle":"Hotelchecker24 ist Ihre unabhängige Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa.","hero_search_placeholder":"Hotelname oder Stadt suchen...","trust_stat1_value":"500+","trust_stat1_label":"Kuratierte Hotels","trust_stat2_value":"4","trust_stat2_label":"Länder abgedeckt","trust_stat3_value":"100%","trust_stat3_label":"Unabhängig & redaktionell","trust_stat4_value":"DE / EN","trust_stat4_label":"Deutsch & Englisch","featured_badge":"Empfohlen","featured_heading":"Ausgewählte Hotels","featured_subtitle":"Von unserer Redaktion handverlesen — außergewöhnliche Aufenthalte in ganz Europa.","featured_link_label":"Alle Hotels","editorial_badge":"Redaktionell & Unabhängig","editorial_heading":"Kuratiert von","editorial_heading_colored":"echten Reisenden","editorial_description":"Kein bezahltes Ranking. Kein Algorithmus. Nur ehrliche, redaktionell geprüfte Empfehlungen von unserem Team, das die Hotels selbst besucht hat.","editorial_cta_label":"Alle Hotelvergleiche lesen","editorial_feature1_label":"Vor-Ort-Besuche","editorial_feature1_desc":"Jedes Hotel wird persönlich getestet","editorial_feature2_label":"Keine Werbung","editorial_feature2_desc":"Vollständig redaktionell unabhängig","editorial_feature3_label":"DE & EN","editorial_feature3_desc":"Inhalte auf Deutsch und Englisch","editorial_feature4_label":"Laufend aktuell","editorial_feature4_desc":"Regelmäßige neue Empfehlungen","listicles_badge":"Magazin","listicles_heading":"Aktuelle Hotelvergleiche","listicles_subtitle":"Tiefgehende Reiseberichte und Empfehlungen von unserer Redaktion.","listicles_link_label":"Alle Vergleiche","destinations_heading":"Nach Reiseziel entdecken","destinations_subtitle":"Handverlesene Hotels in den schönsten Reisezielen Europas."};
+function HeroSearchBoard() { return undefined; }
+
+function HeroSpotlight() { return undefined; }
+// Dual-host prop aliases (block attributes → local names used in components)
+var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
+var titleProp = (typeof __attr["title"] !== 'undefined') ? __attr["title"] : (typeof __attr["titleProp"] !== 'undefined' ? __attr["titleProp"] : undefined);
+var titleColoredProp = (typeof __attr["titleColored"] !== 'undefined') ? __attr["titleColored"] : (typeof __attr["titleColoredProp"] !== 'undefined' ? __attr["titleColoredProp"] : undefined);
+var subtitleProp = (typeof __attr["subtitle"] !== 'undefined') ? __attr["subtitle"] : (typeof __attr["subtitleProp"] !== 'undefined' ? __attr["subtitleProp"] : undefined);
+var searchPlaceholderProp = (typeof __attr["searchPlaceholder"] !== 'undefined') ? __attr["searchPlaceholder"] : (typeof __attr["searchPlaceholderProp"] !== 'undefined' ? __attr["searchPlaceholderProp"] : undefined);
+
+
+  const titleMeta = useWpMeta('hero_title', defaults.hero_title);
+  const titleColoredMeta = useWpMeta('hero_title_colored', defaults.hero_title_colored);
+  const subtitleMeta = useWpMeta('hero_subtitle', defaults.hero_subtitle);
+  const searchPlaceholderMeta = useWpMeta(
+    'hero_search_placeholder',
+    defaults.hero_search_placeholder,
+  );
+
+  const title = titleProp ?? titleMeta;
+  const titleColored = titleColoredProp ?? titleColoredMeta;
+  const subtitle = subtitleProp ?? subtitleMeta;
+  const searchPlaceholder = searchPlaceholderProp ?? searchPlaceholderMeta;
+
+  
+return createElement("section", { className: (("relative w-full overflow-hidden bg-slate-50 selection:bg-primary selection:text-white") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "absolute top-0 right-0 w-150 h-150 bg-[radial-gradient(circle,rgba(109,155,174,0.12)_0%,transparent_70%)] blur-3xl pointer-events-none z-0" }), createElement("div", { className: "absolute bottom-0 left-0 w-125 h-125 bg-[radial-gradient(circle,rgba(146,159,93,0.08)_0%,transparent_70%)] blur-3xl pointer-events-none z-0" }), createElement("div", { className: "relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center z-10" }, createElement("div", { className: "lg:col-span-7 flex flex-col items-start text-left" }, createElement("h1", { className: "text-4xl sm:text-5xl md:text-6xl font-sans font-black tracking-tight text-slate-800 leading-[1.1] mb-6 uppercase" }, createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.title); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ title: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }), createElement("br", null), createElement("span", { className: "bg-linear-to-r from-primary via-slate-700 to-accent bg-clip-text text-transparent" }, createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.titleColored); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ titleColored: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }))), createElement(wp.blockEditor.RichText, {
+        tagName: "p",
+        value: (function(){ var __v = (attributes.subtitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ subtitle: val }),
+        className: "text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }), createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "HeroSearchBoard - interactive preview"), createElement("span", { style: {display:'block'} }, "This section loads live data (hotels, terms, posts) on the visitor page. Edit headings and labels in the block sidebar under Block Settings, or use any inline fields shown on the canvas above this box. The live grid/list appears on the frontend after save."))), createElement("div", { className: "lg:col-span-5 flex items-center justify-center relative w-full mt-8 lg:mt-0" }, createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "HeroSpotlight - interactive preview"), createElement("span", { style: {display:'block'} }, "This section loads live data (hotels, terms, posts) on the visitor page. Edit headings and labels in the block sidebar under Block Settings, or use any inline fields shown on the canvas above this box. The live grid/list appears on the frontend after save.")))));
+})()"
+`;
+
+exports[`compileBlocks against real hotelchecker24 components > "impressum-content" customEditJsx parses and contains no mangled-ternary markers 1`] = `
+"(() => {
+var defaults = {"hero_badge":"Gesetzliche Offenlegung","hero_title":"Impressum","company_heading":"Medieninhaber & Unternehmensbezeichnung","company_name":"maxonline® Marketing hfw GesmbH","company_legal_form":"Rechtsform: Gesellschaft mit beschränkter Haftung","address_heading":"Firmensitz & Anschrift","address_line_1":"Coronablick 7","address_line_2":"A-3652 Leiben","address_country":"Österreich","contact_heading":"Kontakt","contact_email":"office@max-online.at","contact_website_label":"Internet:","contact_website_url":"https://max-online.at","contact_website_display":"www.max-online.at","register_heading":"Register & Gerichtsstand","register_number_label":"Firmenbuchnummer","register_number":"FN 659087 x","vat_label":"Umsatzsteuer-ID","vat_id":"ATU82431815","court_label":"Gerichtsstandort","court_name":"Landesgericht St. Pölten","legal_heading":"Rechtliche Hinweise","business_purpose_label":"Unternehmensgegenstand","business_purpose":"Dienstleistungen in der automatischen Datenverarbeitung und Informationstechnik.","authority_label":"Aufsichtsbehörde","authority":"Bezirkshauptmannschaft Melk (gemäß E-Commerce Gesetz - ECG)","trademark_label":"Markenschutz","trademark":"maxonline® ist eine eingetragene Wortbildmarke.<br />Markenregister Aktenzeichen: AM 12102/2019<br />Register-Nr.: 305857"};
+// Dual-host prop aliases (block attributes → local names used in components)
+var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
+var companyHeadingProp = (typeof __attr["companyHeading"] !== 'undefined') ? __attr["companyHeading"] : (typeof __attr["companyHeadingProp"] !== 'undefined' ? __attr["companyHeadingProp"] : undefined);
+var companyNameProp = (typeof __attr["companyName"] !== 'undefined') ? __attr["companyName"] : (typeof __attr["companyNameProp"] !== 'undefined' ? __attr["companyNameProp"] : undefined);
+var companyLegalFormProp = (typeof __attr["companyLegalForm"] !== 'undefined') ? __attr["companyLegalForm"] : (typeof __attr["companyLegalFormProp"] !== 'undefined' ? __attr["companyLegalFormProp"] : undefined);
+var addressHeadingProp = (typeof __attr["addressHeading"] !== 'undefined') ? __attr["addressHeading"] : (typeof __attr["addressHeadingProp"] !== 'undefined' ? __attr["addressHeadingProp"] : undefined);
+var addressLine1Prop = (typeof __attr["addressLine1"] !== 'undefined') ? __attr["addressLine1"] : (typeof __attr["addressLine1Prop"] !== 'undefined' ? __attr["addressLine1Prop"] : undefined);
+var addressLine2Prop = (typeof __attr["addressLine2"] !== 'undefined') ? __attr["addressLine2"] : (typeof __attr["addressLine2Prop"] !== 'undefined' ? __attr["addressLine2Prop"] : undefined);
+var addressCountryProp = (typeof __attr["addressCountry"] !== 'undefined') ? __attr["addressCountry"] : (typeof __attr["addressCountryProp"] !== 'undefined' ? __attr["addressCountryProp"] : undefined);
+var contactHeadingProp = (typeof __attr["contactHeading"] !== 'undefined') ? __attr["contactHeading"] : (typeof __attr["contactHeadingProp"] !== 'undefined' ? __attr["contactHeadingProp"] : undefined);
+var contactEmailProp = (typeof __attr["contactEmail"] !== 'undefined') ? __attr["contactEmail"] : (typeof __attr["contactEmailProp"] !== 'undefined' ? __attr["contactEmailProp"] : undefined);
+var contactWebsiteLabelProp = (typeof __attr["contactWebsiteLabel"] !== 'undefined') ? __attr["contactWebsiteLabel"] : (typeof __attr["contactWebsiteLabelProp"] !== 'undefined' ? __attr["contactWebsiteLabelProp"] : undefined);
+var contactWebsiteUrlProp = (typeof __attr["contactWebsiteUrl"] !== 'undefined') ? __attr["contactWebsiteUrl"] : (typeof __attr["contactWebsiteUrlProp"] !== 'undefined' ? __attr["contactWebsiteUrlProp"] : undefined);
+var contactWebsiteDisplayProp = (typeof __attr["contactWebsiteDisplay"] !== 'undefined') ? __attr["contactWebsiteDisplay"] : (typeof __attr["contactWebsiteDisplayProp"] !== 'undefined' ? __attr["contactWebsiteDisplayProp"] : undefined);
+var registerHeadingProp = (typeof __attr["registerHeading"] !== 'undefined') ? __attr["registerHeading"] : (typeof __attr["registerHeadingProp"] !== 'undefined' ? __attr["registerHeadingProp"] : undefined);
+var registerNumberLabelProp = (typeof __attr["registerNumberLabel"] !== 'undefined') ? __attr["registerNumberLabel"] : (typeof __attr["registerNumberLabelProp"] !== 'undefined' ? __attr["registerNumberLabelProp"] : undefined);
+var registerNumberProp = (typeof __attr["registerNumber"] !== 'undefined') ? __attr["registerNumber"] : (typeof __attr["registerNumberProp"] !== 'undefined' ? __attr["registerNumberProp"] : undefined);
+var vatLabelProp = (typeof __attr["vatLabel"] !== 'undefined') ? __attr["vatLabel"] : (typeof __attr["vatLabelProp"] !== 'undefined' ? __attr["vatLabelProp"] : undefined);
+var vatIdProp = (typeof __attr["vatId"] !== 'undefined') ? __attr["vatId"] : (typeof __attr["vatIdProp"] !== 'undefined' ? __attr["vatIdProp"] : undefined);
+var courtLabelProp = (typeof __attr["courtLabel"] !== 'undefined') ? __attr["courtLabel"] : (typeof __attr["courtLabelProp"] !== 'undefined' ? __attr["courtLabelProp"] : undefined);
+var courtNameProp = (typeof __attr["courtName"] !== 'undefined') ? __attr["courtName"] : (typeof __attr["courtNameProp"] !== 'undefined' ? __attr["courtNameProp"] : undefined);
+var legalHeadingProp = (typeof __attr["legalHeading"] !== 'undefined') ? __attr["legalHeading"] : (typeof __attr["legalHeadingProp"] !== 'undefined' ? __attr["legalHeadingProp"] : undefined);
+var businessPurposeLabelProp = (typeof __attr["businessPurposeLabel"] !== 'undefined') ? __attr["businessPurposeLabel"] : (typeof __attr["businessPurposeLabelProp"] !== 'undefined' ? __attr["businessPurposeLabelProp"] : undefined);
+var businessPurposeProp = (typeof __attr["businessPurpose"] !== 'undefined') ? __attr["businessPurpose"] : (typeof __attr["businessPurposeProp"] !== 'undefined' ? __attr["businessPurposeProp"] : undefined);
+var authorityLabelProp = (typeof __attr["authorityLabel"] !== 'undefined') ? __attr["authorityLabel"] : (typeof __attr["authorityLabelProp"] !== 'undefined' ? __attr["authorityLabelProp"] : undefined);
+var authorityProp = (typeof __attr["authority"] !== 'undefined') ? __attr["authority"] : (typeof __attr["authorityProp"] !== 'undefined' ? __attr["authorityProp"] : undefined);
+var trademarkLabelProp = (typeof __attr["trademarkLabel"] !== 'undefined') ? __attr["trademarkLabel"] : (typeof __attr["trademarkLabelProp"] !== 'undefined' ? __attr["trademarkLabelProp"] : undefined);
+var trademarkProp = (typeof __attr["trademark"] !== 'undefined') ? __attr["trademark"] : (typeof __attr["trademarkProp"] !== 'undefined' ? __attr["trademarkProp"] : undefined);
+
+const editText = (
+    value,
+    key,
+    className,
+    tagName = 'span',
+  ) =>
+    setAttributes ? (
+      createElement(wp.blockEditor.RichText, {
+        tagName: tagName,
+        value: (function(){ var __v = (value); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ [key]: val }),
+        className: className
+      })
+    ) : tagName === 'div' ? (
+      createElement("div", { className: className, dangerouslySetInnerHTML: { __html: value } })
+    ) : tagName === 'p' ? (
+      createElement("p", { className: className }, value)
+    ) : tagName === 'h2' ? (
+      createElement("h2", { className: className }, value)
+    ) : tagName === 'h3' ? (
+      createElement("h3", { className: className }, value)
+    ) : (
+      createElement("span", { className: className }, value)
+    );
+
+function useDual(prop, metaKey) {
+  const meta = useWpMeta(metaKey, defaults[metaKey]);
+  return prop ?? meta;
+}
+
+
+  const companyHeading = useDual(companyHeadingProp, 'company_heading');
+  const companyName = useDual(companyNameProp, 'company_name');
+  const companyLegalForm = useDual(companyLegalFormProp, 'company_legal_form');
+  const addressHeading = useDual(addressHeadingProp, 'address_heading');
+  const addressLine1 = useDual(addressLine1Prop, 'address_line_1');
+  const addressLine2 = useDual(addressLine2Prop, 'address_line_2');
+  const addressCountry = useDual(addressCountryProp, 'address_country');
+  const contactHeading = useDual(contactHeadingProp, 'contact_heading');
+  const contactEmail = useDual(contactEmailProp, 'contact_email');
+  const contactWebsiteLabel = useDual(
+    contactWebsiteLabelProp,
+    'contact_website_label',
+  );
+  const contactWebsiteUrl = useDual(
+    contactWebsiteUrlProp,
+    'contact_website_url',
+  );
+  const contactWebsiteDisplay = useDual(
+    contactWebsiteDisplayProp,
+    'contact_website_display',
+  );
+  const registerHeading = useDual(registerHeadingProp, 'register_heading');
+  const registerNumberLabel = useDual(
+    registerNumberLabelProp,
+    'register_number_label',
+  );
+  const registerNumber = useDual(registerNumberProp, 'register_number');
+  const vatLabel = useDual(vatLabelProp, 'vat_label');
+  const vatId = useDual(vatIdProp, 'vat_id');
+  const courtLabel = useDual(courtLabelProp, 'court_label');
+  const courtName = useDual(courtNameProp, 'court_name');
+  const legalHeading = useDual(legalHeadingProp, 'legal_heading');
+  const businessPurposeLabel = useDual(
+    businessPurposeLabelProp,
+    'business_purpose_label',
+  );
+  const businessPurpose = useDual(businessPurposeProp, 'business_purpose');
+  const authorityLabel = useDual(authorityLabelProp, 'authority_label');
+  const authority = useDual(authorityProp, 'authority');
+  const trademarkLabel = useDual(trademarkLabelProp, 'trademark_label');
+  const trademark = useDual(trademarkProp, 'trademark');
+
+
+  
+return createElement("div", { className: (("max-w-7xl mx-auto w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-8" }, createElement("div", { className: "md:col-span-2 bg-white rounded-2xl p-6 sm:p-8 shadow-xs space-y-6" }, createElement("div", null, editText(
+              companyHeading,
+              'companyHeading',
+              'text-xs font-mono font-bold uppercase tracking-widest text-[#929f5d] mb-2 block',
+              'h2',
+            ), editText(
+              companyName,
+              'companyName',
+              'text-lg font-black text-slate-900 uppercase tracking-tight block',
+              'p',
+            ), editText(
+              companyLegalForm,
+              'companyLegalForm',
+              'text-slate-500 text-sm mt-1 block',
+              'p',
+            )), createElement("div", { className: "h-px bg-slate-100" }), createElement("div", { className: "flex gap-4" }, createElement("div", { className: "w-10 h-10 rounded-xl bg-[#929f5d]/10 flex items-center justify-center shrink-0 text-[#929f5d]" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4"}, createElement("path", {"d":"M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"}), createElement("circle", {"cx":"12","cy":"10","r":"3"}))), createElement("div", null, editText(
+                addressHeading,
+                'addressHeading',
+                'text-xs font-mono font-bold uppercase tracking-widest text-slate-400 mb-1 block',
+                'h3',
+              ), editText(addressLine1, 'addressLine1', 'text-sm font-bold text-slate-800 block', 'p'), editText(addressLine2, 'addressLine2', 'text-sm font-bold text-slate-800 block', 'p'), editText(
+                addressCountry,
+                'addressCountry',
+                'text-sm font-semibold text-slate-500 mt-0.5 block',
+                'p',
+              ))), createElement("div", { className: "h-px bg-slate-100" }), createElement("div", { className: "flex gap-4" }, createElement("div", { className: "w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 text-blue-600" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4"}, createElement("rect", {"width":"20","height":"16","x":"2","y":"4","rx":"2"}), createElement("path", {"d":"m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"}))), createElement("div", null, editText(
+                contactHeading,
+                'contactHeading',
+                'text-xs font-mono font-bold uppercase tracking-widest text-slate-400 mb-1 block',
+                'h3',
+              ), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.contactEmail); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ contactEmail: val }),
+        className: "text-sm font-bold text-slate-800 block",
+        disableLineBreaks: true,
+        allowedFormats: []
+      })) : (createElement("a", { href: \`mailto:\${attributes.contactEmail}\`, className: "text-sm font-bold text-slate-800 hover:text-primary transition-colors" }, attributes.contactEmail)), createElement("p", { className: "text-xs font-semibold text-slate-500 mt-1" }, setAttributes ? (createElement(wp.element.Fragment, null, createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.contactWebsiteLabel); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ contactWebsiteLabel: val }),
+        className: "",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }), ' ', createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (attributes.contactWebsiteDisplay); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ contactWebsiteDisplay: val }),
+        className: "underline",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }))) : (createElement(wp.element.Fragment, null, attributes.contactWebsiteLabel, ' ', createElement("a", { href: attributes.contactWebsiteUrl, target: "_blank", rel: "noopener noreferrer", className: "underline hover:text-primary" }, attributes.contactWebsiteDisplay)))))), createElement("div", { className: "h-px bg-slate-100" }), createElement("div", { className: "flex gap-4" }, createElement("div", { className: "w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 text-slate-600" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4"}, createElement("line", {"x1":"3","x2":"21","y1":"22","y2":"22"}), createElement("line", {"x1":"6","x2":"6","y1":"18","y2":"11"}), createElement("line", {"x1":"10","x2":"10","y1":"18","y2":"11"}), createElement("line", {"x1":"14","x2":"14","y1":"18","y2":"11"}), createElement("line", {"x1":"18","x2":"18","y1":"18","y2":"11"}), createElement("polygon", {"points":"12 2 20 7 4 7"}))), createElement("div", { className: "space-y-2 w-full" }, editText(
+                registerHeading,
+                'registerHeading',
+                'text-xs font-mono font-bold uppercase tracking-widest text-slate-400 mb-1 block',
+                'h3',
+              ), createElement("div", { className: "grid grid-cols-2 gap-4 text-xs font-bold text-slate-700" }, createElement("div", null, editText(
+                    registerNumberLabel,
+                    'registerNumberLabel',
+                    'text-slate-400 block font-normal uppercase tracking-wider text-[10px] mb-0.5',
+                    'span',
+                  ), editText(registerNumber, 'registerNumber', 'block', 'span')), createElement("div", null, editText(
+                    vatLabel,
+                    'vatLabel',
+                    'text-slate-400 block font-normal uppercase tracking-wider text-[10px] mb-0.5',
+                    'span',
+                  ), editText(vatId, 'vatId', 'block', 'span'))), createElement("div", { className: "text-xs font-bold text-slate-700 pt-1" }, editText(
+                  courtLabel,
+                  'courtLabel',
+                  'text-slate-400 block font-normal uppercase tracking-wider text-[10px] mb-0.5',
+                  'span',
+                ), editText(courtName, 'courtName', 'block', 'span'))))), createElement("div", { className: "bg-slate-100/60 rounded-2xl p-6 shadow-xs h-fit space-y-5" }, createElement("h2", { className: "text-sm font-black uppercase text-slate-800 pb-3 flex items-center gap-2" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4 text-primary shrink-0"}, createElement("path", {"d":"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"}), createElement("path", {"d":"m9 12 2 2 4-4"})), editText(legalHeading, 'legalHeading', '', 'span')), createElement("div", { className: "space-y-4" }, createElement("div", null, editText(
+                businessPurposeLabel,
+                'businessPurposeLabel',
+                'text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1 block',
+                'h3',
+              ), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "div",
+        value: (function(){ var __v = (attributes.businessPurpose); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ businessPurpose: val }),
+        className: "text-xs font-semibold text-slate-700 leading-relaxed"
+      })) : (createElement("div", { className: "text-xs font-semibold text-slate-700 leading-relaxed", dangerouslySetInnerHTML: { __html: attributes.businessPurpose } }))), createElement("div", null, editText(
+                authorityLabel,
+                'authorityLabel',
+                'text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1 block',
+                'h3',
+              ), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "div",
+        value: (function(){ var __v = (attributes.authority); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ authority: val }),
+        className: "text-xs font-semibold text-slate-700 leading-relaxed"
+      })) : (createElement("div", { className: "text-xs font-semibold text-slate-700 leading-relaxed", dangerouslySetInnerHTML: { __html: attributes.authority } }))), createElement("div", null, editText(
+                trademarkLabel,
+                'trademarkLabel',
+                'text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1 block',
+                'h3',
+              ), setAttributes ? (createElement(wp.blockEditor.RichText, {
+        tagName: "div",
+        value: (function(){ var __v = (attributes.trademark); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ trademark: val }),
+        className: "text-xs font-semibold text-slate-700 leading-relaxed"
+      })) : (createElement("div", { className: "text-xs font-semibold text-slate-700 leading-relaxed", dangerouslySetInnerHTML: { __html: attributes.trademark } })))))));
+})()"
+`;
+
+exports[`compileBlocks against real hotelchecker24 components > "trust-strip" customEditJsx parses and contains no mangled-ternary markers 1`] = `
+"(() => {
+var defaults = {"hero_title":"Handverlesene","hero_title_colored":"Boutique- & Luxushotels","hero_subtitle":"Hotelchecker24 ist Ihre unabhängige Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa.","hero_search_placeholder":"Hotelname oder Stadt suchen...","trust_stat1_value":"500+","trust_stat1_label":"Kuratierte Hotels","trust_stat2_value":"4","trust_stat2_label":"Länder abgedeckt","trust_stat3_value":"100%","trust_stat3_label":"Unabhängig & redaktionell","trust_stat4_value":"DE / EN","trust_stat4_label":"Deutsch & Englisch","featured_badge":"Empfohlen","featured_heading":"Ausgewählte Hotels","featured_subtitle":"Von unserer Redaktion handverlesen — außergewöhnliche Aufenthalte in ganz Europa.","featured_link_label":"Alle Hotels","editorial_badge":"Redaktionell & Unabhängig","editorial_heading":"Kuratiert von","editorial_heading_colored":"echten Reisenden","editorial_description":"Kein bezahltes Ranking. Kein Algorithmus. Nur ehrliche, redaktionell geprüfte Empfehlungen von unserem Team, das die Hotels selbst besucht hat.","editorial_cta_label":"Alle Hotelvergleiche lesen","editorial_feature1_label":"Vor-Ort-Besuche","editorial_feature1_desc":"Jedes Hotel wird persönlich getestet","editorial_feature2_label":"Keine Werbung","editorial_feature2_desc":"Vollständig redaktionell unabhängig","editorial_feature3_label":"DE & EN","editorial_feature3_desc":"Inhalte auf Deutsch und Englisch","editorial_feature4_label":"Laufend aktuell","editorial_feature4_desc":"Regelmäßige neue Empfehlungen","listicles_badge":"Magazin","listicles_heading":"Aktuelle Hotelvergleiche","listicles_subtitle":"Tiefgehende Reiseberichte und Empfehlungen von unserer Redaktion.","listicles_link_label":"Alle Vergleiche","destinations_heading":"Nach Reiseziel entdecken","destinations_subtitle":"Handverlesene Hotels in den schönsten Reisezielen Europas."};
+// Dual-host prop aliases (block attributes → local names used in components)
+var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
+var v1p = (typeof __attr["stat1Value"] !== 'undefined') ? __attr["stat1Value"] : (typeof __attr["v1p"] !== 'undefined' ? __attr["v1p"] : undefined);
+var l1p = (typeof __attr["stat1Label"] !== 'undefined') ? __attr["stat1Label"] : (typeof __attr["l1p"] !== 'undefined' ? __attr["l1p"] : undefined);
+var v2p = (typeof __attr["stat2Value"] !== 'undefined') ? __attr["stat2Value"] : (typeof __attr["v2p"] !== 'undefined' ? __attr["v2p"] : undefined);
+var l2p = (typeof __attr["stat2Label"] !== 'undefined') ? __attr["stat2Label"] : (typeof __attr["l2p"] !== 'undefined' ? __attr["l2p"] : undefined);
+var v3p = (typeof __attr["stat3Value"] !== 'undefined') ? __attr["stat3Value"] : (typeof __attr["v3p"] !== 'undefined' ? __attr["v3p"] : undefined);
+var l3p = (typeof __attr["stat3Label"] !== 'undefined') ? __attr["stat3Label"] : (typeof __attr["l3p"] !== 'undefined' ? __attr["l3p"] : undefined);
+var v4p = (typeof __attr["stat4Value"] !== 'undefined') ? __attr["stat4Value"] : (typeof __attr["v4p"] !== 'undefined' ? __attr["v4p"] : undefined);
+var l4p = (typeof __attr["stat4Label"] !== 'undefined') ? __attr["stat4Label"] : (typeof __attr["l4p"] !== 'undefined' ? __attr["l4p"] : undefined);
+
+const cell = (
+    value,
+    label,
+    valueKey,
+    labelKey,
+  ) => (createElement("div", { className: "flex flex-col items-center gap-1" }, setAttributes ? (createElement(wp.element.Fragment, null, createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (value); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ [valueKey]: val }),
+        className: "text-2xl font-black text-slate-900 font-sans",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }), createElement(wp.blockEditor.RichText, {
+        tagName: "span",
+        value: (function(){ var __v = (label); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
+        onChange: (val) => setAttributes({ [labelKey]: val }),
+        className: "text-[10px] font-bold uppercase tracking-wider text-slate-400",
+        disableLineBreaks: true,
+        allowedFormats: []
+      }))) : (createElement(wp.element.Fragment, null, createElement("span", { className: "text-2xl font-black text-slate-900 font-sans" }, value), createElement("span", { className: "text-[10px] font-bold uppercase tracking-wider text-slate-400" }, label)))));
+
+
+  const v1m = useWpMeta('trust_stat1_value', defaults.trust_stat1_value);
+  const l1m = useWpMeta('trust_stat1_label', defaults.trust_stat1_label);
+  const v2m = useWpMeta('trust_stat2_value', defaults.trust_stat2_value);
+  const l2m = useWpMeta('trust_stat2_label', defaults.trust_stat2_label);
+  const v3m = useWpMeta('trust_stat3_value', defaults.trust_stat3_value);
+  const l3m = useWpMeta('trust_stat3_label', defaults.trust_stat3_label);
+  const v4m = useWpMeta('trust_stat4_value', defaults.trust_stat4_value);
+  const l4m = useWpMeta('trust_stat4_label', defaults.trust_stat4_label);
+
+  const stat1Value = v1p ?? v1m;
+  const stat1Label = l1p ?? l1m;
+  const stat2Value = v2p ?? v2m;
+  const stat2Label = l2p ?? l2m;
+  const stat3Value = v3p ?? v3m;
+  const stat3Label = l3p ?? l3m;
+  const stat4Value = v4p ?? v4m;
+  const stat4Label = l4p ?? l4m;
+
+  
+return createElement("div", { className: (("bg-white w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" }, createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-6 text-center" }, cell(stat1Value, stat1Label, 'stat1Value', 'stat1Label'), cell(stat2Value, stat2Label, 'stat2Value', 'stat2Label'), cell(stat3Value, stat3Label, 'stat3Value', 'stat3Label'), cell(stat4Value, stat4Label, 'stat4Value', 'stat4Label'))));
+})()"
+`;
+
+exports[`render.php (PHP markup) for real hotelchecker24 components > "about-hero" render.php exists, contains no mangled-ternary markers, and lints as balanced PHP tags 1`] = `
+"<?php
+/**
+ * Gutenberg dynamic block template — About Hero
+ * Autogenerated by ForgeWP Theme Compiler. Do not modify manually.
+ */
+$loading = true;
+$isLoading = true;
+$hotels = array();
+$posts = array();
+$listicles = array();
+$destinations = array();
+$badgeMeta = forgewp_get_meta_value('hero_badge', 'Seit 2019 — Das unabhängige Luxushotel-Magazin', false, null);
+$titleMeta = forgewp_get_meta_value('hero_title', 'Wir kuratieren Ihr Reiseerlebnis', false, null);
+$subtitleMeta = forgewp_get_meta_value('hero_subtitle', 'Hotelchecker24 ist Österreichs führendes unabhängiges Magazin für Luxus- und Boutique-Hotels. Unser Redaktionsteam bereist die Welt, bewertet Hotels nach strengen Kriterien und teilt ehrliche, fundierte Empfehlungen.', true, null);
+$image1Meta = forgewp_get_meta_value('hero_image_1', 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=500&q=80', false, null);
+$image2Meta = forgewp_get_meta_value('hero_image_2', 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80', false, null);
+$primaryMeta = forgewp_get_meta_value('hero_primary_label', 'Hotels entdecken', false, null);
+$secondaryMeta = forgewp_get_meta_value('hero_secondary_label', 'Kontakt aufnehmen', false, null);
+$badge = ($badgeProp ?? null) ?? ($badgeMeta ?? null);
+$title = ($titleProp ?? null) ?? ($titleMeta ?? null);
+$subtitle = ($subtitleProp ?? null) ?? ($subtitleMeta ?? null);
+$primaryButtonLabel = ($primaryProp ?? null) ?? ($primaryMeta ?? null);
+$secondaryButtonLabel = ($secondaryProp ?? null) ?? ($secondaryMeta ?? null);
+$img1 = (($image1Prop ?? null) && (($image1Prop ?? null))['url']) ?: ($image1Prop ?? null) ?: ($image1Meta ?? null) ?: '';
+$img2 = (($image2Prop ?? null) && (($image2Prop ?? null))['url']) ?: ($image2Prop ?? null) ?: ($image2Meta ?? null) ?: '';
+$homeHref = forgewp_resolve_page_link('front-page', '/');
+$contactHref = forgewp_resolve_page_link('kontakt-page', '/contact');
+$hotelsHref = forgewp_resolve_page_link('hotels-page', '/hotels');
+?>
+<div class="relative overflow-hidden bg-slate-50 w-full  <?php echo esc_attr( forgewp_padding_classes($attributes ?? array()) ); ?>">
+      <div class="absolute top-0 right-0 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(109,155,174,0.13)_0%,transparent_70%)] blur-3xl pointer-events-none"></div>
+      <div class="absolute bottom-0 left-0 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(146,159,93,0.09)_0%,transparent_70%)] blur-3xl pointer-events-none"></div>
+
+      <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
+        <nav class="flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4 w-full min-w-0">
+          <a href="<?php echo esc_url( $homeHref ?? '' ); ?>" class='hover:text-primary transition-colors whitespace-nowrap shrink-0'>
+            Startseite
+          </a>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right w-4 h-4 shrink-0"><path d="m9 18 6-6-6-6"></path></svg>
+          <span class="text-slate-700 truncate min-w-0">Über uns</span>
+        </nav>
+
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-10 items-center">
+          <div class="lg:col-span-3 max-w-2xl">
+            <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-star w-3.5 h-3.5 fill-primary"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path></svg>
+              <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $badge ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['badge'] ?? null) ); ?>
+<?php endif; ?>
+            </span>
+            <h1 class="text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-slate-900 mb-4 whitespace-pre-line">
+              <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $title ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['title'] ?? null) ); ?>
+<?php endif; ?>
+            </h1>
+            <?php if (($setAttributes ?? null)): ?>
+<div class="text-slate-500 text-sm sm:text-base leading-relaxed mb-6"><?php echo wp_kses_post( $subtitle ?? '' ); ?></div>
+<?php else: ?>
+<div class="text-slate-500 text-sm sm:text-base leading-relaxed mb-6"><?php echo wp_kses_post( $subtitle ?? '' ); ?></div>
+<?php endif; ?>
+            <div class="flex flex-wrap gap-3">
+              <a href="<?php echo esc_url( $hotelsHref ?? '' ); ?>" class='relative overflow-hidden inline-flex items-center justify-center bg-primary text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl transition-colors duration-500 group select-none shadow-none cursor-pointer active:scale-95 shrink-0 hover:bg-primary/90'>
+                <span class="relative z-10 flex items-center gap-2">
+                  <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $primaryButtonLabel ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['primaryButtonLabel'] ?? null) ); ?>
+<?php endif; ?>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-4 h-4"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+                </span>
+              </a>
+              <a href="<?php echo esc_url( $contactHref ?? '' ); ?>" class='inline-flex items-center gap-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 shrink-0'>
+                <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $secondaryButtonLabel ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['secondaryButtonLabel'] ?? null) ); ?>
+<?php endif; ?>
+              </a>
+            </div>
+          </div>
+
+          <div class="lg:col-span-2 relative hidden lg:flex items-center justify-center h-[340px] select-none">
+            <div class="absolute top-4 right-10 w-64 h-72 rounded-2xl overflow-hidden shadow-lg rotate-6 hover:rotate-2 transition-transform duration-500 ease-out">
+              <img class="w-full h-full object-cover select-none pointer-events-none" src="<?php echo esc_url( $img1 ?? '' ); ?>" alt="Resort Pool" />
+            </div>
+            <div class="absolute bottom-4 left-6 w-60 h-64 rounded-2xl overflow-hidden shadow-2xl -rotate-6 hover:rotate-0 transition-transform duration-500 ease-out z-10">
+              <img class="w-full h-full object-cover select-none pointer-events-none" src="<?php echo esc_url( $img2 ?? '' ); ?>" alt="Luxury Suite" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+"
+`;
+
+exports[`render.php (PHP markup) for real hotelchecker24 components > "about-values" render.php exists, contains no mangled-ternary markers, and lints as balanced PHP tags 1`] = `
+"<?php
+/**
+ * Gutenberg dynamic block template — About Values
+ * Autogenerated by ForgeWP Theme Compiler. Do not modify manually.
+ */
+$loading = true;
+$isLoading = true;
+$hotels = array();
+$posts = array();
+$listicles = array();
+$destinations = array();
+$valuesMeta = forgewp_get_meta_value('values', '[object Object],[object Object],[object Object],[object Object]', false, null);
+$rows = $attributes['values'] ?? array();
+?>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full min-w-0 <?php echo esc_attr( forgewp_padding_classes($attributes ?? array()) ); ?>">
+      <?php foreach (($attributes['rows'] ?? $rows ?? array()) as $row): ?>
+<div class="bg-white rounded-2xl p-5 shadow-xs hover:shadow-md transition-shadow">
+          <div class="<?php echo esc_attr( 'w-10 h-10 rounded-xl flex items-center justify-center mb-3 ' .
+              (trim(preg_replace('/\\bborder[^\\s]*/', '', $row['color'])) ?:
+                'text-primary bg-primary/10') ); ?>">
+            <?php forgewp_render_theme_icon( ($row['icon'] ?: 'award'), "w-5 h-5", "lucide" ); ?>
+          </div>
+          <?php if (($setAttributes ?? null)): ?>
+
+              <h3 class="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900 mb-1.5 leading-snug"><?php echo esc_html( $row['title'] ?: '' ); ?></h3>
+              <p class="text-xs sm:text-sm text-slate-500 leading-relaxed"><?php echo esc_html( $row['description'] ?: '' ); ?></p>
+            
+<?php else: ?>
+
+              <h3 class="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900 mb-1.5 leading-snug">
+                <?php echo esc_html( $row['title'] ?? '' ); ?>
+              </h3>
+              <p class="text-xs sm:text-sm text-slate-500 leading-relaxed"><?php echo esc_html( $row['description'] ?? '' ); ?></p>
+            
+<?php endif; ?>
+        </div>
+<?php endforeach; ?>
+    </div>
+"
+`;
+
+exports[`render.php (PHP markup) for real hotelchecker24 components > "contact-details" render.php exists, contains no mangled-ternary markers, and lints as balanced PHP tags 1`] = `
+"<?php
+/**
+ * Gutenberg dynamic block template — Contact Details
+ * Autogenerated by ForgeWP Theme Compiler. Do not modify manually.
+ */
+$loading = true;
+$isLoading = true;
+$hotels = array();
+$posts = array();
+$listicles = array();
+$destinations = array();
+if (!function_exists('forgewp_blk_contact_details_getSocialHandle')) {
+  function forgewp_blk_contact_details_getSocialHandle($url, $defaultHandle) {
+
+        if (empty($url)) return $defaultHandle;
+        try {
+          $parts = explode('/', preg_replace('/\\/$/', '', $url));
+          return count((array)($parts)) > 0 ? $parts[count((array)($parts)) - 1] : $defaultHandle;
+        } catch (\\Throwable $e) {
+          return $defaultHandle;
+        }
+
+  }
+}
+$phone = get_option('contact_phone', '+43 1 234 5678');
+$email = get_option('contact_email', 'office@max-online.at');
+$address = get_option('contact_address', 'Coronablick 7, A-3652 Leiben, Österreich');
+$hours = get_option('business_hours', 'Mo–Fr 09:00–18:00 Uhr');
+$facebookUrl = get_option('social_facebook', '');
+$instagramUrl = get_option('social_instagram', '');
+$twitterUrl = get_option('social_twitter', '');
+$youtubeUrl = get_option('social_youtube', '');
+$tiktokUrl = get_option('social_tiktok', '');
+$linkedinUrl = get_option('social_linkedin', '');
+$pinterestUrl = get_option('social_pinterest', '');
+$siteUrl = get_option('siteurl', 'https://hotelchecker24.com');
+$detailsHeadingMeta = forgewp_get_meta_value('details_heading', 'Kontaktdaten', false, null);
+$socialHeadingMeta = forgewp_get_meta_value('social_heading', 'Social Media', false, null);
+$detailsHeading = ($detailsHeadingProp ?? null) ?? ($detailsHeadingMeta ?? null);
+$socialHeading = ($socialHeadingProp ?? null) ?? ($socialHeadingMeta ?? null);
+$__forgewp_haslen_socialList = (($instagramUrl ?? null) && trim(($instagramUrl ?? null)) !== '' || ($facebookUrl ?? null) && trim(($facebookUrl ?? null)) !== '' || ($twitterUrl ?? null) && trim(($twitterUrl ?? null)) !== '' || ($youtubeUrl ?? null) && trim(($youtubeUrl ?? null)) !== '' || ($tiktokUrl ?? null) && trim(($tiktokUrl ?? null)) !== '' || ($linkedinUrl ?? null) && trim(($linkedinUrl ?? null)) !== '' || ($pinterestUrl ?? null) && trim(($pinterestUrl ?? null)) !== '' || ($siteUrl ?? null) && trim(($siteUrl ?? null)) !== '');
+?>
+<aside class="space-y-5 w-full min-w-0 <?php echo esc_attr( forgewp_padding_classes($attributes ?? array()) ); ?>">
+      <div class="bg-white rounded-2xl p-6 shadow-xs space-y-5">
+        <?php if (($setAttributes ?? null)): ?>
+<h2 class="text-sm font-bold text-slate-600 pb-3"><?php echo esc_html( $detailsHeading ?? '' ); ?></h2>
+<?php else: ?>
+<h2 class="text-sm font-bold text-slate-600 pb-3">
+            <?php echo esc_html( $detailsHeading ?? '' ); ?>
+          </h2>
+<?php endif; ?>
+
+        
+          <div class="flex items-start gap-4">
+            <div
+              class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 <?php echo esc_attr( 'text-primary bg-primary/10' ); ?>"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-phone w-4 h-4"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+            </div>
+            <div class="min-w-0">
+              <div class="text-xs font-semibold text-slate-500 mb-0.5">
+                <?php echo esc_html( __('Telefon', 'hotelchecker24') ); ?>
+              </div>
+              <?php if ('tel:' . $phone): ?>
+<a
+                  href="<?php echo esc_url('tel:' . $phone); ?>"
+                  class="text-sm font-bold text-slate-800 hover:text-primary transition-colors break-all"
+                >
+                  <?php echo esc_html($phone); ?>
+                </a>
+<?php else: ?>
+<p class="text-sm font-bold text-slate-800 leading-snug">
+                  <?php echo esc_html($phone); ?>
+                </p>
+<?php endif; ?>
+            </div>
+          </div>
+        
+
+          <div class="flex items-start gap-4">
+            <div
+              class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 <?php echo esc_attr( 'text-blue-600 bg-blue-50' ); ?>"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mail w-4 h-4"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>
+            </div>
+            <div class="min-w-0">
+              <div class="text-xs font-semibold text-slate-500 mb-0.5">
+                <?php echo esc_html( __('E-Mail', 'hotelchecker24') ); ?>
+              </div>
+              <?php if ('mailto:' . $email): ?>
+<a
+                  href="<?php echo esc_url('mailto:' . $email); ?>"
+                  class="text-sm font-bold text-slate-800 hover:text-primary transition-colors break-all"
+                >
+                  <?php echo esc_html($email); ?>
+                </a>
+<?php else: ?>
+<p class="text-sm font-bold text-slate-800 leading-snug">
+                  <?php echo esc_html($email); ?>
+                </p>
+<?php endif; ?>
+            </div>
+          </div>
+        
+
+          <div class="flex items-start gap-4">
+            <div
+              class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 <?php echo esc_attr( 'text-[#929f5d] bg-[#929f5d]/10' ); ?>"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin w-4 h-4"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            </div>
+            <div class="min-w-0">
+              <div class="text-xs font-semibold text-slate-500 mb-0.5">
+                <?php echo esc_html( __('Adresse', 'hotelchecker24') ); ?>
+              </div>
+              <?php if (null): ?>
+<a
+                  href="<?php echo esc_url(null); ?>"
+                  class="text-sm font-bold text-slate-800 hover:text-primary transition-colors break-all"
+                >
+                  <?php echo esc_html($address); ?>
+                </a>
+<?php else: ?>
+<p class="text-sm font-bold text-slate-800 leading-snug">
+                  <?php echo esc_html($address); ?>
+                </p>
+<?php endif; ?>
+            </div>
+          </div>
+        
+
+          <div class="flex items-start gap-4">
+            <div
+              class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 <?php echo esc_attr( 'text-amber-600 bg-amber-50' ); ?>"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock w-4 h-4"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <div class="min-w-0">
+              <div class="text-xs font-semibold text-slate-500 mb-0.5">
+                <?php echo esc_html( __('Öffnungszeiten', 'hotelchecker24') ); ?>
+              </div>
+              <?php if (null): ?>
+<a
+                  href="<?php echo esc_url(null); ?>"
+                  class="text-sm font-bold text-slate-800 hover:text-primary transition-colors break-all"
+                >
+                  <?php echo esc_html($hours); ?>
+                </a>
+<?php else: ?>
+<p class="text-sm font-bold text-slate-800 leading-snug">
+                  <?php echo esc_html($hours); ?>
+                </p>
+<?php endif; ?>
+            </div>
+          </div>
+        
+      </div>
+
+      <?php if (($__forgewp_haslen_socialList ?? null)): ?>
+<div class="bg-white rounded-2xl p-6 shadow-xs">
+          <?php if (($setAttributes ?? null)): ?>
+<h2 class="text-xs font-mono font-black uppercase tracking-widest text-slate-400 pb-3 mb-4"><?php echo esc_html( $socialHeading ?? '' ); ?></h2>
+<?php else: ?>
+<h2 class="text-xs font-mono font-black uppercase tracking-widest text-slate-400 pb-3 mb-4">
+              <?php echo esc_html( $socialHeading ?? '' ); ?>
+            </h2>
+<?php endif; ?>
+          <div class="space-y-2">
+            <?php if (($instagramUrl ?? null) && trim(($instagramUrl ?? null)) !== ''): ?>
+
+              <a
+                href="<?php echo esc_url($instagramUrl); ?>"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center justify-between p-3 rounded-xl transition-all duration-300 group hover:shadow-xs hover:bg-slate-50"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-primary transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-instagram w-3.5 h-3.5 text-slate-500 group-hover:text-white"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line></svg>
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                      <?php echo esc_html('Instagram'); ?>
+                    </div>
+                    <div class="text-xs font-bold text-slate-800">
+                      <?php echo esc_html((($instagramUrl ?? null) ? '@' . (forgewp_blk_contact_details_getSocialHandle(($instagramUrl ?? null), 'hotelchecker24')) : '')); ?>
+                    </div>
+                  </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-300 shrink-0"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+              </a>
+            
+<?php endif; ?>
+<?php if (($facebookUrl ?? null) && trim(($facebookUrl ?? null)) !== ''): ?>
+
+              <a
+                href="<?php echo esc_url($facebookUrl); ?>"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center justify-between p-3 rounded-xl transition-all duration-300 group hover:shadow-xs hover:bg-slate-50"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-primary transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-facebook w-3.5 h-3.5 text-slate-500 group-hover:text-white"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg>
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                      <?php echo esc_html('Facebook'); ?>
+                    </div>
+                    <div class="text-xs font-bold text-slate-800">
+                      <?php echo esc_html((($facebookUrl ?? null) ? forgewp_blk_contact_details_getSocialHandle(($facebookUrl ?? null), 'Hotelchecker24') : '')); ?>
+                    </div>
+                  </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-300 shrink-0"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+              </a>
+            
+<?php endif; ?>
+<?php if (($twitterUrl ?? null) && trim(($twitterUrl ?? null)) !== ''): ?>
+
+              <a
+                href="<?php echo esc_url($twitterUrl); ?>"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center justify-between p-3 rounded-xl transition-all duration-300 group hover:shadow-xs hover:bg-slate-50"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-primary transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-twitter w-3.5 h-3.5 text-slate-500 group-hover:text-white"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path></svg>
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                      <?php echo esc_html('Twitter / X'); ?>
+                    </div>
+                    <div class="text-xs font-bold text-slate-800">
+                      <?php echo esc_html((($twitterUrl ?? null) ? '@' . (forgewp_blk_contact_details_getSocialHandle(($twitterUrl ?? null), 'hotelchecker24')) : '')); ?>
+                    </div>
+                  </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-300 shrink-0"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+              </a>
+            
+<?php endif; ?>
+<?php if (($youtubeUrl ?? null) && trim(($youtubeUrl ?? null)) !== ''): ?>
+
+              <a
+                href="<?php echo esc_url($youtubeUrl); ?>"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center justify-between p-3 rounded-xl transition-all duration-300 group hover:shadow-xs hover:bg-slate-50"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-primary transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-youtube w-3.5 h-3.5 text-slate-500 group-hover:text-white"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"></path><path d="m10 15 5-3-5-3z"></path></svg>
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                      <?php echo esc_html('YouTube'); ?>
+                    </div>
+                    <div class="text-xs font-bold text-slate-800">
+                      <?php echo esc_html((($youtubeUrl ?? null) ? forgewp_blk_contact_details_getSocialHandle(($youtubeUrl ?? null), 'Hotelchecker24') : '')); ?>
+                    </div>
+                  </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-300 shrink-0"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+              </a>
+            
+<?php endif; ?>
+<?php if (($tiktokUrl ?? null) && trim(($tiktokUrl ?? null)) !== ''): ?>
+
+              <a
+                href="<?php echo esc_url($tiktokUrl); ?>"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center justify-between p-3 rounded-xl transition-all duration-300 group hover:shadow-xs hover:bg-slate-50"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-primary transition-all">
+                    <svg viewBox="0 0 24 24" fill="currentColor" class="w-3.5 h-3.5 text-slate-500 group-hover:text-white">
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .57.04.84.13V9.25a6.29 6.29 0 0 0-1.84-.27A6.3 6.3 0 0 0 2 15.28a6.3 6.3 0 0 0 10.3 4.84V8a8.29 8.29 0 0 0 5.3 1.9v-3.2a4.81 4.81 0 0 1 1.99-.01z" />
+  </svg>
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                      <?php echo esc_html('TikTok'); ?>
+                    </div>
+                    <div class="text-xs font-bold text-slate-800">
+                      <?php echo esc_html((($tiktokUrl ?? null) ? '@' . (forgewp_blk_contact_details_getSocialHandle(($tiktokUrl ?? null), 'hotelchecker24')) : '')); ?>
+                    </div>
+                  </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-300 shrink-0"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+              </a>
+            
+<?php endif; ?>
+<?php if (($linkedinUrl ?? null) && trim(($linkedinUrl ?? null)) !== ''): ?>
+
+              <a
+                href="<?php echo esc_url($linkedinUrl); ?>"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center justify-between p-3 rounded-xl transition-all duration-300 group hover:shadow-xs hover:bg-slate-50"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-primary transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-linkedin w-3.5 h-3.5 text-slate-500 group-hover:text-white"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect width="4" height="12" x="2" y="9"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                      <?php echo esc_html('LinkedIn'); ?>
+                    </div>
+                    <div class="text-xs font-bold text-slate-800">
+                      <?php echo esc_html((($linkedinUrl ?? null) ? forgewp_blk_contact_details_getSocialHandle(($linkedinUrl ?? null), 'Hotelchecker24') : '')); ?>
+                    </div>
+                  </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-300 shrink-0"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+              </a>
+            
+<?php endif; ?>
+<?php if (($pinterestUrl ?? null) && trim(($pinterestUrl ?? null)) !== ''): ?>
+
+              <a
+                href="<?php echo esc_url($pinterestUrl); ?>"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center justify-between p-3 rounded-xl transition-all duration-300 group hover:shadow-xs hover:bg-slate-50"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-primary transition-all">
+                    <svg viewBox="0 0 24 24" fill="currentColor" class="w-3.5 h-3.5 text-slate-500 group-hover:text-white">
+    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.08 3.16 9.42 7.63 11.16-.1-.95-.2-2.4 0-3.43l1.24-5.27s-.32-.64-.32-1.57c0-1.48.86-2.58 1.92-2.58.9 0 1.34.68 1.34 1.5 0 .9-.58 2.27-.88 3.53-.25 1.06.53 1.92 1.58 1.92 1.9 0 3.36-2 3.36-4.88 0-2.55-1.83-4.33-4.44-4.33-3.03 0-4.8 2.27-4.8 4.6 0 .92.35 1.9.8 2.44.09.1.1.18.07.3l-.3 1.22c-.05.2-.16.24-.37.14C4.85 16.48 4 13.9 4 11.42c0-4.07 2.96-7.8 8.52-7.8 4.47 0 7.95 3.19 7.95 7.45 0 4.44-2.8 8.02-6.7 8.02-1.3 0-2.53-.68-2.95-1.48l-.8 3.05c-.29 1.1-.1 2.47-.02 2.62.94.29 1.93.44 2.97.44 6.63 0 12-5.37 12-12S18.63 0 12 0z" />
+  </svg>
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                      <?php echo esc_html('Pinterest'); ?>
+                    </div>
+                    <div class="text-xs font-bold text-slate-800">
+                      <?php echo esc_html((($pinterestUrl ?? null) ? forgewp_blk_contact_details_getSocialHandle(($pinterestUrl ?? null), 'Hotelchecker24') : '')); ?>
+                    </div>
+                  </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-300 shrink-0"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+              </a>
+            
+<?php endif; ?>
+<?php if (($siteUrl ?? null) && trim(($siteUrl ?? null)) !== ''): ?>
+
+              <a
+                href="<?php echo esc_url($siteUrl); ?>"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center justify-between p-3 rounded-xl transition-all duration-300 group hover:shadow-xs hover:bg-slate-50"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-primary transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe w-3.5 h-3.5 text-slate-500 group-hover:text-white"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                      <?php echo esc_html('Website'); ?>
+                    </div>
+                    <div class="text-xs font-bold text-slate-800">
+                      <?php echo esc_html((($siteUrl ?? null) ? (preg_replace('/^https?:\\/\\/(www\\.)?/', '', ($siteUrl ?? null))) : 'hotelchecker24.com')); ?>
+                    </div>
+                  </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-300 shrink-0"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+              </a>
+            
+<?php endif; ?>
+          </div>
+        </div>
+<?php endif; ?>
+    </aside>
+"
+`;
+
+exports[`render.php (PHP markup) for real hotelchecker24 components > "contact-form-section" render.php exists, contains no mangled-ternary markers, and lints as balanced PHP tags 1`] = `
+"<?php
+/**
+ * Gutenberg dynamic block template — Contact Form
+ * Autogenerated by ForgeWP Theme Compiler. Do not modify manually.
+ */
+$loading = true;
+$isLoading = true;
+$hotels = array();
+$posts = array();
+$listicles = array();
+$destinations = array();
+$titleMeta = forgewp_get_meta_value('form_title', 'Kontaktformular', false, null);
+$descMeta = forgewp_get_meta_value('form_description', 'Alle Felder sind Pflichtfelder, sofern nicht anders angegeben.', false, null);
+$formTitle = ($titleProp ?? null) ?? ($titleMeta ?? null);
+$formDescription = ($descProp ?? null) ?? ($descMeta ?? null);
+?>
+<div class="w-full min-w-0 <?php echo esc_attr( forgewp_padding_classes($attributes ?? array()) ); ?>">
+      <?php if (($setAttributes ?? null)): ?>
+<div class="mb-3 space-y-1">
+          <div class="text-xs font-mono text-slate-400"><?php echo esc_html( $formTitle ?? '' ); ?></div>
+          <div class="text-xs font-mono text-slate-400"><?php echo esc_html( $formDescription ?? '' ); ?></div>
+        </div>
+<?php endif; ?>
+      <div class="forgewp-hydrate-boundary" data-forgewp-hydrate="contact-form" data-forgewp-props="<?php echo esc_attr( json_encode( array('formTitle' => ($attributes['formTitle'] ?? null), 'formDescription' => ($attributes['formDescription'] ?? null)) ) ); ?>" data-forgewp-trigger="visible" style="display: <?php echo esc_attr( 'block' ); ?>;"></div>
+    </div>
+"
+`;
+
+exports[`render.php (PHP markup) for real hotelchecker24 components > "contact-hero" render.php exists, contains no mangled-ternary markers, and lints as balanced PHP tags 1`] = `
+"<?php
+/**
+ * Gutenberg dynamic block template — Contact Hero
+ * Autogenerated by ForgeWP Theme Compiler. Do not modify manually.
+ */
+$loading = true;
+$isLoading = true;
+$hotels = array();
+$posts = array();
+$listicles = array();
+$destinations = array();
+$homeHref = forgewp_resolve_page_link('front-page', '/');
+$badgeMeta = forgewp_get_meta_value('hero_badge', 'Wir sind für Sie da', false, null);
+$titleMeta = forgewp_get_meta_value('hero_title', 'Schreiben Sie uns', false, null);
+$subtitleMeta = forgewp_get_meta_value('hero_subtitle', 'Fragen zu Hotels, Kooperationsanfragen oder Feedback — unsere Redaktion antwortet innerhalb von 24 Stunden.', false, null);
+$cardImageMeta = forgewp_get_meta_value('card_image', 'https://images.unsplash.com/photo-1516550893923-42d28e5677af?auto=format&fit=crop&w=400&q=80', false, null);
+$cardBadgeMeta = forgewp_get_meta_value('card_badge', 'Hauptredaktion Wien', false, null);
+$badge = ($badgeProp ?? null) ?? ($badgeMeta ?? null);
+$title = ($titleProp ?? null) ?? ($titleMeta ?? null);
+$subtitle = ($subtitleProp ?? null) ?? ($subtitleMeta ?? null);
+$cardImage = (($cardImageProp ?? null) && (($cardImageProp ?? null))['url']) ?: ($cardImageProp ?? null) ?: ($cardImageMeta ?? null) ?: '';
+$cardBadge = ($cardBadgeProp ?? null) ?? ($cardBadgeMeta ?? null);
+?>
+<div class="relative overflow-hidden bg-slate-50 w-full  <?php echo esc_attr( forgewp_padding_classes($attributes ?? array()) ); ?>">
+      <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(109,155,174,0.13)_0%,transparent_70%)] blur-3xl pointer-events-none"></div>
+      <div class="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(146,159,93,0.09)_0%,transparent_70%)] blur-3xl pointer-events-none"></div>
+
+      <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
+        <nav class="flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4 w-full min-w-0">
+          <a href="<?php echo esc_url( $homeHref ?? '' ); ?>" class='hover:text-primary transition-colors whitespace-nowrap shrink-0'>
+            <?php echo esc_html( __('Startseite', 'hotelchecker24') ); ?>
+          </a>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right w-4 h-4 shrink-0"><path d="m9 18 6-6-6-6"></path></svg>
+          <span class="text-slate-700 truncate min-w-0"><?php echo esc_html( __('Kontakt', 'hotelchecker24') ); ?></span>
+        </nav>
+
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-10 items-center">
+          <div class="lg:col-span-3 max-w-2xl">
+            <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full mb-3">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-message-square w-3.5 h-3.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $badge ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['badge'] ?? null) ); ?>
+<?php endif; ?>
+            </span>
+            <h1 class="text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-slate-900 mb-2">
+              <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $title ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['title'] ?? null) ); ?>
+<?php endif; ?>
+            </h1>
+            <?php if (($setAttributes ?? null)): ?>
+<p class="text-slate-500 text-sm sm:text-base leading-relaxed"><?php echo esc_html( $subtitle ?? '' ); ?></p>
+<?php else: ?>
+<p class="text-slate-500 text-sm sm:text-base leading-relaxed">
+                <?php echo esc_html( $subtitle ?? '' ); ?>
+              </p>
+<?php endif; ?>
+          </div>
+
+          <div class="lg:col-span-2 relative hidden lg:flex items-center justify-center h-[200px] select-none">
+            <div class="relative w-72 h-44 rounded-2xl overflow-hidden shadow-xl rotate-2 hover:rotate-0 transition-transform duration-500 ease-out">
+              <img class="w-full h-full object-cover select-none pointer-events-none" src="<?php echo esc_url( $cardImage ?? '' ); ?>" alt="<?php echo esc_attr( __('Wien Redaktion', 'hotelchecker24') ); ?>" />
+              <div class="absolute inset-0 bg-linear-to-t from-slate-950/40 via-transparent to-transparent pointer-events-none"></div>
+              <div class="absolute bottom-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg text-[10px] font-bold text-slate-800 shadow-xs flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin w-3 h-3 text-primary"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $cardBadge ?? '' ); ?></span>
+<?php else: ?>
+<span><?php echo esc_html( $cardBadge ?? '' ); ?></span>
+<?php endif; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+"
+`;
+
+exports[`render.php (PHP markup) for real hotelchecker24 components > "destinations" render.php exists, contains no mangled-ternary markers, and lints as balanced PHP tags 1`] = `
+"<?php
+/**
+ * Gutenberg dynamic block template — Destinations
+ * Autogenerated by ForgeWP Theme Compiler. Do not modify manually.
+ */
+$loading = true;
+$isLoading = true;
+$hotels = array();
+$posts = array();
+$listicles = array();
+$destinations = array();
+$headingMeta = forgewp_get_meta_value('destinations_heading', 'Nach Reiseziel entdecken', false, null);
+$subtitleMeta = forgewp_get_meta_value('destinations_subtitle', 'Handverlesene Hotels in den schönsten Reisezielen Europas.', false, null);
+$heading = ($headingProp ?? null) ?? ($headingMeta ?? null);
+$subtitle = ($subtitleProp ?? null) ?? ($subtitleMeta ?? null);
+?>
+<section class="w-full  <?php echo esc_attr( forgewp_padding_classes($attributes ?? array()) ); ?>">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-10">
+          <h2 class="text-3xl font-sans font-black text-slate-800 uppercase tracking-tight">
+            <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $heading ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['heading'] ?? null) ); ?>
+<?php endif; ?>
+          </h2>
+          <?php if (($setAttributes ?? null)): ?>
+<p class="text-slate-500 text-sm mt-2"><?php echo esc_html( $subtitle ?? '' ); ?></p>
+<?php else: ?>
+<p class="text-slate-500 text-sm mt-2"><?php echo esc_html( $subtitle ?? '' ); ?></p>
+<?php endif; ?>
+        </div>
+        <div class="forgewp-hydrate-boundary" data-forgewp-hydrate="destinations-grid" data-forgewp-props="<?php echo esc_attr( json_encode( array() ) ); ?>" data-forgewp-trigger="visible" style="display: <?php echo esc_attr( 'block' ); ?>;"></div>
+      </div>
+    </section>
+"
+`;
+
+exports[`render.php (PHP markup) for real hotelchecker24 components > "editorial-strip" render.php exists, contains no mangled-ternary markers, and lints as balanced PHP tags 1`] = `
+"<?php
+/**
+ * Gutenberg dynamic block template — Editorial Strip
+ * Autogenerated by ForgeWP Theme Compiler. Do not modify manually.
+ */
+$loading = true;
+$isLoading = true;
+$hotels = array();
+$posts = array();
+$listicles = array();
+$destinations = array();
+$badgeMeta = forgewp_get_meta_value('editorial_badge', 'Redaktionell & Unabhängig', false, null);
+$headingMeta = forgewp_get_meta_value('editorial_heading', 'Kuratiert von', false, null);
+$headingColoredMeta = forgewp_get_meta_value('editorial_heading_colored', 'echten Reisenden', false, null);
+$descriptionMeta = forgewp_get_meta_value('editorial_description', 'Kein bezahltes Ranking. Kein Algorithmus. Nur ehrliche, redaktionell geprüfte Empfehlungen von unserem Team, das die Hotels selbst besucht hat.', false, null);
+$ctaLabelMeta = forgewp_get_meta_value('editorial_cta_label', 'Alle Hotelvergleiche lesen', false, null);
+$f1lMeta = forgewp_get_meta_value('editorial_feature1_label', 'Vor-Ort-Besuche', false, null);
+$f1dMeta = forgewp_get_meta_value('editorial_feature1_desc', 'Jedes Hotel wird persönlich getestet', false, null);
+$f2lMeta = forgewp_get_meta_value('editorial_feature2_label', 'Keine Werbung', false, null);
+$f2dMeta = forgewp_get_meta_value('editorial_feature2_desc', 'Vollständig redaktionell unabhängig', false, null);
+$f3lMeta = forgewp_get_meta_value('editorial_feature3_label', 'DE & EN', false, null);
+$f3dMeta = forgewp_get_meta_value('editorial_feature3_desc', 'Inhalte auf Deutsch und Englisch', false, null);
+$f4lMeta = forgewp_get_meta_value('editorial_feature4_label', 'Laufend aktuell', false, null);
+$f4dMeta = forgewp_get_meta_value('editorial_feature4_desc', 'Regelmäßige neue Empfehlungen', false, null);
+$badge = ($badgeProp ?? null) ?? ($badgeMeta ?? null);
+$heading = ($headingProp ?? null) ?? ($headingMeta ?? null);
+$headingColored = ($headingColoredProp ?? null) ?? ($headingColoredMeta ?? null);
+$description = ($descriptionProp ?? null) ?? ($descriptionMeta ?? null);
+$ctaLabel = ($ctaLabelProp ?? null) ?? ($ctaLabelMeta ?? null);
+$feature1Label = ($f1lProp ?? null) ?? ($f1lMeta ?? null);
+$feature1Desc = ($f1dProp ?? null) ?? ($f1dMeta ?? null);
+$feature2Label = ($f2lProp ?? null) ?? ($f2lMeta ?? null);
+$feature2Desc = ($f2dProp ?? null) ?? ($f2dMeta ?? null);
+$feature3Label = ($f3lProp ?? null) ?? ($f3lMeta ?? null);
+$feature3Desc = ($f3dProp ?? null) ?? ($f3dMeta ?? null);
+$feature4Label = ($f4lProp ?? null) ?? ($f4lMeta ?? null);
+$feature4Desc = ($f4dProp ?? null) ?? ($f4dMeta ?? null);
+$listiclesHref = forgewp_resolve_page_link('listicles-page', '/hotelvergleiche');
+?>
+<section class="w-full  <?php echo esc_attr( forgewp_padding_classes($attributes ?? array()) ); ?>">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="bg-[#121416] rounded-3xl overflow-hidden px-8 sm:px-12 py-12 grid grid-cols-1 md:grid-cols-2 gap-10 items-center relative">
+        <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(146,159,93,0.15)_0%,transparent_60%)] pointer-events-none"></div>
+        <div class="relative z-10">
+          <span class="text-[10px] font-bold uppercase tracking-widest text-[#929f5d] bg-[#929f5d]/10 border border-[#929f5d]/20 px-3 py-1 rounded-md inline-block mb-4">
+            <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $badge ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['badge'] ?? null) ); ?>
+<?php endif; ?>
+          </span>
+          <h2 class="text-3xl sm:text-4xl font-black text-white uppercase tracking-tight leading-tight mb-4">
+            <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $heading ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['heading'] ?? null) ); ?>
+<?php endif; ?>
+            <br />
+            <span class="text-[#929f5d]">
+              <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $headingColored ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['headingColored'] ?? null) ); ?>
+<?php endif; ?>
+            </span>
+          </h2>
+          <?php if (($setAttributes ?? null)): ?>
+<p class="text-slate-400 text-sm leading-relaxed mb-6 max-w-sm"><?php echo esc_html( $description ?? '' ); ?></p>
+<?php else: ?>
+<p class="text-slate-400 text-sm leading-relaxed mb-6 max-w-sm"><?php echo esc_html( $description ?? '' ); ?></p>
+<?php endif; ?>
+          <a href="<?php echo esc_url( $listiclesHref ?? '' ); ?>" class='inline-flex items-center gap-2 bg-[#929f5d] hover:bg-[#929f5d]/90 text-white text-xs font-bold uppercase tracking-wider px-6 py-3 rounded-full transition-all duration-300 active:scale-95'>
+            <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $ctaLabel ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['ctaLabel'] ?? null) ); ?>
+<?php endif; ?>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-3.5 h-3.5"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+          </a>
+        </div>
+        <div class="relative z-10 grid grid-cols-2 gap-3">
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <span class="text-[10px] font-mono font-black text-[#929f5d]">01</span>
+            <p class="text-white text-xs font-bold uppercase tracking-wide mt-1">
+              <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $feature1Label ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['feature1Label'] ?? null) ); ?>
+<?php endif; ?>
+            </p>
+            <?php if (($setAttributes ?? null)): ?>
+<p class="text-slate-500 text-[10px] mt-1 leading-snug"><?php echo esc_html( $feature1Desc ?? '' ); ?></p>
+<?php else: ?>
+<p class="text-slate-500 text-[10px] mt-1 leading-snug"><?php echo esc_html( $feature1Desc ?? '' ); ?></p>
+<?php endif; ?>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <span class="text-[10px] font-mono font-black text-[#929f5d]">02</span>
+            <p class="text-white text-xs font-bold uppercase tracking-wide mt-1">
+              <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $feature2Label ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['feature2Label'] ?? null) ); ?>
+<?php endif; ?>
+            </p>
+            <?php if (($setAttributes ?? null)): ?>
+<p class="text-slate-500 text-[10px] mt-1 leading-snug"><?php echo esc_html( $feature2Desc ?? '' ); ?></p>
+<?php else: ?>
+<p class="text-slate-500 text-[10px] mt-1 leading-snug"><?php echo esc_html( $feature2Desc ?? '' ); ?></p>
+<?php endif; ?>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <span class="text-[10px] font-mono font-black text-[#929f5d]">03</span>
+            <p class="text-white text-xs font-bold uppercase tracking-wide mt-1">
+              <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $feature3Label ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['feature3Label'] ?? null) ); ?>
+<?php endif; ?>
+            </p>
+            <?php if (($setAttributes ?? null)): ?>
+<p class="text-slate-500 text-[10px] mt-1 leading-snug"><?php echo esc_html( $feature3Desc ?? '' ); ?></p>
+<?php else: ?>
+<p class="text-slate-500 text-[10px] mt-1 leading-snug"><?php echo esc_html( $feature3Desc ?? '' ); ?></p>
+<?php endif; ?>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <span class="text-[10px] font-mono font-black text-[#929f5d]">04</span>
+            <p class="text-white text-xs font-bold uppercase tracking-wide mt-1">
+              <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $feature4Label ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['feature4Label'] ?? null) ); ?>
+<?php endif; ?>
+            </p>
+            <?php if (($setAttributes ?? null)): ?>
+<p class="text-slate-500 text-[10px] mt-1 leading-snug"><?php echo esc_html( $feature4Desc ?? '' ); ?></p>
+<?php else: ?>
+<p class="text-slate-500 text-[10px] mt-1 leading-snug"><?php echo esc_html( $feature4Desc ?? '' ); ?></p>
+<?php endif; ?>
+          </div>
+        </div>
+      </div>
+      </div>
+    </section>
+"
+`;
+
+exports[`render.php (PHP markup) for real hotelchecker24 components > "featured-hotels" render.php exists, contains no mangled-ternary markers, and lints as balanced PHP tags 1`] = `
+"<?php
+/**
+ * Gutenberg dynamic block template — Featured Hotels
+ * Autogenerated by ForgeWP Theme Compiler. Do not modify manually.
+ */
+$loading = true;
+$isLoading = true;
+$hotels = array();
+$posts = array();
+$listicles = array();
+$destinations = array();
+$badgeMeta = forgewp_get_meta_value('featured_badge', 'Empfohlen', false, null);
+$headingMeta = forgewp_get_meta_value('featured_heading', 'Ausgewählte Hotels', false, null);
+$subtitleMeta = forgewp_get_meta_value('featured_subtitle', 'Von unserer Redaktion handverlesen — außergewöhnliche Aufenthalte in ganz Europa.', false, null);
+$linkMeta = forgewp_get_meta_value('featured_link_label', 'Alle Hotels', false, null);
+$badge = ($badgeProp ?? null) ?? ($badgeMeta ?? null);
+$heading = ($headingProp ?? null) ?? ($headingMeta ?? null);
+$subtitle = ($subtitleProp ?? null) ?? ($subtitleMeta ?? null);
+$linkLabel = ($linkProp ?? null) ?? ($linkMeta ?? null);
+$hotelsHref = forgewp_resolve_page_link('hotels-page', '/hotels');
+?>
+<section class="w-full  <?php echo esc_attr( forgewp_padding_classes($attributes ?? array()) ); ?>">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-end justify-between mb-10">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-widest text-[#929f5d] bg-[#929f5d]/10 px-3 py-1 rounded-full">
+              <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $badge ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['badge'] ?? null) ); ?>
+<?php endif; ?>
+            </span>
+            <h2 class="text-3xl font-sans font-black text-slate-800 uppercase tracking-tight mt-3">
+              <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $heading ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['heading'] ?? null) ); ?>
+<?php endif; ?>
+            </h2>
+            <?php if (($setAttributes ?? null)): ?>
+<p class="text-slate-500 text-sm mt-1 max-w-md"><?php echo esc_html( $subtitle ?? '' ); ?></p>
+<?php else: ?>
+<p class="text-slate-500 text-sm mt-1 max-w-md"><?php echo esc_html( $subtitle ?? '' ); ?></p>
+<?php endif; ?>
+          </div>
+          <a href="<?php echo esc_url( $hotelsHref ?? '' ); ?>" class='hidden md:inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:text-primary/80 transition-colors'>
+            <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $linkLabel ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($attributes['linkLabel'] ?? null) ); ?>
+<?php endif; ?>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-3.5 h-3.5"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+          </a>
+        </div>
+
+        <div class="forgewp-hydrate-boundary" data-forgewp-hydrate="featured-hotels-grid" data-forgewp-props="<?php echo esc_attr( json_encode( array() ) ); ?>" data-forgewp-trigger="visible" style="display: <?php echo esc_attr( 'block' ); ?>;"></div>
+      </div>
+    </section>
+"
+`;
+
+exports[`render.php (PHP markup) for real hotelchecker24 components > "hero-section" render.php exists, contains no mangled-ternary markers, and lints as balanced PHP tags 1`] = `
+"<?php
+/**
+ * Gutenberg dynamic block template — Hero Section
+ * Autogenerated by ForgeWP Theme Compiler. Do not modify manually.
+ */
+$loading = true;
+$isLoading = true;
+$hotels = array();
+$posts = array();
+$listicles = array();
+$destinations = array();
+$titleMeta = forgewp_get_meta_value('hero_title', 'Handverlesene', false, null);
+$titleColoredMeta = forgewp_get_meta_value('hero_title_colored', 'Boutique- & Luxushotels', false, null);
+$subtitleMeta = forgewp_get_meta_value('hero_subtitle', 'Hotelchecker24 ist Ihre unabhängige Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa.', false, null);
+$searchPlaceholderMeta = forgewp_get_meta_value('hero_search_placeholder', 'Hotelname oder Stadt suchen...', false, null);
+$title = ($titleProp ?? null) ?? ($titleMeta ?? null);
+$titleColored = ($titleColoredProp ?? null) ?? ($titleColoredMeta ?? null);
+$subtitle = ($subtitleProp ?? null) ?? ($subtitleMeta ?? null);
+$searchPlaceholder = ($searchPlaceholderProp ?? null) ?? ($searchPlaceholderMeta ?? null);
+?>
+<section class="relative w-full overflow-hidden bg-slate-50 selection:bg-primary selection:text-white  <?php echo esc_attr( forgewp_padding_classes($attributes ?? array()) ); ?>">
+      
+      <div class="absolute top-0 right-0 w-150 h-150 bg-[radial-gradient(circle,rgba(109,155,174,0.12)_0%,transparent_70%)] blur-3xl pointer-events-none z-0"></div>
+      <div class="absolute bottom-0 left-0 w-125 h-125 bg-[radial-gradient(circle,rgba(146,159,93,0.08)_0%,transparent_70%)] blur-3xl pointer-events-none z-0"></div>
+
+      
+      <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center z-10">
+        
+        <div class="lg:col-span-7 flex flex-col items-start text-left">
+          
+          <h1 class="text-4xl sm:text-5xl md:text-6xl font-sans font-black tracking-tight text-slate-800 leading-[1.1] mb-6 uppercase">
+            <span><?php echo esc_html( $title ?? '' ); ?></span>
+            <br />
+            <span class="bg-linear-to-r from-primary via-slate-700 to-accent bg-clip-text text-transparent">
+              <span><?php echo esc_html( $titleColored ?? '' ); ?></span>
+            </span>
+          </h1>
+
+          
+          <p class="text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed"><?php echo esc_html( $subtitle ?? '' ); ?></p>
+
+          <div class="forgewp-hydrate-boundary" data-forgewp-hydrate="hero-search-board" data-forgewp-props="<?php echo esc_attr( json_encode( array('searchPlaceholder' => ($attributes['searchPlaceholder'] ?? null)) ) ); ?>" data-forgewp-trigger="visible" style="display: <?php echo esc_attr( 'block' ); ?>;"></div>
+        </div>
+
+        
+        <div class="lg:col-span-5 flex items-center justify-center relative w-full mt-8 lg:mt-0">
+          <div class="forgewp-hydrate-boundary" data-forgewp-hydrate="hero-spotlight" data-forgewp-props="<?php echo esc_attr( json_encode( array() ) ); ?>" data-forgewp-trigger="visible" style="display: <?php echo esc_attr( 'block' ); ?>;"></div>
+        </div>
+      </div>
+    </section>
+"
+`;
+
+exports[`render.php (PHP markup) for real hotelchecker24 components > "impressum-content" render.php exists, contains no mangled-ternary markers, and lints as balanced PHP tags 1`] = `
+"<?php
+/**
+ * Gutenberg dynamic block template — Impressum Content
+ * Autogenerated by ForgeWP Theme Compiler. Do not modify manually.
+ */
+$loading = true;
+$isLoading = true;
+$hotels = array();
+$posts = array();
+$listicles = array();
+$destinations = array();
+?>
+<div class="max-w-7xl mx-auto w-full  <?php echo esc_attr( forgewp_padding_classes($attributes ?? array()) ); ?>">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="md:col-span-2 bg-white rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
+          <div>
+            <h2 class="text-xs font-mono font-bold uppercase tracking-widest text-[#929f5d] mb-2 block"><?php echo esc_html( $attributes['companyHeading'] ?? '' ); ?></h2>
+            <p class="text-lg font-black text-slate-900 uppercase tracking-tight block"><?php echo esc_html( $attributes['companyName'] ?? '' ); ?></p>
+            <p class="text-slate-500 text-sm mt-1 block"><?php echo esc_html( $attributes['companyLegalForm'] ?? '' ); ?></p>
+          </div>
+
+          <div class="h-px bg-slate-100"></div>
+
+          <div class="flex gap-4">
+            <div class="w-10 h-10 rounded-xl bg-[#929f5d]/10 flex items-center justify-center shrink-0 text-[#929f5d]">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin w-4 h-4"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            </div>
+            <div>
+              <h3 class="text-xs font-mono font-bold uppercase tracking-widest text-slate-400 mb-1 block"><?php echo esc_html( $attributes['addressHeading'] ?? '' ); ?></h3>
+              <p class="text-sm font-bold text-slate-800 block"><?php echo esc_html( $attributes['addressLine1'] ?? '' ); ?></p>
+              <p class="text-sm font-bold text-slate-800 block"><?php echo esc_html( $attributes['addressLine2'] ?? '' ); ?></p>
+              <p class="text-sm font-semibold text-slate-500 mt-0.5 block"><?php echo esc_html( $attributes['addressCountry'] ?? '' ); ?></p>
+            </div>
+          </div>
+
+          <div class="h-px bg-slate-100"></div>
+
+          <div class="flex gap-4">
+            <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 text-blue-600">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mail w-4 h-4"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>
+            </div>
+            <div>
+              <h3 class="text-xs font-mono font-bold uppercase tracking-widest text-slate-400 mb-1 block"><?php echo esc_html( $attributes['contactHeading'] ?? '' ); ?></h3>
+              <?php if (($setAttributes ?? null)): ?>
+<span class="text-sm font-bold text-slate-800 block"><?php echo esc_html( $attributes['contactEmail'] ?? '' ); ?></span>
+<?php else: ?>
+<a class="text-sm font-bold text-slate-800 hover:text-primary transition-colors" href="mailto:<?php echo esc_attr( ($attributes['contactEmail'] ?? null) ); ?>">
+                  <?php echo esc_html( $attributes['contactEmail'] ?? '' ); ?>
+                </a>
+<?php endif; ?>
+              <p class="text-xs font-semibold text-slate-500 mt-1">
+                <?php if (($setAttributes ?? null)): ?>
+
+                    <span><?php echo esc_html( $attributes['contactWebsiteLabel'] ?? '' ); ?></span><?php echo esc_html( ' ' ); ?>
+                    <span class="underline"><?php echo esc_html( $attributes['contactWebsiteDisplay'] ?? '' ); ?></span>
+                  
+<?php else: ?>
+
+                    <?php echo esc_html( $attributes['contactWebsiteLabel'] ?? '' ); ?><?php echo esc_html( ' ' ); ?>
+                    <a class="underline hover:text-primary" href="<?php echo esc_url( $attributes['contactWebsiteUrl'] ?? '' ); ?>" target="_blank" rel="noopener noreferrer">
+                      <?php echo esc_html( $attributes['contactWebsiteDisplay'] ?? '' ); ?>
+                    </a>
+                  
+<?php endif; ?>
+              </p>
+            </div>
+          </div>
+
+          <div class="h-px bg-slate-100"></div>
+
+          <div class="flex gap-4">
+            <div class="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 text-slate-600">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-landmark w-4 h-4"><line x1="3" x2="21" y1="22" y2="22"></line><line x1="6" x2="6" y1="18" y2="11"></line><line x1="10" x2="10" y1="18" y2="11"></line><line x1="14" x2="14" y1="18" y2="11"></line><line x1="18" x2="18" y1="18" y2="11"></line><polygon points="12 2 20 7 4 7"></polygon></svg>
+            </div>
+            <div class="space-y-2 w-full">
+              <h3 class="text-xs font-mono font-bold uppercase tracking-widest text-slate-400 mb-1 block"><?php echo esc_html( $attributes['registerHeading'] ?? '' ); ?></h3>
+              <div class="grid grid-cols-2 gap-4 text-xs font-bold text-slate-700">
+                <div>
+                  <span class="text-slate-400 block font-normal uppercase tracking-wider text-[10px] mb-0.5"><?php echo esc_html( $attributes['registerNumberLabel'] ?? '' ); ?></span>
+                  <span class="block"><?php echo esc_html( $attributes['registerNumber'] ?? '' ); ?></span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block font-normal uppercase tracking-wider text-[10px] mb-0.5"><?php echo esc_html( $attributes['vatLabel'] ?? '' ); ?></span>
+                  <span class="block"><?php echo esc_html( $attributes['vatId'] ?? '' ); ?></span>
+                </div>
+              </div>
+              <div class="text-xs font-bold text-slate-700 pt-1">
+                <span class="text-slate-400 block font-normal uppercase tracking-wider text-[10px] mb-0.5"><?php echo esc_html( $attributes['courtLabel'] ?? '' ); ?></span>
+                <span class="block"><?php echo esc_html( $attributes['courtName'] ?? '' ); ?></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-slate-100/60 rounded-2xl p-6 shadow-xs h-fit space-y-5">
+          <h2 class="text-sm font-black uppercase text-slate-800 pb-3 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield-check w-4 h-4 text-primary shrink-0"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>
+            <span class=""><?php echo esc_html( $attributes['legalHeading'] ?? '' ); ?></span>
+          </h2>
+
+          <div class="space-y-4">
+            <div>
+              <h3 class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1 block"><?php echo esc_html( $attributes['businessPurposeLabel'] ?? '' ); ?></h3>
+              <?php if (($setAttributes ?? null)): ?>
+<div class="text-xs font-semibold text-slate-700 leading-relaxed"><?php echo wp_kses_post( $attributes['businessPurpose'] ?? '' ); ?></div>
+<?php else: ?>
+<div class="text-xs font-semibold text-slate-700 leading-relaxed"><?php echo wp_kses_post( $attributes['businessPurpose'] ?? '' ); ?></div>
+<?php endif; ?>
+            </div>
+
+            <div>
+              <h3 class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1 block"><?php echo esc_html( $attributes['authorityLabel'] ?? '' ); ?></h3>
+              <?php if (($setAttributes ?? null)): ?>
+<div class="text-xs font-semibold text-slate-700 leading-relaxed"><?php echo wp_kses_post( $attributes['authority'] ?? '' ); ?></div>
+<?php else: ?>
+<div class="text-xs font-semibold text-slate-700 leading-relaxed"><?php echo wp_kses_post( $attributes['authority'] ?? '' ); ?></div>
+<?php endif; ?>
+            </div>
+
+            <div>
+              <h3 class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1 block"><?php echo esc_html( $attributes['trademarkLabel'] ?? '' ); ?></h3>
+              <?php if (($setAttributes ?? null)): ?>
+<div class="text-xs font-semibold text-slate-700 leading-relaxed"><?php echo wp_kses_post( $attributes['trademark'] ?? '' ); ?></div>
+<?php else: ?>
+<div class="text-xs font-semibold text-slate-700 leading-relaxed"><?php echo wp_kses_post( $attributes['trademark'] ?? '' ); ?></div>
+<?php endif; ?>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+"
+`;
+
+exports[`render.php (PHP markup) for real hotelchecker24 components > "trust-strip" render.php exists, contains no mangled-ternary markers, and lints as balanced PHP tags 1`] = `
+"<?php
+/**
+ * Gutenberg dynamic block template — Trust Strip
+ * Autogenerated by ForgeWP Theme Compiler. Do not modify manually.
+ */
+$loading = true;
+$isLoading = true;
+$hotels = array();
+$posts = array();
+$listicles = array();
+$destinations = array();
+$v1m = forgewp_get_meta_value('trust_stat1_value', '500+', false, null);
+$l1m = forgewp_get_meta_value('trust_stat1_label', 'Kuratierte Hotels', false, null);
+$v2m = forgewp_get_meta_value('trust_stat2_value', '4', false, null);
+$l2m = forgewp_get_meta_value('trust_stat2_label', 'Länder abgedeckt', false, null);
+$v3m = forgewp_get_meta_value('trust_stat3_value', '100%', false, null);
+$l3m = forgewp_get_meta_value('trust_stat3_label', 'Unabhängig & redaktionell', false, null);
+$v4m = forgewp_get_meta_value('trust_stat4_value', 'DE / EN', false, null);
+$l4m = forgewp_get_meta_value('trust_stat4_label', 'Deutsch & Englisch', false, null);
+$stat1Value = ($v1p ?? null) ?? ($v1m ?? null);
+$stat1Label = ($l1p ?? null) ?? ($l1m ?? null);
+$stat2Value = ($v2p ?? null) ?? ($v2m ?? null);
+$stat2Label = ($l2p ?? null) ?? ($l2m ?? null);
+$stat3Value = ($v3p ?? null) ?? ($v3m ?? null);
+$stat3Label = ($l3p ?? null) ?? ($l3m ?? null);
+$stat4Value = ($v4p ?? null) ?? ($v4m ?? null);
+$stat4Label = ($l4p ?? null) ?? ($l4m ?? null);
+$__v = (($label ?? null));
+?>
+<div class="bg-white w-full  <?php echo esc_attr( forgewp_padding_classes($attributes ?? array()) ); ?>">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          <div class="flex flex-col items-center gap-1">
+      <?php if (($setAttributes ?? null)): ?>
+
+          <span class="text-2xl font-black text-slate-900 font-sans"><?php echo esc_html( $stat1Value ?? '' ); ?></span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400"><?php echo esc_html( $stat1Label ?? '' ); ?></span>
+        
+<?php else: ?>
+
+          <span class="text-2xl font-black text-slate-900 font-sans"><?php echo esc_html( $stat1Value ?? '' ); ?></span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400"><?php echo esc_html( $stat1Label ?? '' ); ?></span>
+        
+<?php endif; ?>
+    </div>
+          <div class="flex flex-col items-center gap-1">
+      <?php if (($setAttributes ?? null)): ?>
+
+          <span class="text-2xl font-black text-slate-900 font-sans"><?php echo esc_html( $stat2Value ?? '' ); ?></span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400"><?php echo esc_html( $stat2Label ?? '' ); ?></span>
+        
+<?php else: ?>
+
+          <span class="text-2xl font-black text-slate-900 font-sans"><?php echo esc_html( $stat2Value ?? '' ); ?></span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400"><?php echo esc_html( $stat2Label ?? '' ); ?></span>
+        
+<?php endif; ?>
+    </div>
+          <div class="flex flex-col items-center gap-1">
+      <?php if (($setAttributes ?? null)): ?>
+
+          <span class="text-2xl font-black text-slate-900 font-sans"><?php echo esc_html( $stat3Value ?? '' ); ?></span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400"><?php echo esc_html( $stat3Label ?? '' ); ?></span>
+        
+<?php else: ?>
+
+          <span class="text-2xl font-black text-slate-900 font-sans"><?php echo esc_html( $stat3Value ?? '' ); ?></span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400"><?php echo esc_html( $stat3Label ?? '' ); ?></span>
+        
+<?php endif; ?>
+    </div>
+          <div class="flex flex-col items-center gap-1">
+      <?php if (($setAttributes ?? null)): ?>
+
+          <span class="text-2xl font-black text-slate-900 font-sans"><?php echo esc_html( $stat4Value ?? '' ); ?></span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400"><?php echo esc_html( $stat4Label ?? '' ); ?></span>
+        
+<?php else: ?>
+
+          <span class="text-2xl font-black text-slate-900 font-sans"><?php echo esc_html( $stat4Value ?? '' ); ?></span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400"><?php echo esc_html( $stat4Label ?? '' ); ?></span>
+        
+<?php endif; ?>
+    </div>
+        </div>
+      </div>
+    </div>
+"
+`;

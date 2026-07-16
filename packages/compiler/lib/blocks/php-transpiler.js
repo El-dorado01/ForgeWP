@@ -2,6 +2,7 @@ import { readFileSync, existsSync, statSync } from "node:fs";
 import path from "node:path";
 import { findHtmlTagEnd, resolveIconToSvgHtml } from "./shared-utils.js";
 import { readComponentSource } from "../hydration/is-interactive.js";
+import { tryParseSource, traverse, markLegacyFallback } from "./ast-parser.js";
 
 /**
  * Removes every `<WpEditable ...>...</WpEditable>` / self-closing
@@ -115,89 +116,185 @@ function buildPhpPropsArrayExpr(attrsStr) {
   return `array(${parts.join(', ')})`;
 }
 
+/**
+ * Extract the JSX an `edit`/`save` property (or a named function/const
+ * declaration) returns from `code`.
+ *
+ * AST-based (see ast-parser.js): parses `code` once, locates the target
+ * function or object property by name, and reads its returned
+ * JSXElement/JSXFragment node directly off the AST — no more brace-balancing
+ * text scan trying to (re-)discover where that already-parsed JSX begins and
+ * ends, which was misidentifying ternary/paren boundaries (scratch category
+ * H: nested ternaries containing fragments, etc.).
+ *
+ * `code` is frequently a substring produced by older text-slicing callers
+ * (`code.substring(searchIndex)`) rather than a standalone-parseable module,
+ * so a parse failure falls back to the legacy text-scanning implementation.
+ */
 export function extractJsx(code, propertyName) {
-  let subCode = code;
+  const ast = tryParseSource(code);
+  if (ast) {
+    try {
+      const jsxNode = locateTargetJsx(ast, propertyName, false);
+      if (jsxNode) return code.slice(jsxNode.start, jsxNode.end).trim();
+    } catch {
+      // Fall through to the legacy scanner below.
+    }
+  }
+  // Legacy text-scan fallback deleted (Phase 4 — zero contributions across
+  // the entire known theme surface). Marker stays as a field signal.
+  markLegacyFallback('php-transpiler:extractJsx-would-have-tried-legacy');
+  return null;
+}
+
+function isJsxNode(node) {
+  return !!node && (node.type === 'JSXElement' || node.type === 'JSXFragment');
+}
+
+function isFunctionLikeNode(node) {
+  return !!node && (node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression');
+}
+
+/**
+ * Collect the JSX arguments of every `return` statement reachable from
+ * `bodyNode` without crossing into a nested function's own body — a
+ * `.map(item => { return <li/> })` inside the target function must not be
+ * mistaken for the target function's own return.
+ */
+function collectTopLevelReturnJsx(bodyNode, out) {
+  if (!bodyNode) return;
+  switch (bodyNode.type) {
+    case 'BlockStatement':
+      for (const stmt of bodyNode.body) collectTopLevelReturnJsx(stmt, out);
+      break;
+    case 'ReturnStatement':
+      if (isJsxNode(bodyNode.argument)) out.push(bodyNode.argument);
+      break;
+    case 'IfStatement':
+      collectTopLevelReturnJsx(bodyNode.consequent, out);
+      if (bodyNode.alternate) collectTopLevelReturnJsx(bodyNode.alternate, out);
+      break;
+    case 'TryStatement':
+      collectTopLevelReturnJsx(bodyNode.block, out);
+      if (bodyNode.handler) collectTopLevelReturnJsx(bodyNode.handler.body, out);
+      if (bodyNode.finalizer) collectTopLevelReturnJsx(bodyNode.finalizer, out);
+      break;
+    case 'SwitchStatement':
+      for (const c of bodyNode.cases) {
+        for (const stmt of c.consequent) collectTopLevelReturnJsx(stmt, out);
+      }
+      break;
+    case 'ForStatement':
+    case 'ForInStatement':
+    case 'ForOfStatement':
+    case 'WhileStatement':
+    case 'DoWhileStatement':
+    case 'LabeledStatement':
+      collectTopLevelReturnJsx(bodyNode.body, out);
+      break;
+    default:
+      break; // Don't descend into function-like nodes or plain expressions.
+  }
+}
+
+/** `fnNode` is an Arrow/Function/ObjectMethod — anything with a `.body`. */
+function extractJsxFromFunctionNode(fnNode, preferLast) {
+  const body = fnNode && fnNode.body;
+  if (isJsxNode(body)) return body; // Concise arrow body: () => <div/>
+  if (body && body.type === 'BlockStatement') {
+    const found = [];
+    collectTopLevelReturnJsx(body, found);
+    if (found.length === 0) return null;
+    return preferLast ? found[found.length - 1] : found[0];
+  }
+  return null;
+}
+
+/**
+ * Find a function/property named `name`: an object property/method (the
+ * `edit:`/`save:` shape defineBlock({...}) uses), a function declaration, or
+ * a const-assigned function — in that priority order, matching the legacy
+ * scanner's `propertyName:` → `function propertyName` → `const propertyName`
+ * search order.
+ */
+function findNamedFunction(ast, name) {
+  let objectMatch = null;
+  let funcDeclMatch = null;
+  let varDeclMatch = null;
+
+  traverse(ast, {
+    ObjectProperty(path) {
+      if (objectMatch) return;
+      const key = path.node.key;
+      const keyName = key.type === 'Identifier' ? key.name : key.type === 'StringLiteral' ? key.value : null;
+      if (keyName === name && isFunctionLikeNode(path.node.value)) {
+        objectMatch = path.node.value;
+      }
+    },
+    ObjectMethod(path) {
+      if (objectMatch) return;
+      const key = path.node.key;
+      const keyName = key.type === 'Identifier' ? key.name : key.type === 'StringLiteral' ? key.value : null;
+      if (keyName === name) objectMatch = path.node;
+    },
+    FunctionDeclaration(path) {
+      if (!funcDeclMatch && path.node.id && path.node.id.name === name) funcDeclMatch = path.node;
+    },
+    VariableDeclarator(path) {
+      if (
+        !varDeclMatch &&
+        path.node.id.type === 'Identifier' &&
+        path.node.id.name === name &&
+        isFunctionLikeNode(path.node.init)
+      ) {
+        varDeclMatch = path.node.init;
+      }
+    },
+  });
+
+  return objectMatch || funcDeclMatch || varDeclMatch || null;
+}
+
+/** Whole-program fallback: the first function (in source order) that returns JSX. */
+function findFirstJsxReturningFunction(ast, preferLast) {
+  let result = null;
+  traverse(ast, {
+    'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression|ObjectMethod'(path) {
+      if (result) return;
+      const jsx = extractJsxFromFunctionNode(path.node, preferLast);
+      if (jsx) {
+        result = jsx;
+        path.stop();
+      }
+    },
+  });
+  return result;
+}
+
+function locateTargetJsx(ast, propertyName, preferLast) {
   if (propertyName) {
-    let propIndex = code.indexOf(`${propertyName}:`);
-    if (propIndex === -1) {
-      propIndex = code.indexOf(`function ${propertyName}`);
-      if (propIndex === -1) {
-        propIndex = code.indexOf(`const ${propertyName}`);
-      }
-    }
-    if (propIndex === -1) {
-      if (code.includes('return (')) {
-        propIndex = 0;
-      } else {
-        return null;
-      }
-    }
-    subCode = code.substring(propIndex);
+    const fnNode = findNamedFunction(ast, propertyName);
+    // Found the named property/decl but it has no JSX (e.g. `edit: () => null`)
+    // — legacy never widens the search back out in this case, so neither do we.
+    if (fnNode) return extractJsxFromFunctionNode(fnNode, preferLast);
+    // Name not found at all — mirrors legacy's `propIndex = 0` whole-code fallback.
+    return findFirstJsxReturningFunction(ast, preferLast);
   }
+  return findFirstJsxReturningFunction(ast, preferLast);
+}
 
-  // Handle implicit arrow function return: e.g. edit: (props) => <SimpleBanner ... />
-  const arrowMatch = subCode.match(/=>\s*(<[a-zA-Z0-9_.-]+)/);
-  const openBrace = subCode.indexOf('{');
-  if (arrowMatch && (openBrace === -1 || subCode.indexOf(arrowMatch[0]) < openBrace)) {
-    const jsxIndex = subCode.indexOf(arrowMatch[1]);
-    const jsx = extractJsxByTagBalancing(subCode.substring(jsxIndex));
-    if (jsx) return jsx.trim();
+/** AST twin of extractJsxPreferLastReturn: locate `name`'s function and take
+ * its LAST top-level returned JSX (the main render path, after early
+ * loading/empty-state returns). Null when `code` doesn't parse. */
+function extractJsxAstPreferLast(code, name) {
+  const ast = tryParseSource(code);
+  if (!ast) return null;
+  try {
+    const jsxNode = locateTargetJsx(ast, name, true);
+    if (jsxNode) return code.slice(jsxNode.start, jsxNode.end).trim();
+  } catch {
+    // fall through to the legacy scanners at the call site
   }
-
-  // Parse the function body block to find the main return statement at root depth
-  if (openBrace !== -1) {
-    let depth = 1;
-    let pos = openBrace + 1;
-    while (pos < subCode.length) {
-      const char = subCode[pos];
-      if (char === '{') {
-        depth++;
-      } else if (char === '}') {
-        depth--;
-        if (depth === 0) {
-          break; // end of function block
-        }
-      } else if (depth === 1) {
-        if (subCode.substring(pos, pos + 8) === 'return (') {
-          const jsx = extractJsxByTagBalancing(subCode.substring(pos));
-          if (jsx) return jsx.trim();
-        } else if (subCode.substring(pos, pos + 7) === 'return ') {
-          // Check if it's returning a JSX element (starts with <)
-          const rest = subCode.substring(pos + 7).trim();
-          if (rest.startsWith('<')) {
-            const jsx = extractJsxByTagBalancing(subCode.substring(pos));
-            if (jsx) return jsx.trim();
-          }
-        }
-      }
-      pos++;
-    }
-  }
-
-  const returnIndex = subCode.indexOf('return (');
-  if (returnIndex !== -1) {
-    const jsx = extractJsxByTagBalancing(subCode.substring(returnIndex));
-    if (jsx) return jsx.trim();
-  }
-
-  const returnSingleIndex = subCode.indexOf('return ');
-  if (returnSingleIndex !== -1) {
-    const jsx = extractJsxByTagBalancing(subCode.substring(returnSingleIndex));
-    if (jsx) return jsx.trim();
-  }
-
-  const arrowIndex = subCode.indexOf('=>');
-  if (arrowIndex !== -1 && arrowIndex < 80) {
-    const afterArrow = subCode.substring(arrowIndex + 2).trim();
-    if (afterArrow.startsWith('(')) {
-      const jsx = extractJsxByTagBalancing(afterArrow);
-      if (jsx) return jsx.trim();
-    } else if (afterArrow.startsWith('<')) {
-      const jsx = extractJsxByTagBalancing(afterArrow);
-      if (jsx) return jsx.trim();
-    }
-  }
-
   return null;
 }
 
@@ -864,13 +961,19 @@ export function resolveImportedComponentJsx(compName, sourceCode, sourceFilePath
           : constIndex;
     if (searchIndex === -1) return null;
 
-    // Prefer the last depth-1 return in the function body (main render path).
-    // Early returns inside if/try often are loading/success branches and must
-    // not be the only thing expanded into the parent block canvas.
-    let compJsx =
-      extractJsxPreferLastReturn(compContent.substring(searchIndex), compName) ||
-      extractJsx(compContent.substring(searchIndex), compName) ||
-      extractJsx(compContent, compName);
+    // Prefer the last top-level return in the function body (main render
+    // path). Early returns inside if/try often are loading/success branches
+    // and must not be the only thing expanded into the parent block canvas.
+    // AST-first (locateTargetJsx with preferLast — the whole module is clean
+    // TSX here, so this virtually always succeeds); the legacy brace-depth
+    // text scans below remain as the fallback chain.
+    let compJsx = extractJsxAstPreferLast(compContent, compName);
+    if (!compJsx) {
+      markLegacyFallback('php-transpiler:resolveImportedComponentJsx-extraction');
+      compJsx =
+        extractJsx(compContent.substring(searchIndex), compName) ||
+        extractJsx(compContent, compName);
+    }
     if (!compJsx) {
       const sub = compContent.substring(searchIndex);
       const returnMatch = sub.match(/return\s*\(\s*(<[\s\S]*?>)\s*\)/);
@@ -896,187 +999,78 @@ export function resolveImportedComponentJsx(compName, sourceCode, sourceFilePath
 }
 
 /**
- * Like extractJsx, but when multiple root-depth `return (` exist, prefer the last
- * (typically the main render path after early-return branches).
+ * AST pass for expandNestedComponentTags: parse the JSX text, walk for
+ * PascalCase component call sites, resolve + recursively expand each, and
+ * splice replacements by exact node byte offsets — no close-tag `indexOf`
+ * scan that a nested same-name component (`<Card><Card/></Card>`) or a `>`
+ * inside an attribute expression could derail.
+ *
+ * Returns the (possibly unchanged) text, or null when jsxText isn't
+ * parseable — after a PHP-mode island splice the output contains a literal
+ * `<?php … ?>` hydration attribute, at which point the caller falls back to
+ * the legacy text scan for any remaining tags.
  */
-function extractJsxPreferLastReturn(code, propertyName) {
-  let subCode = code;
-  if (propertyName) {
-    let propIndex = code.indexOf(`function ${propertyName}`);
-    if (propIndex === -1) propIndex = code.indexOf(`const ${propertyName}`);
-    if (propIndex === -1) propIndex = code.indexOf(`export default function ${propertyName}`);
-    if (propIndex === -1) return null;
-    subCode = code.substring(propIndex);
+function expandNestedTagsAstPass(jsxText, sourceCode, sourceFilePath, themeRoot, _depth, mode) {
+  const ast = tryParseSource(jsxText);
+  if (!ast) return null;
+
+  const splices = [];
+  const walk = (node) => {
+    if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
+    if (node.type === 'JSXElement') {
+      const name = node.openingElement.name.type === 'JSXIdentifier' ? node.openingElement.name.name : '';
+      if (name && /^[A-Z]/.test(name) && !SKIP_NESTED_COMPONENTS.has(name)) {
+        const selfClosing = node.openingElement.selfClosing;
+        const attrsEnd = node.openingElement.end - (selfClosing ? 2 : 1);
+        const callSiteAttrsStr = jsxText.slice(node.openingElement.name.end, attrsEnd);
+        const resolved = resolveImportedComponentJsx(name, sourceCode, sourceFilePath, themeRoot, mode, callSiteAttrsStr);
+        if (resolved) {
+          const compJsx = expandNestedComponentTags(
+            resolved.jsx, resolved.sourceCode, resolved.sourceFilePath, themeRoot, _depth + 1, mode,
+          );
+          splices.push({ start: node.start, end: node.end, text: compJsx });
+          return; // replaced wholesale — don't descend into the old children
+        }
+      }
+    }
+    for (const key of Object.keys(node)) {
+      if (AST_PHP_METADATA_KEYS.has(key)) continue;
+      const val = node[key];
+      if (Array.isArray(val)) {
+        for (const item of val) {
+          if (item && typeof item.type === 'string') walk(item);
+        }
+      } else if (val && typeof val.type === 'string') {
+        walk(val);
+      }
+    }
+  };
+  walk(ast.program);
+
+  if (splices.length === 0) return jsxText;
+  splices.sort((a, b) => b.start - a.start); // splice right-to-left, offsets stay valid
+  let out = jsxText;
+  for (const s of splices) {
+    out = out.slice(0, s.start) + s.text + out.slice(s.end);
   }
-  const openBrace = subCode.indexOf('{');
-  if (openBrace === -1) return null;
-
-  let depth = 1;
-  let pos = openBrace + 1;
-  let lastJsx = null;
-  let inSingle = false;
-  let inDouble = false;
-  let inBacktick = false;
-  let inLineComment = false;
-  let inBlockComment = false;
-
-  while (pos < subCode.length) {
-    const c = subCode[pos];
-    const next = subCode[pos + 1];
-
-    if (inLineComment) {
-      if (c === '\n') inLineComment = false;
-      pos++;
-      continue;
-    }
-    if (inBlockComment) {
-      if (c === '*' && next === '/') {
-        inBlockComment = false;
-        pos += 2;
-        continue;
-      }
-      pos++;
-      continue;
-    }
-    if (inSingle) {
-      if (c === '\\') {
-        pos += 2;
-        continue;
-      }
-      if (c === "'") inSingle = false;
-      pos++;
-      continue;
-    }
-    if (inDouble) {
-      if (c === '\\') {
-        pos += 2;
-        continue;
-      }
-      if (c === '"') inDouble = false;
-      pos++;
-      continue;
-    }
-    if (inBacktick) {
-      if (c === '\\') {
-        pos += 2;
-        continue;
-      }
-      if (c === '`') inBacktick = false;
-      pos++;
-      continue;
-    }
-
-    if (c === '/' && next === '/') {
-      inLineComment = true;
-      pos += 2;
-      continue;
-    }
-    if (c === '/' && next === '*') {
-      inBlockComment = true;
-      pos += 2;
-      continue;
-    }
-    if (c === "'") {
-      inSingle = true;
-      pos++;
-      continue;
-    }
-    if (c === '"') {
-      inDouble = true;
-      pos++;
-      continue;
-    }
-    if (c === '`') {
-      inBacktick = true;
-      pos++;
-      continue;
-    }
-
-    if (c === '{') {
-      depth++;
-    } else if (c === '}') {
-      depth--;
-      if (depth === 0) break;
-    } else if (depth === 1 && subCode.substring(pos, pos + 8) === 'return (') {
-      const jsx = extractJsxByTagBalancing(subCode.substring(pos));
-      if (jsx) lastJsx = jsx.trim();
-    }
-    pos++;
-  }
-  return lastJsx;
+  return out;
 }
 
 export function expandNestedComponentTags(jsx, sourceCode, sourceFilePath, themeRoot, _depth = 0, mode = 'editor') {
   if (_depth > 10) return jsx; // guard against pathological/circular import chains
   let output = jsx;
   for (let pass = 0; pass < 20; pass++) {
-    let changed = false;
-    let index = 0;
-    while (true) {
-      const match = output.substring(index).match(/<([A-Z][A-Za-z0-9]*)\b/);
-      if (!match) break;
-
-      const compName = match[1];
-      const matchIndex = index + match.index;
-
-      if (SKIP_NESTED_COMPONENTS.has(compName)) {
-        index = matchIndex + compName.length + 1;
-        continue;
-      }
-
-      const tagEnd = findHtmlTagEnd(output, matchIndex);
-      if (tagEnd === -1) {
-        index = matchIndex + compName.length + 1;
-        continue;
-      }
-
-      const fullTagStr = output.substring(matchIndex, tagEnd + 1);
-      const isSelfClosing = fullTagStr.endsWith('/>');
-
-      let replacementEndIndex = tagEnd + 1;
-
-      if (!isSelfClosing) {
-        const closeTag = `</${compName}>`;
-        const closeIndex = output.indexOf(closeTag, tagEnd + 1);
-        if (closeIndex !== -1) {
-          replacementEndIndex = closeIndex + closeTag.length;
-        }
-      }
-
-      const tagNameLen = ('<' + compName).length;
-      const attrsEnd = fullTagStr.length - (isSelfClosing ? 2 : 1);
-      const callSiteAttrsStr = fullTagStr.slice(tagNameLen, attrsEnd);
-
-      const resolved = resolveImportedComponentJsx(
-        compName,
-        sourceCode,
-        sourceFilePath,
-        themeRoot,
-        mode,
-        callSiteAttrsStr,
-      );
-
-      if (resolved) {
-        // Recursively expand nested components inside the just-resolved JSX using ITS
-        // OWN source file's imports before splicing it into the parent output.
-        const compJsx = expandNestedComponentTags(
-          resolved.jsx,
-          resolved.sourceCode,
-          resolved.sourceFilePath,
-          themeRoot,
-          _depth + 1,
-          mode,
-        );
-        changed = true;
-        output = output.substring(0, matchIndex) + compJsx + output.substring(replacementEndIndex);
-        index = matchIndex + compJsx.length;
-      } else {
-        index = replacementEndIndex;
-      }
+    const expanded = expandNestedTagsAstPass(output, sourceCode, sourceFilePath, themeRoot, _depth, mode);
+    if (expanded === null) {
+      // Unparseable (PHP island boundary spliced in on an earlier pass, or
+      // a non-JSX fragment) — legacy text scan handles whatever remains.
+      // Legacy text-scan fallback deleted (Phase 4 — zero entries on the
+      // entire known theme surface). Remaining tags stay as-is; marker kept.
+      markLegacyFallback('php-transpiler:expandNestedComponentTags-would-have-tried-legacy');
+      return output;
     }
-    if (!changed) {
-      break;
-    }
+    if (expanded === output) return output; // fixpoint — nothing left to expand
+    output = expanded;
   }
   return output;
 }
@@ -2329,4 +2323,633 @@ export function transpileStaticArrayObjectMap(phpMarkup, settings, themeRoot, lo
   }
   result += phpMarkup.slice(cursor);
   return result;
+}
+
+/**
+ * ===========================================================================
+ * AST-based PHP markup emitter — Phase 2 Step 4 (PHP half).
+ * ===========================================================================
+ *
+ * generatePhpMarkupFromJsx parses the raw extracted JSX once and walks the
+ * real AST to emit render.php markup directly, replacing the bulk of what
+ * used to be ~20 independently-evolved regex/text passes in index.js
+ * (JSX-tag balancing, brace-depth scanning for ternaries/conditionals,
+ * attribute-shape regexes layered by increasing generality, …) with
+ * recursive emitters keyed on node.type: ConditionalExpression,
+ * LogicalExpression (&&), CallExpression (.map()), generic JSXElement/
+ * JSXFragment/JSXText/JSXExpressionContainer.
+ *
+ * Deliberately NOT reimplemented here (left to the existing text-based
+ * passes, unchanged, running on this function's output as a safety net):
+ * - transpileStaticArrayObjectMap / translateStaticArrayLengthCheck: these
+ *   resolve a `const X = [...] as const` array declared elsewhere in the
+ *   *same source file* and statically unroll `.map()` over it into N literal
+ *   copies of the row template. That's a cross-reference into sibling source
+ *   text, not a property of the JSX subtree being emitted here — a
+ *   genuinely different concern from "turn this parsed expression into PHP".
+ *   tryEmitPhpMapLoop below only takes over the loop shapes it can resolve
+ *   with confidence (a bare attribute/local-var array, or the `(x || '').
+ *   split(...)` string-split shape); anything else — an array literal
+ *   target, an `as const` cast, chained `.filter()` in an unrecognized
+ *   shape — is left as the original verbatim JSX text `{...}` so these
+ *   existing passes can still catch and unroll it downstream exactly as
+ *   before.
+ *
+ * Every leaf expression still goes through the existing, unchanged
+ * translateJsExpressionToPhp — this migration is about correctly *finding*
+ * expression/condition/loop boundaries via a real parser, not about
+ * reimplementing PHP code generation for expressions that already works.
+ *
+ * Returns the emitted PHP markup string, or null if `jsxCode` doesn't parse
+ * as a single clean JSX expression (falls back to the legacy text pipeline
+ * — see index.js's call site) or if emission hits an unexpected shape it
+ * has no safe fallback for.
+ */
+export function generatePhpMarkupFromJsx(jsxCode, blockSettings, context) {
+  const ast = tryParseSource(jsxCode);
+  const body = ast && ast.program.body;
+  if (!(body && body.length === 1 && body[0].type === 'ExpressionStatement')) return null;
+  const rootExpr = body[0].expression;
+  if (rootExpr.type !== 'JSXElement' && rootExpr.type !== 'JSXFragment') return null;
+
+  const fullContext = {
+    attrKeys: Object.keys((blockSettings && blockSettings.attributes) || {}),
+    localVars: (context && context.localVars) || new Set(),
+    freeFunctions: (context && context.freeFunctions) || new Set(),
+    themeRoot: context && context.themeRoot,
+    importMap: (blockSettings && blockSettings.importMap) || {},
+    textDomain: (context && context.textDomain) || 'hotelchecker24',
+  };
+
+  try {
+    return emitPhpNode(rootExpr, jsxCode, blockSettings, fullContext);
+  } catch {
+    return null;
+  }
+}
+
+const VOID_HTML_TAGS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr',
+  'path', 'circle', 'rect', 'line', 'polygon', 'polyline', 'ellipse', 'stop', 'use',
+]);
+
+function isJsxNodePhp(node) {
+  return !!node && (node.type === 'JSXElement' || node.type === 'JSXFragment');
+}
+
+function getPhpJsxTagName(nameNode) {
+  if (nameNode.type === 'JSXIdentifier') return nameNode.name;
+  if (nameNode.type === 'JSXMemberExpression') {
+    return `${getPhpJsxTagName(nameNode.object)}.${nameNode.property.name}`;
+  }
+  if (nameNode.type === 'JSXNamespacedName') return `${nameNode.namespace.name}:${nameNode.name.name}`;
+  return '';
+}
+
+/** `[{ name, valueNode, hasValue }]` — valueNode is a StringLiteral or the
+ * inner expression of a JSXExpressionContainer; null when boolean-shorthand. */
+function readPhpJsxAttrs(openingElement) {
+  const attrs = [];
+  for (const attr of openingElement.attributes) {
+    if (attr.type !== 'JSXAttribute') continue; // spreads: never modeled by the legacy regex pipeline either
+    const name = getPhpJsxTagName(attr.name) || (attr.name.type === 'JSXIdentifier' ? attr.name.name : '');
+    if (!attr.value) {
+      attrs.push({ name, valueNode: null, hasValue: false });
+    } else if (attr.value.type === 'JSXExpressionContainer') {
+      attrs.push({ name, valueNode: attr.value.expression, hasValue: true });
+    } else {
+      attrs.push({ name, valueNode: attr.value, hasValue: true }); // StringLiteral
+    }
+  }
+  return attrs;
+}
+
+function findPhpAttr(attrs, name) {
+  return attrs.find((a) => a.name === name) || null;
+}
+
+function isStrippedPhpAttrName(name) {
+  return name === 'ref' || name === 'disabled' || name === 'checked' || /^on[A-Z]/.test(name);
+}
+
+/**
+ * Emit one JSX child/branch/condition expression that is NOT itself JSX.
+ * Mirrors extractTernaryBranch's "only translate genuinely simple
+ * expressions" bail: an IIFE, arrow function, or multi-statement body is far
+ * beyond what translateJsExpressionToPhp can safely rewrite, so it degrades
+ * to a blank echo instead of emitting mangled PHP.
+ */
+function emitPhpLeafExpression(exprNode, code, context) {
+  const exprText = code.slice(exprNode.start, exprNode.end);
+  const looksComplex = /=>|\bfunction\b|;|\bconst\b|\blet\b|\bvar\b/.test(exprText);
+  if (looksComplex) return `<?php echo ''; ?>`;
+  const phpExpr = translateJsExpressionToPhp(exprText, context.attrKeys, context.localVars, context.freeFunctions);
+  return `<?php echo esc_html( ${phpExpr} ); ?>`;
+}
+
+/** A ternary/`&&` branch: JSX recurses into the element emitter; a further
+ * nested ternary/`&&` recurses into emitPhpExpression; anything else is a
+ * leaf expression. */
+function emitPhpBranch(node, code, blockSettings, context) {
+  if (isJsxNodePhp(node)) return emitPhpNode(node, code, blockSettings, context);
+  if (node.type === 'ConditionalExpression' || (node.type === 'LogicalExpression' && node.operator === '&&')) {
+    return emitPhpExpression(node, code, blockSettings, context);
+  }
+  return emitPhpLeafExpression(node, code, context);
+}
+
+/**
+ * `<arrayTarget>.map((param[, index]) => ( <JSX/> ))` → PHP foreach.
+ * Only resolves the loop shapes transpileLoops' bare-identifier/split-map
+ * regexes already covered — a bare attribute/local-var array, or `(x || '').
+ * split(sep)[...].map(...)`. Anything else (array literal, `as const` cast,
+ * unrecognized chain) returns null so the caller falls back to verbatim JSX
+ * text for transpileStaticArrayObjectMap/transpileLoops to catch downstream.
+ */
+function tryEmitPhpMapLoop(callExpr, code, blockSettings, context) {
+  if (callExpr.arguments.length !== 1 || callExpr.arguments[0].type !== 'ArrowFunctionExpression') return null;
+  const arrow = callExpr.arguments[0];
+  if (!isJsxNodePhp(arrow.body)) return null; // only concise `=> ( <JSX/> )` bodies, matching legacy's scope
+  if (arrow.params.length < 1 || arrow.params.length > 2) return null;
+  if (arrow.params[0].type !== 'Identifier') return null; // no destructured loop params on this path
+
+  const arrayTarget = callExpr.callee.object;
+  let phpArrayExpr = null;
+
+  if (arrayTarget.type === 'Identifier') {
+    // Matches legacy's idMapRegex exactly: always try the attribute override
+    // first, then the bare identifier (a computed local var in the common
+    // case; PHP just treats an undefined one as null via `??`, harmless),
+    // then an empty array — never branch on whether it's "really" a known
+    // local var, since legacy's transpileLoops never had that information
+    // available either (it takes no localVars argument at all).
+    const name = arrayTarget.name;
+    phpArrayExpr = `($attributes['${name}'] ?? $${name} ?? array())`;
+  } else {
+    const split = matchPhpSplitMapTarget(arrayTarget, code);
+    if (split) {
+      phpArrayExpr = `array_filter(array_map('trim', explode('${split.separator}', ($attributes['${split.varName}'] ?? ''))))`;
+    }
+  }
+  if (!phpArrayExpr) return null; // complex target (array literal, `as const`, …) — bail
+
+  const varName = arrow.params[0].name;
+  const innerContext = { ...context, localVars: new Set([...context.localVars, varName]) };
+  let innerContent = emitPhpNode(arrow.body, code, blockSettings, innerContext);
+  innerContent = innerContent.replace(/className=/g, 'class=');
+
+  return `<?php foreach (${phpArrayExpr} as $${varName}): ?>\n${innerContent}\n<?php endforeach; ?>`;
+}
+
+/** `(x || '').split(',')[.map(trim)][.filter(Boolean)]` → { varName, separator } | null */
+function matchPhpSplitMapTarget(node, code) {
+  let current = node;
+  // Peel optional trailing .filter(...) / .map(trim-like) calls.
+  while (
+    current.type === 'CallExpression' &&
+    current.callee.type === 'MemberExpression' &&
+    (current.callee.property.name === 'filter' || current.callee.property.name === 'map')
+  ) {
+    current = current.callee.object;
+  }
+  if (
+    current.type !== 'CallExpression' ||
+    current.callee.type !== 'MemberExpression' ||
+    current.callee.property.name !== 'split'
+  ) {
+    return null;
+  }
+  const sepArg = current.arguments[0];
+  if (!sepArg || sepArg.type !== 'StringLiteral') return null;
+  const base = current.callee.object;
+  if (base.type !== 'LogicalExpression' || base.operator !== '||') return null;
+  if (base.left.type !== 'Identifier') return null;
+  const fallback = base.right;
+  const isEmptyStringFallback =
+    (fallback.type === 'StringLiteral' && fallback.value === '');
+  if (!isEmptyStringFallback) return null;
+  return { varName: base.left.name, separator: sepArg.value };
+}
+
+/** True when `node` (a ternary/&& condition) reads `.length` off a bare
+ * identifier that is neither a block attribute nor a computed local —
+ * i.e. a static array const only resolvable by reading the source file. */
+function hasUnresolvableLengthGuard(node, context) {
+  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return false;
+  if (
+    node.type === 'MemberExpression' && !node.computed &&
+    node.property.type === 'Identifier' && node.property.name === 'length' &&
+    node.object.type === 'Identifier' &&
+    !context.localVars.has(node.object.name) &&
+    !context.attrKeys.includes(node.object.name)
+  ) {
+    return true;
+  }
+  for (const key of Object.keys(node)) {
+    if (AST_PHP_METADATA_KEYS.has(key)) continue;
+    const val = node[key];
+    if (Array.isArray(val)) {
+      for (const item of val) {
+        if (item && typeof item.type === 'string' && hasUnresolvableLengthGuard(item, context)) return true;
+      }
+    } else if (val && typeof val.type === 'string' && hasUnresolvableLengthGuard(val, context)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const AST_PHP_METADATA_KEYS = new Set([
+  'loc', 'start', 'end', 'range', 'extra', 'leadingComments',
+  'trailingComments', 'innerComments', 'comments',
+]);
+
+function emitPhpExpression(exprNode, code, blockSettings, context) {
+  if (isJsxNodePhp(exprNode)) return emitPhpNode(exprNode, code, blockSettings, context);
+
+  if (exprNode.type === 'ConditionalExpression') {
+    const condText = code.slice(exprNode.test.start, exprNode.test.end);
+    const phpCond = translateJsExpressionToPhp(condText, context.attrKeys, context.localVars, context.freeFunctions);
+    const trueContent = emitPhpBranch(exprNode.consequent, code, blockSettings, context);
+    const falseContent = emitPhpBranch(exprNode.alternate, code, blockSettings, context);
+    return `<?php if (${phpCond}): ?>\n${trueContent}\n<?php else: ?>\n${falseContent}\n<?php endif; ?>`;
+  }
+
+  if (exprNode.type === 'LogicalExpression' && exprNode.operator === '&&') {
+    // A `X.length > 0` guard where X is neither a block attribute nor a
+    // computed local is a compile-time-static array const (e.g. a socialList
+    // whose rows each carry their own URL-filter condition). Its length
+    // cannot be known here — translateStaticArrayLengthCheck resolves it by
+    // reading the array's declaration out of the component source, and that
+    // pass matches on the literal `{X.length > 0 && (` text. Leave the whole
+    // expression as verbatim JSX so it still finds its pattern downstream;
+    // emitting the generic count($X ?? null) form instead would make the
+    // guard always-false at render time (no $X PHP variable ever exists).
+    if (hasUnresolvableLengthGuard(exprNode.left, context)) {
+      return `{${code.slice(exprNode.start, exprNode.end)}}`;
+    }
+    const condText = code.slice(exprNode.left.start, exprNode.left.end);
+    const phpCond = translateJsExpressionToPhp(condText, context.attrKeys, context.localVars, context.freeFunctions);
+    const content = emitPhpBranch(exprNode.right, code, blockSettings, context);
+    return `<?php if (${phpCond}): ?>\n${content}\n<?php endif; ?>`;
+  }
+
+  if (
+    exprNode.type === 'CallExpression' &&
+    exprNode.callee.type === 'MemberExpression' &&
+    exprNode.callee.property.type === 'Identifier' &&
+    exprNode.callee.property.name === 'map'
+  ) {
+    const loop = tryEmitPhpMapLoop(exprNode, code, blockSettings, context);
+    if (loop !== null) return loop;
+    // Bail to verbatim JSX text — see generatePhpMarkupFromJsx's doc comment.
+    return `{${code.slice(exprNode.start, exprNode.end)}}`;
+  }
+
+  // i18n: {__('Text', 'domain')}
+  if (exprNode.type === 'CallExpression' && exprNode.callee.type === 'Identifier' && exprNode.callee.name === '__') {
+    const arg0 = exprNode.arguments[0];
+    if (arg0 && arg0.type === 'StringLiteral') {
+      const escaped = arg0.value.replace(/'/g, "\\'").trim().replace(/\s+/g, ' ');
+      return `<?php echo esc_html( __('${escaped}', '${context.textDomain}') ); ?>`;
+    }
+  }
+
+  if (exprNode.type === 'Identifier') {
+    const varName = exprNode.name;
+    const attrConfig = blockSettings && blockSettings.attributes && blockSettings.attributes[varName];
+    const escFunc = attrConfig && attrConfig.control === 'richText' ? 'wp_kses_post' : 'esc_html';
+    const prefix = context.localVars.has(varName) ? `$${varName}` : `$attributes['${varName}']`;
+    return `<?php echo ${escFunc}( ${prefix} ?? '' ); ?>`;
+  }
+
+  if (
+    exprNode.type === 'MemberExpression' && !exprNode.computed &&
+    exprNode.object.type === 'Identifier' && exprNode.property.type === 'Identifier'
+  ) {
+    const objName = exprNode.object.name;
+    if (objName === 'attributes' || objName === 'props') {
+      // Legacy's final `{attributes.X}` pass STRIPS the attributes./props.
+      // prefix and then prefers the computed local var when one exists
+      // (`const description = descriptionProp ?? descriptionMeta` must win
+      // over the raw block attribute — the local carries the dual-host
+      // meta-fallback resolution). Match that exactly.
+      const varName = exprNode.property.name;
+      const attrConfig = blockSettings && blockSettings.attributes && blockSettings.attributes[varName];
+      const escFunc = attrConfig && attrConfig.control === 'richText' ? 'wp_kses_post' : 'esc_html';
+      const prefix = context.localVars.has(varName) ? `$${varName}` : `$attributes['${varName}']`;
+      return `<?php echo ${escFunc}( ${prefix} ?? '' ); ?>`;
+    }
+    const prefix = context.localVars.has(objName) ? `$${objName}` : `$attributes['${objName}']`;
+    return `<?php echo esc_html( ${prefix}['${exprNode.property.name}'] ?? '' ); ?>`;
+  }
+
+  return emitPhpLeafExpression(exprNode, code, context);
+}
+
+function emitPhpChildren(children, code, blockSettings, context) {
+  let out = '';
+  for (const child of children) {
+    if (child.type === 'JSXText') {
+      out += child.value;
+    } else if (child.type === 'JSXElement' || child.type === 'JSXFragment') {
+      out += emitPhpNode(child, code, blockSettings, context);
+    } else if (child.type === 'JSXExpressionContainer') {
+      if (child.expression.type === 'JSXEmptyExpression') continue; // {/* comment */}
+      out += emitPhpExpression(child.expression, code, blockSettings, context);
+    }
+  }
+  return out;
+}
+
+/** style={{ prop: expr, ... }} → a single interpolated `style="..."` HTML attribute. */
+function emitPhpStyleAttr(objExpr, code, context) {
+  const parts = [];
+  for (const prop of objExpr.properties) {
+    if (prop.type !== 'ObjectProperty') continue;
+    const propName = prop.key.type === 'Identifier' ? prop.key.name : prop.key.value;
+    const kebabProp = propName.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
+    const valText = code.slice(prop.value.start, prop.value.end);
+    const phpExpr = translateJsExpressionToPhp(valText, context.attrKeys, context.localVars, context.freeFunctions);
+    parts.push(`${kebabProp}: <?php echo esc_attr( ${phpExpr} ); ?>;`);
+  }
+  return `style="${parts.join(' ')}"`;
+}
+
+/** Generic `attr="literal"` / `attr={expr}` HTML attribute rendering (the
+ * cascade of increasingly-generic regexes in index.js, unified). */
+function emitPhpSingleAttr(name, valueNode, hasValue, code, context) {
+  if (!hasValue) return name; // boolean shorthand
+  if (valueNode.type === 'StringLiteral') {
+    return `${name}="${valueNode.value}"`;
+  }
+  // {'literal'} written with braces instead of the natural JSX shorthand.
+  if (valueNode.type === 'StringLiteral' || (valueNode.type === 'TemplateLiteral' && valueNode.expressions.length === 0)) {
+    const text = valueNode.type === 'StringLiteral' ? valueNode.value : valueNode.quasis[0].value.cooked;
+    return `${name}="${text}"`;
+  }
+  const escFunc = name === 'href' || name === 'src' ? 'esc_url' : 'esc_attr';
+  // Bare `attr={x}` / dotted `attr={x.y}` — legacy's specific attribute-value
+  // cascade (distinct from the generic translateJsExpressionToPhp fallback
+  // below) always uses `?? ''`, not `?? null`, and never double-wraps in
+  // parens; match it exactly rather than going through the generic path,
+  // which is semantically equivalent PHP but a needless divergence.
+  if (valueNode.type === 'Identifier') {
+    const varName = valueNode.name;
+    const prefix = context.localVars.has(varName) ? `$${varName}` : `$attributes['${varName}']`;
+    return `${name}="<?php echo ${escFunc}( ${prefix} ?? '' ); ?>"`;
+  }
+  if (
+    valueNode.type === 'MemberExpression' && !valueNode.computed &&
+    valueNode.object.type === 'Identifier' && valueNode.property.type === 'Identifier'
+  ) {
+    const objName = valueNode.object.name;
+    if (objName === 'attributes' || objName === 'props') {
+      // Same prefix-strip-then-prefer-local resolution as the child-position
+      // `{attributes.X}` case — see emitPhpExpression's comment.
+      const varName = valueNode.property.name;
+      const prefix = context.localVars.has(varName) ? `$${varName}` : `$attributes['${varName}']`;
+      return `${name}="<?php echo ${escFunc}( ${prefix} ?? '' ); ?>"`;
+    }
+    const prefix = context.localVars.has(objName) ? `$${objName}` : `$attributes['${objName}']`;
+    return `${name}="<?php echo ${escFunc}( ${prefix}['${valueNode.property.name}'] ?? '' ); ?>"`;
+  }
+  // i18n: attr={__('Text')} — matches legacy's attr-position `__()` regex.
+  // Must come before the generic fallback: `__` is not a known PHP-callable
+  // to translateJsExpressionToPhp, whose neutralizeUnknownJsCalls pass would
+  // blank the whole call (losing e.g. an image's alt text).
+  if (
+    valueNode.type === 'CallExpression' && valueNode.callee.type === 'Identifier' &&
+    valueNode.callee.name === '__' &&
+    valueNode.arguments[0] && valueNode.arguments[0].type === 'StringLiteral'
+  ) {
+    const escaped = valueNode.arguments[0].value.replace(/'/g, "\\'").trim().replace(/\s+/g, ' ');
+    return `${name}="<?php echo esc_attr( __('${escaped}', '${context.textDomain}') ); ?>"`;
+  }
+  // class/className operands are always strings — safe to rewrite JS `+`
+  // concatenation to PHP's `.` there (translateClassNameExpr), unlike the
+  // generic case where `+` might be real numeric addition.
+  const isClassAttr = name === 'class';
+  const translate = (text) =>
+    isClassAttr
+      ? translateClassNameExpr(text, context.attrKeys, context.localVars, context.freeFunctions)
+      : translateJsExpressionToPhp(text, context.attrKeys, context.localVars, context.freeFunctions);
+  if (valueNode.type === 'TemplateLiteral') {
+    // Interpolated FRAGMENTS always use esc_attr, even for href/src — the
+    // scheme/static part of the URL lives in the literal quasis (e.g.
+    // href={`mailto:${email}`}), and esc_url on a schemeless fragment would
+    // "normalize" it by prepending http://, corrupting the assembled URL.
+    let out = '';
+    for (let i = 0; i < valueNode.quasis.length; i++) {
+      out += valueNode.quasis[i].value.cooked;
+      if (i < valueNode.expressions.length) {
+        const exprText = code.slice(valueNode.expressions[i].start, valueNode.expressions[i].end);
+        out += `<?php echo esc_attr( ${translate(exprText)} ); ?>`;
+      }
+    }
+    return `${name}="${out}"`;
+  }
+  const exprText = code.slice(valueNode.start, valueNode.end);
+  return `${name}="<?php echo ${escFunc}( ${translate(exprText)} ); ?>"`;
+}
+
+function emitPhpAttrsExcluding(attrs, code, context, extraExclude) {
+  const parts = [];
+  for (const { name, valueNode, hasValue } of attrs) {
+    if (extraExclude.has(name)) continue;
+    if (name === 'className') continue; // handled by caller (renamed to class=)
+    if (name === 'key') continue;
+    if (isStrippedPhpAttrName(name) && hasValue) continue;
+    parts.push(emitPhpSingleAttr(name === 'className' ? 'class' : name, valueNode, hasValue, code, context));
+  }
+  return parts.length ? ' ' + parts.join(' ') : '';
+}
+
+/** Resolves a WpIcon `name={...}` expression the same way index.js's inline
+ * <WpIcon> handling did — a bare loop-row property, a PHP-already var, a
+ * plain attr key, or a translated fallback for anything else. */
+function resolvePhpIconNameExpr(expr, context) {
+  if (/\$[a-zA-Z_]/.test(expr)) return expr;
+  if (/^(?:attributes|props)\./.test(expr)) {
+    return translateJsExpressionToPhp(expr, context.attrKeys, context.localVars, context.freeFunctions);
+  }
+  const dotted = expr.match(/^([a-zA-Z_][\w$]*)\.([a-zA-Z_][\w$]*)$/);
+  if (dotted) return `($${dotted[1]}['${dotted[2]}'] ?? '')`;
+  const dottedFallback = expr.match(
+    /^([a-zA-Z_][\w$]*)\.([a-zA-Z_][\w$]*)\s*\|\|\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")$/,
+  );
+  if (dottedFallback) return `($${dottedFallback[1]}['${dottedFallback[2]}'] ?: ${dottedFallback[3]})`;
+  if (/^[a-zA-Z_][\w$]*$/.test(expr)) {
+    return context.localVars.has(expr) ? `($${expr} ?? '')` : `($attributes['${expr}'] ?? '')`;
+  }
+  return translateJsExpressionToPhp(expr, context.attrKeys, context.localVars, context.freeFunctions);
+}
+
+function emitPhpWpIcon(attrs, code, context) {
+  const nameAttr = findPhpAttr(attrs, 'name');
+  const classAttr = findPhpAttr(attrs, 'className') || findPhpAttr(attrs, 'class');
+  const providerAttr = findPhpAttr(attrs, 'provider');
+
+  let namePhp = "''";
+  if (nameAttr && nameAttr.valueNode) {
+    namePhp = nameAttr.valueNode.type === 'StringLiteral'
+      ? JSON.stringify(nameAttr.valueNode.value)
+      : resolvePhpIconNameExpr(code.slice(nameAttr.valueNode.start, nameAttr.valueNode.end), context);
+  }
+  let classPhp = "''";
+  if (classAttr && classAttr.valueNode) {
+    classPhp = classAttr.valueNode.type === 'StringLiteral'
+      ? JSON.stringify(classAttr.valueNode.value)
+      : translateJsExpressionToPhp(code.slice(classAttr.valueNode.start, classAttr.valueNode.end), context.attrKeys, context.localVars, context.freeFunctions);
+  }
+  const provider = (providerAttr && providerAttr.valueNode && providerAttr.valueNode.type === 'StringLiteral')
+    ? providerAttr.valueNode.value
+    : 'lucide';
+  return `<?php forgewp_render_theme_icon( ${namePhp}, ${classPhp}, ${JSON.stringify(provider)} ); ?>`;
+}
+
+function emitPhpWpEditable(attrs, children, code, blockSettings, context) {
+  const tagAttr = findPhpAttr(attrs, 'tagName');
+  const tag = (tagAttr && tagAttr.valueNode && tagAttr.valueNode.type === 'StringLiteral') ? tagAttr.valueNode.value : 'div';
+
+  const valueAttr = findPhpAttr(attrs, 'value');
+  let content;
+  if (!valueAttr || !valueAttr.valueNode) {
+    content = emitPhpChildren(children, code, blockSettings, context);
+  } else {
+    const vn = valueAttr.valueNode;
+    let bareVarName = null;
+    if (vn.type === 'Identifier') {
+      bareVarName = vn.name;
+    } else if (
+      vn.type === 'MemberExpression' && !vn.computed &&
+      vn.object.type === 'Identifier' && (vn.object.name === 'attributes' || vn.object.name === 'props') &&
+      vn.property.type === 'Identifier'
+    ) {
+      bareVarName = vn.property.name;
+    }
+
+    if (bareVarName) {
+      // This is the (dead server-side) `setAttributes ? <WpEditable/> : …`
+      // branch — `setAttributes` is never defined in render.php, so this
+      // never actually executes, but still needs to be valid PHP. Prefer the
+      // dual-host local var when one shadows this name (e.g. `const badge =
+      // badgeProp ?? badgeMeta`) for consistency with how a plain `{badge}`
+      // child expression resolves elsewhere in this same emitter.
+      const attrConfig = blockSettings && blockSettings.attributes && blockSettings.attributes[bareVarName];
+      const escFunc = attrConfig && attrConfig.control === 'richText' ? 'wp_kses_post' : 'esc_html';
+      const prefix = context.localVars.has(bareVarName) ? `$${bareVarName}` : `$attributes['${bareVarName}']`;
+      content = `<?php echo ${escFunc}( ${prefix} ?? '' ); ?>`;
+    } else if (vn.type === 'MemberExpression' && !vn.computed && vn.object.type === 'Identifier' && vn.property.type === 'Identifier') {
+      content = `<?php echo esc_html( $${vn.object.name}['${vn.property.name}'] ?? '' ); ?>`;
+    } else {
+      content = emitPhpBranch(vn, code, blockSettings, context);
+    }
+  }
+
+  // emitPhpAttrsExcluding always skips className (the generic-element caller
+  // is expected to prepend it as class= — WpEditable is a caller too).
+  let attrsPhp = emitPhpAttrsExcluding(attrs, code, context, new Set(['tagName', 'value', 'onChange']));
+  const classAttr = findPhpAttr(attrs, 'className');
+  if (classAttr) {
+    attrsPhp = ` ${emitPhpSingleAttr('class', classAttr.valueNode, classAttr.hasValue, code, context)}` + attrsPhp;
+  }
+  return `<${tag}${attrsPhp}>${content}</${tag}>`;
+}
+
+function emitPhpGenericElement(tagName, attrs, children, node, code, blockSettings, context) {
+  const dsetAttr = findPhpAttr(attrs, 'dangerouslySetInnerHTML');
+  let contentOverride = null;
+  if (dsetAttr && dsetAttr.valueNode && dsetAttr.valueNode.type === 'ObjectExpression') {
+    const htmlProp = dsetAttr.valueNode.properties.find(
+      (p) => p.type === 'ObjectProperty' && (p.key.name === '__html' || p.key.value === '__html'),
+    );
+    if (htmlProp) {
+      if (htmlProp.value.type === 'Identifier') {
+        const varName = htmlProp.value.name;
+        const prefix = context.localVars.has(varName) ? `$${varName}` : `$attributes['${varName}']`;
+        contentOverride = `<?php echo wp_kses_post( ${prefix} ?? '' ); ?>`;
+      } else {
+        const exprText = code.slice(htmlProp.value.start, htmlProp.value.end);
+        const phpExpr = translateJsExpressionToPhp(exprText, context.attrKeys, context.localVars, context.freeFunctions);
+        contentOverride = `<?php echo wp_kses_post( ${phpExpr} ); ?>`;
+      }
+    }
+  }
+
+  const styleAttr = findPhpAttr(attrs, 'style');
+  let attrsPhp = emitPhpAttrsExcluding(attrs, code, context, new Set(['dangerouslySetInnerHTML', 'style']));
+  const classAttr = findPhpAttr(attrs, 'className');
+  if (classAttr) {
+    attrsPhp = ` ${emitPhpSingleAttr('class', classAttr.valueNode, classAttr.hasValue, code, context)}` + attrsPhp;
+  }
+  if (styleAttr && styleAttr.valueNode && styleAttr.valueNode.type === 'ObjectExpression') {
+    attrsPhp += ' ' + emitPhpStyleAttr(styleAttr.valueNode, code, context);
+  }
+
+  const content = contentOverride !== null ? contentOverride : emitPhpChildren(children, code, blockSettings, context);
+  if (!content && node.openingElement.selfClosing && VOID_HTML_TAGS.has(tagName.toLowerCase())) {
+    return `<${tagName}${attrsPhp} />`;
+  }
+  return `<${tagName}${attrsPhp}>${content}</${tagName}>`;
+}
+
+function emitPhpNode(node, code, blockSettings, context) {
+  if (node.type === 'JSXFragment') {
+    return emitPhpChildren(node.children, code, blockSettings, context);
+  }
+
+  const tagName = getPhpJsxTagName(node.openingElement.name);
+  const attrs = readPhpJsxAttrs(node.openingElement);
+
+  if (tagName === 'WpIcon') return emitPhpWpIcon(attrs, code, context);
+  if (tagName === 'WpEditable') return emitPhpWpEditable(attrs, node.children, code, blockSettings, context);
+
+  const isPascalCase = /^[A-Z]/.test(tagName);
+  if (isPascalCase && context.importMap[tagName] && context.themeRoot) {
+    const classAttr = findPhpAttr(attrs, 'className');
+    let classNameStr = '';
+    if (classAttr && classAttr.valueNode) {
+      classNameStr = classAttr.valueNode.type === 'StringLiteral'
+        ? classAttr.valueNode.value
+        : `<?php echo esc_attr( ${translateJsExpressionToPhp(code.slice(classAttr.valueNode.start, classAttr.valueNode.end), context.attrKeys, context.localVars, context.freeFunctions)} ); ?>`;
+    }
+    const svgHtml = resolveIconToSvgHtml(tagName, context.importMap[tagName], context.themeRoot, '');
+    if (svgHtml) {
+      const classAttrRegex = /class="([^"]*)"/;
+      const hasClassAttr = svgHtml.match(classAttrRegex);
+      if (hasClassAttr) {
+        return svgHtml.replace(classAttrRegex, `class="${(hasClassAttr[1] + ' ' + classNameStr).trim()}"`);
+      }
+      return svgHtml.replace('<svg', `<svg class="${classNameStr.trim()}"`);
+    }
+  }
+
+  if (tagName === 'WpLink') {
+    const hrefAttr = findPhpAttr(attrs, 'href');
+    const classAttr = findPhpAttr(attrs, 'className');
+    const href = hrefAttr && hrefAttr.valueNode
+      ? (hrefAttr.valueNode.type === 'StringLiteral' ? hrefAttr.valueNode.value : emitPhpSingleAttr('href', hrefAttr.valueNode, true, code, context).match(/="([\s\S]*)"$/)[1])
+      : '#';
+    const cls = classAttr ? ` class='${classAttr.valueNode && classAttr.valueNode.type === 'StringLiteral' ? classAttr.valueNode.value : ''}'` : '';
+    const content = emitPhpChildren(node.children, code, blockSettings, context);
+    return `<a href="${href}"${cls}>${content}</a>`;
+  }
+  if (tagName === 'Button') {
+    const classAttr = findPhpAttr(attrs, 'className');
+    const cls = classAttr ? ` class='${classAttr.valueNode && classAttr.valueNode.type === 'StringLiteral' ? classAttr.valueNode.value : ''}'` : '';
+    const content = emitPhpChildren(node.children, code, blockSettings, context);
+    return `<button${cls}>${content}</button>`;
+  }
+
+  // Unknown PascalCase component (no importMap icon match, not a known
+  // special tag): legacy strips self-closing instances entirely and unwraps
+  // paired instances to just their children — a component with no PHP/HTML
+  // equivalent contributes nothing of its own to the rendered page.
+  if (isPascalCase) {
+    if (node.openingElement.selfClosing || node.children.length === 0) return '';
+    return emitPhpChildren(node.children, code, blockSettings, context);
+  }
+
+  return emitPhpGenericElement(tagName, attrs, node.children, node, code, blockSettings, context);
 }
