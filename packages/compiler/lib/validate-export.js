@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { scanForHydrationIslands } from './hydration-scanner.js';
+import { scanForHydrationIslands } from './hydration/index.js';
 
 /**
  * Validate exported theme package output.

@@ -1,5 +1,7 @@
 import { defineConfig } from '@forgewp/compiler/define-config';
 // import seoPlugin from '@forgewp/plugin-seo';
+import { siteOptions } from './cms/site-options';
+import { themeMods } from './cms/theme-mods';
 
 export default defineConfig({
   name: "Comfortable Decor",
@@ -23,6 +25,8 @@ export default defineConfig({
   // ],
   style: "shadcn", // "forgewp" (sharp corners) or "shadcn" (smooth modern curves)
   frameworkAdapter: "react",
+  options: siteOptions,
+  themeMods: themeMods,
 
   i18n: {
     locales: ['en', 'de'],

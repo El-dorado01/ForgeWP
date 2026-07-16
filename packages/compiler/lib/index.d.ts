@@ -46,6 +46,15 @@ export interface ForgeWPPlugin {
   transformFunctionsPhp?: (php: string, config: ForgeWPThemeConfig, themeRoot: string) => string;
 }
 
+export interface WpOptionField {
+  _type: 'text' | 'url' | 'email' | 'textarea' | 'toggle' | 'number' | 'postPicker';
+  label?: string;
+  default?: string;
+  postType?: string;
+}
+
+export type WpOptionsSchema = Record<string, WpOptionField>;
+
 export interface ForgeWPThemeConfig {
   name: string;
   slug: string;
@@ -91,6 +100,8 @@ export interface ForgeWPThemeConfig {
     };
   };
   postTypes?: Record<string, CustomPostTypeConfig>;
+  options?: WpOptionsSchema;
+  themeMods?: Record<string, any>;
   i18n?: ForgeWPI18nConfig;
   settings?: {
     layout?: {
@@ -142,6 +153,26 @@ export interface ForgeWPFrameworkAdapter {
       pascalCase: string;
       readableTitle: string;
       attributesList: string[];
+      pc: any;
+    },
+  ): Promise<void> | void;
+  onMakeShell?(
+    themeRoot: string,
+    options: {
+      pascalCase: string;
+      nameSlug: string;
+      readableTitle: string;
+      childrenSlugs: string[];
+      shell: { className?: string; gridClassName?: string };
+      innerBlocks: {
+        allowedBlocks?: string[];
+        template?: Array<[string, Record<string, any>?]>;
+        templateLock?: boolean | 'all' | 'insert';
+        orientation?: 'horizontal' | 'vertical';
+      };
+      category: string;
+      icon: string;
+      description: string;
       pc: any;
     },
   ): Promise<void> | void;

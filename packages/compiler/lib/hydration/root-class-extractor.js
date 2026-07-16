@@ -1,0 +1,147 @@
+import { readFileSync, existsSync } from "node:fs";
+import { ts } from "./is-interactive.js";
+
+/**
+ * Statically extracts the literal `className` of a component's outermost returned
+ * JSX element, so auto-generated <Hydrate> wrapper divs (Smart Discovery) can inherit
+ * layout-critical classes (w-full, flex, grid, sticky, ...) instead of defaulting to a
+ * bare `display:block` box with no width/layout awareness of its own.
+ *
+ * Without this, wrapping an interactive component whose root element carries sizing
+ * classes silently breaks percentage-width layouts: the wrapper becomes an unstyled
+ * shrink-to-fit box sitting between the real parent and the component, and `w-full`
+ * on the component's root can no longer resolve against the intended container.
+ *
+ * Resolution is intentionally conservative — only proven-static values (string literals,
+ * no-substitution template literals) are hoisted. Anything dynamic (template
+ * expressions, cn()/clsx() calls, identifiers, conditionals) is reported as unresolved
+ * so callers can fall back to a lint warning instead of guessing at runtime behavior.
+ *
+ * @param {string} filePath - Absolute path to the component file.
+ * @returns {{ resolvable: boolean, className: string | null, reason?: string }}
+ */
+export function getComponentRootClassName(filePath) {
+  if (!ts || !filePath || !existsSync(filePath)) {
+    return { resolvable: false, className: null, reason: "no-parser" };
+  }
+
+  try {
+    const content = readFileSync(filePath, "utf8");
+    const sourceFile = ts.createSourceFile(
+      filePath,
+      content,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX
+    );
+
+    const candidates = [];
+
+    function registerCandidate(node, name) {
+      if (name && /^[A-Z]/.test(name)) {
+        candidates.push({ name, node });
+      }
+    }
+
+    function visit(node) {
+      if (ts.isFunctionDeclaration(node) && node.name) {
+        registerCandidate(node, node.name.text);
+      } else if (ts.isVariableStatement(node)) {
+        for (const decl of node.declarationList.declarations) {
+          if (
+            decl.name &&
+            ts.isIdentifier(decl.name) &&
+            decl.initializer &&
+            (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))
+          ) {
+            registerCandidate(decl.initializer, decl.name.text);
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(sourceFile);
+
+    if (candidates.length === 0) {
+      return { resolvable: true, className: null };
+    }
+
+    // ForgeWP's convention is one component per file — prefer the last top-level
+    // candidate (typically the default-exported component; helper/inner functions
+    // declared earlier in the file are unlikely to be the mount point).
+    const target = candidates[candidates.length - 1];
+    const rootExpr = findReturnedJsxExpression(target.node);
+    if (!rootExpr) {
+      return { resolvable: true, className: null };
+    }
+
+    return extractClassNameFromJsxRoot(rootExpr);
+  } catch {
+    return { resolvable: false, className: null, reason: "parse-error" };
+  }
+}
+
+function unwrapParens(node) {
+  while (node && ts.isParenthesizedExpression(node)) {
+    node = node.expression;
+  }
+  return node;
+}
+
+function findReturnedJsxExpression(fnNode) {
+  const body = fnNode.body;
+  if (!body) return null;
+
+  // Arrow function with an implicit expression body: const Foo = () => (<div />)
+  if (!ts.isBlock(body)) {
+    return unwrapParens(body);
+  }
+
+  // Block body: use the first top-level `return` statement. Early-return guards
+  // (loading states, null checks, etc.) mean this isn't always the "real" root,
+  // which is fine — it's a best-effort hint, not a correctness guarantee.
+  for (const stmt of body.statements) {
+    if (ts.isReturnStatement(stmt) && stmt.expression) {
+      return unwrapParens(stmt.expression);
+    }
+  }
+  return null;
+}
+
+function extractClassNameFromJsxRoot(expr) {
+  if (!expr) return { resolvable: true, className: null };
+
+  // Fragments, conditionals, and other non-element roots have no single node to
+  // hoist a className onto — bail without flagging it as risky (there's no
+  // "class we couldn't reach", just no candidate node).
+  if (!ts.isJsxElement(expr) && !ts.isJsxSelfClosingElement(expr)) {
+    return { resolvable: true, className: null };
+  }
+
+  const opening = ts.isJsxElement(expr) ? expr.openingElement : expr;
+  const classAttr = opening.attributes.properties.find(
+    (p) => ts.isJsxAttribute(p) && p.name && p.name.text === "className"
+  );
+
+  if (!classAttr) {
+    return { resolvable: true, className: null };
+  }
+  if (!classAttr.initializer) {
+    // Bare `className` attribute (no value) — not valid JSX in practice, be safe.
+    return { resolvable: false, className: null, reason: "dynamic-classname" };
+  }
+
+  const init = classAttr.initializer;
+  if (ts.isStringLiteral(init)) {
+    return { resolvable: true, className: init.text };
+  }
+  if (ts.isJsxExpression(init) && init.expression) {
+    const inner = init.expression;
+    if (ts.isStringLiteral(inner) || ts.isNoSubstitutionTemplateLiteral(inner)) {
+      return { resolvable: true, className: inner.text };
+    }
+  }
+
+  // `className={someVar}`, `className={cn(...)}`, `className={`${x} ...`}`, etc.
+  return { resolvable: false, className: null, reason: "dynamic-classname" };
+}

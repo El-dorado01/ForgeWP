@@ -32,7 +32,8 @@
     "archiver": "^7.0.1",
     "jiti": "^2.6.1",
     "picocolors": "^1.1.1",
-    "react-helmet-async": "^3.0.0"
+    "react-helmet-async": "^3.0.0",
+    "select2": "^4.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.19"

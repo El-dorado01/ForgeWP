@@ -3,9 +3,17 @@
  *
  * @param {string} html Raw HTML markup
  * @param {string} textDomain Text domain for translations
+ * @param {Set<string>|null} richTextKeys Field keys actually declared richText() in an
+ *   editable schema — the authoritative source for whether a meta value should be run
+ *   through wpautop(). Without this, richness was guessed from the key name (e.g. any
+ *   key containing "subtitle"), which wrongly wpautop-wraps a plain text() field once
+ *   it has real content, double-nesting <p> tags inside the JSX's own <p> wrapper and
+ *   silently dropping its styling (the browser auto-closes the outer <p> at the nested
+ *   one). The empty-value/default case bypassed wpautop entirely, so this only ever
+ *   surfaced once an editor actually filled in the field.
  * @returns {string} Transpiled HTML containing PHP tags
  */
-export function processMarkup(html, textDomain = 'theme') {
+export function processMarkup(html, textDomain = 'theme', richTextKeys = null) {
   if (!html) return '';
   // Fix nav links — # → <?php echo esc_url( home_url( '/' ) ); ?>
   // We use a placeholder and replace it in the PHP file generation if needed,
@@ -90,6 +98,65 @@ export function processMarkup(html, textDomain = 'theme') {
 
   processed = processed.replace(/<\/forgewp-loop-end>/g, '');
 
+  // ── Dynamic WpIcon Custom SVGs ──
+  processed = processed.replace(
+    /<forgewp-icon-placeholder\s+([^>]*)\/?>/g,
+    (match, attrsStr) => {
+      const getAttr = (name) => {
+        const regex = new RegExp(
+          `(?:${name}|${name.toLowerCase()})=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
+          'i',
+        );
+        const m = attrsStr.match(regex);
+        return m ? m[1] || m[2] || m[3] || '' : '';
+      };
+
+      const nameAttr = getAttr('name');
+      const provider = getAttr('provider') || 'lucide';
+      const className = getAttr('class') || getAttr('className') || '';
+
+      const fieldMatch = nameAttr.match(/__FORGEWP_REPEATER_FIELD_([a-zA-Z0-9_-]+)__/);
+      if (fieldMatch) {
+        const fieldName = fieldMatch[1];
+        return `<?php forgewp_render_theme_icon($row['${fieldName}'], '${className}', '${provider}'); ?>`;
+      }
+
+      const metaMatch = nameAttr.match(/__(?:FORGEWP|forgewp)_META_([a-zA-Z0-9_-]+)(?:_POST_(front|[0-9]+))?_DEFAULT_(.*?)__/i);
+      if (metaMatch) {
+        const key = metaMatch[1];
+        const postId = metaMatch[2];
+        const defaultValEncoded = metaMatch[3];
+        const decoded = decodeURIComponent(defaultValEncoded);
+        const escapedDecoded = decoded.replace(/'/g, "\\'");
+        const cleanDecoded = escapedDecoded.replace(
+          /__FORGEWP_I18N_([^_](?:[^_]|_(?!_))*?)__/gi,
+          (m, text) => {
+            const cleanText = text
+              .replace(/&#39;/g, "'")
+              .replace(/&quot;/g, '"')
+              .replace(/&amp;/g, '&')
+              .replace(/'/g, "\\'");
+            return `' . __('${cleanText}', '${textDomain}') . '`;
+          }
+        );
+        const phpPostId = (postId && postId.toLowerCase() === 'front') ? "get_option('page_on_front')" : (postId ? postId : 'null');
+        return `<?php forgewp_render_theme_icon(forgewp_get_meta_value('${key}', '${cleanDecoded}', false, ${phpPostId}), '${className}', '${provider}'); ?>`;
+      }
+
+      if (nameAttr.startsWith('<?php') && nameAttr.endsWith('?>')) {
+        const phpCode = nameAttr
+          .replace(/^<\?php\s*(?:echo\s+)?/, '')
+          .replace(/\s*\?>$/, '')
+          .trim()
+          .replace(/;$/, '');
+        return `<?php forgewp_render_theme_icon(${phpCode}, '${className}', '${provider}'); ?>`;
+      }
+
+      return `<?php forgewp_render_theme_icon('${nameAttr}', '${className}', '${provider}'); ?>`;
+    }
+  );
+  processed = processed.replace(/<\/forgewp-icon-placeholder>/g, '');
+
   // ── Custom Meta Fields (ACF / metadata support) ──
   processed = processed.replace(
     /__FORGEWP_CUSTOM_FIELD__([a-zA-Z0-9_-]+)__/g,
@@ -97,12 +164,12 @@ export function processMarkup(html, textDomain = 'theme') {
   );
 
   processed = processed.replace(
-    /__FORGEWP_META_([a-zA-Z0-9_-]+)_DEFAULT_(.*?)__/g,
-    (match, key, defaultValEncoded) => {
+    /__FORGEWP_META_([a-zA-Z0-9_-]+)(?:_POST_(front|[0-9]+))?_DEFAULT_(.*?)__/gi,
+    (match, key, postId, defaultValEncoded) => {
       const decoded = decodeURIComponent(defaultValEncoded);
       const escapedDecoded = decoded.replace(/'/g, "\\'");
       const cleanDecoded = escapedDecoded.replace(
-        /__FORGEWP_I18N_([^_](?:[^_]|_(?!_))*?)__/g,
+        /__FORGEWP_I18N_([^_](?:[^_]|_(?!_))*?)__/gi,
         (m, text) => {
           const cleanText = text
             .replace(/&#39;/g, "'")
@@ -112,8 +179,10 @@ export function processMarkup(html, textDomain = 'theme') {
           return `' . __('${cleanText}', '${textDomain}') . '`;
         }
       );
-      const isRichText = decoded.includes('<p>') || decoded.includes('</p>') || decoded.includes('<br') || key.includes('subtitle') || key.includes('content') || key.includes('bio');
-      return `<?php echo forgewp_get_meta_value( '${key}', '${cleanDecoded}', ${isRichText ? 'true' : 'false'} ); ?>`;
+      const isRichText = (richTextKeys instanceof Set ? richTextKeys.has(key) : false) ||
+        decoded.includes('<p>') || decoded.includes('</p>') || decoded.includes('<br');
+      const phpPostId = (postId && postId.toLowerCase() === 'front') ? "get_option('page_on_front')" : (postId ? postId : 'null');
+      return `<?php echo forgewp_get_meta_value( '${key}', '${cleanDecoded}', ${isRichText ? 'true' : 'false'}, ${phpPostId} ); ?>`;
     }
   );
 
@@ -172,9 +241,9 @@ export function processMarkup(html, textDomain = 'theme') {
       const showNames    = getAttr('showNames') === '1';
       const showCodes    = getAttr('showCodes') !== '0'; // default true
 
-      const flagsPart  = showFlags ? "echo '<img src=\"' . esc_url($l['flag']) . '\" alt=\"' . esc_attr($l['name']) . '\" />';" : '';
-      const codesPart  = showCodes ? "echo esc_html(strtoupper($l['slug']));" : '';
-      const namesPart  = showNames ? "echo ' ' . esc_html($l['name']);" : '';
+      const flagsPart  = showFlags ? "echo '<img src=\"' . esc_url($pll_l['flag']) . '\" alt=\"' . esc_attr($pll_l['name']) . '\" />';" : '';
+      const codesPart  = showCodes ? "echo esc_html(strtoupper($pll_l['slug']));" : '';
+      const namesPart  = showNames ? "echo ' ' . esc_html($pll_l['name']);" : '';
 
       return `<?php
 if (function_exists('pll_the_languages')) {
@@ -404,33 +473,7 @@ ${phpArgs}
   processed = processed.replace(/<forgewp-repeater-end\s*\/?>/g, '');
   processed = processed.replace(/<\/forgewp-repeater-end>/g, '<?php } ?>');
 
-  // ── Dynamic WpIcon Custom SVGs ──
-  processed = processed.replace(
-    /<forgewp-icon-placeholder\s+([^>]*)\/?>/g,
-    (match, attrsStr) => {
-      const getAttr = (name) => {
-        const regex = new RegExp(
-          `(?:${name}|${name.toLowerCase()})=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
-          'i',
-        );
-        const m = attrsStr.match(regex);
-        return m ? m[1] || m[2] || m[3] || '' : '';
-      };
 
-      const nameAttr = getAttr('name');
-      const provider = getAttr('provider') || 'lucide';
-      const className = getAttr('class') || getAttr('className') || '';
-
-      const fieldMatch = nameAttr.match(/__FORGEWP_REPEATER_FIELD_([a-zA-Z0-9_-]+)__/);
-      if (fieldMatch) {
-        const fieldName = fieldMatch[1];
-        return `<?php forgewp_render_theme_icon($row['${fieldName}'], '${className}', '${provider}'); ?>`;
-      }
-
-      return `<?php forgewp_render_theme_icon('${nameAttr}', '${className}', '${provider}'); ?>`;
-    }
-  );
-  processed = processed.replace(/<\/forgewp-icon-placeholder>/g, '');
 
   // ── Authentication & Capability Gates ──
   processed = processed.replace(
@@ -527,12 +570,17 @@ ${phpArgs}
     const matchEnd = findMatchingClosingDiv(processed, contentStartIndex);
     if (matchEnd !== -1) {
       const fullBlock = processed.substring(divStart, matchEnd);
-      const optionMatches = Array.from(fullBlock.matchAll(/__FORGEWP_OPTION_(social_[a-zA-Z0-9_-]+)__/g));
-      const optionNames = Array.from(new Set(optionMatches.map(m => m[1])));
+      const optionMatches = Array.from(fullBlock.matchAll(/__FORGEWP_OPTION_(social_[a-zA-Z0-9_-]+?)(?:_DEFAULT_(.*?))?__/g));
+      const optionMap = new Map();
+      for (const m of optionMatches) {
+        const name = m[1];
+        const defaultVal = m[2] ? decodeURIComponent(m[2]) : '';
+        optionMap.set(name, defaultVal);
+      }
       const cleanBlock = fullBlock.replace(/\s*data-forgewp-hide-empty-socials="[^"]*"/gi, '').replace(/\s*data-forgewp-hide-empty-socials/gi, '');
       let replacement = cleanBlock;
-      if (optionNames.length > 0) {
-        const conditions = optionNames.map(name => `! empty( get_option( '${name}' ) )`).join(' || ');
+      if (optionMap.size > 0) {
+        const conditions = Array.from(optionMap.entries()).map(([name, defaultVal]) => `! empty( get_option( '${name}', '${defaultVal.replace(/'/g, "\\'")}' ) )`).join(' || ');
         replacement = `<?php if ( ${conditions} ) : ?>${cleanBlock}<?php endif; ?>`;
       }
       processed = processed.substring(0, divStart) + replacement + processed.substring(matchEnd);
@@ -545,7 +593,7 @@ ${phpArgs}
   // ── Auto-hide empty social links / options ──
   // If an <a> tag has href="__FORGEWP_OPTION_social_xxx__" and the option is empty, wrap it in a PHP conditional block.
   processed = processed.replace(
-    /<a\b([^>]*?href=["']__FORGEWP_OPTION_([a-zA-Z0-9_-]+)__["'][^>]*?)>([\s\S]*?)<\/a>/gi,
+    /<a\b([^>]*?href=["']__FORGEWP_OPTION_((?:(?!_DEFAULT_)[a-zA-Z0-9_-])+)__["'][^>]*?)>([\s\S]*?)<\/a>/gi,
     (match, attributes, name, content) => {
       if (name.startsWith('social_')) {
         const cleanAttrs = attributes.replace(`__FORGEWP_OPTION_${name}__`, `<?php echo esc_url( get_option( '${name}' ) ); ?>`);
@@ -560,8 +608,8 @@ ${phpArgs}
     (match, attributes, name, defaultVal, content) => {
       if (name.startsWith('social_')) {
         const decoded = decodeURIComponent(defaultVal);
-        const cleanAttrs = attributes.replace(`__FORGEWP_OPTION_${name}_DEFAULT_${defaultVal}__`, `<?php echo esc_url( get_option( '${name}', '${decoded}' ) ); ?>`);
-        return `<?php if ( ! empty( get_option( '${name}' ) ) ) : ?><a${cleanAttrs}>${content}</a><?php endif; ?>`;
+        const cleanAttrs = attributes.replace(`__FORGEWP_OPTION_${name}_DEFAULT_${defaultVal}__`, `<?php echo esc_url( get_option( '${name}', '${decoded.replace(/'/g, "\\'")}' ) ); ?>`);
+        return `<?php if ( ! empty( get_option( '${name}', '${decoded.replace(/'/g, "\\'")}' ) ) ) : ?><a${cleanAttrs}>${content}</a><?php endif; ?>`;
       }
       return match;
     }
@@ -578,11 +626,25 @@ ${phpArgs}
       if (name === 'blogdescription') {
         return `<?php echo esc_html( get_bloginfo( 'description' ) ); ?>`;
       }
-      return `<?php echo esc_html( get_option( '${name}', '${decoded}' ) ); ?>`;
+      // Resolve any nested __FORGEWP_I18N_text__ tokens inside the default value
+      const cleanDecoded = decoded
+        .replace(/'/g, "\\'") // escape single quotes first
+        .replace(
+          /__FORGEWP_I18N_([^_](?:[^_]|_(?!_))*?)__/gi,
+          (m, text) => {
+            const cleanText = text
+              .replace(/&#39;/g, "'")
+              .replace(/&quot;/g, '"')
+              .replace(/&amp;/g, '&')
+              .replace(/'/g, "\\'");
+            return `' . __('${cleanText}', '${textDomain}') . '`;
+          }
+        );
+      return `<?php echo esc_html( get_option( '${name}', '${cleanDecoded}' ) ); ?>`;
     },
   );
   processed = processed.replace(
-    /__FORGEWP_OPTION_([a-zA-Z0-9_-]+)__/g,
+    /__FORGEWP_OPTION_((?:(?!_DEFAULT_)[a-zA-Z0-9_-])+)__/g,
     (match, name) => {
       if (name === 'blogname') {
         return `<?php echo esc_html( get_bloginfo( 'name' ) ); ?>`;
@@ -602,7 +664,7 @@ ${phpArgs}
     },
   );
   processed = processed.replace(
-    /__FORGEWP_THEME_MOD_([a-zA-Z0-9_-]+)__/g,
+    /__FORGEWP_THEME_MOD_((?:(?!_DEFAULT_)[a-zA-Z0-9_-])+)__/g,
     "<?php echo esc_html( get_theme_mod( '$1' ) ); ?>",
   );
 

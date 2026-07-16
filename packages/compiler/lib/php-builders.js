@@ -20,6 +20,29 @@ Text Domain: ${config.textDomain}
 */
 
 /* Compiled styles are enqueued from assets/ via functions.php */
+
+/*
+ * ForgeWP content-width system — lets classic-template pages (page.php, single.php,
+ * index.php, archive.php) support per-block wide/full alignment without a hardcoded
+ * pixel cap. Sizes come from theme.json's settings.layout.contentSize/wideSize, which
+ * WordPress automatically emits as these CSS custom properties.
+ */
+.forgewp-content-width {
+  max-width: var(--wp--style--global--content-size, 720px);
+  margin-left: auto;
+  margin-right: auto;
+}
+.forgewp-content-width > .alignwide {
+  max-width: var(--wp--style--global--wide-size, 1200px);
+  margin-left: auto;
+  margin-right: auto;
+}
+.forgewp-content-width > .alignfull {
+  max-width: none;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
 `;
 }
 
@@ -35,6 +58,10 @@ export function generateAcfFieldPhp(key, field, parentKey = '') {
     boolean: 'true_false',
     image: 'image',
     repeater: 'repeater',
+    color: 'color_picker',
+    select: 'select',
+    number: 'number',
+    url: 'url',
   };
   const acfType = field.customType || typeMap[field.type] || 'text';
 
@@ -60,6 +87,17 @@ export function generateAcfFieldPhp(key, field, parentKey = '') {
     php += `\n                'post_type' => ${ptExpr},\n                'filters' => array('search', 'taxonomy'),\n                'return_format' => 'id',`;
   } else if (acfType === 'true_false') {
     php += `\n                'ui' => 1,`;
+  } else if (acfType === 'select' && field.options) {
+    const choices = field.options.map(opt => {
+      if (typeof opt === 'string') {
+        return `'${opt.replace(/'/g, "\\'")}' => '${opt.replace(/'/g, "\\'")}'`;
+      }
+      return `'${String(opt.value).replace(/'/g, "\\'")}' => '${String(opt.label).replace(/'/g, "\\'")}'`;
+    }).join(', ');
+    php += `\n                'choices' => array(${choices}),`;
+  } else if (acfType === 'number') {
+    if (field.min !== undefined) php += `\n                'min' => ${field.min},`;
+    if (field.max !== undefined) php += `\n                'max' => ${field.max},`;
   } else if (acfType === 'repeater' && field.fields) {
     const subFieldsPhp = Object.entries(field.fields)
       .map(([subKey, subField]) => generateAcfFieldPhp(subKey, subField, acfKey))
@@ -76,8 +114,21 @@ ${subFieldsPhp}
 /**
  * Generate dynamic ACF fallback PHP generation block.
  */
-export function generateDynamicAcfFieldPhp(key, field) {
-  const acfKey = `field_${key}`;
+export function generateDynamicAcfFieldPhp(key, field, templateSlug = '') {
+  // ACF field 'key' must be globally unique across the whole install — it's
+  // ACF's own internal registry identifier, distinct from 'name' (the actual
+  // postmeta key, which SHOULD be shared across templates when two pages
+  // both use e.g. "hero_subtitle" for their own hero section; that's fine,
+  // each post has its own meta row). Without this namespace prefix, every
+  // template reusing a common field name (hero_title, hero_subtitle, hero_badge, …)
+  // generated the identical key (e.g. 'field_hero_subtitle'), so whichever
+  // schema's field group ACF resolved that key against last effectively
+  // dictated the formatting (text vs wysiwyg) for every OTHER template's
+  // same-named field too — e.g. a richText hero_subtitle on one page could
+  // make a plain-text hero_subtitle on another page get wpautop-wrapped.
+  const keyNamespace = templateSlug ? templateSlug.replace(/-/g, '_') : '';
+  const parentKeyPrefix = keyNamespace ? `field_${keyNamespace}` : '';
+  const acfKey = parentKeyPrefix ? `${parentKeyPrefix}_${key}` : `field_${key}`;
   const label = field.label || key.charAt(0).toUpperCase() + key.slice(1);
   const typeMap = {
     text: 'text',
@@ -89,11 +140,11 @@ export function generateDynamicAcfFieldPhp(key, field) {
   const acfType = typeMap[field.type] || 'text';
 
   if (acfType !== 'repeater') {
-    const fieldDef = generateAcfFieldPhp(key, field);
+    const fieldDef = generateAcfFieldPhp(key, field, parentKeyPrefix);
     return `    $fields[] = ${fieldDef.trim()};\n`;
   }
 
-  const acfProDef = generateAcfFieldPhp(key, field);
+  const acfProDef = generateAcfFieldPhp(key, field, parentKeyPrefix);
   const defaultRows = Array.isArray(field.default) ? field.default : [];
   const defaultRowCount = defaultRows.length || 4;
 
@@ -114,11 +165,15 @@ export function generateDynamicAcfFieldPhp(key, field) {
       richText: 'wysiwyg',
       boolean: 'true_false',
       image: 'image',
+      color: 'color_picker',
+      select: 'select',
+      number: 'number',
+      url: 'url',
     };
     const subType = subTypeMap[subField.type] || 'text';
 
     fallbackPhp += `            $fields[] = array(
-                'key' => "field_${key}_" . $i . "_${subKey}",
+                'key' => "${parentKeyPrefix ? `${parentKeyPrefix}_` : 'field_'}${key}_" . $i . "_${subKey}",
                 'label' => "${label.replace(/'/g, "\\'")}" . " " . ($i + 1) . ": ${subLabel.replace(/'/g, "\\'")}",
                 'name' => "${key}_" . $i . "_${subKey}",
                 'type' => '${subType}',`;
@@ -127,6 +182,17 @@ export function generateDynamicAcfFieldPhp(key, field) {
       fallbackPhp += `\n                'return_format' => 'url',`;
     } else if (subType === 'true_false') {
       fallbackPhp += `\n                'ui' => 1,`;
+    } else if (subType === 'select' && subField.options) {
+      const choices = subField.options.map(opt => {
+        if (typeof opt === 'string') {
+          return `'${opt.replace(/'/g, "\\'")}' => '${opt.replace(/'/g, "\\'")}'`;
+        }
+        return `'${String(opt.value).replace(/'/g, "\\'")}' => '${String(opt.label).replace(/'/g, "\\'")}'`;
+      }).join(', ');
+      fallbackPhp += `\n                'choices' => array(${choices}),`;
+    } else if (subType === 'number') {
+      if (subField.min !== undefined) fallbackPhp += `\n                'min' => ${subField.min},`;
+      if (subField.max !== undefined) fallbackPhp += `\n                'max' => ${subField.max},`;
     }
     fallbackPhp += `\n            );\n`;
   }
@@ -209,29 +275,64 @@ wp_footer();
 export function buildIndexPhp() {
   return `<?php
 /**
- * Main template — displays ForgeWP compiled static markup
+ * Main template / front page — baked static markup by default.
+ *
+ * WordPress always prefers front-page.php for the site front page, which
+ * normally ignores the page template dropdown. We still honor
+ * "ForgeWP Builder" (template-forgewp-builder.php) when assigned to the
+ * static front page so editors can switch to a block canvas.
  *
  * @package forgewp
  */
 
 get_header();
 
-$markup_file = get_template_directory() . '/forgewp-static/content.html';
+$forgewp_use_builder = false;
+if (is_front_page()) {
+    $front_id = (int) get_option('page_on_front');
+    if ($front_id > 0) {
+        $tpl = get_page_template_slug($front_id);
+        if ($tpl === 'template-forgewp-builder.php') {
+            $forgewp_use_builder = true;
+        }
+    }
+}
 
-if (is_front_page() && file_exists($markup_file)) {
-    include $markup_file;
-} elseif (have_posts()) {
-    echo '<main class="mx-auto max-w-3xl px-6 py-12">';
+if ($forgewp_use_builder && have_posts()) {
     while (have_posts()) {
         the_post();
-        echo '<article class="mb-12">';
-        echo '<h1 class="text-3xl font-bold mb-4">' . get_the_title() . '</h1>';
-        echo '<div class="prose prose-zinc max-w-none">';
+        $forgewp_hide_title = function_exists('forgewp_should_hide_page_title')
+            ? forgewp_should_hide_page_title(get_the_ID())
+            : true;
+        echo '<main class="forgewp-builder-canvas">';
+        if (!$forgewp_hide_title) {
+            echo '<div class="forgewp-content-width">';
+            echo '<h1 class="text-4xl font-bold mb-6">' . get_the_title() . '</h1>';
+            echo '</div>';
+        }
         the_content();
-        echo '</div>';
-        echo '</article>';
+        echo '</main>';
     }
-    echo '</main>';
+} else {
+    $markup_file = get_template_directory() . '/forgewp-static/content.html';
+
+    if (is_front_page() && file_exists($markup_file)) {
+        include $markup_file;
+    } elseif (have_posts()) {
+        echo '<main class="px-6 py-12">';
+        while (have_posts()) {
+            the_post();
+            echo '<article class="mb-12">';
+            echo '<div class="forgewp-content-width">';
+            echo '<h1 class="text-3xl font-bold mb-4">' . get_the_title() . '</h1>';
+            echo '</div>';
+            echo '<div class="forgewp-content-width prose prose-zinc max-w-none">';
+            the_content();
+            echo '</div>';
+            echo '</article>';
+        }
+        echo '</main>';
+    }
 }
 
 get_footer();
@@ -260,10 +361,12 @@ if (file_exists($single_file)) {
     if (have_posts()) {
         while (have_posts()) {
             the_post();
-            echo '<main class="mx-auto max-w-3xl px-6 py-12">';
+            echo '<main class="px-6 py-12">';
             echo '<article>';
+            echo '<div class="forgewp-content-width">';
             echo '<h1 class="text-4xl font-bold mb-6">' . get_the_title() . '</h1>';
-            echo '<div class="prose prose-zinc max-w-none">';
+            echo '</div>';
+            echo '<div class="forgewp-content-width prose prose-zinc max-w-none">';
             the_content();
             echo '</div>';
             echo '</article>';
@@ -317,7 +420,7 @@ $archive_file = get_template_directory() . '/forgewp-static/archive.html';
 if (file_exists($archive_file)) {
     include $archive_file;
 } else {
-    echo '<main class="mx-auto max-w-3xl px-6 py-12">';
+    echo '<main class="forgewp-content-width px-6 py-12">';
     the_archive_title('<h1 class="text-3xl font-bold mb-8">', '</h1>');
     if (have_posts()) {
         echo '<div class="space-y-8">';
@@ -366,15 +469,54 @@ if (file_exists($page_file)) {
     if (have_posts()) {
         while (have_posts()) {
             the_post();
-            echo '<main class="mx-auto max-w-3xl px-6 py-12">';
+            $forgewp_hide_title = function_exists('forgewp_should_hide_page_title')
+                ? forgewp_should_hide_page_title(get_the_ID())
+                : true;
+            echo '<main class="px-6 py-12">';
             echo '<article>';
-            echo '<h1 class="text-4xl font-bold mb-6">' . get_the_title() . '</h1>';
-            echo '<div class="prose prose-zinc max-w-none">';
+            if (!$forgewp_hide_title) {
+                echo '<div class="forgewp-content-width">';
+                echo '<h1 class="text-4xl font-bold mb-6">' . get_the_title() . '</h1>';
+                echo '</div>';
+            }
+            echo '<div class="forgewp-content-width prose prose-zinc max-w-none">';
             the_content();
             echo '</div>';
             echo '</article>';
             echo '</main>';
         }
+    }
+}
+
+get_footer();
+`;
+}
+
+export function buildBuilderPagePhp() {
+  return `<?php
+/**
+ * Template Name: ForgeWP Builder
+ * Description: High-fidelity layout canvas for ForgeWP Gutenberg blocks.
+ *
+ * @package forgewp
+ */
+
+get_header();
+
+if (have_posts()) {
+    while (have_posts()) {
+        the_post();
+        $forgewp_hide_title = function_exists('forgewp_should_hide_page_title')
+            ? forgewp_should_hide_page_title(get_the_ID())
+            : true;
+        echo '<main class="forgewp-builder-canvas">';
+        if (!$forgewp_hide_title) {
+            echo '<div class="forgewp-content-width">';
+            echo '<h1 class="text-4xl font-bold mb-6">' . get_the_title() . '</h1>';
+            echo '</div>';
+        }
+        the_content();
+        echo '</main>';
     }
 }
 

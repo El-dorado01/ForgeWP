@@ -13,7 +13,7 @@ import mockData from '../../cms/mock-data.json';
 // @ts-ignore
 import menusData from '../../cms/menus.json';
 // @ts-ignore
-import siteSettings from '../../cms/site-settings.json';
+import wpConfig from '../../wp.config';
 // @ts-ignore
 import translationsData from '../../cms/translations.json';
 
@@ -44,16 +44,35 @@ import {
   useWpMenu as _useWpMenu,
   BlockArea as _BlockArea,
   defineEditable,
+  getEditableDefaults,
+  buildPageEditable,
+  pickEditable,
+  mergeEditable,
   text,
   richText,
   image,
   boolean,
   repeater,
+  color,
+  url,
+  select,
+  number,
+  icon,
+  isEditorPreview,
+  useIsEditorPreview,
   WpRepeater,
   WpIcon,
+  defineWpOptions,
+  optionText,
+  optionUrl,
+  optionEmail,
+  optionTextarea,
+  optionToggle,
+  optionNumber,
+  optionPostPicker,
 } from '@forgewp/react';
 
-export { WpPostContext, defineEditable, text, richText, image, boolean, repeater, WpRepeater, WpIcon };
+export { WpPostContext, defineEditable, getEditableDefaults, buildPageEditable, pickEditable, mergeEditable, text, richText, image, boolean, repeater, color, url, select, number, icon, isEditorPreview, useIsEditorPreview, WpRepeater, WpIcon, defineWpOptions, optionText, optionUrl, optionEmail, optionTextarea, optionToggle, optionNumber, optionPostPicker };
 
 import type {
   WpQueryLoopProps,
@@ -77,8 +96,9 @@ const IS_DEV =
   import.meta.env?.DEV === true;
 
 const IS_DECOUPLED =
-  IS_DEV ||
-  (typeof window !== 'undefined' && !(window as any).forgeWpHydration);
+  (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime)
+    ? false
+    : IS_DEV || (typeof window !== 'undefined' && !(window as any).forgeWpHydration);
 
 export function decodeHtmlEntities(str: string): string {
   if (!str) return '';
@@ -105,7 +125,19 @@ function getDevMockPosts(): any {
 
 if (IS_DEV) {
   if (typeof window !== 'undefined') {
-    (window as any)._forgeWpMockSiteSettings = siteSettings;
+    const mockOptions = {} as any;
+    if (wpConfig && wpConfig.options) {
+      for (const [key, field] of Object.entries(wpConfig.options)) {
+        if (field && typeof field === 'object' && 'default' in field) {
+          mockOptions[key] = field.default;
+        }
+      }
+    }
+    const mockThemeMods = wpConfig?.themeMods || {};
+    (window as any)._forgeWpMockSiteSettings = {
+      options: mockOptions,
+      theme_mods: mockThemeMods,
+    };
     (window as any)._forgeWpMockPosts = mockData;
     (window as any)._forgeWpMockMenus = menusData;
   }
@@ -147,6 +179,21 @@ export function useWpFeaturedImage(): string {
   if (IS_DECOUPLED) return _useWpFeaturedImage();
   return '__FORGEWP_THE_POST_THUMBNAIL_URL__';
 }
+/**
+ * Match PHP `forgewp_get_meta_value`: empty ACF/meta must fall through to schema
+ * defaults. Hydration previously injected `""` / `[]` for every registered key,
+ * which made island remounts wipe SSR text (front page, About, etc.).
+ */
+function isEmptyMetaValue(value: unknown): boolean {
+  if (value === null || value === undefined || value === false || value === '') {
+    return true;
+  }
+  if (Array.isArray(value) && value.length === 0) {
+    return true;
+  }
+  return false;
+}
+
 export function useWpCustomField(fieldName: string, defaultValue = ''): any {
   if (IS_DECOUPLED) return _useWpCustomField(fieldName, defaultValue);
 
@@ -156,7 +203,10 @@ export function useWpCustomField(fieldName: string, defaultValue = ''): any {
       const post = React.useContext(WpPostContext);
       const currentPost = post || win.forgeWpHydration?.post;
       if (currentPost?.customFields && typeof currentPost.customFields[fieldName] !== 'undefined') {
-        return currentPost.customFields[fieldName];
+        const val = currentPost.customFields[fieldName];
+        if (!isEmptyMetaValue(val)) {
+          return val;
+        }
       }
     }
   }
@@ -173,7 +223,10 @@ export function useWpField(fieldName: string, defaultValue = ''): any {
       const post = React.useContext(WpPostContext);
       const currentPost = post || win.forgeWpHydration?.post;
       if (currentPost?.customFields && typeof currentPost.customFields[fieldName] !== 'undefined') {
-        return currentPost.customFields[fieldName];
+        const val = currentPost.customFields[fieldName];
+        if (!isEmptyMetaValue(val)) {
+          return val;
+        }
       }
     }
   }
@@ -181,28 +234,83 @@ export function useWpField(fieldName: string, defaultValue = ''): any {
   return '__FORGEWP_CUSTOM_FIELD__' + fieldName + '__';
 }
 
-export function useWpMeta<T>(key: string, defaultValue: T): T {
-  if (IS_DECOUPLED) return _useWpMeta(key, defaultValue);
+export const WpBlockContext = typeof window !== 'undefined'
+  ? ((window as any)._forgeWpBlockContext || ((window as any)._forgeWpBlockContext = React.createContext<any>(null)))
+  : React.createContext<any>(null);
+
+export function useWpMeta<T>(key: string, defaultValue: T, postId?: number | string): T {
+  if (IS_DECOUPLED) return (_useWpMeta as any)(key, defaultValue);
 
   // Browser-side hydration: check for forgeWpHydration data first
   if (typeof window !== 'undefined') {
     const win = window as any;
     if (win._forgeWpCompileTime) {
-      if (typeof defaultValue === 'string') {
-        return `__FORGEWP_META_${key}_DEFAULT_${encodeURIComponent(defaultValue).replace(/_/g, '%5F')}__` as any as T;
+      if (Array.isArray(defaultValue)) {
+        const postSuffix = postId ? `_POST_${postId}` : '';
+        return defaultValue.map((item, index) => {
+          if (item && typeof item === 'object') {
+            const tokenItem: any = {};
+            for (const prop in item) {
+              const defaultStr = typeof item[prop] === 'string' ? item[prop] : JSON.stringify(item[prop]);
+              tokenItem[prop] = `__FORGEWP_META_${key}_${index}_${prop}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
+            }
+            return tokenItem;
+          }
+          const defaultStr = typeof item === 'string' ? item : JSON.stringify(item);
+          return `__FORGEWP_META_${key}_${index}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
+        }) as any as T;
       }
-      return defaultValue;
+      const defaultStr = typeof defaultValue === 'string' ? defaultValue : JSON.stringify(defaultValue);
+      const postSuffix = postId ? `_POST_${postId}` : '';
+      return `__FORGEWP_META_${key}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__` as any as T;
     }
-    const post = React.useContext(WpPostContext);
-    const currentPost = post || win.forgeWpHydration?.post;
-    if (currentPost?.customFields && typeof currentPost.customFields[key] !== 'undefined') {
-      return currentPost.customFields[key] as T;
+    const blockAttrs = React.useContext(WpBlockContext) as any;
+    if (!postId && blockAttrs && typeof blockAttrs[key] !== 'undefined' && !isEmptyMetaValue(blockAttrs[key])) {
+      return blockAttrs[key] as T;
     }
+    let targetPost = null;
+    if (postId) {
+      let resolvedPostId = postId;
+      if (postId === 'front') {
+        resolvedPostId = win.forgeWpHydration?.siteSettings?.options?.page_on_front || 0;
+      }
+      if (win.forgeWpHydration?.posts?.[resolvedPostId]) {
+        targetPost = win.forgeWpHydration.posts[resolvedPostId];
+      }
+    } else {
+      const post = React.useContext(WpPostContext);
+      targetPost = post || win.forgeWpHydration?.post;
+    }
+    if (targetPost?.customFields && typeof targetPost.customFields[key] !== 'undefined') {
+      const val = targetPost.customFields[key];
+      if (!isEmptyMetaValue(val)) {
+        return val as T;
+      }
+    }
+    // Empty ACF/meta → component schema defaults (same as PHP forgewp_get_meta_value)
+    return defaultValue;
   }
 
   // Fallback to token for compiler replacement
+  if (Array.isArray(defaultValue)) {
+    const postSuffix = postId ? `_POST_${postId}` : '';
+    return defaultValue.map((item, index) => {
+      if (item && typeof item === 'object') {
+        const tokenItem: any = {};
+        for (const prop in item) {
+          const defaultStr = typeof item[prop] === 'string' ? item[prop] : JSON.stringify(item[prop]);
+          tokenItem[prop] = `__FORGEWP_META_${key}_${index}_${prop}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
+        }
+        return tokenItem;
+      }
+      const defaultStr = typeof item === 'string' ? item : JSON.stringify(item);
+      return `__FORGEWP_META_${key}_${index}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
+    }) as any as T;
+  }
+
   const defaultStr = typeof defaultValue === 'string' ? defaultValue : JSON.stringify(defaultValue);
-  return `__FORGEWP_META_${key}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__` as any as T;
+  const postSuffix = postId ? `_POST_${postId}` : '';
+  return `__FORGEWP_META_${key}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__` as any as T;
 }
 
 export function useWpOption(optionName: string, defaultValue = ''): string {
@@ -211,11 +319,9 @@ export function useWpOption(optionName: string, defaultValue = ''): string {
   // Browser-side hydration: check for forgeWpHydration data first
   if (typeof window !== 'undefined') {
     const win = window as any;
-    const siteSettings =
-      win._forgeWpMockSiteSettings || win.forgeWpHydration?.siteSettings;
-    if (siteSettings?.options?.[optionName] !== undefined) {
-      const value = siteSettings.options[optionName];
-      // Handle false/null values from WordPress
+    const hydrationOptions = win.forgeWpHydration?.siteSettings?.options;
+    if (hydrationOptions?.[optionName] !== undefined) {
+      const value = hydrationOptions[optionName];
       if (value === false || value === null) {
         return defaultValue || `[option: ${optionName}]`;
       }
@@ -224,9 +330,8 @@ export function useWpOption(optionName: string, defaultValue = ''): string {
   }
 
   // Fallback to token for compiler replacement
-  return defaultValue
-    ? `__FORGEWP_OPTION_${optionName}_DEFAULT_${encodeURIComponent(defaultValue)}__`
-    : `__FORGEWP_OPTION_${optionName}__`;
+  const defaultStr = typeof defaultValue === 'string' ? defaultValue : JSON.stringify(defaultValue);
+  return `__FORGEWP_OPTION_${optionName}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
 }
 
 export function useWpThemeMod(modName: string, defaultValue = ''): string {
@@ -235,11 +340,9 @@ export function useWpThemeMod(modName: string, defaultValue = ''): string {
   // Browser-side hydration: check for forgeWpHydration data first
   if (typeof window !== 'undefined') {
     const win = window as any;
-    const siteSettings =
-      win._forgeWpMockSiteSettings || win.forgeWpHydration?.siteSettings;
-    if (siteSettings?.theme_mods?.[modName] !== undefined) {
-      const value = siteSettings.theme_mods[modName];
-      // Handle false/null values from WordPress
+    const hydrationMods = win.forgeWpHydration?.siteSettings?.theme_mods;
+    if (hydrationMods?.[modName] !== undefined) {
+      const value = hydrationMods[modName];
       if (value === false || value === null) {
         return defaultValue || `[theme_mod: ${modName}]`;
       }
@@ -248,9 +351,8 @@ export function useWpThemeMod(modName: string, defaultValue = ''): string {
   }
 
   // Fallback to token for compiler replacement
-  return defaultValue
-    ? `__FORGEWP_THEME_MOD_${modName}_DEFAULT_${encodeURIComponent(defaultValue)}__`
-    : `__FORGEWP_THEME_MOD_${modName}__`;
+  const defaultStr = typeof defaultValue === 'string' ? defaultValue : JSON.stringify(defaultValue);
+  return `__FORGEWP_THEME_MOD_${modName}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
 }
 
 export function useWpThemeUri(): string {
@@ -265,13 +367,24 @@ export function useWpPageLink(name: string, fallback: string): string {
   if (IS_DECOUPLED) return _useWpPageLink(name, fallback);
   if (typeof window !== 'undefined' && !(window as any)._forgeWpCompileTime) {
     const win = window as any;
-    if (win.forgeWpHydration?.pageLinks?.[name]) {
-      return win.forgeWpHydration.pageLinks[name];
+    // Use the resolved WP permalink if available and non-empty
+    const resolved = win.forgeWpHydration?.pageLinks?.[name];
+    if (resolved) {
+      return resolved;
+    }
+    // pageLinks key exists but is empty string (page not assigned template yet) → use fallback
+    if (win.forgeWpHydration?.pageLinks && name in win.forgeWpHydration.pageLinks) {
+      return fallback || '';
     }
   }
-  return fallback
-    ? `__FORGEWP_PAGELINK_${name}_DEFAULT_${encodeURIComponent(fallback)}__`
-    : `__FORGEWP_PAGELINK_${name}__`;
+  // Compile-time: emit the token so the PHP compiler can replace it
+  if (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime) {
+    return fallback
+      ? `__FORGEWP_PAGELINK_${name}_DEFAULT_${encodeURIComponent(fallback)}__`
+      : `__FORGEWP_PAGELINK_${name}__`;
+  }
+  // SSR / unknown context: return fallback
+  return fallback || '';
 }
 
 export function useWpPagePath(name: string, fallback: string): string {
@@ -302,6 +415,7 @@ async function fetchWpApi(args: any, page: number) {
     s = '',
     orderby = 'date',
     order = 'DESC',
+    p,
   } = args;
 
   const endpoint =
@@ -310,21 +424,31 @@ async function fetchWpApi(args: any, page: number) {
       : postType === 'page'
         ? 'pages'
         : postType;
+
+  // Single-post lookup by ID (mirrors WP_Query's `p` argument) — hits the REST
+  // single-resource route directly instead of the list route, bypassing every
+  // other filter/sort/pagination option, matching WP_Query's own precedence.
+  const isSinglePostLookup = p !== undefined && p !== null && p !== '';
+
   const params = new URLSearchParams();
-  params.append('per_page', String(postsPerPage));
-  params.append('page', String(page));
-  params.append('_embed', '1');
-  if (s) {
-    params.append('search', s);
-  }
-  if (orderby) {
-    params.append('orderby', orderby === 'date' ? 'date' : orderby);
-  }
-  if (order) {
-    params.append('order', order.toLowerCase());
-  }
-  if (categoryName) {
-    params.append('category_name', categoryName);
+  if (isSinglePostLookup) {
+    params.append('_embed', '1');
+  } else {
+    params.append('per_page', String(postsPerPage));
+    params.append('page', String(page));
+    params.append('_embed', '1');
+    if (s) {
+      params.append('search', s);
+    }
+    if (orderby) {
+      params.append('orderby', orderby === 'date' ? 'date' : orderby);
+    }
+    if (order) {
+      params.append('order', order.toLowerCase());
+    }
+    if (categoryName) {
+      params.append('category_name', categoryName);
+    }
   }
 
   // Polylang multi-language query support
@@ -345,7 +469,9 @@ async function fetchWpApi(args: any, page: number) {
       }
       return '';
     })();
-  const fetchUrl = `${apiBase}/wp-json/wp/v2/${endpoint}?${params.toString()}`;
+  const fetchUrl = isSinglePostLookup
+    ? `${apiBase}/wp-json/wp/v2/${endpoint}/${p}?${params.toString()}`
+    : `${apiBase}/wp-json/wp/v2/${endpoint}?${params.toString()}`;
   console.log(`[useWpQuery] Fetching CPT "${postType}" from URL:`, fetchUrl);
 
   const headers: Record<string, string> = {};
@@ -357,13 +483,20 @@ async function fetchWpApi(args: any, page: number) {
   }
 
   const response = await fetch(fetchUrl, { headers });
+  if (isSinglePostLookup && !response.ok) {
+    // Selected post no longer exists / isn't publicly visible (deleted, unpublished,
+    // permissions) — resolve to an empty result instead of throwing, so callers
+    // (e.g. a "spotlight post" section) can fall back gracefully.
+    return { posts: [], hasMore: false, total: 0, totalPages: 1 };
+  }
   if (!response.ok) {
     throw new Error(
       `WordPress API returned ${response.status}: ${response.statusText}`,
     );
   }
 
-  const data = await response.json();
+  const rawData = await response.json();
+  const data = isSinglePostLookup ? [rawData] : rawData;
   if (!Array.isArray(data)) {
     throw new Error('Invalid response format from WordPress API');
   }
@@ -437,7 +570,11 @@ async function fetchWpApi(args: any, page: number) {
           : 'Admin',
       featuredImage,
       permalink: wp.link,
-      customFields: { ...(wp.acf || {}), ...(wp.meta || {}) },
+      // ACF REST may return `[]` when no field group matches — never spread arrays into customFields.
+      customFields: {
+        ...(wp.acf && !Array.isArray(wp.acf) && typeof wp.acf === 'object' ? wp.acf : {}),
+        ...(wp.meta && !Array.isArray(wp.meta) && typeof wp.meta === 'object' ? wp.meta : {}),
+      },
       _terms,
       __postType: wp.type || postType,
     };
@@ -484,6 +621,9 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
   }
 
   // Browser (Hydration/Production Client)
+  const argsRef = React.useRef(args);
+  argsRef.current = args;
+
   const {
     postType = 'post',
     postsPerPage = 10,
@@ -492,6 +632,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     paged = 1,
     orderby = 'date',
     order = 'DESC',
+    p,
   } = args;
 
   const queryKey = JSON.stringify({
@@ -502,6 +643,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     paged,
     orderby,
     order,
+    p,
   });
 
   let initialState = null;
@@ -513,7 +655,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
         if (parsed.queries && parsed.queries[queryKey]) {
           initialState = parsed.queries[queryKey];
           // Pre-populate queryCache for page 1
-          const cacheKey = JSON.stringify({ ...args, paged: paged });
+          const cacheKey = JSON.stringify({ ...argsRef.current, paged: paged });
           if (!queryCache.has(cacheKey)) {
             queryCache.set(cacheKey, {
               posts: initialState.posts,
@@ -554,7 +696,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
       // Consume the mode; subsequent calls revert to append (for loadMore)
       pageModeRef.current = 'append';
 
-      const cacheKey = JSON.stringify({ ...args, paged: page });
+      const cacheKey = JSON.stringify({ ...argsRef.current, paged: page });
       if (queryCache.has(cacheKey)) {
         const cached = queryCache.get(cacheKey)!;
         setPosts((prev: WpPost[]) => {
@@ -573,7 +715,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
 
       setLoading(true);
       try {
-        const { posts: fetchedPosts, hasMore: nextPageHasMore, total: totalCount, totalPages: tp } = await fetchWpApi(args, page);
+        const { posts: fetchedPosts, hasMore: nextPageHasMore, total: totalCount, totalPages: tp } = await fetchWpApi(argsRef.current, page);
         queryCache.set(cacheKey, { posts: fetchedPosts, hasMore: nextPageHasMore, total: totalCount, totalPages: tp });
 
         setPosts((prev: WpPost[]) => {
@@ -593,7 +735,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
         setLoading(false);
       }
     },
-    [queryKey, args],
+    [queryKey],
   );
 
   React.useEffect(() => {
@@ -605,7 +747,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
   }, [executeProdQuery, currentPage]);
 
   const querySelector = React.useCallback((params: URLSearchParams) => {
-    const target = { ...args };
+    const target = { ...argsRef.current };
     if (params.has('q') || params.has('s')) {
       target.s = params.get('q') || params.get('s') || '';
     }
@@ -613,12 +755,12 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
       target.categoryName = params.get('category') || '';
     }
     return target;
-  }, [args]);
+  }, []);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
     const item = {
-      args,
+      get args() { return argsRef.current; },
       querySelector,
       execute: async (targetArgs: any) => {
         const cacheKey = JSON.stringify({ ...targetArgs, paged: 1 });
@@ -633,7 +775,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     return () => {
       activeQueries.delete(item);
     };
-  }, [args, querySelector]);
+  }, [querySelector]);
 
   const loadMore = React.useCallback(async () => {
     if (loading || !hasMore) return;
@@ -1005,6 +1147,23 @@ export function WpLink({ href, className, children, ...props }: any) {
       <WouterLink href={href} className={className} {...props}>
         {children}
       </WouterLink>
+    );
+  }
+  if (isEditorPreview()) {
+    // Inside the Gutenberg block editor canvas, a real navigation would take
+    // the admin away from wp-admin entirely (and can 404 if the resolved
+    // href doesn't correspond to a real page yet) — intercept the click so
+    // any WpEditable content nested inside can still be clicked for inline
+    // editing without the link itself firing a real page navigation.
+    return (
+      <a
+        href={href}
+        className={className}
+        onClick={(e: any) => e.preventDefault()}
+        {...props}
+      >
+        {children}
+      </a>
     );
   }
   return (

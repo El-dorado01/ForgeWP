@@ -2,11 +2,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig, type PluginOption } from 'vite';
+import { defineConfig, type PluginOption, type UserConfig } from 'vite';
 import {
   loadConfig,
   loadFrameworkAdapter,
   validateCriticalFiles,
+  forgewpPageConfigPlugin,
 } from '@forgewp/compiler';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -53,6 +54,7 @@ export default defineConfig(async () => {
       'import.meta.env.FORGEWP_JWT_AUTH': JSON.stringify(config.headless?.jwtAuth || false),
     },
     plugins: [
+      forgewpPageConfigPlugin(),
       react(),
       tailwindcss(),
       forgewpValidationPlugin(),
@@ -71,8 +73,19 @@ export default defineConfig(async () => {
       emptyOutDir: true,
       manifest: true,
       rollupOptions: {
+        preserveEntrySignatures: 'exports-only',
         input: getHydrationRollupInputs(__dirname),
       },
     },
-  };
+    experimental: {
+      renderBuiltUrl(filename: string, { hostType }: { hostType: 'js' | 'css' | 'html' }) {
+        if (hostType === 'js') {
+          return {
+            runtime: `(window.forgeWpHydration?.themeUri || '') + '/' + ${JSON.stringify(filename)}`
+          };
+        }
+        return { relative: true };
+      }
+    }
+  } as UserConfig;
 });

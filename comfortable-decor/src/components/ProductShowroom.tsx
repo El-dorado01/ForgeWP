@@ -59,7 +59,7 @@ export default function ProductShowroom() {
   };
 
   return (
-    <section className='w-full bg-[#FAF9F6] py-24 px-6 md:px-12 lg:px-24 border-t border-zinc-100/40 relative overflow-hidden'>
+    <section id='catalog' className='w-full bg-[#FAF9F6] py-24 px-6 md:px-12 border-t border-zinc-100/40 relative overflow-hidden'>
       {/* Background Glow */}
       <div className='absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-[#4A5D4E]/3 rounded-full blur-3xl pointer-events-none' />
 
@@ -137,7 +137,7 @@ export default function ProductShowroom() {
           onMouseEnter={() => setIsTrackHovered(true)}
           onMouseLeave={() => { setIsTrackHovered(false); setHoveredId(null); }}
         >
-          <div className='flex gap-6'>
+          <div className='flex gap-3'>
             {PRODUCTS.map((product) => (
               <div
                 key={product.id}
@@ -149,7 +149,7 @@ export default function ProductShowroom() {
                   minWidth: '220px',
                   transition: 'flex-basis 0.45s cubic-bezier(0.215, 0.61, 0.355, 1)',
                 }}
-                className='group flex flex-col justify-between h-[450px] bg-[#FAF9F6] border border-zinc-200/20 rounded-2xl p-4 hover:border-zinc-200/60 transition-colors duration-300 hover:shadow-xl hover:shadow-stone-200/30'
+                className='group flex flex-col justify-between h-[450px] bg-[#FAF9F6] border border-zinc-200/20 rounded-2xl p-2 hover:border-zinc-200/60 transition-colors duration-300 hover:shadow-xl hover:shadow-stone-200/30'
               >
                 {/* Visual Card Frame */}
                 <div className='relative h-[290px] w-full overflow-hidden rounded-xl bg-zinc-50 mb-5 border border-zinc-200/20'>

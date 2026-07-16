@@ -3,7 +3,7 @@ import { WpHead } from "../.forgewp/wordpress";
 import { PresetsStyle } from "../.forgewp/PresetsStyle";
 import { SiteHeader } from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
-import { Hydrate } from "@forgewp/react";
+
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -33,9 +33,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       {children}
       
       {/* GLOBAL UPGRADED FOOTER */}
-      <Hydrate trigger="visible">
-        <SiteFooter />
-      </Hydrate>
+      <SiteFooter />
     </div>
   );
 }

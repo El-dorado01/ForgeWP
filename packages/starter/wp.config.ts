@@ -1,4 +1,6 @@
 import { defineConfig } from '@forgewp/compiler/define-config';
+import { siteOptions } from './cms/site-options';
+import { themeMods } from './cms/theme-mods';
 // import seoPlugin from '@forgewp/plugin-seo';
 
 export default defineConfig({
@@ -8,6 +10,8 @@ export default defineConfig({
   description: 'A clean default canvas for building block-themes with ForgeWP.',
   textDomain: 'forgewp-starter',
   configVersion: 1,
+  options: siteOptions,
+  themeMods: themeMods,
   // favicon: '/Logo/favicon.svg',
   // plugins: [
   //   seoPlugin({

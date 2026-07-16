@@ -7,7 +7,7 @@ export {
   findComponentPath,
   getHydrationRollupInputs,
   scanForEditableSchemas,
-} from './hydration-scanner.js';
+} from './hydration/index.js';
 export { validateExport } from './validate-export.js';
 export {
   resolveFrameworkAdapter,

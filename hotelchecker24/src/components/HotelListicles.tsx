@@ -6,6 +6,13 @@ interface HotelListiclesProps {
   hotelId: number | string;
 }
 
+/**
+ * @forgewp-block
+ * title: Hotel Listicles
+ * category: theme
+ * icon: book-alt
+ * description: Shows listicles that mention this hotel (single hotel page).
+ */
 export function HotelListicles({ hotelId }: HotelListiclesProps) {
   const { __ } = useWpI18n();
 

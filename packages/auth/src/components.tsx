@@ -11,11 +11,13 @@ function getApiBaseUrl(): string {
     return (window as any).FORGEWP_API_URL;
   }
   try {
-    const fwUrl = (import.meta as any).env?.FORGEWP_API_URL;
+    // @ts-ignore
+    const fwUrl = import.meta.env.FORGEWP_API_URL;
     if (fwUrl) return fwUrl;
   } catch (e) {}
   try {
-    const viteUrl = (import.meta as any).env?.VITE_WP_API_URL;
+    // @ts-ignore
+    const viteUrl = import.meta.env.VITE_WP_API_URL;
     if (viteUrl) return viteUrl;
   } catch (e) {}
   try {
@@ -57,11 +59,13 @@ function isJwtAuthEnabled(): boolean {
     return true;
   }
   try {
-    const fwJwt = (import.meta as any).env?.FORGEWP_JWT_AUTH;
+    // @ts-ignore
+    const fwJwt = import.meta.env.FORGEWP_JWT_AUTH;
     if (fwJwt === true || fwJwt === 'true') return true;
   } catch (e) {}
   try {
-    const viteJwt = (import.meta as any).env?.VITE_WP_JWT_AUTH;
+    // @ts-ignore
+    const viteJwt = import.meta.env.VITE_WP_JWT_AUTH;
     if (viteJwt === 'true') return true;
   } catch (e) {}
   try {
@@ -216,11 +220,13 @@ export function WpAuthProvider({
   React.useEffect(() => {
     // 1. Sync from dev environment define variables (Vite dev server)
     try {
-      const envLoginField = (import.meta as any).env?.FORGEWP_AUTH_LOGIN_FIELD;
+      // @ts-ignore
+      const envLoginField = import.meta.env.FORGEWP_AUTH_LOGIN_FIELD;
       if (envLoginField) {
         setLoginField(envLoginField);
       }
-      const envEmailVerification = (import.meta as any).env?.FORGEWP_AUTH_EMAIL_VERIFICATION;
+      // @ts-ignore
+      const envEmailVerification = import.meta.env.FORGEWP_AUTH_EMAIL_VERIFICATION;
       if (envEmailVerification === 'true' || envEmailVerification === true) {
         setEmailVerificationEnabled(true);
       }
@@ -377,6 +383,16 @@ export function WpAuthProvider({
       });
 
       if (found && password.length >= 3) {
+        // @ts-ignore
+        const envEmailVerification = import.meta.env.FORGEWP_AUTH_EMAIL_VERIFICATION === 'true' || import.meta.env.FORGEWP_AUTH_EMAIL_VERIFICATION === true;
+        // @ts-ignore
+        const envBlockLogin = import.meta.env.FORGEWP_AUTH_BLOCK_LOGIN_UNVERIFIED === 'true' || import.meta.env.FORGEWP_AUTH_BLOCK_LOGIN_UNVERIFIED === true;
+        if (envEmailVerification && envBlockLogin && found.emailVerified !== true) {
+          setError('Your email address has not been verified yet. Please check your inbox or resend the verification link.');
+          setLoading(false);
+          return false;
+        }
+
         const userWithCaps = resolveMockUserCapabilities(found);
         setUser(userWithCaps);
         window.localStorage.setItem('forgewp_auth_session', JSON.stringify(userWithCaps));

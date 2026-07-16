@@ -11,6 +11,7 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeMobileCategory, setActiveMobileCategory] = useState<string | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isHeroImageFull, setIsHeroImageFull] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const menuContainerRef = useRef<HTMLDivElement>(null);
@@ -50,15 +51,27 @@ export default function Navbar() {
   // Dynamic Scroll Listener for sticky styling
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+      const scrollY = window.scrollY;
+      const vh = window.innerHeight;
+
+      setIsScrolled(scrollY > 20);
+
+      // HeroSection sticky range: 0 to 1.2 * vh
+      // Full screen image range: scrollY is roughly between 0.75 * 1.2 * vh (~0.9 * vh) and 1.2 * vh
+      const heroThresholdStart = 0.75 * (vh * 1.2);
+      const heroThresholdEnd = 1.25 * vh;
+
+      setIsHeroImageFull(scrollY >= heroThresholdStart && scrollY <= heroThresholdEnd);
     };
 
     // Initialize values on mount
     handleScroll();
 
     window.addEventListener('scroll', handleScroll);
+    window.addEventListener('resize', handleScroll);
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
       clearCloseTimeout();
     };
   }, []);
@@ -111,16 +124,20 @@ export default function Navbar() {
       >
         <header
           className={`w-full px-6 py-5 md:px-12 flex justify-between items-center transition-all duration-500 ${
-            isScrolled || activeMenu || mobileMenuOpen
-              ? 'bg-[#FAF9F6]/95 backdrop-blur-md border-b border-zinc-200/40 shadow-sm'
-              : 'bg-transparent border-b border-transparent'
+            isHeroImageFull && !activeMenu && !mobileMenuOpen
+              ? 'bg-transparent border-b border-transparent shadow-none'
+              : isScrolled || activeMenu || mobileMenuOpen
+                ? 'bg-[#FAF9F6]/95 backdrop-blur-md border-b border-zinc-200/40 shadow-sm'
+                : 'bg-transparent border-b border-transparent'
           }`}
         >
           {/* Logo (Left) */}
           <div className='flex-1 flex justify-start items-center'>
             <a
-              href='/parallax'
-              className='font-heading font-black text-2xl tracking-tighter flex items-center gap-0.5 select-none hover:opacity-95 transition-all duration-500 text-zinc-900'
+              href='/'
+              className={`font-heading font-black text-2xl tracking-tighter flex items-center gap-0.5 select-none hover:opacity-95 transition-all duration-500 ${
+                isHeroImageFull && !activeMenu && !mobileMenuOpen ? 'text-white' : 'text-zinc-900'
+              }`}
             >
               CD<span className='text-brand'>.</span>
             </a>
@@ -134,12 +151,18 @@ export default function Navbar() {
             <WpMenu
               location='primary'
               className='flex items-center gap-9'
-              linkClassName='font-heading font-medium text-sm tracking-wide uppercase transition-colors duration-500 relative py-1 after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:scale-x-0 hover:after:scale-x-100 after:transition-transform after:duration-500 after:origin-left text-zinc-500 hover:text-zinc-900 after:bg-brand'
+              linkClassName={`font-heading font-medium text-sm tracking-wide uppercase transition-colors duration-500 relative py-1 after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:scale-x-0 hover:after:scale-x-100 after:transition-transform after:duration-500 after:origin-left after:bg-brand ${
+                isHeroImageFull && !activeMenu && !mobileMenuOpen
+                  ? 'text-zinc-300 hover:text-white'
+                  : 'text-zinc-500 hover:text-zinc-900'
+              }`}
             />
           </div>
 
           {/* Cart, Search, and User Icons (Right) */}
-          <div className='flex-1 flex justify-end items-center gap-5 transition-colors duration-500 text-zinc-600'>
+          <div className={`flex-1 flex justify-end items-center gap-5 transition-colors duration-500 ${
+            isHeroImageFull && !activeMenu && !mobileMenuOpen ? 'text-white' : 'text-zinc-600'
+          }`}>
             {/* Search Toggle */}
             <button
               onClick={() => setSearchOpen(!searchOpen)}

@@ -2,6 +2,7 @@ node_modules
 packages/create-forgewp/template/node_modules
 dist
 .forgewp
+.forgewp-islands
 *.local
 .DS_Store
 Thumbs.db
@@ -13,3 +14,6 @@ coverage
 .turbo
 .vite
 /comfortable-decor
+/forge-blocks
+/forge-commerce
+/photo-memories

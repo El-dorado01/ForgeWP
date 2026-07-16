@@ -101,8 +101,12 @@ export function Hydrate({
   const propsData = children.props ? JSON.stringify(children.props) : "{}";
 
   // SSR bypass guard for client-only elements
-  const isSSR = typeof window === "undefined" || window._forgeWpCompileTime;
+  const isSSR = typeof window === "undefined" || (window as any)._forgeWpCompileTime;
   const shouldRender = !clientOnly || !isSSR;
+
+  if (isSSR && children && (children as any).props && (children as any).props["data-forgewp-auto-island"]) {
+    return children;
+  }
 
   return (
     <div

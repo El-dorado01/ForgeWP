@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import pc from "picocolors";
 import { SYSTEM_BLUEPRINTS } from "./blueprints.js";
@@ -8,6 +8,7 @@ import { SYSTEM_BLUEPRINTS } from "./blueprints.js";
  *
  * Runs before compiling the theme.
  * - Automatically restores any deleted system-critical utility files using pre-compiled blueprints.
+ * - Automatically updates system-critical files if their content differs from compiler blueprints.
  * - Throws descriptive, highly actionable errors if a user-editable core file is deleted.
  *
  * @param {string} themeRoot Absolute path to the theme root folder.
@@ -37,10 +38,24 @@ export function validateCriticalFiles(themeRoot) {
   // 2. Validate & Self-Heal System-Critical Files
   for (const [relativePath, blueprintContent] of Object.entries(SYSTEM_BLUEPRINTS)) {
     const fullPath = path.join(themeRoot, relativePath);
+    let shouldWrite = false;
 
     if (!existsSync(fullPath)) {
       console.log(pc.yellow(`  ⚠️  System file ${pc.bold(relativePath)} was missing! Restoring default system blueprint...`));
-      
+      shouldWrite = true;
+    } else if (!relativePath.startsWith("cms/")) {
+      try {
+        const existingContent = readFileSync(fullPath, "utf8");
+        if (existingContent !== blueprintContent) {
+          console.log(pc.yellow(`  🔄  System file ${pc.bold(relativePath)} is out of date! Updating to latest system blueprint...`));
+          shouldWrite = true;
+        }
+      } catch (e) {
+        shouldWrite = true;
+      }
+    }
+
+    if (shouldWrite) {
       // Ensure target directory exists (e.g. src/lib/)
       const dirPath = path.dirname(fullPath);
       if (!existsSync(dirPath)) {
@@ -48,7 +63,7 @@ export function validateCriticalFiles(themeRoot) {
       }
 
       writeFileSync(fullPath, blueprintContent, "utf8");
-      console.log(pc.green(`  ✅ Successfully restored system file: ${relativePath}`));
+      console.log(pc.green(`  ✅ Successfully restored/updated system file: ${relativePath}`));
     }
   }
 }

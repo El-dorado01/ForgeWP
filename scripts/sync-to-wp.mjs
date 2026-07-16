@@ -22,24 +22,39 @@ const THEME_NAME = process.argv[2] || 'forgewp-starter';
 const THEME_ROOT = THEME_NAME === 'forgewp-starter'
   ? path.resolve(__dirname, '../packages/starter')
   : path.resolve(__dirname, `../${THEME_NAME}`);
+let themeSlug = THEME_NAME;
+const configPath = path.join(THEME_ROOT, 'wp.config.ts');
+if (fs.existsSync(configPath)) {
+  const configContent = fs.readFileSync(configPath, 'utf8');
+  const slugMatch = configContent.match(/\bslug\s*:\s*['"]([^'"]+)['"]/);
+  if (slugMatch) {
+    themeSlug = slugMatch[1];
+  }
+}
+
 const EXPORT_OUTPUT = path.join(
   THEME_ROOT,
   '.forgewp',
   'out',
-  THEME_NAME,
+  themeSlug,
 );
-let WP_SITE_NAME = ['hotelchecker24', 'comfortable-decor'].includes(THEME_NAME) ? THEME_NAME : 'forgewp';
-if (fs.existsSync('C:\\Users\\hp\\Local Sites\\ForgeWP')) {
-  WP_SITE_NAME = 'ForgeWP';
-} else if (fs.existsSync('C:\\Users\\hp\\Local Sites\\forgewp')) {
-  WP_SITE_NAME = 'forgewp';
+let WP_SITE_NAME = THEME_NAME;
+// Only fall back to the shared ForgeWP local site if this theme doesn't have its own dedicated site
+const hasDedicatedSite = ['hotelchecker24', 'comfortable-decor'].includes(THEME_NAME) &&
+  fs.existsSync(`C:\\Users\\hp\\Local Sites\\${THEME_NAME}`);
+if (!hasDedicatedSite) {
+  if (fs.existsSync('C:\\Users\\hp\\Local Sites\\ForgeWP')) {
+    WP_SITE_NAME = 'ForgeWP';
+  } else if (fs.existsSync('C:\\Users\\hp\\Local Sites\\forgewp')) {
+    WP_SITE_NAME = 'forgewp';
+  }
 }
 
 const DEFAULT_WP_THEMES_PATH =
   `C:\\Users\\hp\\Local Sites\\${WP_SITE_NAME}\\app\\public\\wp-content\\themes`;
 const WP_THEMES_PATH =
   process.env.WORDPRESS_THEMES_PATH || DEFAULT_WP_THEMES_PATH;
-const TARGET_THEME_PATH = path.join(WP_THEMES_PATH, THEME_NAME);
+const TARGET_THEME_PATH = path.join(WP_THEMES_PATH, themeSlug);
 
 console.log(`\n📦 ForgeWP Theme Sync Utility`);
 console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);

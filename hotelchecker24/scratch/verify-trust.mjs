@@ -1,0 +1,14 @@
+﻿import { readFileSync } from "fs";
+const php = readFileSync("hotelchecker24/.forgewp/out/hotelchecker24/functions.php", "utf8");
+const m = php.match(/json_decode\(<<<'FORGEWP_BLOCKS'\r?\n([\s\S]*?)\r?\nFORGEWP_BLOCKS/);
+const blocks = JSON.parse(m[1]);
+const b = blocks.find((x) => x.name === "forgewp/trust-strip");
+const jsx = b.customEditJsx;
+const i = jsx.lastIndexOf("return createElement");
+console.log(jsx.slice(i, i + 700));
+console.log("has bad template cell?", jsx.includes("${cell("));
+console.log("has array cells?", /\[cell\(/.test(jsx));
+const vi = jsx.indexOf("value: (");
+console.log("value expr sample:", jsx.slice(vi, vi + 60));
+const c = blocks.find((x) => x.name === "forgewp/contact-split-section");
+console.log("contact shell", !!c, "parent?", c && c.isParentShell);

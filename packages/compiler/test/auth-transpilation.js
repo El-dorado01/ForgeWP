@@ -405,9 +405,72 @@ function testPageConfigPlugin() {
   console.log('✅ forgewpPageConfigPlugin checks passed!');
 }
 
+async function testAutoWrappingAndProviderWiring() {
+  console.log('Testing automatic island detection and provider wiring...');
+  const plugin = forgewpPageConfigPlugin();
+
+  const tempDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'temp-auto-wrap-test');
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+  }
+
+  // Create an interactive component file that uses state
+  const compDir = path.join(tempDir, 'src', 'components');
+  fs.mkdirSync(compDir, { recursive: true });
+
+  const interactiveCompPath = path.join(compDir, 'InteractiveWidget.tsx');
+  fs.writeFileSync(
+    interactiveCompPath,
+    `import { useState } from "react";\nexport default function InteractiveWidget() { const [x] = useState(0); return <div>{x}</div>; }`,
+    'utf8'
+  );
+
+  // Create an interactive component file that uses auth hooks
+  const authCompPath = path.join(compDir, 'AuthWidget.tsx');
+  fs.writeFileSync(
+    authCompPath,
+    `import { useWpUser } from "@forgewp/auth";\nexport default function AuthWidget() { const user = useWpUser(); return <div>{user?.displayName}</div>; }`,
+    'utf8'
+  );
+
+  // Create a static parent component file that imports them
+  const parentId = path.join(tempDir, 'src', 'app', 'pages', 'TestPage.tsx');
+  fs.mkdirSync(path.dirname(parentId), { recursive: true });
+  
+  const parentCode = `import React from 'react';
+import InteractiveWidget from '../../components/InteractiveWidget';
+import AuthWidget from '../../components/AuthWidget';
+
+export default function TestPage() {
+  return (
+    <div>
+      <h1>Static Title</h1>
+      <InteractiveWidget val={10} />
+      <AuthWidget />
+    </div>
+  );
+}`;
+
+  // Run the plugin transformation
+  const res = plugin.transform(parentCode, parentId);
+  assert(res !== null, 'Transformed code should not be null');
+
+  // Assertions
+  assert(res.code.includes('import { Hydrate } from "@forgewp/react";'), 'Should import Hydrate');
+  assert(res.code.includes('import { WpAuthProvider } from "@forgewp/auth";'), 'Should import WpAuthProvider');
+  
+  assert(res.code.includes('<Hydrate id="interactive-widget"><InteractiveWidget val={10} /></Hydrate>'), 'InteractiveWidget should be wrapped in Hydrate');
+  assert(res.code.includes('<Hydrate id="auth-widget"><WpAuthProvider><AuthWidget /></WpAuthProvider></Hydrate>'), 'AuthWidget should be wrapped in Hydrate and WpAuthProvider');
+
+  // Clean up
+  fs.rmSync(tempDir, { recursive: true, force: true });
+  console.log('✅ Automatic island detection and provider wiring checks passed!');
+}
+
 async function main() {
   console.log('--- STARTING AUTH TRANSPIALTION UNIT TESTS ---');
   testPageConfigPlugin();
+  await testAutoWrappingAndProviderWiring();
   testMarkupProcessor();
   testFunctionsBuilderWithAuth();
   testJwtTemplateInjection();

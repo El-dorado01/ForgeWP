@@ -1,344 +1,41 @@
-Yes. This is now reaching the point where I'd call it **architecturally sound enough to implement**.
+Summary of Findings
+Bug 1 — Chained/nested ternaries (cond1 ? (A) : cond2 ? (B) : (C)) leak as literal text
+Root cause: transpileTernaries() in packages/compiler/lib/blocks/php-transpiler.js:1191-1251 only recognizes a single-level cond ? (A) : (B) shape, and its structural validation silently rejects anything else instead of recursing.
 
-However, there are two things I would lock down before committing ForgeWP's auth architecture, because they affect the framework's future more than the auth package itself.
+Walk-through for HotelListicles.tsx ({listiclesLoading ? (…) : matchingListicles.length > 0 ? (…) : (…)}):
 
----
+condVar extraction (line 1218) and the char-class check (line 1219, /^[a-zA-Z0-9_.\-\s&|!=<>'"]+$/) correctly match listiclesLoading — comparison operators/.length are not the blocker (<> and . are already in the allowed set).
+extractTernaryBranch() (lines 1164-1189) correctly extracts the first (loading) branch via extractJsxByTagBalancing.
+Line 1224: colonIndex = phpMarkup.indexOf(':', trueBranch.endIndex) finds the : between the first and second ternary — but the code has no concept of "this next ( belongs to ternary #2's true-branch, not ternary #1's false-branch." It blindly extracts the matchingListicles.length > 0 ? ( branch's div as if it were the whole false branch.
+Line 1230: endBrace = phpMarkup.indexOf('}', falseBranch.endIndex) then looks for the closing } of the whole {…} expression. Line 1232-1233 requires the text between the (wrongly-scoped) false branch and that } to be exactly ')' or empty:
 
-# 1. I Would Reject Automatic Provider Injection
+const gap = phpMarkup.substring(falseBranch.endIndex, endBrace).trim();
+if (gap === ')' || gap === '') { … perform replacement … }
+Because a third branch exists, gap is actually ": (<div>…empty state…</div>)" — non-empty and not ')' — so the whole if is skipped and the function falls through to index = matchIndex - 1, abandoning the match with no replacement. A plain 2-way ternary works precisely because there is no third branch, so gap is always ''.
 
-This is the only part I disagree with.
+The code itself acknowledges this limitation elsewhere but never fixes the main path — see the comment at lines 1316-1326: "Chained dispatch ternaries … are a shape transpileTernaries doesn't support (it only handles a single cond ? A : B, not further ternaries inside the false branch)." There is even a working chain-resolver, resolveStaticTernaryChain() (lines 1359+), but it's only wired into inlineJsxRenderHelperCalls() for hoisted-helper call sites, requires every condition to be statically evaluable (literal comparisons or setAttributes treated as always-false), and is never invoked from transpileTernaries/the main JSX pipeline — so it can't handle a runtime condition like matchingListicles.length > 0.
 
-They proposed:
+Compounding it: the un-brace-depth-aware "safety net" regex at index.js:1726-1729 also fails to strip the orphaned text, because its trigger keywords (.map(, .filter(, =>, etc.) must appear in the outer, brace-free segment of the {…} — but by this point transpileLoops has already converted the nested .map() inside branch 2, leaving the outer ternary wrapper with no trigger keyword left to match.
 
-> detect useWpAuth() and automatically inject WpAuthProvider during compilation
+Reusable helpers already available: findMatchingParenClose (line 1124), extractJsxByTagBalancing (line 519), stripJsxParenWrap (line 1402) — a real fix should make extractTernaryBranch/transpileTernaries recursive using these, rather than reinventing paren/tag balancing.
 
-This sounds nice initially, but it violates one of ForgeWP's strongest principles:
+Bug 2 — Universal $parsed = ($JSON ?? null).'';
+Root cause: a dead intended-allowlist check in index.js plus neutralizeUnknownJsCalls's dotted-call blindness in php-transpiler.js.
 
-> Explicit hydration. Avoid invisible framework magic.
+index.js:1041-1046 tries to recognize known-safe calls:
 
-The problem isn't technical.
+const unknownCall = varValue.match(/^([A-Za-z_$][\w$]*)\s*\(/);
+const knownPhpCall = unknownCall &&
+  /^(Number|String|Boolean|parseInt|parseFloat|JSON\.parse|Math\.\w+|useWpPageLink)$/.test(unknownCall[1]);
+The unknownCall regex requires an identifier immediately followed by (. For JSON.parse(related) there's a . in between, so it never matches — unknownCall is null. The JSON\.parse alternative in the allow-list regex is therefore dead code; it can never be reached. Since unknownCall is null, (unknownCall && !knownPhpCall) is false, so the const parsed = JSON.parse(related) line is not flagged isClientOnly and is treated as a normal server-transpilable local var (confirmed live in hotelchecker24/src/components/HotelListicles.tsx:50, also present in listicle-quicklinks/listicle-ranked-hotels, matching every render.php that actually has $parsed).
+2. It falls to translateJsExpressionToPhp(varValue, …) (index.js:1116), which calls neutralizeUnknownJsCalls (php-transpiler.js:304-393). That function scans for IDENT( regardless of any preceding ., so it walks past JSON char-by-char (never matching IDENT( there) until it reaches parse(, which isn't in its callable whitelist (line 307-315, which does list json_decode/json_encode but not bare parse) — it deletes the whole call+args, replacing with ''. Verified directly:
 
-The problem is discoverability.
 
-Imagine:
+neutralizeUnknownJsCalls("JSON.parse(rawSomething || '{}')") === "JSON.''"
+Back in translateJsExpressionToPhp, the orphaned bare JSON identifier (lines 428-465) isn't in skipWords/blockAttrKeys/localVars, so it gets the generic fallback wrap ($JSON ?? null), concatenated with the leftover '' literal → ($JSON ?? null).''. This is then emitted verbatim at index.js:1127: phpVarDefinitions += `$${varName} = ${phpVal};\n`;.
+Original intent: genuinely support JSON.parse(acfField) → json_decode($acfField, true) for ACF/meta fields stored as JSON strings — evidenced by json_decode already being in the callable whitelist and JSON\.parse already being (uselessly) listed in the knownPhpCall regex. It's a half-finished feature: the allowlist name was added but the match regex that feeds it was never adapted for dotted (Obj.method() calls, and neutralizeUnknownJsCalls was never taught to special-case JSON.parse → json_decode.
 
-```tsx
-function UserMenu() {
-  const { user } = useWpAuth()
-}
-```
+No existing reusable helper covers this — it needs a small dedicated JSON.parse(expr) → json_decode(<phpExpr>, true) rule added before/inside neutralizeUnknownJsCalls, plus fixing unknownCall's regex to capture dotted call heads (/^([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*\(/).
 
-Why does this work?
 
-Because compiler secretly injected:
 
-```tsx
-<WpAuthProvider>
-```
-
-somewhere.
-
-Now the developer has no visible architecture.
-
----
-
-Astro doesn't do this.
-
-React doesn't do this.
-
-Even Next.js doesn't automatically inject providers because you imported a hook.
-
----
-
-I would prefer:
-
-```tsx
-<AuthBoundary>
-  <UserMenu />
-</AuthBoundary>
-```
-
-or
-
-```tsx
-<Hydrate auth>
-  <UserMenu />
-</Hydrate>
-```
-
-Something explicit.
-
-The compiler can optimize it.
-
-But the source should reveal intent.
-
----
-
-# 2. Don't Put Session Data on window
-
-I agree with the concept.
-
-I disagree with the implementation.
-
-Instead of:
-
-```html
-window.__FORGEWP_SESSION__
-```
-
-I would use:
-
-```html
-<script
-  type="application/json"
-  id="forgewp-session"
->
-{
-  "loggedIn": true,
-  "user": {
-    "id": 1,
-    "name": "John"
-  }
-}
-</script>
-```
-
-Then:
-
-```ts
-const session = JSON.parse(
-  document
-    .getElementById("forgewp-session")
-    ?.textContent ?? "{}"
-)
-```
-
-Benefits:
-
-* no global namespace pollution
-* CSP friendly
-* easier debugging
-* framework agnostic
-* works in React/Vue/Svelte adapters
-
-Since ForgeWP wants adapters eventually, I'd optimize for that now.
-
----
-
-# What I Strongly Agree With
-
-### Compile-Time Gates
-
-This is the biggest win.
-
-```tsx
-<WpAuthGate>
-```
-
-↓
-
-```php
-is_user_logged_in()
-```
-
-This is exactly the kind of compiler intelligence ForgeWP should be building.
-
----
-
-### Protected Pages
-
-This:
-
-```tsx
-export const page = {
-  protected: true
-}
-```
-
-or
-
-```tsx
-<Page protected />
-```
-
-↓
-
-```php
-wp_safe_redirect()
-```
-
-is vastly superior to React route guards.
-
----
-
-### Fallback Support
-
-Absolutely.
-
-```tsx
-<WpAuthGate
-  fallback={<LoginButton />}
->
-```
-
-is probably required for real-world usage.
-
-Otherwise developers will end up recreating it manually.
-
----
-
-### Full Page Reload After Login
-
-I strongly agree.
-
-A lot of SPA auth systems spend enormous complexity trying to synchronize client state with server state.
-
-WordPress already owns the session.
-
-After:
-
-```ts
-await login()
-```
-
-simply:
-
-```ts
-window.location.reload()
-```
-
-or:
-
-```ts
-window.location.href = redirectTo
-```
-
-and let PHP regenerate reality.
-
-That fits ForgeWP's philosophy perfectly.
-
----
-
-# What I'd Add To The Roadmap
-
-I think there's a missing Phase 0.5.
-
----
-
-## Auth Manifest Generation
-
-Compiler should generate:
-
-```json
-{
-  "protectedPages": [
-    "/dashboard",
-    "/account",
-    "/orders"
-  ],
-  "authGates": [
-    {
-      "file": "Dashboard.tsx",
-      "type": "logged_in"
-    }
-  ]
-}
-```
-
-Why?
-
-Because later you can build:
-
-```bash
-pnpm forgewp analyze
-```
-
-and show:
-
-```text
-Auth Analysis
-
-Protected Pages: 6
-Auth Gates: 12
-Capability Gates: 4
-
-Warning:
-Dashboard.tsx contains useWpAuth()
-but is not protected.
-```
-
-This aligns perfectly with ForgeWP's compiler diagnostics vision. 
-
----
-
-# If This Were My Framework
-
-I'd finalize the architecture as:
-
-### Runtime
-
-```tsx
-useWpAuth()
-useWpUser()
-login()
-logout()
-register()
-```
-
-Very small.
-
----
-
-### Server
-
-```tsx
-<WpAuthGate />
-<WpCapabilityGate />
-```
-
-Compiled to PHP.
-
----
-
-### Session Bootstrap
-
-```html
-<script type="application/json" id="forgewp-session">
-```
-
-Injected by WordPress.
-
----
-
-### Protection
-
-```tsx
-export const page = {
-  protected: true
-}
-```
-
-Compiled to PHP redirects.
-
----
-
-### Hydration
-
-Explicit.
-
-Never magical.
-
-Never automatic.
-
----
-
-If you implement it with those adjustments, I'd consider the auth architecture essentially complete and consistent with the broader ForgeWP vision of:
-
-* Compiler-first
-* Static-first
-* Explicit hydration
-* Minimal runtime
-* Native WordPress authority
-* Framework-agnostic future adapters
-
-The only thing I'd fight hard against is the automatic provider injection. That's the one piece that feels more like a convenience feature from a React framework than a ForgeWP-style compiler primitive.

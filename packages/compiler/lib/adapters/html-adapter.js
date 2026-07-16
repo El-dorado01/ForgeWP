@@ -55,6 +55,11 @@ export function onMakeBlock(themeRoot, { pascalCase, pc }) {
   console.log(`   Block "${pascalCase}" was not created.\n`);
 }
 
+export function onMakeShell(themeRoot, { pascalCase, pc }) {
+  console.log(pc.yellow(`\n⚠️  The Static HTML framework adapter does not support parent shell blocks.`));
+  console.log(`   Shell "${pascalCase}" was not created.\n`);
+}
+
 export function onMakeLoop(themeRoot, { pascalCase, pc }) {
   console.log(pc.yellow(`\n⚠️  The Static HTML framework adapter does not support custom loops.`));
   console.log(`   Loop "${pascalCase}" was not created.\n`);

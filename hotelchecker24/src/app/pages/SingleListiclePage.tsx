@@ -12,11 +12,12 @@ import {
   useWpI18n,
   useWpLanguage,
   useWpPageLink,
+  useWpOption,
   defineEditable,
   text,
 } from '../../.forgewp/wordpress';
 import { useRoute } from 'wouter';
-import { Hydrate } from '@forgewp/react';
+
 import { ChevronRight, User, Calendar, BookOpen, ArrowLeft } from 'lucide-react';
 import ListicleQuicklinks from '../../components/ListicleQuicklinks';
 import ListicleRankedHotels from '../../components/ListicleRankedHotels';
@@ -26,8 +27,12 @@ export function SingleListiclePage() {
   const { homeUrl } = useWpLanguage();
   const homeHref = homeUrl;
   const listiclesHref = useWpPageLink('listicles-page', '/hotelvergleiche');
-  const [, params] = useRoute('/hotelvergleich/:id');
-  const routeParam = params?.id;
+
+  const badgeLabel = useWpOption('single_listicle_badge_label', __('Redaktioneller Beitrag'));
+  const backLabel = useWpOption('single_listicle_back_label', __('Zurück zur Übersicht'));
+  const [, params1] = useRoute('/hotelvergleich/:id');
+  const [, params2] = useRoute('/listicle/:id');
+  const routeParam = params1?.id || params2?.id;
 
   // In production, forgeWpHydration.post.id holds the real WP numeric ID
   const hydrationId =
@@ -92,7 +97,7 @@ export function SingleListiclePage() {
         {/* Header section (stretches to max-w-5xl) */}
         <header className="text-center mb-8 max-w-5xl mx-auto">
           <span className="inline-block bg-[#929f5d]/10 text-[#929f5d] border border-[#929f5d]/15 text-[10px] font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-md mb-3">
-            {__('Redaktioneller Beitrag')}
+            {badgeLabel}
           </span>
           <h1 className="text-2xl sm:text-3xl lg:text-5xl font-black tracking-tight text-slate-900 leading-tight mb-4 uppercase">
             {title}
@@ -137,9 +142,7 @@ export function SingleListiclePage() {
 
               {/* Mobile-only Quicklinks block shown under intro quote */}
               <div className="lg:hidden mb-6">
-                <Hydrate trigger="load">
-                  <ListicleQuicklinks listicleId={id} />
-                </Hydrate>
+                <ListicleQuicklinks listicleId={id} />
               </div>
 
               <div 
@@ -151,17 +154,13 @@ export function SingleListiclePage() {
 
           {/* Sidebar Area with Sticky Quicklinks */}
           <aside className="hidden lg:block lg:col-span-4 sticky top-6">
-            <Hydrate trigger="load">
-              <ListicleQuicklinks listicleId={id} />
-            </Hydrate>
+            <ListicleQuicklinks listicleId={id} />
           </aside>
         </div>
 
         {/* Standalone Ranked Hotels Section */}
         <div className="max-w-5xl mx-auto mt-12 pt-8">
-          <Hydrate trigger="load">
-            <ListicleRankedHotels listicleId={id} />
-          </Hydrate>
+          <ListicleRankedHotels listicleId={id} />
         </div>
 
         {/* Back Button */}
@@ -171,7 +170,7 @@ export function SingleListiclePage() {
             className="inline-flex items-center gap-2 px-6 py-3.5 border border-slate-200 hover:border-slate-800 text-slate-700 hover:text-slate-900 font-mono font-bold uppercase text-xs tracking-wider rounded-xl transition-all duration-300 group cursor-pointer bg-white"
           >
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            {__('Zurück zur Übersicht')}
+            {backLabel}
           </WpLink>
         </div>
       </div>
@@ -195,3 +194,5 @@ export const editable = defineEditable({
     postTypes: ['hotel'],
   }),
 });
+
+

@@ -68,6 +68,8 @@ export interface WpQueryArgs {
   paged?: number;       // Page number (1-based)
   orderby?: string;
   order?: 'ASC' | 'DESC';
+  /** Fetch a single post by ID — mirrors WP_Query's own `p` argument. When set, all other filter/pagination args are ignored and `posts` resolves to that one post (or empty if not found). */
+  p?: number | string;
   /** Relational taxonomy/term filter — mirrors WP_Query tax_query */
   taxQuery?: WpTaxQuery[];
   /** Relational meta/custom-field filter — mirrors WP_Query meta_query */

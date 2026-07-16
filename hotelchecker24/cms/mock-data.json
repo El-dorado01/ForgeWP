@@ -1,94 +1,133 @@
 {
-  "post": [
+  "listicle": [
     {
       "id": 1,
-      "title": "Welcome to ForgeWP: The Headless Revolution",
-      "excerpt": "Discover how ForgeWP bridges standard WordPress themes with blistering fast React architectures.",
-      "content": "<p>This is the first mock post. In local dev, you can modify <code>cms/mock-data.json</code> to test layout content changes.</p>",
-      "date": "2026-05-10T09:00:00Z",
-      "author": "Antigravity",
-      "featuredImage": {
-        "id": 101,
-        "url": "https://picsum.photos/seed/forgewp/1200/630",
-        "alt": "ForgeWP Logo and Brand Artwork",
-        "title": "ForgeWP Logo",
-        "caption": "A high-fidelity minimalist logo graphic.",
-        "width": 1200,
-        "height": 630,
-        "sizes": {
-          "thumbnail": { "url": "https://picsum.photos/seed/forgewp/150/150", "width": 150, "height": 150 },
-          "medium":    { "url": "https://picsum.photos/seed/forgewp/300/300", "width": 300, "height": 300 },
-          "large":     { "url": "https://picsum.photos/seed/forgewp/1024/768", "width": 1024, "height": 768 }
-        }
+      "title": "Die 5 exklusivsten Berg-Spas & Wellness-Oasen der Alpen",
+      "excerpt": "Von schwebenden Pools bis hin zu alpiner Waldforschung: Entdecken Sie die luxuriösesten Wellness-Refugien inmitten schneebedeckter Alpengipfel.",
+      "content": "<p>Tief in den Bergen verbirgt sich eine neue Generation des alpinen Luxus. Diese fünf handverlesenen Wellness-Oasen vereinen kühne, minimalistische Holzarchitektur mit jahrhundertealten Naturheilverfahren. Erleben Sie beheizte Infinity-Pools, die direkt über schneebedeckten Schluchten zu schweben scheinen, und private Spa-Suiten mit exklusivem Blick auf die Dolomiten.</p>",
+      "date": "May 24, 2026",
+      "author": "Isabella von Habsburg",
+      "featuredImage": "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800&q=80",
+      "customFields": {
+        "read_time": "6",
+        "intro_text": "Die Alpen beherbergen einige der spektakulärsten Spa-Oasen der Welt. Hier präsentieren wir Ihnen fünf handverlesene Berg-Spas, die traditionelle alpine Heilkunst mit wegweisendem modernem Luxus verbinden.",
+        "related_hotels": [
+          2,
+          3,
+          4,
+          5
+        ]
       },
-      "customFields": { "read_time": "5" },
       "_terms": {
         "category": [
-          { "id": 1, "slug": "tutorials", "name": "Tutorials" },
-          { "id": 2, "slug": "framework",  "name": "Framework" }
+          {
+            "id": 1,
+            "slug": "wellness",
+            "name": "Wellness & Spa"
+          },
+          {
+            "id": 2,
+            "slug": "alps",
+            "name": "Alpen"
+          }
         ],
         "post_tag": [
-          { "id": 10, "slug": "react",     "name": "React" },
-          { "id": 11, "slug": "wordpress", "name": "WordPress" }
+          {
+            "id": 10,
+            "slug": "luxury",
+            "name": "Luxus"
+          },
+          {
+            "id": 11,
+            "slug": "relax",
+            "name": "Entspannung"
+          }
         ]
       }
     },
     {
       "id": 2,
-      "title": "Unlocking Brutalist Web Design Aesthetics",
-      "excerpt": "A deep dive into high-contrast grids, sharp corners, and premium flat shadows in modern interfaces.",
-      "content": "<p>This is the second mock post. Style these grids using beautiful Tailwind utilities.</p>",
-      "date": "2026-05-12T14:30:00Z",
-      "author": "DeepMind Partner",
-      "featuredImage": "https://picsum.photos/seed/brutalist/1200/630",
-      "customFields": { "read_time": "8" },
-      "_terms": {
-        "category": [
-          { "id": 3, "slug": "design", "name": "Design" },
-          { "id": 4, "slug": "css",    "name": "CSS" }
-        ],
-        "post_tag": [
-          { "id": 12, "slug": "brutalism", "name": "Brutalism" },
-          { "id": 13, "slug": "tailwind",  "name": "Tailwind" }
-        ]
-      }
-    }
-  ],
-  "project": [
-    {
-      "id": 1,
-      "title": "ForgeWP Scaffolding Platform",
-      "excerpt": "Building a custom compiler framework to transpile React elements into standard PHP themes.",
-      "content": "<p>Detailed description of the ForgeWP compiler pipeline project.</p>",
-      "date": "2026-05-15T12:00:00Z",
-      "author": "Lead Architect",
-      "featuredImage": "https://picsum.photos/seed/platform/1200/630",
+      "title": "Historische Juwele: Die romantischsten Paläste am Comer See",
+      "excerpt": "Eine Reise durch prächtige Renaissance-Gärten und private Ufer-Palazzi, in denen traditioneller italienischer Adel auf modernen Komfort trifft.",
+      "content": "<p>Der Comer See zieht seit Jahrhunderten Denker, Könige und Weltenbummler an. In dieser Auswahl historischer Palasthotels erwacht die Renaissance zu neuem Leben. Von legendären schwimmenden Pools auf dem kristallklaren Wasser bis hin zu seidenbespannten Schlafgemächern und üppigen botanischen Gärten bieten diese Juwele puren italienischen Glamour.</p>",
+      "date": "May 22, 2026",
+      "author": "Matteo Bianchi",
+      "featuredImage": "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80",
       "customFields": {
-        "client_name": "El Dorado",
-        "project_budget": "45000",
-        "status": "active"
+        "read_time": "9",
+        "intro_text": "Der Comer See ist das Epizentrum des italienischen 'Dolce Vita'. Entdecken Sie die prachtvollsten Paläste und luxuriösesten Unterkünfte an den Ufern dieses weltberühmten oberitalienischen Sees.",
+        "related_hotels": [
+          6
+        ]
       },
       "_terms": {
-        "project_type": [{ "id": 20, "slug": "open-source", "name": "Open Source" }],
-        "technology":   [{ "id": 30, "slug": "react", "name": "React" }]
+        "category": [
+          {
+            "id": 3,
+            "slug": "romance",
+            "name": "Romantik"
+          },
+          {
+            "id": 4,
+            "slug": "italy",
+            "name": "Italien"
+          }
+        ],
+        "post_tag": [
+          {
+            "id": 12,
+            "slug": "history",
+            "name": "Geschichte"
+          },
+          {
+            "id": 13,
+            "slug": "lake-como",
+            "name": "Comer See"
+          }
+        ]
       }
     },
     {
-      "id": 2,
-      "title": "Brutalist Starter Theme",
-      "excerpt": "A clean, responsive, and robust high-contrast interface leveraging Tailwind CSS v4.",
-      "content": "<p>A brutalist theme showcasing raw black borders and vivid accent colors.</p>",
-      "date": "2026-05-16T16:00:00Z",
-      "author": "Theme Engineer",
-      "featuredImage": "https://picsum.photos/seed/starter/1200/630",
+      "id": 3,
+      "title": "Design-Hideaways: Südtirols schönste Chalet-Dörfer im Wald",
+      "excerpt": "Erleben Sie spektakuläre Holz-Chalets und futuristische Baumhäuser, die sich harmonisch in die unberührten Lärchenwälder schmiegen.",
+      "content": "<p>Die perfekte Balance zwischen rohem alpinen Design und luxuriösem Rückzugsort. In Südtirols dichten Wäldern verstecken sich exklusive Baumhäuser und private Holz-Chalets. Mit knisternden Kaminen, privaten Outdoor-Hot-Tubs und einer Architektur, die vollständig auf natürliche Materialien setzt, definieren diese Refugien das Thema Waldruhe neu.</p>",
+      "date": "May 20, 2026",
+      "author": "Elena Kofler",
+      "featuredImage": "https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=800&q=80",
       "customFields": {
-        "client_name": "ForgeWP Community",
-        "project_budget": "0",
-        "status": "completed"
+        "read_time": "7",
+        "intro_text": "Erleben Sie die unberührte Natur Südtirols in exklusiven Design-Chalets und luxuriösen Lodges, die sich harmonisch in die wunderschöne Gebirgslandschaft der Dolomiten einfügen.",
+        "related_hotels": [
+          2,
+          5
+        ]
       },
       "_terms": {
-        "project_type": [{ "id": 20, "slug": "open-source", "name": "Open Source" }],
-        "technology":   [{ "id": 32, "slug": "tailwind", "name": "Tailwind CSS" }]
+        "category": [
+          {
+            "id": 5,
+            "slug": "chalets",
+            "name": "Chalets"
+          },
+          {
+            "id": 6,
+            "slug": "design",
+            "name": "Design"
+          }
+        ],
+        "post_tag": [
+          {
+            "id": 14,
+            "slug": "nature",
+            "name": "Natur"
+          },
+          {
+            "id": 15,
+            "slug": "south-tyrol",
+            "name": "Südtirol"
+          }
+        ]
       }
     }
   ],
@@ -102,9 +141,21 @@
       "width": 1200,
       "height": 630,
       "sizes": {
-        "thumbnail": { "url": "https://picsum.photos/seed/forgewp/150/150", "width": 150, "height": 150 },
-        "medium":    { "url": "https://picsum.photos/seed/forgewp/300/300", "width": 300, "height": 300 },
-        "large":     { "url": "https://picsum.photos/seed/forgewp/1024/768", "width": 1024, "height": 768 }
+        "thumbnail": {
+          "url": "https://picsum.photos/seed/forgewp/150/150",
+          "width": 150,
+          "height": 150
+        },
+        "medium": {
+          "url": "https://picsum.photos/seed/forgewp/300/300",
+          "width": 300,
+          "height": 300
+        },
+        "large": {
+          "url": "https://picsum.photos/seed/forgewp/1024/768",
+          "width": 1024,
+          "height": 768
+        }
       }
     },
     {
@@ -115,8 +166,344 @@
       "width": 1200,
       "height": 800,
       "sizes": {
-        "thumbnail": { "url": "https://picsum.photos/seed/layout/150/150", "width": 150, "height": 150 },
-        "medium":    { "url": "https://picsum.photos/seed/layout/300/300", "width": 300, "height": 300 }
+        "thumbnail": {
+          "url": "https://picsum.photos/seed/layout/150/150",
+          "width": 150,
+          "height": 150
+        },
+        "medium": {
+          "url": "https://picsum.photos/seed/layout/300/300",
+          "width": 300,
+          "height": 300
+        }
+      }
+    }
+  ],
+  "hotel": [
+    {
+      "id": 1,
+      "title": "Grand Ferdinand Vienna",
+      "excerpt": "A sophisticated five-star design escape right on Vienna's historic Ringstraße, celebrating timeless Austrian hospitality with a modern twist.",
+      "content": "<p>Experience the grand elegance of Vienna at the Grand Ferdinand. From the stunning rooftop pool to the exquisite Austrian culinary classics at our dining salons, this design hotel celebrates beauty, history, and modern comfort without compromise.</p>",
+      "date": "May 23, 2026",
+      "author": "Editor-in-Chief",
+      "featuredImage": "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200&q=80",
+      "customFields": {
+        "rating": "4.8",
+        "price_range": "$$$",
+        "location": "Schubertring 10-12, 1010 Vienna",
+        "stars": "5",
+        "featured": "true",
+        "city": "Vienna",
+        "website": "https://grandferdinand.com",
+        "contact_email": "reservations@grandferdinand.com"
+      },
+      "_terms": {
+        "category": [
+          {
+            "id": 1,
+            "slug": "boutique",
+            "name": "Boutique"
+          }
+        ],
+        "country": [
+          {
+            "id": 20,
+            "slug": "austria",
+            "name": "Austria"
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "title": "Forestis Dolomites",
+      "excerpt": "Perched high in the Italian Alps, Forestis is an ultra-luxury sanctuary combining minimalist design with pristine nature and holistic wellness.",
+      "content": "<p>A place of retreat in the midst of pristine nature. Forestis Dolomites offers an shelter where time becomes tangible and wellness reaches peak mindfulness. Modern clean-line wood-and-glass suites open up to panoramic alpine peaks.</p>",
+      "date": "May 23, 2026",
+      "author": "Luxury Travel Writer",
+      "featuredImage": "https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1200&q=80",
+      "customFields": {
+        "rating": "4.9",
+        "price_range": "$$$$",
+        "location": "Palmscheg 22, 39042 Bressanone",
+        "stars": "5",
+        "featured": "true",
+        "city": "South Tyrol",
+        "website": "https://www.forestis.it",
+        "contact_email": "info@forestis.it"
+      },
+      "_terms": {
+        "category": [
+          {
+            "id": 2,
+            "slug": "wellness",
+            "name": "Wellness & Spa"
+          }
+        ],
+        "country": [
+          {
+            "id": 21,
+            "slug": "italy",
+            "name": "Italy"
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "title": "Schloss Elmau",
+      "excerpt": "A legendary spa retreat nestled deep in the Bavarian Alps. Celebrated worldwide for its cultural concerts, award-winning culinary arts, and pristine serenity.",
+      "content": "<p>Schloss Elmau offers an elite hospitality sanctuary for discerning travelers. With multiple award-winning spas, an in-house concert hall hosting world-renowned musicians, and beautiful mountain vistas, it represents the absolute pinnacle of luxury spa escapes.</p>",
+      "date": "May 23, 2026",
+      "author": "Senior Reviewer",
+      "featuredImage": "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80",
+      "customFields": {
+        "rating": "4.9",
+        "price_range": "$$$$",
+        "location": "In Elmau 2, 82493 Klais",
+        "stars": "5",
+        "featured": "true",
+        "city": "Bavarian Alps",
+        "website": "https://www.schloss-elmau.de",
+        "contact_email": "book@schloss-elmau.de"
+      },
+      "_terms": {
+        "category": [
+          {
+            "id": 2,
+            "slug": "wellness",
+            "name": "Wellness & Spa"
+          }
+        ],
+        "country": [
+          {
+            "id": 22,
+            "slug": "germany",
+            "name": "Germany"
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "title": "The Chedi Andermatt",
+      "excerpt": "A masterpiece of Alpine luxury where elegant Swiss style meets sleek Asian design. Features a dramatic indoor pool, exceptional sake selections, and ski-in convenience.",
+      "content": "<p>Surrounded by the natural beauty of the Swiss Alps, The Chedi Andermatt stands out with its bold architectural synthesis. Fine dark woods, soft leather, and warm fireplaces create a warm yet highly polished luxury chalet feel.</p>",
+      "date": "May 23, 2026",
+      "author": "Lifestyle Columnist",
+      "featuredImage": "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&q=80",
+      "customFields": {
+        "rating": "4.8",
+        "price_range": "$$$$",
+        "location": "Gotthardstrasse 4, 6490 Andermatt",
+        "stars": "5",
+        "featured": "false",
+        "city": "Andermatt",
+        "website": "https://www.thechediandermatt.com",
+        "contact_email": "info@thechediandermatt.com"
+      },
+      "_terms": {
+        "category": [
+          {
+            "id": 5,
+            "slug": "chalet",
+            "name": "Chalets"
+          }
+        ],
+        "country": [
+          {
+            "id": 23,
+            "slug": "switzerland",
+            "name": "Switzerland"
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "title": "San Luis Retreat Hotel & Lodges",
+      "excerpt": "Exclusive wooden lodges and treehouses surrounding a private natural lake in the heart of South Tyrol. A perfect fusion of alpine luxury, absolute privacy, and cozy warmth.",
+      "content": "<p>A magical village of wooden chalets and treehouses hidden in a private 40-hectare larch forest. San Luis balances raw alpine style with world-class wellness, featuring heated pools flowing outdoors and private fireplaces in every lodge.</p>",
+      "date": "May 23, 2026",
+      "author": "Hideaway Expert",
+      "featuredImage": "https://images.unsplash.com/photo-1584132967334-10e028bd69f7?auto=format&fit=crop&w=1200&q=80",
+      "customFields": {
+        "rating": "4.7",
+        "price_range": "$$$",
+        "location": "Via Solaria 9, 39010 Avelengo",
+        "stars": "5",
+        "featured": "true",
+        "city": "South Tyrol",
+        "website": "https://www.sanluis-hotel.com",
+        "contact_email": "info@sanluis-hotel.com"
+      },
+      "_terms": {
+        "category": [
+          {
+            "id": 5,
+            "slug": "chalet",
+            "name": "Chalets"
+          }
+        ],
+        "country": [
+          {
+            "id": 21,
+            "slug": "italy",
+            "name": "Italy"
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "title": "Villa d'Este",
+      "excerpt": "A Renaissance masterpiece situated on the shores of Lake Como. Boasting legendary floating pools, immaculate formal gardens, and unmatched old-world romance.",
+      "content": "<p>For centuries, Villa d'Este has been the destination of choice for royalty, artists, and movie stars. With its iconic floating swimming pool on the lake and pristine gardens, it remains the ultimate luxurious hotel in Northern Italy.</p>",
+      "date": "May 23, 2026",
+      "author": "Grand Tour Editor",
+      "featuredImage": "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=1200&q=80",
+      "customFields": {
+        "rating": "4.9",
+        "price_range": "$$$$",
+        "location": "Via Regina 40, 22012 Cernobbio",
+        "stars": "5",
+        "featured": "false",
+        "city": "Lake Como",
+        "website": "https://www.villadeste.com",
+        "contact_email": "reservations@villadeste.it"
+      },
+      "_terms": {
+        "category": [
+          {
+            "id": 4,
+            "slug": "adults-only",
+            "name": "Adults Only"
+          }
+        ],
+        "country": [
+          {
+            "id": 21,
+            "slug": "italy",
+            "name": "Italy"
+          }
+        ]
+      }
+    }
+  ],
+  "_taxonomy_category": [
+    {
+      "id": 1,
+      "name": "Boutique",
+      "slug": "boutique",
+      "description": "Individuelle Boutique-Hotels mit Charakter",
+      "count": 3,
+      "meta": {}
+    },
+    {
+      "id": 2,
+      "name": "Wellness & Spa",
+      "slug": "wellness",
+      "description": "Hotels mit erstklassigen Spa- und Wellnessangeboten",
+      "count": 4,
+      "meta": {}
+    },
+    {
+      "id": 3,
+      "name": "Familie",
+      "slug": "family",
+      "description": "Familienfreundliche Hotels",
+      "count": 2,
+      "meta": {}
+    },
+    {
+      "id": 4,
+      "name": "Nur für Erwachsene",
+      "slug": "adults-only",
+      "description": "Exklusiv für Erwachsene",
+      "count": 2,
+      "meta": {}
+    },
+    {
+      "id": 5,
+      "name": "Chalets",
+      "slug": "chalet",
+      "description": "Luxuriöse Chalets und alpine Unterkünfte",
+      "count": 1,
+      "meta": {}
+    }
+  ],
+  "_taxonomy_country": [
+    {
+      "id": 20,
+      "name": "Österreich",
+      "slug": "austria",
+      "description": "Handverlesene Hotels in Österreich",
+      "count": 1,
+      "meta": {
+        "featured_image": "https://images.unsplash.com/photo-1512100901049-09e9f4253c13?auto=format&fit=crop&w=600&q=80",
+        "flag": "🇦🇹"
+      }
+    },
+    {
+      "id": 22,
+      "name": "Deutschland",
+      "slug": "germany",
+      "description": "Handverlesene Hotels in Deutschland",
+      "count": 1,
+      "meta": {
+        "featured_image": "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=600&q=80",
+        "flag": "🇩🇪"
+      }
+    },
+    {
+      "id": 23,
+      "name": "Schweiz",
+      "slug": "switzerland",
+      "description": "Handverlesene Hotels in der Schweiz",
+      "count": 1,
+      "meta": {
+        "featured_image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=600&q=80",
+        "flag": "🇨🇭"
+      }
+    },
+    {
+      "id": 21,
+      "name": "Italien",
+      "slug": "italy",
+      "description": "Handverlesene Hotels in Italien",
+      "count": 3,
+      "meta": {
+        "featured_image": "https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=600&q=80",
+        "flag": "🇮🇹"
+      }
+    }
+  ],
+  "testimonial": [
+    {
+      "id": 1,
+      "title": "Sample Testimonial Item 1",
+      "excerpt": "This is a custom testimonial post seeded dynamically via ForgeWP CLI.",
+      "content": "<p>Welcome to your new custom <strong>testimonial</strong> post template! Edit this in cms/mock-data.json.</p>",
+      "date": "May 25, 2026",
+      "author": "ForgeWP CLI",
+      "featuredImage": "https://picsum.photos/seed/testimonial1/1200/630",
+      "customFields": {
+        "quote": "[Seeded quote 1]",
+        "author_title": "[Seeded author_title 1]"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Sample Testimonial Item 2",
+      "excerpt": "This is another custom testimonial post seeded dynamically via ForgeWP CLI.",
+      "content": "<p>This is the second custom post for the testimonial post type.</p>",
+      "date": "May 25, 2026",
+      "author": "ForgeWP CLI",
+      "featuredImage": "https://picsum.photos/seed/testimonial2/1200/630",
+      "customFields": {
+        "quote": "[Seeded quote 2]",
+        "author_title": "[Seeded author_title 2]"
       }
     }
   ]

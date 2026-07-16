@@ -40,6 +40,10 @@ export function onMakeBlock(themeRoot, { pascalCase, pc }) {
   console.log(pc.yellow(`\n⚠️  The Stub framework adapter does not support custom Gutenberg blocks.`));
 }
 
+export function onMakeShell(themeRoot, { pascalCase, pc }) {
+  console.log(pc.yellow(`\n⚠️  The Stub framework adapter does not support parent shell blocks.`));
+}
+
 export function onMakeLoop(themeRoot, { pascalCase, pc }) {
   console.log(pc.yellow(`\n⚠️  The Stub framework adapter does not support custom loops.`));
 }

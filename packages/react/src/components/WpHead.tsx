@@ -30,8 +30,10 @@ export function WpHead({
   children,
 }: WpHeadProps) {
   const IS_DECOUPLED =
-    (typeof import.meta !== "undefined" && import.meta.env?.DEV === true) ||
-    (typeof window !== "undefined" && !(window as any).forgeWpHydration);
+    (typeof window !== "undefined" && (window as any)._forgeWpCompileTime)
+      ? false
+      : (typeof import.meta !== "undefined" && (import.meta as any).env?.DEV === true) ||
+        (typeof window !== "undefined" && !(window as any).forgeWpHydration);
 
   if (IS_DECOUPLED) {
     return (

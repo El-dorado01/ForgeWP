@@ -17,6 +17,7 @@ import {
   FieldError,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { AlertTriangleIcon } from 'lucide-react';
 
 export default function SignupFormWrapper({ ...props }: React.ComponentProps<typeof Card>) {
   const { register, error, emailVerificationEnabled, initializing } = useWpAuth();
@@ -94,7 +95,7 @@ export default function SignupFormWrapper({ ...props }: React.ComponentProps<typ
       if (ok) {
         if (typeof window !== 'undefined') {
           const redirectDest = emailVerificationEnabled
-            ? verifyEmailUrl + '?registered=true'
+            ? `${verifyEmailUrl}?registered=true&email=${encodeURIComponent(trimmedEmail)}`
             : dashboardUrl;
           setLocation(redirectDest);
         }
@@ -115,12 +116,12 @@ export default function SignupFormWrapper({ ...props }: React.ComponentProps<typ
 
   if (initializing || user) {
     return (
-      <Card className="flex flex-col items-center justify-center p-8 min-h-[400px]">
-        <div className='w-8 h-8 border-4 border-zinc-300 border-t-zinc-900 rounded-full animate-spin'></div>
-        <p className='text-zinc-500 font-mono text-xs uppercase tracking-wider mt-4'>
+      <div className='flex flex-col items-center justify-center p-8 min-h-[300px]'>
+        <div className='w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin'></div>
+        <p className='text-slate-500 font-mono text-sm mt-4'>
           Checking session...
         </p>
-      </Card>
+      </div>
     );
   }
 
@@ -138,9 +139,10 @@ export default function SignupFormWrapper({ ...props }: React.ComponentProps<typ
             {(errors.general || error) && (
               <div
                 ref={errorContainerRef}
-                className='bg-red-50 text-red-600 border border-red-200 text-sm p-3 rounded-md font-medium'
+                className='bg-red-50 text-red-600 border border-red-200 text-sm p-3 rounded-md font-medium flex items-start gap-2'
               >
-                ⚠️ {errors.general || error}
+                <AlertTriangleIcon className='h-4 w-4 shrink-0 mt-0.5' />
+                <span>{errors.general || error}</span>
               </div>
             )}
             <Field data-invalid={!!errors.username}>
@@ -153,6 +155,7 @@ export default function SignupFormWrapper({ ...props }: React.ComponentProps<typ
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={submitting}
                 required
+                autoComplete="username"
               />
               {errors.username && (
                 <FieldError className='text-red-500'>
@@ -170,6 +173,7 @@ export default function SignupFormWrapper({ ...props }: React.ComponentProps<typ
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={submitting}
                 required
+                autoComplete="email"
               />
               {errors.email ? (
                 <FieldError className='text-red-500'>{errors.email}</FieldError>
@@ -189,6 +193,7 @@ export default function SignupFormWrapper({ ...props }: React.ComponentProps<typ
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={submitting}
                 required
+                autoComplete="new-password"
               />
               {errors.password ? (
                 <FieldError className='text-red-500'>
@@ -212,6 +217,7 @@ export default function SignupFormWrapper({ ...props }: React.ComponentProps<typ
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 disabled={submitting}
                 required
+                autoComplete="new-password"
               />
               {errors.confirmPassword ? (
                 <FieldError className='text-red-500'>

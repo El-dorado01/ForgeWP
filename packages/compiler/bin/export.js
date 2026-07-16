@@ -13,13 +13,15 @@ Options:
   --skip-build    Use existing dist/ (skip Vite build)
   --no-zip        Output folder only, no ZIP file
   --validate      Run export validation checks after generation
-  --strict        Treat validation warnings as failures
+  --strict        Fail on editable from/pick issues and (with --validate) validation warnings
   -h, --help      Show help
 
 Examples:
   forgewp-export
   forgewp-export ./my-theme
   forgewp-export --skip-build
+  forgewp-export --strict
+  forgewp-export --validate --strict
 `);
 }
 

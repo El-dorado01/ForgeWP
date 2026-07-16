@@ -29,17 +29,24 @@ function forgewpValidationPlugin(): PluginOption {
       }
     },
     configureServer(server) {
-      // Automatically watch the local database and trigger a reload (skip programmatically written files)
+      // Automatically watch the local database and trigger a reload.
+      // - users.json: silently invalidate module cache only (no full-reload, avoids
+      //   disrupting in-progress signup flows when the server writes a new user).
+      // - email-logs.json: fully ignored, it's write-only from the server side.
+      // - all other cms/*.json: trigger a full-reload.
       server.watcher.add(path.resolve(__dirname, 'cms/*.json'));
       server.watcher.on('change', (file) => {
-        if (
-          file.includes('cms') &&
-          file.endsWith('.json') &&
-          !file.includes('email-logs.json') &&
-          !file.includes('users.json')
-        ) {
-          server.ws.send({ type: 'full-reload' });
+        if (!file.includes('cms') || !file.endsWith('.json')) return;
+        if (file.includes('email-logs.json')) return;
+
+        if (file.includes('users.json')) {
+          // Invalidate the cached module so the next browser request fetches fresh data
+          const mod = server.moduleGraph.getModulesByFile(file);
+          if (mod) mod.forEach((m) => server.moduleGraph.invalidateModule(m));
+          return;
         }
+
+        server.ws.send({ type: 'full-reload' });
       });
 
       // Serve custom endpoints for local mock dev logging
@@ -136,6 +143,10 @@ export default defineConfig(async () => {
       'import.meta.env.FORGEWP_JWT_AUTH': JSON.stringify(config.headless?.jwtAuth || false),
       'import.meta.env.FORGEWP_AUTH_LOGIN_FIELD': JSON.stringify(config.auth?.loginField || 'usernameAndEmail'),
       'import.meta.env.FORGEWP_AUTH_EMAIL_VERIFICATION': JSON.stringify(config.auth?.features?.emailVerification || false),
+      'import.meta.env.FORGEWP_AUTH_BLOCK_LOGIN_UNVERIFIED': JSON.stringify(config.auth?.features?.blockLoginUntilVerified || false),
+    },
+    optimizeDeps: {
+      exclude: ['@forgewp/auth', '@forgewp/react'],
     },
     plugins: [
       forgewpPageConfigPlugin(),
@@ -152,7 +163,9 @@ export default defineConfig(async () => {
       port: 5173,
       open: true,
       watch: {
-        ignored: ['**/cms/email-logs.json', '**/cms/users.json', '**/cms/sessions.json'],
+        // email-logs.json is write-only from the server; no need to watch it.
+        // users.json is now watched manually above and only invalidates its module cache.
+        ignored: ['**/cms/email-logs.json'],
       },
     },
     build: {

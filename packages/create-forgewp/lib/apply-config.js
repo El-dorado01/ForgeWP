@@ -363,19 +363,7 @@ export function applyProjectConfig(targetDir, config) {
         }
       }
 
-      // 3. Update src/app/layout.tsx to include WpAuthProvider
-      const layoutPath = path.join(targetDir, 'src', 'app', 'layout.tsx');
-      if (existsSync(layoutPath)) {
-        let layoutContent = readFileSync(layoutPath, 'utf8');
-        if (!layoutContent.includes('WpAuthProvider')) {
-          layoutContent = 'import { WpAuthProvider } from "../.forgewp/wordpress";\n' + layoutContent;
-          // Robustly wrap JSX children with WpAuthProvider
-          layoutContent = layoutContent.replace(/(>\s*)\{\s*children\s*\}(\s*<)/, '$1<WpAuthProvider>{children}</WpAuthProvider>$2');
-          writeFileSync(layoutPath, layoutContent, 'utf8');
-        }
-      }
-
-      // 4. Update src/app/routes.tsx to register auth routes
+      // 3. Update src/app/routes.tsx to register auth routes
       const routesPath = path.join(targetDir, 'src', 'app', 'routes.tsx');
       if (existsSync(routesPath)) {
         let routesContent = readFileSync(routesPath, 'utf8');

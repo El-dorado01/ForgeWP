@@ -11,7 +11,8 @@ import fs, {
 } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { scanForEditableSchemas } from './hydration-scanner.js';
+import { createRequire } from 'node:module';
+import { scanForEditableSchemas, scanForHydrationIslandsWithProps } from './hydration/index.js';
 import { loadFrameworkAdapter } from './framework-adapter.js';
 import {
   analyzeHydrationIslands,
@@ -29,9 +30,13 @@ import {
   build404Php,
   buildArchivePhp,
   buildPagePhp,
+  buildBuilderPagePhp,
 } from './php-builders.js';
-import { buildFunctionsPhp } from './functions-builder.js';
-import { compileBlocks } from './block-compiler.js';
+import { buildFunctionsPhp } from './functions/index.js';
+import { buildSettingsPagePhp } from './functions/settings-page.js';
+import { compileBlocks, warmupIconCache } from './blocks/index.js';
+import { findHtmlTagEnd } from './blocks/shared-utils.js';
+import { buildEditorIconRegistry, FORGEWP_DEFAULT_ICON_SLUGS } from './icon-registry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -46,7 +51,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * @param {string} options.appHtml
  * @param {string} [options.headerHtml]
  * @param {string} [options.footerHtml]
+ * @param {string} [options.headHtml]
+ * @param {string} [options.singleHeadHtml]
+ * @param {string} [options.singleHtml]
+ * @param {string} [options.notFoundHtml]
+ * @param {string} [options.archiveHtml]
  * @param {import('./types.js').ForgeWPBuildAssets} options.assets
+ * @param {boolean} [options.strict] Fail export on editable from/pick issues
  */
 export async function generateTheme({
   themeRoot,
@@ -61,6 +72,7 @@ export async function generateTheme({
   notFoundHtml = '',
   archiveHtml = '',
   assets,
+  strict = false,
 }) {
   if (existsSync(outDir)) {
     rmSync(outDir, { recursive: true, force: true });
@@ -68,8 +80,48 @@ export async function generateTheme({
 
   mkdirSync(outDir, { recursive: true });
 
+  // Pre-warm the icon library cache asynchronously to speed up block transpilation
+  await warmupIconCache(themeRoot);
+
   const schemas = scanForEditableSchemas(themeRoot);
   console.log(`[ForgeWP Compiler] Discovered colocated editable schemas for templates: ${Object.keys(schemas).join(', ') || '<none>'}`);
+
+  // Real richText-ness per field key, from the actual editable schema type —
+  // used by processMarkup instead of guessing from the key name (a field
+  // like hero_subtitle declared as text() must not be wpautop-wrapped just
+  // because its key happens to contain "subtitle").
+  //
+  // Different templates' schemas can independently reuse the same key name
+  // (e.g. both front-page.ts and ber-uns-page.ts declare "hero_subtitle",
+  // one as text() and the other as richText()) — a single flat, merged Set
+  // would misclassify whichever template DIDN'T mean it as rich text. Where
+  // the template is known, getRichTextKeysForSlug() below scopes the check
+  // to that one schema. Where it isn't (shared header/footer/404/archive
+  // markup), richTextFieldKeys excludes any key that's ambiguous across
+  // templates — safer to under-format a rare cross-template collision than
+  // to wpautop-wrap a plain field and break its styling.
+  const richTextFieldKeysBySlug = {};
+  const textOnlyKeysAnywhere = new Set();
+  const richTextKeysAnywhere = new Set();
+  for (const [slug, schema] of Object.entries(schemas)) {
+    const slugSet = new Set();
+    for (const [key, field] of Object.entries(schema)) {
+      if (!field) continue;
+      if (field.type === 'richText') {
+        slugSet.add(key);
+        richTextKeysAnywhere.add(key);
+      } else if (field.type === 'text') {
+        textOnlyKeysAnywhere.add(key);
+      }
+    }
+    richTextFieldKeysBySlug[slug] = slugSet;
+  }
+  const richTextFieldKeys = new Set(
+    [...richTextKeysAnywhere].filter((key) => !textOnlyKeysAnywhere.has(key)),
+  );
+  function getRichTextKeysForSlug(slug) {
+    return richTextFieldKeysBySlug[slug] || richTextFieldKeys;
+  }
 
   // Load project-specific compiler hooks if they exist in theme src
   let projectHooks = null;
@@ -193,6 +245,71 @@ export async function generateTheme({
     ? scanForHydrationIslands(themeRoot)
     : [];
   const hasHydration = hydrationIslands.length > 0;
+
+  // Collect Smart Discovery islands (auto-detected interactive components with no explicit <Hydrate> wrapper)
+  const detailedIslands = scanForHydrationIslandsWithProps(themeRoot);
+  const autoIslands = detailedIslands.filter(i => i.smartDiscovered);
+
+  /**
+   * Post-process SSR HTML to convert data-forgewp-auto-island divs (injected by the
+   * React.createElement patch in render-theme.mts) into proper data-forgewp-hydrate
+   * hydration island wrappers that the browser micro-hydrator can activate.
+   *
+   * @param {string} html
+   * @returns {string}
+   */
+  function injectAutoHydrationMarkers(html) {
+    if (!html) return html;
+    // Replace data-forgewp-auto-island="name" with data-forgewp-hydrate="name"
+    // + trigger + data-forgewp-props. The real props (e.g. searchPlaceholder)
+    // are carried by a render-theme.mts-emitted data-forgewp-auto-island-props
+    // attribute on the SAME div.
+    //
+    // Can't find the tag's end with a naive `[^>]*"...">` regex: the props
+    // attribute's JSON value can itself contain an already-embedded
+    // `<?php ... ?>` snippet (e.g. a meta-value marker resolved earlier by
+    // processMarkup), and PHP's own `?>` closer contains a literal `>` that
+    // a bare negated-character-class scan can't tell apart from the real
+    // tag-closing `>` — it would cut the match off mid-attribute. Reuse
+    // findHtmlTagEnd (blocks/shared-utils.js), which already tracks
+    // <?php ?> spans and quoted strings to find the tag's true end.
+    // The SSR emits: <div data-forgewp-auto-island="hero-section" style="display:block" data-forgewp-auto-island-props="{&quot;searchPlaceholder&quot;:&quot;...&quot;}">...</div>
+    // We need:      <div data-forgewp-hydrate="hero-section" data-forgewp-trigger="visible" data-forgewp-props="{&quot;searchPlaceholder&quot;:&quot;...&quot;}" style="display:block">...</div>
+    const autoIslandMap = new Map(autoIslands.map(i => [i.name, i.trigger || 'visible']));
+    const marker = 'data-forgewp-auto-island="';
+    let result = '';
+    let cursor = 0;
+    while (true) {
+      const markerIdx = html.indexOf(marker, cursor);
+      if (markerIdx === -1) {
+        result += html.slice(cursor);
+        break;
+      }
+      const tagStart = html.lastIndexOf('<div', markerIdx);
+      const tagEnd = tagStart !== -1 ? findHtmlTagEnd(html, tagStart) : -1;
+      if (tagStart === -1 || tagEnd === -1) {
+        // Shouldn't happen; skip past this occurrence rather than loop forever.
+        result += html.slice(cursor, markerIdx + marker.length);
+        cursor = markerIdx + marker.length;
+        continue;
+      }
+      result += html.slice(cursor, tagStart);
+      const attrsStr = html.slice(tagStart + 4, tagEnd); // strip leading "<div" and trailing ">"
+      const kebabMatch = attrsStr.match(/data-forgewp-auto-island="([^"]+)"/);
+      const kebab = kebabMatch ? kebabMatch[1] : '';
+      const propsMatch = attrsStr.match(/data-forgewp-auto-island-props="([^"]*)"/);
+      const propsValue = propsMatch ? propsMatch[1] : '{}';
+      const trigger = autoIslandMap.get(kebab) || 'visible';
+      const restAttrs = attrsStr
+        .replace(/\s*data-forgewp-auto-island="[^"]*"/, '')
+        .replace(/\s*data-forgewp-auto-island-props="[^"]*"/, '')
+        .trim();
+      result += `<div data-forgewp-hydrate="${kebab}" data-forgewp-trigger="${trigger}" data-forgewp-props="${propsValue}"${restAttrs ? ' ' + restAttrs : ''}>`;
+      cursor = tagEnd + 1;
+    }
+    return result;
+  }
+
 
   const assetsOut = path.join(outDir, 'assets');
   const distAssets = path.join(themeRoot, 'dist', 'assets');
@@ -586,9 +703,9 @@ export async function generateTheme({
   }
 
   // Fix nav links and split markup
-  const processedApp = processMarkup(appHtml, config.textDomain);
-  const processedHeader = processMarkup(headerHtml, config.textDomain);
-  const processedFooter = processMarkup(footerHtml, config.textDomain);
+  const processedApp = injectAutoHydrationMarkers(processMarkup(appHtml, config.textDomain, getRichTextKeysForSlug('front-page')));
+  const processedHeader = injectAutoHydrationMarkers(processMarkup(headerHtml, config.textDomain, richTextFieldKeys));
+  const processedFooter = injectAutoHydrationMarkers(processMarkup(footerHtml, config.textDomain, richTextFieldKeys));
 
   // Extract content (App markup minus Header/Footer)
   let contentHtml = processedApp;
@@ -605,7 +722,7 @@ export async function generateTheme({
   // Process single post template if exists
   let processedSingle = '';
   if (singleHtml) {
-    processedSingle = processMarkup(singleHtml, config.textDomain);
+    processedSingle = injectAutoHydrationMarkers(processMarkup(singleHtml, config.textDomain, richTextFieldKeys));
     if (processedHeader) {
       const replaced = processedSingle.replace(processedHeader, '');
       processedSingle = replaced !== processedSingle ? replaced : processedSingle.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
@@ -620,7 +737,7 @@ export async function generateTheme({
   // Process 404 template if exists
   let processedNotFound = '';
   if (notFoundHtml) {
-    processedNotFound = processMarkup(notFoundHtml, config.textDomain);
+    processedNotFound = injectAutoHydrationMarkers(processMarkup(notFoundHtml, config.textDomain, richTextFieldKeys));
     if (processedHeader) {
       const replaced = processedNotFound.replace(processedHeader, '');
       processedNotFound = replaced !== processedNotFound ? replaced : processedNotFound.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
@@ -657,7 +774,7 @@ export async function generateTheme({
   // Archive page (category / tag / date archives)
   let processedArchive = '';
   if (archiveHtml) {
-    processedArchive = processMarkup(archiveHtml, config.textDomain);
+    processedArchive = injectAutoHydrationMarkers(processMarkup(archiveHtml, config.textDomain, richTextFieldKeys));
     if (processedHeader) {
       const replaced = processedArchive.replace(processedHeader, '');
       processedArchive = replaced !== processedArchive ? replaced : processedArchive.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
@@ -675,14 +792,450 @@ export async function generateTheme({
   }
 
   // Dynamic Gutenberg blocks compilation (Phase 5)
-  const compiledBlocks = compileBlocks(themeRoot, outDir);
+  // Pass strict so from/pick issues fail export only when `forgewp export --strict`
+  const compiledBlocks = compileBlocks(themeRoot, outDir, { strict: !!strict });
+
+  const iconRegistryJson = JSON.stringify(buildEditorIconRegistry());
+  const defaultIconSlugsJson = JSON.stringify(FORGEWP_DEFAULT_ICON_SLUGS);
 
   const editorScriptContent = `
 const { registerBlockType } = wp.blocks;
-const { createElement } = wp.element;
-const { InspectorControls, useBlockProps } = wp.blockEditor;
-const { PanelBody, TextControl } = wp.components;
-const ServerSideRender = wp.serverSideRender;
+const { createElement, useState, Fragment } = wp.element;
+const { InspectorControls, useBlockProps, MediaUpload, URLInput, InnerBlocks, useInnerBlocksProps } = wp.blockEditor;
+const { PanelBody, TextControl, ToggleControl, SelectControl, RangeControl, Placeholder, Spinner, Button, ColorPalette, BaseControl } = wp.components;
+const ServerSideRender = wp.serverSideRender?.default || wp.serverSideRender;
+
+// Set only inside the block editor's customEditJsx preview environment — never true on
+// the real frontend. Components can check this to distinguish "genuinely no results" from
+// "this is just the editor preview, which can't run a real fetch" — e.g. rendering a
+// loading skeleton instead of an empty-state message when useWpQuery's stub can only ever
+// return an empty result set.
+window.forgeWpIsEditorPreview = true;
+
+// Curated Lucide SVG registry for icon fields + <WpIcon /> in the canvas
+window.forgeWpIconRegistry = ${iconRegistryJson};
+window.forgeWpDefaultIconSlugs = ${defaultIconSlugsJson};
+
+function forgeWpApplyIconClass(svg, className) {
+    if (!svg) return '';
+    if (!className) return svg;
+    if (/\\sclass="/.test(svg)) {
+        return svg.replace(/\\sclass="([^"]*)"/, function(_, existing) {
+            return ' class="' + existing + ' ' + className + '"';
+        });
+    }
+    return svg.replace('<svg ', '<svg class="' + className + '" ');
+}
+
+function forgeWpRenderIcon(name, className, provider) {
+    provider = provider || 'lucide';
+    var slug = (name == null ? '' : String(name)).replace(/^dashicons-/, '');
+    var registry = window.forgeWpIconRegistry || {};
+    // Prefer provider-scoped key when present, then bare slug (lucide curated set)
+    var svg = registry[provider + ':' + slug] || registry[slug] || registry[name] || '';
+    if (svg && provider !== 'dashicons') {
+        var html = forgeWpApplyIconClass(svg, className || '');
+        return createElement('span', {
+            className: 'forgewp-icon forgewp-icon--' + slug,
+            style: { display: 'inline-flex', lineHeight: 0 },
+            dangerouslySetInnerHTML: { __html: html }
+        });
+    }
+    // Dashicons (explicit provider or fallback when SVG missing) — always available in wp-admin
+    return createElement('span', {
+        className: ('dashicons dashicons-' + slug + (className ? ' ' + className : '')).trim(),
+        title: provider && provider !== 'lucide' && provider !== 'dashicons'
+            ? ('Provider "' + provider + '" not in editor registry — showing dashicons fallback')
+            : undefined,
+        'aria-hidden': true
+    });
+}
+
+function ForgeWpIconPicker({ value, onChange, options, label, provider }) {
+    var slugs = Array.isArray(options) && options.length
+        ? options.map(function(o) { return typeof o === 'string' ? o : (o && o.value); }).filter(Boolean)
+        : (window.forgeWpDefaultIconSlugs || Object.keys(window.forgeWpIconRegistry || {}));
+    var current = value || slugs[0] || 'star';
+    return createElement(BaseControl, { label: label || 'Icon', className: 'forgewp-icon-picker' },
+        createElement('div', {
+            style: {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(40px, 1fr))',
+                gap: '6px',
+                maxHeight: '180px',
+                overflowY: 'auto',
+                padding: '4px',
+                border: '1px solid #e0e0e0',
+                borderRadius: '4px',
+                background: '#fff'
+            }
+        },
+            slugs.map(function(slug) {
+                var selected = slug === current;
+                return createElement('button', {
+                    key: slug,
+                    type: 'button',
+                    title: slug,
+                    onClick: function() { onChange(slug); },
+                    style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '100%',
+                        aspectRatio: '1',
+                        padding: '6px',
+                        border: selected ? '2px solid #2271b1' : '1px solid #ddd',
+                        borderRadius: '4px',
+                        background: selected ? '#f0f6fc' : '#fafafa',
+                        cursor: 'pointer'
+                    }
+                }, forgeWpRenderIcon(slug, 'w-5 h-5', provider || 'lucide'));
+            })
+        ),
+        createElement('p', {
+            style: { margin: '6px 0 0', fontSize: '11px', color: '#646970' }
+        }, 'Selected: ' + current)
+    );
+}
+
+// Stub implementations for every hook exported by .forgewp/wordpress.tsx, so that
+// arbitrary component code inlined into customEditJsx (via expandNestedComponentTags)
+// can execute in the block editor's preview without throwing "X is not defined".
+// Keep this list in sync with wordpress.tsx's exported useWp* hooks — a component using
+// any hook missing here will crash its editor preview with a ReferenceError.
+const useWpLocation = () => ['/', () => {}, () => {}];
+const useWpTerms = () => ({ terms: [], loading: false });
+const useWpI18n = () => ({ __: (s) => s });
+// Free __ for inlined JSX that calls __(s) without a local destructure.
+const __ = (s) => s;
+const useWpPagePath = (name, fallback) => fallback || '/';
+const useWpPageLink = (name, fallback) => fallback || '/';
+const useWpQuery = () => ({ posts: [], total: 0, loading: false });
+const useWpMeta = (key, fallback, postId) => fallback;
+const useWpOption = (name, fallback) => fallback || '';
+const useWpThemeMod = (name, fallback) => fallback || '';
+const useWpThemeUri = () => '';
+const useWpSearch = () => '';
+const useWpSearchParams = () => new URLSearchParams();
+const useWpTitle = () => '';
+const useWpContent = () => '';
+const useWpExcerpt = () => '';
+const useWpPermalink = () => '#';
+const useWpDate = () => '';
+const useWpModifiedDate = () => '';
+const useWpAuthor = () => '';
+const useWpFeaturedImage = () => '';
+const useWpCustomField = (name, fallback) => fallback || '';
+const useWpField = (name, fallback) => fallback || '';
+const useWpArchiveTitle = () => '';
+const useWpCategories = () => '';
+const useWpTaxonomyList = (taxonomy, fallback) => fallback || '';
+const useWpMenu = (location) => ({ items: [], loading: false });
+const useWpPrefetch = () => (to) => {};
+const useWpLanguage = () => ({
+    currentLanguage: 'de',
+    languages: ['de', 'en'],
+    homeUrl: '/',
+    urls: {},
+    homeUrls: {},
+    switchLanguage: () => {},
+});
+// Public ForgeWP helpers — prefer these over reading window.forgeWpIsEditorPreview directly.
+const isEditorPreview = () => typeof window !== 'undefined' && !!window.forgeWpIsEditorPreview;
+const useIsEditorPreview = () => isEditorPreview();
+
+const WpLink = (props) => {
+    // Inside the Gutenberg block editor canvas, a real navigation would take
+    // the admin away from wp-admin entirely (and can 404 if the resolved
+    // href doesn't correspond to a real page yet) — intercept the click so
+    // any WpEditable content nested inside can still be clicked for inline
+    // editing without the link itself firing a real page navigation.
+    if (isEditorPreview()) {
+        return createElement('a', Object.assign({}, props, {
+            onClick: function (e) { e.preventDefault(); }
+        }));
+    }
+    return createElement('a', props);
+};
+
+/**
+ * Build a blank row object from a repeater field schema (editor metadata).
+ */
+function forgeWpBlankRepeaterRow(fields) {
+    const row = {};
+    const schema = fields || {};
+    Object.keys(schema).forEach((subKey) => {
+        const sub = schema[subKey] || {};
+        if (sub.default !== undefined) {
+            row[subKey] = sub.default;
+        } else if (sub.control === 'image' || sub.type === 'object') {
+            row[subKey] = '';
+        } else if (sub.control === 'icon') {
+            row[subKey] = 'star';
+        } else if (sub.control === 'toggle' || sub.type === 'boolean') {
+            row[subKey] = false;
+        } else if (sub.control === 'number' || sub.type === 'number') {
+            row[subKey] = sub.min != null ? sub.min : 0;
+        } else if (sub.control === 'repeater' || sub.type === 'array') {
+            row[subKey] = [];
+        } else {
+            row[subKey] = '';
+        }
+    });
+    return row;
+}
+
+/**
+ * Sidebar repeater control.
+ * - mode: 'fixed'   → edit subfields only (no add/remove/reorder of cardinality)
+ * - mode: 'dynamic' → add / remove / move up / move down within min/max
+ * Canvas remains responsible for visual text via WpEditable.
+ */
+function ForgeWpRepeaterControl({ attrKey, config, attributes, setAttributes }) {
+    const label = config.label || attrKey;
+    const mode = config.mode === 'fixed' ? 'fixed' : 'dynamic';
+    const fields = config.fields || {};
+    const fieldKeys = Object.keys(fields);
+    const defaults = Array.isArray(config.default) ? config.default : [];
+    const rows = Array.isArray(attributes[attrKey]) ? attributes[attrKey] : defaults.slice();
+    const fixedCount = defaults.length > 0 ? defaults.length : rows.length;
+    const minRows = mode === 'fixed'
+        ? fixedCount
+        : (typeof config.min === 'number' ? config.min : 0);
+    const maxRows = mode === 'fixed'
+        ? fixedCount
+        : (typeof config.max === 'number' ? config.max : Infinity);
+
+    const commit = (next) => {
+        let clamped = Array.isArray(next) ? next.slice() : [];
+        if (mode === 'fixed') {
+            // Lock cardinality to default length when known
+            if (fixedCount > 0) {
+                while (clamped.length < fixedCount) clamped.push(forgeWpBlankRepeaterRow(fields));
+                if (clamped.length > fixedCount) clamped = clamped.slice(0, fixedCount);
+            }
+        } else {
+            if (clamped.length < minRows) {
+                while (clamped.length < minRows) clamped.push(forgeWpBlankRepeaterRow(fields));
+            }
+            if (clamped.length > maxRows) clamped = clamped.slice(0, maxRows);
+        }
+        setAttributes({ [attrKey]: clamped });
+    };
+
+    const updateCell = (index, subKey, value) => {
+        commit(rows.map((r, i) => (i === index ? Object.assign({}, r, { [subKey]: value }) : r)));
+    };
+
+    const addRow = () => {
+        if (mode !== 'dynamic' || rows.length >= maxRows) return;
+        commit(rows.concat([forgeWpBlankRepeaterRow(fields)]));
+    };
+
+    const removeRow = (index) => {
+        if (mode !== 'dynamic' || rows.length <= minRows) return;
+        commit(rows.filter((_, i) => i !== index));
+    };
+
+    const moveRow = (index, delta) => {
+        if (mode !== 'dynamic') return;
+        const target = index + delta;
+        if (target < 0 || target >= rows.length) return;
+        const next = rows.slice();
+        const tmp = next[index];
+        next[index] = next[target];
+        next[target] = tmp;
+        commit(next);
+    };
+
+    const rowLabel = (row, index) => {
+        for (const k of fieldKeys) {
+            const v = row && row[k];
+            if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 40);
+            if (v && typeof v === 'object' && v.url) return String(v.url).slice(0, 40);
+        }
+        return 'Item ' + (index + 1);
+    };
+
+    const renderSubField = (row, index, subKey) => {
+        const sub = fields[subKey] || {};
+        const subLabel = sub.label || subKey;
+        const control = sub.control || (sub.type === 'boolean' ? 'toggle' : sub.type === 'number' ? 'number' : sub.type === 'object' ? 'image' : 'text');
+        const value = row ? row[subKey] : undefined;
+
+        if (control === 'image') {
+            const url = typeof value === 'string' ? value : (value && value.url) || '';
+            const mediaId = value && typeof value === 'object' ? value.id : undefined;
+            return createElement(BaseControl, { label: subLabel, key: subKey },
+                createElement(MediaUpload, {
+                    onSelect: (media) => updateCell(index, subKey, media.url || ''),
+                    allowedTypes: ['image'],
+                    value: mediaId,
+                    render: ({ open }) => createElement('div', null,
+                        url
+                            ? createElement('img', {
+                                src: url,
+                                style: { maxWidth: '100%', marginBottom: '8px', display: 'block', borderRadius: '4px' }
+                            })
+                            : null,
+                        createElement('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
+                            createElement(Button, { onClick: open, variant: 'secondary', isSmall: true },
+                                url ? 'Replace Image' : 'Select Image'
+                            ),
+                            url
+                                ? createElement(Button, {
+                                    onClick: () => updateCell(index, subKey, ''),
+                                    variant: 'link',
+                                    isDestructive: true,
+                                    isSmall: true
+                                }, 'Remove')
+                                : null
+                        )
+                    )
+                })
+            );
+        }
+
+        if (control === 'toggle') {
+            return createElement(ToggleControl, {
+                key: subKey,
+                label: subLabel,
+                checked: !!value,
+                onChange: (val) => updateCell(index, subKey, val)
+            });
+        }
+
+        if (control === 'number') {
+            return createElement(RangeControl, {
+                key: subKey,
+                label: subLabel,
+                value: typeof value === 'number' ? value : (sub.min || 0),
+                onChange: (val) => updateCell(index, subKey, val),
+                min: sub.min != null ? sub.min : 0,
+                max: sub.max != null ? sub.max : 100
+            });
+        }
+
+        if (control === 'select') {
+            return createElement(SelectControl, {
+                key: subKey,
+                label: subLabel,
+                value: value || '',
+                options: (sub.options || []).map((opt) =>
+                    typeof opt === 'string' ? { label: opt, value: opt } : opt
+                ),
+                onChange: (val) => updateCell(index, subKey, val)
+            });
+        }
+
+        if (control === 'color') {
+            return createElement(BaseControl, { label: subLabel, key: subKey },
+                createElement(ColorPalette, {
+                    value: value || '',
+                    onChange: (val) => updateCell(index, subKey, val || '')
+                })
+            );
+        }
+
+        if (control === 'icon') {
+            return createElement(ForgeWpIconPicker, {
+                key: subKey,
+                label: subLabel,
+                value: value || sub.default || 'star',
+                options: sub.options,
+                provider: sub.provider || 'lucide',
+                onChange: (val) => updateCell(index, subKey, val)
+            });
+        }
+
+        // text, richText, url, default
+        return createElement(TextControl, {
+            key: subKey,
+            label: subLabel,
+            value: value == null ? '' : String(value),
+            type: control === 'url' ? 'url' : 'text',
+            onChange: (val) => updateCell(index, subKey, val)
+        });
+    };
+
+    const helpText = mode === 'fixed'
+        ? ('Fixed list (' + rows.length + ' item' + (rows.length === 1 ? '' : 's') + '). Edit fields below or inline on the canvas.')
+        : (
+            'Dynamic list' +
+            (minRows > 0 ? ' · min ' + minRows : '') +
+            (maxRows !== Infinity ? ' · max ' + maxRows : '') +
+            '. Reorder with ↑/↓. Text is also editable on the canvas.'
+        );
+
+    return createElement('div', {
+        key: attrKey,
+        style: { display: 'flex', flexDirection: 'column', gap: '12px' }
+    },
+        createElement('p', {
+            style: { margin: 0, fontSize: '12px', color: '#646970' }
+        }, helpText),
+        rows.map((row, index) =>
+            createElement('div', {
+                key: index,
+                style: {
+                    border: '1px solid #e0e0e0',
+                    borderRadius: '4px',
+                    padding: '10px',
+                    background: '#fafafa'
+                }
+            },
+                createElement('div', {
+                    style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        marginBottom: '8px'
+                    }
+                },
+                    createElement('strong', {
+                        style: { fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.04em' }
+                    }, rowLabel(row, index)),
+                    mode === 'dynamic'
+                        ? createElement('div', { style: { display: 'flex', gap: '4px', flexShrink: 0 } },
+                            createElement(Button, {
+                                icon: 'arrow-up-alt2',
+                                label: 'Move up',
+                                isSmall: true,
+                                disabled: index === 0,
+                                onClick: () => moveRow(index, -1)
+                            }),
+                            createElement(Button, {
+                                icon: 'arrow-down-alt2',
+                                label: 'Move down',
+                                isSmall: true,
+                                disabled: index >= rows.length - 1,
+                                onClick: () => moveRow(index, 1)
+                            }),
+                            createElement(Button, {
+                                icon: 'trash',
+                                label: 'Remove',
+                                isSmall: true,
+                                isDestructive: true,
+                                disabled: rows.length <= minRows,
+                                onClick: () => removeRow(index)
+                            })
+                        )
+                        : null
+                ),
+                fieldKeys.map((subKey) => renderSubField(row, index, subKey))
+            )
+        ),
+        mode === 'dynamic'
+            ? createElement(Button, {
+                variant: 'secondary',
+                onClick: addRow,
+                disabled: rows.length >= maxRows,
+                style: { alignSelf: 'flex-start' }
+            }, '+ Add ' + (label.replace(/s$/i, '') || 'item'))
+            : null
+    );
+}
 
 if (window.forgeWpBlocks) {
     window.forgeWpBlocks.forEach(block => {
@@ -690,36 +1243,238 @@ if (window.forgeWpBlocks) {
             title: block.title,
             icon: block.icon,
             category: block.category,
+            description: block.description || '',
+            example: block.example || undefined,
             attributes: block.attributes,
             edit: function(props) {
                 const { attributes, setAttributes } = props;
+
+                // ── Parent shell: layout chrome + InnerBlocks ───────────────
+                // Children stay independently insertable unless they declare WP parent.
+                if (block.isParentShell && block.innerBlocks) {
+                    const shellClass = ((block.shell && block.shell.className) || '').trim();
+                    const gridClass = ((block.shell && block.shell.gridClassName) || '').trim();
+                    const outerClass = ('forgewp-block-shell ' + shellClass).trim();
+                    const innerClass = ('forgewp-block-shell__grid ' + gridClass).trim();
+                    const blockProps = useBlockProps({ className: outerClass });
+                    const ibConfig = {
+                        allowedBlocks: block.innerBlocks.allowedBlocks,
+                        template: block.innerBlocks.template,
+                        templateLock: block.innerBlocks.templateLock,
+                        orientation: block.innerBlocks.orientation || 'horizontal',
+                    };
+                    if (typeof useInnerBlocksProps === 'function') {
+                        const innerProps = useInnerBlocksProps(
+                            { className: innerClass, style: { minWidth: 0 } },
+                            ibConfig
+                        );
+                        return createElement('div', blockProps, createElement('div', innerProps));
+                    }
+                    // Older WP fallback
+                    return createElement('div', blockProps,
+                        createElement('div', { className: innerClass, style: { minWidth: 0 } },
+                            createElement(InnerBlocks, ibConfig)
+                        )
+                    );
+                }
+
                 const blockProps = useBlockProps();
-                
+
+                // Scalar / simple controls (sidebar). Repeaters get their own PanelBody.
+                const simpleControls = Object.entries(block.attributes || {})
+                    .filter(([key, config]) => key !== 'align' && config.control !== 'repeater')
+                    .map(([key, config]) => {
+                        const label = config.label || (key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()));
+                        const control = config.control || 'text';
+
+                        switch (control) {
+                            case 'color':
+                                return createElement(BaseControl, { label: label, key: key },
+                                    createElement(ColorPalette, {
+                                        value: attributes[key],
+                                        onChange: (val) => setAttributes({ [key]: val })
+                                    })
+                                );
+
+                            case 'image':
+                                return createElement(BaseControl, { label: label, key: key },
+                                    createElement(MediaUpload, {
+                                        onSelect: (media) => setAttributes({
+                                            [key]: { id: media.id, url: media.url, alt: media.alt || '' }
+                                        }),
+                                        allowedTypes: ['image'],
+                                        value: attributes[key]?.id,
+                                        render: ({ open }) => createElement('div', null,
+                                            attributes[key]?.url
+                                                ? createElement('img', {
+                                                    src: attributes[key].url,
+                                                    style: { maxWidth: '100%', marginBottom: '8px', display: 'block' }
+                                                })
+                                                : null,
+                                            createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                                                createElement(Button, {
+                                                    onClick: open,
+                                                    variant: 'secondary'
+                                                }, attributes[key]?.url ? 'Replace Image' : 'Select Image'),
+                                                attributes[key]?.url
+                                                    ? createElement(Button, {
+                                                        onClick: () => setAttributes({ [key]: null }),
+                                                        variant: 'link',
+                                                        isDestructive: true,
+                                                        style: { color: '#cc1818', textDecoration: 'none' }
+                                                    }, 'Remove Image')
+                                                    : null
+                                            )
+                                        )
+                                    })
+                                );
+
+                            case 'url':
+                                return createElement(TextControl, {
+                                    key: key,
+                                    label: label,
+                                    value: attributes[key] || '',
+                                    onChange: (val) => setAttributes({ [key]: val }),
+                                    type: 'url'
+                                });
+
+                            case 'toggle':
+                                return createElement(ToggleControl, {
+                                    key: key,
+                                    label: label,
+                                    checked: !!attributes[key],
+                                    onChange: (val) => setAttributes({ [key]: val })
+                                });
+
+                            case 'select':
+                                return createElement(SelectControl, {
+                                    key: key,
+                                    label: label,
+                                    value: attributes[key],
+                                    options: (config.options || []).map(opt =>
+                                        typeof opt === 'string' ? { label: opt, value: opt } : opt
+                                    ),
+                                    onChange: (val) => setAttributes({ [key]: val })
+                                });
+
+                            case 'number':
+                                return createElement(RangeControl, {
+                                    key: key,
+                                    label: label,
+                                    value: attributes[key] || 0,
+                                    onChange: (val) => setAttributes({ [key]: val }),
+                                    min: config.min || 0,
+                                    max: config.max || 100
+                                });
+
+                            case 'icon':
+                                return createElement(ForgeWpIconPicker, {
+                                    key: key,
+                                    label: label,
+                                    value: attributes[key] || config.default || 'star',
+                                    options: config.options,
+                                    provider: config.provider || 'lucide',
+                                    onChange: (val) => setAttributes({ [key]: val })
+                                });
+
+                            case 'richText':
+                            case 'text':
+                            default:
+                                return createElement(TextControl, {
+                                    key: key,
+                                    label: label,
+                                    value: attributes[key] || '',
+                                    onChange: (val) => setAttributes({ [key]: val })
+                                });
+                        }
+                    });
+
+                const repeaterPanels = Object.entries(block.attributes || {})
+                    .filter(([key, config]) => key !== 'align' && config.control === 'repeater')
+                    .map(([key, config]) => {
+                        const panelTitle = config.label || (key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()));
+                        return createElement(PanelBody, {
+                            title: panelTitle,
+                            initialOpen: true,
+                            key: 'repeater-' + key
+                        },
+                            createElement(ForgeWpRepeaterControl, {
+                                attrKey: key,
+                                config: config,
+                                attributes: attributes,
+                                setAttributes: setAttributes
+                            })
+                        );
+                    });
+
+                const inspector = (simpleControls.length > 0 || repeaterPanels.length > 0)
+                    ? createElement(InspectorControls, null,
+                        simpleControls.length > 0
+                            ? createElement(PanelBody, { title: 'Block Settings', initialOpen: true }, simpleControls)
+                            : null,
+                        ...repeaterPanels
+                    )
+                    : null;
+
                 if (block.customEditJsx) {
                     try {
-                        const renderFn = new Function('props', 'createElement', 'useBlockProps', 'attributes', 'setAttributes', 'blockProps', 
+                        // editorScope: serializable free vars (defaults, SECTION_PADDING_Y, …)
+                        // bound as Function parameters so the IIFE can close over them even if
+                        // string-level injections were missing.
+                        const editorScope = (block.editorScope && typeof block.editorScope === 'object')
+                            ? Object.assign({}, block.editorScope)
+                            : {};
+                        // Always ensure defaults exists so "defaults is not defined" cannot surface.
+                        if (typeof editorScope.defaults === 'undefined') {
+                            editorScope.defaults = {};
+                        }
+                        const baseParamNames = [
+                            'React', 'props', 'createElement', 'useBlockProps', 'attributes', 'setAttributes', 'blockProps',
+                            'useWpLocation', 'useWpTerms', 'useWpI18n', '__', 'useWpPagePath', 'useWpPageLink', 'useWpQuery', 'useWpMeta', 'useWpOption',
+                            'useWpThemeMod', 'useWpThemeUri', 'useWpSearch', 'useWpSearchParams', 'useWpTitle', 'useWpContent', 'useWpExcerpt',
+                            'useWpPermalink', 'useWpDate', 'useWpModifiedDate', 'useWpAuthor', 'useWpFeaturedImage', 'useWpCustomField', 'useWpField',
+                            'useWpArchiveTitle', 'useWpCategories', 'useWpTaxonomyList', 'useWpMenu', 'useWpPrefetch', 'useWpLanguage', 'WpLink',
+                            'isEditorPreview', 'useIsEditorPreview', 'forgeWpRenderIcon', 'WpIcon'
+                        ];
+                        // Never shadow the fixed hook/param names.
+                        const baseParamSet = {};
+                        for (let bi = 0; bi < baseParamNames.length; bi++) baseParamSet[baseParamNames[bi]] = true;
+                        const scopeKeys = Object.keys(editorScope).filter(function(k) {
+                            return /^[A-Za-z_$][\w$]*$/.test(k) && !baseParamSet[k];
+                        });
+                        const scopeVals = scopeKeys.map(function(k) { return editorScope[k]; });
+                        // Bind scope keys as outer parameters. Inner IIFE may also declare
+                        // the same names with var/const — nested scopes are fine; free vars
+                        // resolve to these parameters via closure.
+                        const renderFn = new Function(
+                            ...baseParamNames,
+                            ...scopeKeys,
                             'return ' + block.customEditJsx
                         );
-                        return renderFn(props, createElement, useBlockProps, attributes, setAttributes, blockProps);
+                        const WpIcon = function(p) {
+                            return forgeWpRenderIcon(p && p.name, p && (p.className || p.class), p && p.provider);
+                        };
+                        const element = renderFn(
+                            wp.element, props, createElement, useBlockProps, attributes, setAttributes, blockProps,
+                            useWpLocation, useWpTerms, useWpI18n, __, useWpPagePath, useWpPageLink, useWpQuery, useWpMeta, useWpOption,
+                            useWpThemeMod, useWpThemeUri, useWpSearch, useWpSearchParams, useWpTitle, useWpContent, useWpExcerpt,
+                            useWpPermalink, useWpDate, useWpModifiedDate, useWpAuthor, useWpFeaturedImage, useWpCustomField, useWpField,
+                            useWpArchiveTitle, useWpCategories, useWpTaxonomyList, useWpMenu, useWpPrefetch, useWpLanguage, WpLink,
+                            isEditorPreview, useIsEditorPreview, forgeWpRenderIcon, WpIcon,
+                            ...scopeVals
+                        );
+                        return createElement('div', blockProps,
+                            inspector,
+                            element
+                        );
                     } catch (e) {
                         console.error("[ForgeWP Editor] Custom edit render failed for block " + block.name + ":", e);
                         return createElement('div', blockProps, 'Render Error: ' + e.message);
                     }
                 }
 
-                // Build inspector controls dynamically from attributes
-                const controls = Object.keys(block.attributes).map(key => {
-                    return createElement(TextControl, {
-                        label: key.charAt(0).toUpperCase() + key.slice(1),
-                        value: attributes[key],
-                        onChange: (val) => setAttributes({ [key]: val })
-                    });
-                });
-
                 return createElement('div', blockProps,
-                    createElement(InspectorControls, null,
-                        createElement(PanelBody, { title: 'Block Settings', initialOpen: true }, controls)
-                    ),
+                    inspector,
                     createElement(ServerSideRender, {
                         block: block.name,
                         attributes: attributes
@@ -727,11 +1482,63 @@ if (window.forgeWpBlocks) {
                 );
             },
             save: function() {
-                return null; // Dynamic blocks return null in save
+                // Parent shells must persist InnerBlocks markup; leaf blocks stay fully dynamic.
+                if (block.isParentShell) {
+                    return createElement(InnerBlocks.Content);
+                }
+                return null;
             }
         });
     });
 }
+
+// ── ForgeWP Page Settings — "Hide page title" toggle ─────────────────────────
+// Lives in the Document sidebar for Pages. Backed by the '_forgewp_hide_title'
+// post meta field (registered in functions.php), read by page.php and
+// template-forgewp-builder.php so both templates respect the same setting.
+(function () {
+    if (!window.wp || !window.wp.plugins || !window.wp.data || !window.wp.coreData) return;
+    const { registerPlugin } = wp.plugins;
+    const PluginDocumentSettingPanel =
+        (wp.editor && wp.editor.PluginDocumentSettingPanel) ||
+        (wp.editPost && wp.editPost.PluginDocumentSettingPanel);
+    if (!PluginDocumentSettingPanel) return;
+
+    const { CheckboxControl } = wp.components;
+    const { useEntityProp } = wp.coreData;
+    const { useSelect } = wp.data;
+    const { createElement: el } = wp.element;
+
+    function ForgeWpPageSettings() {
+        const postType = useSelect(function (select) {
+            return select('core/editor').getCurrentPostType();
+        }, []);
+
+        const [meta, setMeta] = useEntityProp('postType', postType || 'page', 'meta');
+
+        if (postType !== 'page') return null;
+
+        // Default checked when meta is unset (matches PHP + register_post_meta default).
+        const hideTitle = meta && Object.prototype.hasOwnProperty.call(meta, '_forgewp_hide_title')
+            ? !!meta._forgewp_hide_title
+            : true;
+
+        return el(
+            PluginDocumentSettingPanel,
+            { name: 'forgewp-page-settings', title: 'ForgeWP Page Settings', className: 'forgewp-page-settings' },
+            el(CheckboxControl, {
+                label: 'Hide page title',
+                help: 'On by default for ForgeWP layouts. Uncheck to show the core page title. Applies on Default and ForgeWP Builder templates.',
+                checked: hideTitle,
+                onChange: function (value) {
+                    setMeta(Object.assign({}, meta || {}, { _forgewp_hide_title: value }));
+                },
+            })
+        );
+    }
+
+    registerPlugin('forgewp-page-settings', { render: ForgeWpPageSettings });
+})();
 `;
   writeFileSync(
     path.join(outDir, 'assets', 'forgewp-editor.js'),
@@ -751,18 +1558,78 @@ if (window.forgeWpBlocks) {
   const queries = scanForQueries(themeRoot);
   console.log(`[ForgeWP Compiler] Scanned and compiled ${queries.length} REST endpoints: ${queries.map(q => q.queryId).join(', ') || '<none>'}`);
 
-  let functionsPhpContent = buildFunctionsPhp(
-    config,
-    assets,
-    compiledBlocks,
-    themeRoot,
-    pagesToAutoCreate,
-    menus,
-    hydrationData,
-    Array.from(i18nKeys),
-    schemas,
-    queries,
-  );
+  const WP_CORE_OPTIONS = new Set([
+    'siteurl', 'blogname', 'blogdescription', 'admin_email', 'blogpublic',
+    'default_role', 'timezone_string', 'date_format', 'time_format',
+    'start_of_week', 'permalink_structure', 'upload_path', 'upload_url_path',
+    'posts_per_page', 'posts_per_rss', 'comments_notify', 'moderation_notify',
+    'comment_moderation', 'require_name_email', 'thread_comments',
+    'thread_comments_depth', 'page_comments', 'default_comments_page',
+    'comment_order', 'comments_per_page', 'default_ping_status',
+    'default_comment_status', 'show_on_front', 'page_on_front',
+    'page_for_posts', 'rss_use_excerpt', 'mailserver_url', 'mailserver_login',
+    'mailserver_pass', 'mailserver_port', 'active_plugins', 'template',
+    'stylesheet', 'woocommerce_shop_page_id',
+  ]);
+
+  const wpOptions = [];
+  if (config.options && typeof config.options === 'object') {
+    for (const [name, field] of Object.entries(config.options)) {
+      if (WP_CORE_OPTIONS.has(name)) continue;
+
+      const label = field.label || name
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+
+      wpOptions.push({
+        name,
+        label,
+        defaultValue: field.default || '',
+        postType: field._type === 'postPicker' ? (field.postType || 'post') : null,
+      });
+    }
+  }
+
+  if (wpOptions.length > 0) {
+    console.log(`[ForgeWP Compiler] Detected ${wpOptions.length} site option(s) via config.options: ${wpOptions.map(o => o.name).join(', ')}`);
+  }
+
+  // The Theme Options post-picker field (optionPostPicker) uses Select2 for its AJAX
+  // search dropdown. WordPress core does NOT ship a public 'select2' script/style handle,
+  // so we vendor our own copy into the exported theme rather than relying on one.
+  if (wpOptions.some(o => o.postType)) {
+    try {
+      const vendorRequire = createRequire(import.meta.url);
+      const select2JsPath = vendorRequire.resolve('select2/dist/js/select2.min.js');
+      const select2CssPath = vendorRequire.resolve('select2/dist/css/select2.min.css');
+      const select2VendorOut = path.join(assetsOut, 'vendor', 'select2');
+      mkdirSync(select2VendorOut, { recursive: true });
+      copyFileSync(select2JsPath, path.join(select2VendorOut, 'select2.min.js'));
+      copyFileSync(select2CssPath, path.join(select2VendorOut, 'select2.min.css'));
+    } catch (err) {
+      console.warn(`[ForgeWP Compiler] Failed to vendor select2 assets for the Theme Options post-picker: ${err.message}`);
+    }
+  }
+
+  let functionsPhpContent;
+  try {
+    functionsPhpContent = buildFunctionsPhp(
+      config,
+      assets,
+      compiledBlocks,
+      themeRoot,
+      pagesToAutoCreate,
+      menus,
+      hydrationData,
+      Array.from(i18nKeys),
+      schemas,
+      queries,
+      wpOptions,
+    );
+  } catch (error) {
+    console.error("CRITICAL ERROR in buildFunctionsPhp:", error.stack);
+    throw error;
+  }
 
   if (projectHooks && typeof projectHooks.processFunctionsPhp === 'function') {
     functionsPhpContent = projectHooks.processFunctionsPhp(functionsPhpContent, config);
@@ -826,6 +1693,11 @@ if (window.forgeWpBlocks) {
   writeFileSync(path.join(outDir, 'front-page.php'), buildIndexPhp(), 'utf8');
   writeFileSync(path.join(outDir, 'archive.php'), buildArchivePhp(), 'utf8');
   writeFileSync(path.join(outDir, 'page.php'), buildPagePhp(), 'utf8');
+  writeFileSync(
+    path.join(outDir, 'template-forgewp-builder.php'),
+    buildBuilderPagePhp(),
+    'utf8',
+  );
 
   // Dynamic Custom WP hierarchy templates compiler (single-*, taxonomy-*, archive-*, etc.)
   if (existsSync(forgewpDir)) {
@@ -842,7 +1714,7 @@ if (window.forgeWpBlocks) {
       
       if (isHierarchyTemplate) {
         const rawHtml = readFileSync(path.join(forgewpDir, file), 'utf8');
-        let processedHtml = processMarkup(rawHtml, config.textDomain);
+        let processedHtml = injectAutoHydrationMarkers(processMarkup(rawHtml, config.textDomain, getRichTextKeysForSlug(`${name}-page`)));
         if (processedHeader) {
           const replaced = processedHtml.replace(processedHeader, '');
           processedHtml = replaced !== processedHtml ? replaced : processedHtml.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
@@ -1075,7 +1947,7 @@ if ( ! current_user_can( '${allowed}' ) ) {
           cleanedRawHtml = cleanedRawHtml.replace(/<\/forgewp-require-auth>/gi, '');
         }
 
-        let processedHtml = processMarkup(cleanedRawHtml, config.textDomain);
+        let processedHtml = injectAutoHydrationMarkers(processMarkup(cleanedRawHtml, config.textDomain, getRichTextKeysForSlug(slug.replace('template-', ''))));
         if (processedHeader) {
           const replaced = processedHtml.replace(processedHeader, '');
           processedHtml = replaced !== processedHtml ? replaced : processedHtml.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
@@ -1334,3 +2206,131 @@ function scanForQueries(themeRoot) {
   }
   return uniqueQueries;
 }
+
+function scanForWpOptions(themeRoot) {
+  const optionsPath = path.join(themeRoot, 'cms', 'site-options.ts');
+  if (!existsSync(optionsPath)) return [];
+
+  // WordPress core options that are already managed in wp-admin Settings pages —
+  // exclude them from the auto-generated Theme Options page.
+  const WP_CORE_OPTIONS = new Set([
+    'siteurl', 'blogname', 'blogdescription', 'admin_email', 'blogpublic',
+    'default_role', 'timezone_string', 'date_format', 'time_format',
+    'start_of_week', 'permalink_structure', 'upload_path', 'upload_url_path',
+    'posts_per_page', 'posts_per_rss', 'comments_notify', 'moderation_notify',
+    'comment_moderation', 'require_name_email', 'thread_comments',
+    'thread_comments_depth', 'page_comments', 'default_comments_page',
+    'comment_order', 'comments_per_page', 'default_ping_status',
+    'default_comment_status', 'show_on_front', 'page_on_front',
+    'page_for_posts', 'rss_use_excerpt', 'mailserver_url', 'mailserver_login',
+    'mailserver_pass', 'mailserver_port', 'active_plugins', 'template',
+    'stylesheet', 'woocommerce_shop_page_id',
+  ]);
+
+  const optionsMap = new Map(); // name -> { name, label, defaultValue, postType? }
+
+  const content = readFileSync(optionsPath, 'utf8');
+  if (content.includes('defineWpOptions')) {
+    const objText = extractDefineWpOptionsArgs(content);
+    if (objText) {
+      const schema = evalDefineWpOptions(objText);
+      if (schema && typeof schema === 'object') {
+        for (const [name, field] of Object.entries(schema)) {
+          if (WP_CORE_OPTIONS.has(name)) continue;
+
+          const label = field.label || name
+            .replace(/[_-]+/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase());
+
+          optionsMap.set(name, {
+            name,
+            label,
+            defaultValue: field.default || '',
+            postType: field._type === 'postPicker' ? (field.postType || 'post') : null,
+          });
+        }
+      }
+    }
+  }
+
+  return Array.from(optionsMap.values());
+}
+
+function extractDefineWpOptionsArgs(fileContent) {
+  const matchIdx = fileContent.indexOf('defineWpOptions');
+  if (matchIdx === -1) return null;
+  const startIdx = fileContent.indexOf('(', matchIdx);
+  if (startIdx === -1) return null;
+
+  let parenCount = 0;
+  let inString = false;
+  let stringChar = '';
+  let endIdx = -1;
+
+  for (let i = startIdx; i < fileContent.length; i++) {
+    const char = fileContent[i];
+    if (inString) {
+      if (char === stringChar && fileContent[i - 1] !== '\\') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') {
+      inString = true;
+      stringChar = char;
+      continue;
+    }
+    if (char === '(') parenCount++;
+    if (char === ')') {
+      parenCount--;
+      if (parenCount === 0) {
+        endIdx = i;
+        break;
+      }
+    }
+  }
+
+  if (endIdx > startIdx) {
+    return fileContent.slice(startIdx + 1, endIdx).trim();
+  }
+  return null;
+}
+
+function evalDefineWpOptions(objText) {
+  if (!objText) return null;
+  try {
+    const sandbox = {
+      optionText: (cfg = {}) => ({ _type: 'text', ...cfg }),
+      optionUrl: (cfg = {}) => ({ _type: 'url', ...cfg }),
+      optionEmail: (cfg = {}) => ({ _type: 'email', ...cfg }),
+      optionTextarea: (cfg = {}) => ({ _type: 'textarea', ...cfg }),
+      optionToggle: (cfg = {}) => ({ _type: 'toggle', ...cfg }),
+      optionNumber: (cfg = {}) => ({ _type: 'number', ...cfg }),
+      optionPostPicker: (cfg = {}) => ({ _type: 'postPicker', ...cfg }),
+    };
+    const fn = new Function(
+      'optionText',
+      'optionUrl',
+      'optionEmail',
+      'optionTextarea',
+      'optionToggle',
+      'optionNumber',
+      'optionPostPicker',
+      `return (${objText});`
+    );
+    return fn(
+      sandbox.optionText,
+      sandbox.optionUrl,
+      sandbox.optionEmail,
+      sandbox.optionTextarea,
+      sandbox.optionToggle,
+      sandbox.optionNumber,
+      sandbox.optionPostPicker
+    );
+  } catch (e) {
+    console.warn('[ForgeWP Options Parser] evalDefineWpOptions failed:', e.message);
+    return null;
+  }
+}
+
+

@@ -20,6 +20,14 @@ export default function HeroSection() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  const handleScrollToSection = (id: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   /**
    * scrollYProgress 0→1 as the outer section (220vh tall) scrolls
    * from "top at viewport top" to "bottom at viewport bottom".
@@ -217,6 +225,7 @@ export default function HeroSection() {
           >
             <a
               href='#catalog'
+              onClick={handleScrollToSection('catalog')}
               className='inline-flex items-center gap-2 bg-zinc-950 text-white font-heading
                          font-semibold text-sm uppercase tracking-wider px-8 py-4 rounded-full
                          hover:bg-brand transition-colors duration-300 group'
@@ -246,13 +255,43 @@ export default function HeroSection() {
           />
         </motion.div>
 
-        {/* ── STAGGERED STATEMENT OVERLAY (z-30, auto-plays once scroll passes 45%) ── */}
-        <div className='absolute bottom-[8vh] left-0 right-0 z-30 flex flex-col items-center text-center px-6 pointer-events-none select-none'>
+        {/* ── STAGGERED STATEMENT OVERLAY (z-30, auto-plays once scroll reaches 45%) ── */}
+        <div className='absolute bottom-[10vh] left-0 right-0 z-30 flex flex-col items-center text-center px-6 pointer-events-none select-none'>
+          {/* Hero text on image (fades in with showStatement) */}
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            animate={showStatement ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+            transition={{ duration: 1.2, ease: [0.215, 0.61, 0.355, 1], delay: 0.1 }}
+            className='font-heading font-black tracking-tight text-white uppercase mb-4 max-w-2xl'
+            style={{ fontSize: 'clamp(1.5rem, 4vw, 3rem)' }}
+          >
+            The Editorial Lookbook
+          </motion.h2>
+
+          {/* CTA Button on image (fades in with showStatement) */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={showStatement ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
+            transition={{ duration: 1.2, ease: [0.215, 0.61, 0.355, 1], delay: 0.3 }}
+            className='mb-8 pointer-events-auto'
+          >
+            <a
+              href='#lookbook'
+              onClick={handleScrollToSection('lookbook')}
+              className='inline-flex items-center gap-2 bg-[#FAF9F6]/10 backdrop-blur-md text-[#FAF9F6] border border-[#FAF9F6]/20 font-heading
+                         font-semibold text-xs uppercase tracking-widest px-6 py-3.5 rounded-full
+                         hover:bg-[#FAF9F6] hover:text-zinc-950 transition-colors duration-300 group shadow-lg cursor-pointer'
+            >
+              Explore Lookbook
+              <ArrowRight className='w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-300' />
+            </a>
+          </motion.div>
+
           <motion.p
             variants={statementContainerVariants}
             initial='hidden'
             animate={showStatement ? 'visible' : 'hidden'}
-            className='font-serif italic text-[#FAF9F6] text-lg md:text-2xl leading-relaxed drop-shadow-sm font-semibold max-w-[850px] mx-auto flex flex-wrap justify-center'
+            className='font-serif italic text-[#FAF9F6] text-lg md:text-xl leading-relaxed drop-shadow-sm font-semibold max-w-[850px] mx-auto flex flex-wrap justify-center'
           >
             {statementWords.map((word, i) => (
               <motion.span

@@ -6,7 +6,7 @@ import pc from "picocolors";
 import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
-import { scanForHydrationIslands, runStaticLintChecks } from "../lib/hydration-scanner.js";
+import { scanForHydrationIslands, runStaticLintChecks } from "../lib/hydration/index.js";
 import { analyzeHydrationIslands, printDiagnosticsReport } from "../lib/diagnostics.js";
 
 console.log(`\n🩺 ${pc.bold(pc.bgCyan(pc.black("  FORGEWP SYSTEM DOCTOR  ")))}\n`);

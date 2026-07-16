@@ -8,7 +8,7 @@ import {
   scanForHydrationIslands,
   findComponentPath,
   getHydrationRollupInputs,
-} from './hydration-scanner.js';
+} from './hydration/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -403,8 +403,9 @@ export function generateHydrationRuntime(
         const React = window.React;
 
         if (ReactDOM && React) {
+          const WpBlockContext = window._forgeWpBlockContext || (window._forgeWpBlockContext = React.createContext(null));
           const root = ReactDOM.createRoot(el);
-          root.render(React.createElement(Component, props));
+          root.render(React.createElement(WpBlockContext.Provider, { value: props }, React.createElement(Component, props)));
         } else {
           console.error("[ForgeWP Hydration Error] React or ReactDOM not found on window. Ensure main.tsx exposes window.React and window.ReactDOM.");
         }
@@ -799,6 +800,129 @@ ${attributesRegistry}
   console.log(`\n🎉 Run ${pc.cyan('pnpm export')} to automatically register it inside your WordPress theme!\n`);
 }
 
+/**
+ * Scaffold a parent shell block (layout + InnerBlocks). No content attributes.
+ * @param {string} themeRoot
+ * @param {object} opts
+ */
+export function onMakeShell(themeRoot, {
+  pascalCase,
+  nameSlug,
+  readableTitle,
+  childrenSlugs = [],
+  shell = {},
+  innerBlocks = {},
+  category = 'theme',
+  icon = 'columns',
+  description = '',
+  pc: colors,
+}) {
+  const log = colors || pc;
+  const blocksDir = path.join(themeRoot, 'src', 'blocks');
+  if (!existsSync(blocksDir)) {
+    mkdirSync(blocksDir, { recursive: true });
+  }
+
+  const targetFile = path.join(blocksDir, `${pascalCase}.tsx`);
+  if (existsSync(targetFile)) {
+    console.error(log.red(`\n❌ Error: Block "${pascalCase}.tsx" already exists at src/blocks/\n`));
+    process.exit(1);
+  }
+
+  const slug = nameSlug || pascalCase
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-');
+
+  const title = readableTitle || pascalCase.replace(/([A-Z])/g, ' $1').trim();
+  const className = shell.className || 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16';
+  const gridClassName =
+    shell.gridClassName ||
+    'grid grid-cols-1 lg:grid-cols-2 gap-12 items-center';
+
+  const allowed = Array.isArray(innerBlocks.allowedBlocks)
+    ? innerBlocks.allowedBlocks
+    : childrenSlugs;
+  const template = Array.isArray(innerBlocks.template)
+    ? innerBlocks.template
+    : allowed.map((s) => [s]);
+  const templateLock =
+    innerBlocks.templateLock === undefined ? false : innerBlocks.templateLock;
+  const orientation = innerBlocks.orientation || 'horizontal';
+
+  const allowedLit = allowed.length
+    ? `[\n${allowed.map((s) => `      '${s}',`).join('\n')}\n    ]`
+    : 'undefined';
+  const templateLit = template.length
+    ? `[\n${template
+        .map((row) => {
+          const name = Array.isArray(row) ? row[0] : row;
+          return `      ['${name}'],`;
+        })
+        .join('\n')}\n    ]`
+    : 'undefined';
+
+  const lockLit =
+    templateLock === false
+      ? 'false'
+      : templateLock === true
+        ? 'true'
+        : JSON.stringify(templateLock);
+
+  const descLit = JSON.stringify(
+    description || `Layout shell for ${title}${allowed.length ? ` (${allowed.join(' + ')})` : ''}`,
+  );
+
+  const shellTemplate = `import { defineBlock } from '@forgewp/react';
+
+/**
+ * Parent shell — layout only (InnerBlocks).
+ *
+ * Children are normal ForgeWP blocks. This shell provides the outer chrome +
+ * grid; the compiler generates the editor UI and PHP wrapper from
+ * \`innerBlocks\` + \`shell\`.
+ *
+ * Scaffolded by: pnpm forgewp make:shell
+ */
+export default defineBlock({
+  name: '${slug}',
+  title: ${JSON.stringify(title)},
+  category: ${JSON.stringify(category)},
+  icon: ${JSON.stringify(icon)},
+  description: ${descLit},
+  // No content attributes — children own their fields.
+  attributes: {},
+  innerBlocks: {
+    allowedBlocks: ${allowedLit},
+    template: ${templateLit},
+    templateLock: ${lockLit},
+    orientation: ${JSON.stringify(orientation)},
+  },
+  shell: {
+    className: ${JSON.stringify(className)},
+    gridClassName: ${JSON.stringify(gridClassName)},
+  },
+  // Compiler generates the real editor UI from innerBlocks + shell.
+  edit: () => null,
+});
+`;
+
+  writeFileSync(targetFile, shellTemplate, 'utf8');
+
+  console.log(log.green(`\n⚡ Parent shell "${pascalCase}" created!`));
+  console.log(`   Location: ${log.cyan(`src/blocks/${pascalCase}.tsx`)}`);
+  console.log(`   Block name: ${log.yellow(`forgewp/${slug}`)}`);
+  if (allowed.length) {
+    console.log(`   Children: ${log.cyan(allowed.join(', '))}`);
+  } else {
+    console.log(`   Children: ${log.dim('(none — open shell; any allowed at runtime)')}`);
+  }
+  console.log(`   Layout: ${log.dim(gridClassName)}`);
+  console.log(
+    `\n🎉 Run ${log.cyan('pnpm forgewp export')} (or sync-to-wp) to register it in WordPress.\n`,
+  );
+}
+
 export function onMakeLoop(themeRoot, { pascalCase, postType, customFields, automaticallySeeded, pc }) {
   const loopsDir = path.join(themeRoot, 'src', 'loops');
   if (!existsSync(loopsDir)) {
@@ -915,62 +1039,34 @@ export function onMakeIsland(themeRoot, { pascalCase, pc }) {
     process.exit(1);
   }
 
-  const islandTemplate = `import { useState, useEffect } from "react";
+  const islandTemplate = `import { useState } from "react";
 
 /**
  * ⚡ ForgeWP Selective Hydration Island Component — "${pascalCase}"
- * 
- * IMPORTANT FOR INTERACTIVITY:
- * This component runs client-side React state hooks (useState, useEffect). To enable
- * interactivity on the WordPress frontend, you MUST wrap this component in the `<Hydrate>`
- * controller when rendering it in your page layout.
- * 
- * Example:
+ *
+ * NOTE: ForgeWP automatically detects that this component is interactive (using React hooks/state)
+ * and wraps it in a \`<Hydrate>\` wrapper during theme compilation with the default 'visible' trigger.
+ *
+ * You do NOT need to manually wrap it unless you want to customize the trigger
+ * (e.g., to load on 'click', 'hover', 'interaction', or 'idle').
+ *
+ * Example of custom trigger overrides:
  * import ${pascalCase} from "@/components/${pascalCase}";
  * import { Hydrate } from "@forgewp/react";
- * 
- * <Hydrate trigger="visible" preload="near-visible">
+ *
+ * <Hydrate trigger="click">
  *   <${pascalCase} />
  * </Hydrate>
  */
-export interface ${pascalCase}Props {
-  label?: string;
-}
+export interface ${pascalCase}Props {}
 
-export default function ${pascalCase}({ label = "React State Island (${pascalCase})" }: ${pascalCase}Props) {
-  const [count, setCount] = useState(0);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
+export default function ${pascalCase}(_props: ${pascalCase}Props) {
+  const [value, setValue] = useState(0);
 
   return (
-    <div className="p-6 border border-slate-100 bg-white font-sans text-slate-900 shadow-xl shadow-slate-100/50 hover:-translate-y-0.5 transition-all duration-300 rounded-none">
-      <div className="flex items-center justify-between gap-4 mb-4 border-b border-slate-100 pb-2">
-        <span className="block text-sm font-bold uppercase tracking-wider">
-          {label}
-        </span>
-        <span
-          className={\`text-[10px] font-bold px-2 py-0.5 uppercase tracking-widest border transition-all duration-300 \${
-            isHydrated
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-black"
-              : "bg-amber-50 text-amber-700 border-amber-200 font-black animate-pulse"
-          }\`}
-        >
-          {isHydrated ? "● Hydrated" : "○ Static (SSR)"}
-        </span>
-      </div>
-      
-      <div className="flex items-center gap-4 mt-2">
-        <span className="text-2xl font-black text-slate-800">Counter: {count}</span>
-        <button
-          onClick={() => setCount((c) => c + 1)}
-          className="border border-primary bg-primary text-white px-4 py-2 font-bold text-xs uppercase tracking-widest hover:bg-transparent hover:text-primary transition-all duration-300 shadow-sm cursor-pointer"
-        >
-          Increment Value
-        </button>
-      </div>
+    <div>
+      <span>{value}</span>
+      <button onClick={() => setValue((v) => v + 1)}>Update</button>
     </div>
   );
 }
@@ -980,9 +1076,10 @@ export default function ${pascalCase}({ label = "React State Island (${pascalCas
 
   console.log(pc.green(`\n⚡ Selective Hydration Island "${pascalCase}" successfully created!`));
   console.log(`   Location: ${pc.cyan(`src/components/${pascalCase}.tsx`)}`);
-  console.log(`\n🎉 To render this island with selective hydration triggers:`);
-  console.log(`   Inside any page, wrap it with:`);
-  console.log(`   ${pc.cyan(`<Hydrate trigger="visible" preload="near-visible">\n     <${pascalCase} />\n   </Hydrate>`)}\n`);
+  console.log(`\n🎉 ForgeWP automatically detects and hydrates this component on compile!`);
+  console.log(`   If you want to customize the trigger (e.g. hydrate on click):`);
+  console.log(`   Wrap it with:`);
+  console.log(`   ${pc.cyan(`<Hydrate trigger="click">\n     <${pascalCase} />\n   </Hydrate>`)}\n`);
 }
 
 export function onMakePage(themeRoot, { pascalCase, pc }) {

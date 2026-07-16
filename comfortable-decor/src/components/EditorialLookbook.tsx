@@ -105,7 +105,7 @@ export default function EditorialLookbook() {
   }, [api, isHovered]);
 
   return (
-    <section className='w-full bg-[#FAF9F6] py-24 px-6 md:px-12 lg:px-24 border-t border-zinc-100/40 relative overflow-hidden'>
+    <section id='lookbook' className='w-full bg-[#FAF9F6] py-24 px-6 md:px-12 border-t border-zinc-100/40 relative overflow-hidden'>
       {/* Dynamic Background Accents */}
       <div className='absolute -top-40 -left-40 w-96 h-96 bg-[#4A5D4E]/5 rounded-full blur-3xl pointer-events-none' />
       <div className='absolute -bottom-40 -right-40 w-96 h-96 bg-brand/5 rounded-full blur-3xl pointer-events-none' />

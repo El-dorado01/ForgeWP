@@ -1,4 +1,4 @@
-import { useContext, useCallback, ComponentType, useState, useRef, useEffect } from 'react';
+import { useContext, useCallback, ComponentType, useState, useRef, useEffect, createContext } from 'react';
 import { WpPostContext } from './context';
 import type { WpPost, WpQueryArgs, WpQueryResults, WpMenuItem } from './types';
 
@@ -93,8 +93,6 @@ export function useWpFeaturedImage(): string {
 
 export function useWpCustomField(fieldName: string, defaultValue = ''): string {
   const post = useContext(WpPostContext);
-  console.log(`[ForgeWP Debug] useWpCustomField requested: ${fieldName}`);
-  console.log(`[ForgeWP Debug] Context post:`, post);
 
   if (
     post?.customFields &&
@@ -187,12 +185,99 @@ function getForgeWpSiteSettings() {
   );
 }
 
+/** Optional compiler hints for useWpOption — ignored at runtime, used by the ForgeWP compiler to generate richer admin UI. */
+export interface WpOptionMeta {
+  /** When set, the Theme Options admin page renders a searchable post picker instead of a text input. */
+  postType?: string;
+}
+
 export function useWpOption(optionName: string, defaultValue = ''): string {
   const siteSettings = getForgeWpSiteSettings();
   if (siteSettings?.options) {
     return siteSettings.options[optionName] ?? defaultValue;
   }
   return defaultValue || `[option: ${optionName}]`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// defineWpOptions — compiler-only site option schema declaration
+// Declare site-wide option metadata centrally in src/cms/site-options.ts.
+// The compiler reads this to generate the Appearance → Theme Options admin UI.
+// At runtime these are all no-ops; useWpOption() is the actual data accessor.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface WpOptionField {
+  /** The internal field type used by the compiler to render the correct admin UI widget. */
+  _type: 'text' | 'url' | 'email' | 'textarea' | 'toggle' | 'number' | 'postPicker';
+  /** Human-readable label shown in the Theme Options admin page. */
+  label?: string;
+  /** Default value used when the option has not been set. */
+  default?: string;
+  /** For postPicker fields: the WordPress post type to search (e.g. 'hotel', 'post'). */
+  postType?: string;
+}
+
+export type WpOptionsSchema = Record<string, WpOptionField>;
+
+/** Plain text input field. */
+export function optionText(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+  return { ...config, _type: 'text' };
+}
+
+/** URL input field (sanitized with esc_url_raw server-side). */
+export function optionUrl(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+  return { ...config, _type: 'url' };
+}
+
+/** Email input field. */
+export function optionEmail(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+  return { ...config, _type: 'email' };
+}
+
+/** Multi-line textarea field. */
+export function optionTextarea(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+  return { ...config, _type: 'textarea' };
+}
+
+/** Checkbox / boolean toggle field. */
+export function optionToggle(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+  return { ...config, _type: 'toggle' };
+}
+
+/** Numeric input field. */
+export function optionNumber(config: Omit<WpOptionField, '_type'> & { min?: number; max?: number; step?: number } = {}): WpOptionField {
+  return { ...config, _type: 'number' };
+}
+
+/**
+ * Searchable post picker field — renders a Select2 AJAX-powered dropdown
+ * in the Theme Options admin page that searches posts of the given post type.
+ */
+export function optionPostPicker(config: Omit<WpOptionField, '_type'> & { postType: string }): WpOptionField {
+  return { ...config, _type: 'postPicker' };
+}
+
+/**
+ * Declare site-wide WordPress option metadata for the auto-generated
+ * Appearance → Theme Options admin page.
+ *
+ * Place this in `src/cms/site-options.ts` (one file, one call per project).
+ * The compiler reads this at build time — it has zero effect at runtime.
+ *
+ * @example
+ * ```ts
+ * import { defineWpOptions, optionPostPicker, optionText, optionUrl } from '../.forgewp/wordpress';
+ *
+ * export const siteOptions = defineWpOptions({
+ *   hotel_of_the_month: optionPostPicker({ postType: 'hotel', label: 'Hotel of the Month', default: '6' }),
+ *   contact_phone:      optionText({ label: 'Contact Phone' }),
+ *   social_facebook:    optionUrl({ label: 'Facebook URL' }),
+ * });
+ * ```
+ */
+export function defineWpOptions(schema: WpOptionsSchema): WpOptionsSchema {
+  // Runtime no-op — compiler reads source files statically.
+  return schema;
 }
 
 export function useWpThemeMod(modName: string, defaultValue = ''): string {
@@ -290,7 +375,15 @@ function executeInMemoryQuery(
     taxQuery = [],
     metaQuery = [],
     metaRelation = 'AND',
+    p,
   } = args;
+
+  // Single-post lookup by ID (mirrors WP_Query's `p` argument) — bypasses every
+  // other filter/sort/pagination option, matching WP_Query's own precedence.
+  if (p !== undefined && p !== null && p !== '') {
+    const match = mockDb.find((post) => String(post.id) === String(p));
+    return match ? { items: [match], total: 1 } : { items: [], total: 0 };
+  }
 
   let filtered = [...mockDb];
 
@@ -407,6 +500,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     taxQuery: args.taxQuery,
     metaQuery: args.metaQuery,
     metaRelation: args.metaRelation,
+    p: args.p,
   });
 
   let initialState = null;
@@ -461,11 +555,17 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
       const mode = pageModeRef.current;
       // After consuming the mode, reset to 'append' for subsequent loadMore calls
       pageModeRef.current = 'append';
-
       const cacheKey = JSON.stringify({ ...args, paged: page });
       if (queryCache.has(cacheKey)) {
         const cached = queryCache.get(cacheKey)!;
-        setPosts((prev) => (mode === 'append' ? [...prev, ...cached.posts] : cached.posts));
+        setPosts((prev) => {
+          if (mode === 'append') {
+            const existingIds = new Set(prev.map((p) => p.id));
+            const newPosts = cached.posts.filter((p) => !existingIds.has(p.id));
+            return [...prev, ...newPosts];
+          }
+          return cached.posts;
+        });
         setTotalPosts(cached.total);
         setError(null);
         return;
@@ -488,7 +588,14 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
             hasMore: (page * postsPerPage) < total,
           });
 
-          setPosts((prev) => (mode === 'append' ? [...prev, ...items] : items));
+          setPosts((prev) => {
+            if (mode === 'append') {
+              const existingIds = new Set(prev.map((p) => p.id));
+              const newPosts = items.filter((p) => !existingIds.has(p.id));
+              return [...prev, ...newPosts];
+            }
+            return items;
+          });
           setTotalPosts(total);
           setError(null);
         } catch (err: any) {
@@ -615,12 +722,44 @@ export interface BlockAttributeDefinition {
   default?: any;
 }
 
+/**
+ * Parent shell configuration — layout only; children fill via Gutenberg InnerBlocks.
+ * Children stay standalone unless a child sets its own `parent` restriction (WP native).
+ */
+export interface BlockInnerBlocksConfig {
+  /** Allowed child block names (with or without `forgewp/` prefix). */
+  allowedBlocks?: string[];
+  /** Default inserted children: [blockName, attributes?][] */
+  template?: Array<[string, Record<string, any>?]>;
+  /** `false` | `true` | `'all'` | `'insert'` — WP templateLock */
+  templateLock?: boolean | 'all' | 'insert';
+  /** Editor orientation hint for the inner blocks appender */
+  orientation?: 'horizontal' | 'vertical';
+}
+
+/** Outer / grid classNames for parent shell render + editor chrome */
+export interface BlockShellConfig {
+  /** Classes on the outer section wrapper (max-width, padding, …) */
+  className?: string;
+  /** Classes on the grid that wraps InnerBlocks */
+  gridClassName?: string;
+}
+
 export interface BlockDefinition<TAttrs = Record<string, any>> {
   name: string;      // e.g. "info-box" (namespace is auto-prefixed: "forgewp/info-box")
   title: string;     // e.g. "ForgeWP Info Box"
   category?: string; // e.g. "common", "formatting", "layout", "design", "widgets"
   icon?: string;     // Dashicon slug (e.g. "info", "admin-generic") or inline SVG
+  description?: string;
+  keywords?: string[];
   attributes?: Record<string, BlockAttributeDefinition>;
+  /**
+   * When set, this block is a **parent shell**: layout wrapper + InnerBlocks.
+   * `edit` may be a no-op (`() => null`); the compiler generates the editor UI.
+   */
+  innerBlocks?: BlockInnerBlocksConfig;
+  /** Layout classes for parent shells (ignored for leaf content blocks). */
+  shell?: BlockShellConfig;
   edit: ComponentType<{
     attributes: TAttrs;
     setAttributes: (attrs: Partial<TAttrs>) => void;
@@ -702,7 +841,7 @@ export function defineTheme(config: ThemeSettings): ThemeSettings {
 // ── Structured Editable Content Architecture (Phase 1) ──────────────────────
 
 export interface FieldBase<T> {
-  type: 'text' | 'richText' | 'image' | 'repeater' | 'boolean';
+  type: 'text' | 'richText' | 'image' | 'repeater' | 'boolean' | 'color' | 'url' | 'select' | 'number' | 'icon';
   label?: string;
   default?: T;
   description?: string;
@@ -736,21 +875,252 @@ export interface BooleanField extends FieldBase<boolean> {
   type: 'boolean';
 }
 
+export interface ColorField extends FieldBase<string> {
+  type: 'color';
+}
+
+export interface UrlField extends FieldBase<string> {
+  type: 'url';
+}
+
+export interface SelectField extends FieldBase<string> {
+  type: 'select';
+  options: (string | { label: string; value: string })[];
+}
+
+export interface NumberField extends FieldBase<number> {
+  type: 'number';
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+/**
+ * Icon slug stored as a string (e.g. "award", "map-pin").
+ * Optional `options` allowlist limits the block-editor picker.
+ *
+ * `provider` (default `lucide`):
+ * - `lucide` / `lucide-react` — Lucide
+ * - `dashicons` — WordPress Dashicons
+ * - `custom` — theme custom SVG map (`forgewp_custom_icons`)
+ * - any installed package id (e.g. `@heroicons/react/24/outline`) — resolved when present;
+ *   missing packages never crash; PHP/editor fall back to curated SVG or dashicons
+ */
+export interface IconField extends FieldBase<string> {
+  type: 'icon';
+  /** Allowlist of icon slugs for the picker. Omit for the curated ForgeWP default set. */
+  options?: string[];
+  /** Icon library / package. Defaults to `lucide`. */
+  provider?: string;
+}
+
+/** Fixed = locked row count (usually default.length). Dynamic = editors may add/remove/reorder within min/max. */
+export type RepeaterMode = 'fixed' | 'dynamic';
+
 export interface RepeaterField<T extends Record<string, any> = Record<string, any>> extends FieldBase<T[]> {
   type: 'repeater';
   fields: Record<keyof T, EditableField>;
+  /**
+   * `fixed` — row count locked (no add/remove/reorder that changes cardinality).
+   * `dynamic` — editors may add/remove/reorder rows in the block sidebar.
+   * @default 'dynamic'
+   */
+  mode?: RepeaterMode;
+  /** Minimum rows when mode is `dynamic`. Ignored for fixed (uses default length). */
+  min?: number;
+  /** Maximum rows when mode is `dynamic`. Omit for unlimited. */
+  max?: number;
 }
 
-export type EditableField = TextField | RichTextField | ImageField | BooleanField | RepeaterField;
+export type EditableField = 
+  | TextField 
+  | RichTextField 
+  | ImageField 
+  | BooleanField 
+  | RepeaterField 
+  | ColorField 
+  | UrlField 
+  | SelectField 
+  | NumberField
+  | IconField;
 
 export type EditableSchema = Record<string, EditableField>;
+
+export type InferFieldType<F> = 
+  F extends TextField ? string :
+  F extends RichTextField ? string :
+  F extends ColorField ? string :
+  F extends UrlField ? string :
+  F extends SelectField ? string :
+  F extends IconField ? string :
+  F extends NumberField ? number :
+  F extends BooleanField ? boolean :
+  F extends ImageField ? ImageFieldVal :
+  F extends RepeaterField<infer U> ? U[] :
+  any;
+
+export type InferAttributes<T extends EditableSchema> = {
+  [K in keyof T]: InferFieldType<T[K]>;
+};
 
 /**
  * Declares a structured editable content schema in ForgeWP.
  * Enforces type safety and acts as a compiler hook.
+ *
+ * This is the **single source of field defaults**. Prefer
+ * {@link getEditableDefaults} (or a colocated `defaults` export) for
+ * `useWpMeta(key, defaults.key)` and component props — do not re-type
+ * the same strings in three places.
  */
 export function defineEditable<T extends EditableSchema>(schema: T): T {
   return schema;
+}
+
+/**
+ * Extract default values from a `defineEditable` schema.
+ * One schema → one defaults object for ACF/page meta, SSR, and props.
+ */
+export function getEditableDefaults<T extends EditableSchema>(
+  schema: T,
+): InferAttributes<T> {
+  const out = {} as Record<string, unknown>;
+  for (const [key, field] of Object.entries(schema) as [string, EditableField][]) {
+    if (field && typeof field === 'object' && 'default' in field && field.default !== undefined) {
+      out[key] = field.default;
+      continue;
+    }
+    switch (field?.type) {
+      case 'boolean':
+        out[key] = false;
+        break;
+      case 'number':
+        out[key] = 0;
+        break;
+      case 'repeater':
+        out[key] = [];
+        break;
+      case 'image':
+        out[key] = '';
+        break;
+      default:
+        out[key] = '';
+    }
+  }
+  return out as InferAttributes<T>;
+}
+
+/**
+ * One section contribution when composing a baked page schema from shared
+ * block/section editables (see `cms/editables/`).
+ *
+ * - `prefix` is prepended to each field key (`hero_` + `title` → `hero_title`)
+ * - `rename` maps section field key → suffix after prefix
+ *   e.g. `{ team: 'members' }` + prefix `team_` → `team_members`
+ */
+export interface PageEditableSectionSource {
+  /** Section schema from `defineEditable` (block-native keys) */
+  schema: EditableSchema;
+  /** Meta key prefix for ACF uniqueness on one page */
+  prefix?: string;
+  /** Optional renames: sectionKey → page suffix (after prefix) */
+  rename?: Record<string, string>;
+}
+
+/**
+ * Flatten section schemas into one page-level `defineEditable` schema.
+ * Section files stay the single source of field types/defaults; the page
+ * only chooses prefixes / renames for ACF.
+ */
+export function buildPageEditable(
+  sections: PageEditableSectionSource[],
+): EditableSchema {
+  const out: EditableSchema = {};
+  for (const { schema, prefix = '', rename = {} } of sections) {
+    for (const [key, field] of Object.entries(schema)) {
+      const suffix = rename[key] ?? key;
+      const pageKey = `${prefix}${suffix}`;
+      out[pageKey] = field;
+    }
+  }
+  return out;
+}
+
+/**
+ * Pick / rename fields from a page (or other) schema for a block attribute bag.
+ *
+ * @example Map page meta keys → block attribute names
+ * ```ts
+ * export const editable = pickEditable(berUnsEditable, {
+ *   badge: 'hero_badge',
+ *   title: 'hero_title',
+ * });
+ * ```
+ *
+ * @example Keep the same keys
+ * ```ts
+ * export const editable = pickEditable(schema, ['title', 'subtitle']);
+ * ```
+ *
+ * Prefer this (or JSDoc `from` + `pick` on `@forgewp-block`) over re-declaring
+ * field types/defaults. The page schema remains the single source of truth.
+ */
+export function pickEditable<T extends EditableSchema>(
+  schema: T,
+  map: Partial<Record<string, keyof T & string>> | readonly (keyof T & string)[],
+): EditableSchema {
+  const out: EditableSchema = {};
+  if (Array.isArray(map)) {
+    for (const key of map) {
+      const field = schema[key as string];
+      if (field) out[key as string] = field;
+    }
+    return out;
+  }
+  for (const [attrKey, schemaKey] of Object.entries(map)) {
+    if (!schemaKey) continue;
+    const field = schema[schemaKey as string];
+    if (field) out[attrKey] = field;
+  }
+  return out;
+}
+
+/**
+ * Merge multiple editable schemas into one block attribute bag.
+ *
+ * **Page ACF vs block-only fields**
+ * - Put content in `cms/editables/<page>.ts` and borrow with {@link pickEditable}
+ *   or JSDoc `from`/`pick`.
+ * - Put layout chrome that only makes sense on Gutenberg blocks (vertical
+ *   padding via `select`/`number`, background via `color`/`image`, toggles, …)
+ *   in a second schema and merge it here.
+ * - Never register those block-only keys on the page ACF schema — baked
+ *   templates ship fixed defaults in React; blocks expose controls to editors.
+ *
+ * @example
+ * ```ts
+ * export const editable = mergeEditable(
+ *   pickEditable(frontPageEditable, { heading: 'featured_heading' }),
+ *   {
+ *     paddingY: select({
+ *       label: 'Vertical padding',
+ *       default: 'md',
+ *       options: [
+ *         { label: 'Small', value: 'sm' },
+ *         { label: 'Medium', value: 'md' },
+ *         { label: 'Large', value: 'lg' },
+ *       ],
+ *     }),
+ *   },
+ * );
+ * ```
+ */
+export function mergeEditable(...parts: EditableSchema[]): EditableSchema {
+  const out: EditableSchema = {};
+  for (const part of parts) {
+    if (!part || typeof part !== 'object') continue;
+    Object.assign(out, part);
+  }
+  return out;
 }
 
 export function text(options: Omit<TextField, 'type'> = {}): TextField {
@@ -769,19 +1139,107 @@ export function boolean(options: Omit<BooleanField, 'type'> = {}): BooleanField 
   return { type: 'boolean', ...options };
 }
 
+export function color(options: Omit<ColorField, 'type'> = {}): ColorField {
+  return { type: 'color', ...options };
+}
+
+export function url(options: Omit<UrlField, 'type'> = {}): UrlField {
+  return { type: 'url', ...options };
+}
+
+export function select(options: Omit<SelectField, 'type'>): SelectField {
+  return { type: 'select', ...options };
+}
+
+export function number(options: Omit<NumberField, 'type'> = {}): NumberField {
+  return { type: 'number', ...options };
+}
+
+export function icon(options: Omit<IconField, 'type'> = {}): IconField {
+  return { type: 'icon', provider: 'lucide', ...options };
+}
+
 export function repeater<T extends Record<string, any>>(options: Omit<RepeaterField<T>, 'type'>): RepeaterField<T> {
-  return { type: 'repeater', ...options };
+  const mode = options.mode ?? 'dynamic';
+  return { type: 'repeater', ...options, mode };
+}
+
+/**
+ * True when running inside the ForgeWP Gutenberg block editor preview
+ * (`forgewp-editor.js` sets `window.forgeWpIsEditorPreview`).
+ * Prefer this over reading the window flag directly.
+ */
+export function isEditorPreview(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).forgeWpIsEditorPreview;
+}
+
+/**
+ * React hook wrapper for {@link isEditorPreview}.
+ * Use for optional editor-only canvas chrome. Structure controls (add/remove/reorder)
+ * for dynamic repeaters belong in the block sidebar, driven by `repeater({ mode })`.
+ */
+export function useIsEditorPreview(): boolean {
+  return isEditorPreview();
+}
+
+export const WpBlockContext = typeof window !== 'undefined'
+  ? ((window as any)._forgeWpBlockContext || ((window as any)._forgeWpBlockContext = createContext<any>(null)))
+  : createContext<any>(null);
+
+/**
+ * True when ACF/meta should fall through to schema defaults.
+ * Matches PHP `forgewp_get_meta_value` empty handling (+ empty repeaters).
+ */
+function isEmptyMetaValue(value: unknown): boolean {
+  if (value === null || value === undefined || value === false || value === '') {
+    return true;
+  }
+  if (Array.isArray(value) && value.length === 0) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Dual-host field resolve: block attribute prop vs page ACF/meta.
+ *
+ * Prefer the prop whenever it is provided (editor attributes OR visitor
+ * island `data-forgewp-props`). Only fall back to meta when the prop is
+ * nullish. Do **not** gate on `setAttributes` — that made visitor-side
+ * block hydrates ignore attributes and only read page meta.
+ *
+ *   const title = resolveDualHost(titleProp, titleMeta);
+ */
+export function resolveDualHost<T>(prop: T | undefined | null, meta: T): T {
+  if (prop !== undefined && prop !== null) {
+    return prop as T;
+  }
+  return meta;
 }
 
 /**
  * Isomorphic hook to read a dynamic structured editable field value.
  * In local dev (Vite): resolves the value from WpPostContext / cms/mock-data.json.
  * In production: the compiler replaces this with direct WordPress/ACF metadata calls.
+ *
+ * Empty strings / empty arrays from hydration do not override `defaultValue`
+ * (otherwise island remounts blank out SSR defaults when ACF is unset).
+ *
+ * When an island is hydrated with block attributes (WpBlockContext), those
+ * keys are attribute names (e.g. `stat1Value`). Meta keys (e.g.
+ * `trust_stat1_value`) are still read from post customFields for page host.
  */
 export function useWpMeta<T>(key: string, defaultValue: T): T {
+  const blockAttrs = useContext(WpBlockContext) as any;
+  if (blockAttrs && typeof blockAttrs[key] !== 'undefined' && !isEmptyMetaValue(blockAttrs[key])) {
+    return blockAttrs[key] as T;
+  }
   const post = useContext(WpPostContext);
   if (post?.customFields && typeof post.customFields[key] !== 'undefined') {
-    return post.customFields[key] as T;
+    const val = post.customFields[key];
+    if (!isEmptyMetaValue(val)) {
+      return val as T;
+    }
   }
   return defaultValue;
 }

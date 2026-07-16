@@ -8,19 +8,34 @@ import { assertZipCreated, zipTheme } from './zip-theme.js';
 
 import { validateCriticalFiles } from './validate.js';
 import { validateExport } from './validate-export.js';
+import { scanAndGenerateBlocks } from './blocks/index.js';
+import { splitInteractiveIslands } from './hydration/island-split.js';
 
 /**
  * @param {Object} options
  * @param {string} options.themeRoot
  * @param {boolean} [options.skipBuild]
  * @param {boolean} [options.zip]
+ * @param {boolean} [options.validate]
+ * @param {boolean} [options.strict] Treat editable from/pick issues (and --validate warnings) as failures
  * @param {string} [options.packageManager]
  */
 export async function exportTheme(options) {
   const themeRoot = path.resolve(options.themeRoot);
+  const strict = !!options.strict;
 
   // Run Preflight Safeguards and Self-Healing checks
   validateCriticalFiles(themeRoot);
+
+  // Auto-split components mixing static/attribute-driven content with genuine
+  // interactivity into a static shell + extracted islands, before anything
+  // below (block wrapper generation, Vite's Rollup entry resolution) reads
+  // component source or decides what needs a hydration bundle.
+  splitInteractiveIslands(themeRoot);
+
+  // Pre-scaffold block wrappers so Vite receives them in Rollup inputs.
+  // Defer editable-issue flush to compileBlocks (generateTheme) so --strict applies once.
+  scanAndGenerateBlocks(themeRoot, { strict: false, resetIssues: true, flush: false });
 
   const config = await loadConfig(themeRoot);
 
@@ -77,6 +92,7 @@ export async function exportTheme(options) {
     notFoundHtml: markup.notFoundHtml,
     archiveHtml: markup.archiveHtml,
     assets,
+    strict,
   });
 
   // Optional export validation
@@ -87,7 +103,7 @@ export async function exportTheme(options) {
       outDir,
       assets,
       config,
-      strict: !!options.strict,
+      strict,
     });
 
     if (validation.warnings && validation.warnings.length > 0) {

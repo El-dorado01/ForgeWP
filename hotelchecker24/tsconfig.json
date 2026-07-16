@@ -20,5 +20,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "wp.config.ts", "vite.config.ts"]
+  "include": ["src", "cms", "wp.config.ts", "vite.config.ts"]
 }

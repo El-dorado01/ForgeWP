@@ -11,7 +11,8 @@
     "export": "forgewp export",
     "fresh": "forgewp fresh",
     "reset": "forgewp fresh",
-    "forgewp": "forgewp"
+    "forgewp": "forgewp",
+    "deploy": "node deploy-theme.js"
   },
   "dependencies": {
     "@forgewp/plugin-seo": "workspace:*",

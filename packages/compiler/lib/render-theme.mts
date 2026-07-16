@@ -2,6 +2,8 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { createRequire, register } from "node:module";
+import { isComponentInteractive } from "./hydration/is-interactive.js";
+import { getComponentRootClassName } from "./hydration/root-class-extractor.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 register(pathToFileURL(path.join(__dirname, "asset-loader.js")).href);
@@ -50,6 +52,76 @@ if (typeof globalThis.window === "undefined") {
 
 const { renderToStaticMarkup } = require("react-dom/server");
 
+// ── Auto-Hydration Island Injection ─────────────────────────────────────────
+// For Smart Discovery islands (components detected as interactive but with no explicit
+// <Hydrate> wrapper), monkey-patch React.createElement to auto-wrap them with a
+// data-forgewp-auto-island div during SSR. This lets generate-theme.js inject the
+// proper data-forgewp-hydrate wrappers in the final HTML output.
+import { scanForHydrationIslandsWithProps } from './hydration/index.js';
+
+const detailedIslandsForSsr = scanForHydrationIslandsWithProps(themeRoot);
+const autoIslandNames = new Set(
+  detailedIslandsForSsr
+    .filter(i => i.smartDiscovered)
+    .map(i => {
+      // Convert kebab-name back to PascalCase component names for matching
+      return i.name.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+    })
+);
+const autoIslandKebabByPascal = new Map<string, string>();
+// Root className each Smart Discovery component's own outermost JSX element carries
+// (when statically resolvable) — hoisted onto the wrapper div below so auto-hydration
+// doesn't silently strip layout-critical classes (w-full, flex, grid, ...) from the tree.
+const autoIslandRootClassByPascal = new Map<string, string>();
+for (const island of detailedIslandsForSsr.filter(i => i.smartDiscovered)) {
+  const pascal = island.name.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+  autoIslandKebabByPascal.set(pascal, island.name);
+  if (island.rootClassName) {
+    autoIslandRootClassByPascal.set(pascal, island.rootClassName);
+  }
+}
+
+if (autoIslandNames.size > 0) {
+  const origCreate = React.createElement;
+  React.createElement = function patchedCreateElement(type: any, props: any, ...children: any[]) {
+    const name = typeof type === 'function' ? (type.displayName || type.name) : null;
+    if (name && autoIslandNames.has(name)) {
+      const kebab = autoIslandKebabByPascal.get(name) || name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+      const rootClassName = autoIslandRootClassByPascal.get(name);
+      const inner = origCreate.call(this, type, props, ...children);
+      const wrapperProps: Record<string, any> = {
+        'data-forgewp-auto-island': kebab,
+        style: { display: 'block' },
+      };
+      if (rootClassName) {
+        wrapperProps.className = rootClassName;
+      }
+      // Forward the JSX call-site's actual props (e.g. searchPlaceholder) so
+      // the client-side hydrator can mount the real component with them —
+      // without this, the wrapper always hydrated with no props at all,
+      // silently reverting to the component's own internal defaults.
+      let serializedProps = '{}';
+      if (props && typeof props === 'object') {
+        const serializable: Record<string, any> = {};
+        for (const [k, v] of Object.entries(props)) {
+          if (typeof v === 'function') continue; // e.g. setAttributes, onChange
+          if (v === undefined) continue;
+          if (React.isValidElement(v)) continue; // nested elements, not init data
+          serializable[k] = v;
+        }
+        try {
+          serializedProps = JSON.stringify(serializable);
+        } catch {
+          serializedProps = '{}';
+        }
+      }
+      wrapperProps['data-forgewp-auto-island-props'] = serializedProps;
+      return origCreate.call(this, 'div', wrapperProps, inner);
+    }
+    return origCreate.call(this, type, props, ...children);
+  };
+}
+
 const appUrl = pathToFileURL(path.join(themeRoot, "src", "app", "page.tsx")).href;
 const layoutUrl = pathToFileURL(path.join(themeRoot, "src", "app", "layout.tsx")).href;
 const layoutPath = path.join(themeRoot, "src", "app", "layout.tsx");
@@ -89,11 +161,33 @@ if (existsSync(layoutPath)) {
 }
 
 // ── Render a page inside RootLayout ──────────────────────────────────────────
-function renderPage(PageComponent: any): string {
+let WpAuthProvider: any = null;
+try {
+  const authModule = require("@forgewp/auth");
+  WpAuthProvider = authModule.WpAuthProvider;
+} catch (e) {}
+
+function renderPage(PageComponent: any, filePath?: string): string {
   try {
-    return renderToStaticMarkup(
-      React.createElement(RootLayout, null, React.createElement(PageComponent))
-    );
+    let pageEl = React.createElement(PageComponent);
+    if (filePath && existsSync(filePath) && isComponentInteractive(filePath)) {
+      const compName = path.basename(filePath, path.extname(filePath));
+      const kebabName = compName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+      const rootInfo = getComponentRootClassName(filePath);
+      const wrapperProps: Record<string, any> = {
+        "data-forgewp-auto-island": kebabName,
+        style: { display: "block" }
+      };
+      if (rootInfo.resolvable && rootInfo.className) {
+        wrapperProps.className = rootInfo.className;
+      }
+      pageEl = React.createElement("div", wrapperProps, pageEl);
+    }
+    let element = React.createElement(RootLayout, null, pageEl);
+    if (WpAuthProvider) {
+      element = React.createElement(WpAuthProvider, null, element);
+    }
+    return renderToStaticMarkup(element);
   } catch (err: any) {
     console.error(`\n[ForgeWP Compiler Error] Server-Side Rendering (SSR) failed for Page Component.`);
     console.error(`This typically happens if you use browser-only globals (like 'window', 'document', 'localStorage') at render-time, or if a component throws during execution.`);
@@ -142,19 +236,34 @@ function translateExpressionToPhp(expression: string, propName: string): string 
   }
   // 3. Check for useWpFeaturedImage()
   if (expression.includes("useWpFeaturedImage(")) {
-    return `<?php echo esc_url(get_the_post_thumbnail_url(get_the_ID(), 'full')); ?>`;
+    return `<?php $wp_id = (isset($block) && is_object($block) && isset($block->context['postId'])) ? $block->context['postId'] : get_the_ID(); echo esc_url(get_the_post_thumbnail_url($wp_id, 'full')); ?>`;
   }
   // 4. Check for useWpPermalink()
   if (expression.includes("useWpPermalink(")) {
-    return `<?php echo esc_url(get_permalink()); ?>`;
+    return `<?php $wp_id = (isset($block) && is_object($block) && isset($block->context['postId'])) ? $block->context['postId'] : get_the_ID(); echo esc_url(get_permalink($wp_id)); ?>`;
   }
   // 5. Check for useWpCustomField / useWpField / useWpMeta
-  const metaMatch = expression.match(/useWp(?:CustomField|Field|Meta)\s*\(\s*['"]([^'"]+)['"]/);
+  const metaMatch = expression.match(/useWp(?:CustomField|Field|Meta)\s*\(\s*['"]([^'"]+)['"]\s*(?:,\s*([\s\S]+?))?\s*\)/);
   if (metaMatch) {
     const key = metaMatch[1];
+    const rawFallback = metaMatch[2];
+    
+    let fallbackPhp = '';
+    if (rawFallback) {
+      const trimmed = rawFallback.trim();
+      const i18nMatch = trimmed.match(/__\(\s*['"]([^'"]+)['"]\s*\)/);
+      if (i18nMatch) {
+        fallbackPhp = ` ?: __('${i18nMatch[1].replace(/'/g, "\\'")}', 'hotelchecker24')`;
+      } else if (trimmed.startsWith("'") || trimmed.startsWith('"')) {
+        fallbackPhp = ` ?: ${trimmed}`;
+      } else {
+        fallbackPhp = ` ?: ${trimmed}`;
+      }
+    }
+    
     const isUrl = propName === "canonical" || propName === "ogImage" || key.includes("url") || key.includes("image") || key.includes("website");
     const escFn = isUrl ? "esc_url" : "esc_attr";
-    return `<?php echo ${escFn}(get_post_meta(get_the_ID(), '${key}', true)); ?>`;
+    return `<?php $wp_id = (isset($block) && is_object($block) && isset($block->context['postId'])) ? $block->context['postId'] : get_the_ID(); echo ${escFn}(get_post_meta($wp_id, '${key}', true)${fallbackPhp}); ?>`;
   }
   // 6. Check for useWpAuthor()
   if (expression.includes("useWpAuthor(")) {
@@ -473,7 +582,7 @@ if (footerFile) {
 }
 
 // ── Render pages ──────────────────────────────────────────────────────────────
-const appHtml = renderPage(App);
+const appHtml = renderPage(App, path.join(themeRoot, "src", "app", "page.tsx"));
 let layoutExtraHeadTags = "";
 const cleanAppHtml = appHtml.replace(/<forgewp-head\b[^>]*>(.*?)<\/forgewp-head>/gs, (match, childrenHtml) => {
   layoutExtraHeadTags += "\n" + childrenHtml;
@@ -510,9 +619,24 @@ if (existsSync(appDir)) {
           const TemplateComponent = module.default;
           if (TemplateComponent) {
             globalThis.__forgewpSsrQueries = {};
-            const html = name === "404"
-              ? renderToStaticMarkup(React.createElement(TemplateComponent))
-              : renderPage(TemplateComponent);
+            let html = "";
+            if (name === "404") {
+              let pageEl = React.createElement(TemplateComponent);
+              if (isComponentInteractive(filePath)) {
+                const rootInfo = getComponentRootClassName(filePath);
+                const wrapperProps: Record<string, any> = {
+                  "data-forgewp-auto-island": "404",
+                  style: { display: "block" }
+                };
+                if (rootInfo.resolvable && rootInfo.className) {
+                  wrapperProps.className = rootInfo.className;
+                }
+                pageEl = React.createElement("div", wrapperProps, pageEl);
+              }
+              html = renderToStaticMarkup(pageEl);
+            } else {
+              html = renderPage(TemplateComponent, filePath);
+            }
             
             const ssrState = globalThis.__forgewpSsrQueries || {};
             let stateScript = "";

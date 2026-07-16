@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useWpAuth } from '@forgewp/auth';
+import { useWpAuth, useWpUser } from '@forgewp/auth';
 import { useWpPageLink, useLocation } from '../.forgewp/wordpress';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,12 +20,20 @@ import { AlertTriangleIcon, ArrowLeftIcon } from 'lucide-react';
 
 export default function ForgotPasswordFormWrapper() {
   const { forgotPassword, error, initializing } = useWpAuth();
+  const user = useWpUser();
   const [_, setLocation] = useLocation();
   const [emailOrUsername, setEmailOrUsername] = React.useState('');
   const loginUrl = useWpPageLink('login-page', '/login');
+  const dashboardUrl = useWpPageLink('dashboard-page', '/dashboard');
   const [success, setSuccess] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (user) {
+      setLocation(dashboardUrl);
+    }
+  }, [user, setLocation, dashboardUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

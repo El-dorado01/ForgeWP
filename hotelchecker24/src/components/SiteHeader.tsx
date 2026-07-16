@@ -1,6 +1,6 @@
 // import { MiniHeader } from './MiniHeader'; // keep: temporarily hidden, uncomment <MiniHeader /> in SiteHeader JSX to restore
 import { Navbar } from './Navbar';
-import { Hydrate } from '@forgewp/react';
+
 
 export function SiteHeader() {
   return (
@@ -9,9 +9,7 @@ export function SiteHeader() {
       {/* <MiniHeader /> */}
 
       {/* NAVBAR (Sticky, Hydrated) */}
-      <Hydrate trigger="load" className="w-full">
-        <Navbar />
-      </Hydrate>
+      <Navbar />
     </header>
   );
 }

@@ -32,12 +32,23 @@ export function WpEditable<T extends ElementType = 'div'>({
   onChange,
   className = '',
   ...props
-}: WpEditableProps<T> & Omit<ComponentPropsWithoutRef<T>, keyof WpEditableProps<T>>) {
+}: WpEditableProps<T> &
+  Omit<ComponentPropsWithoutRef<T>, keyof WpEditableProps<T>>) {
   const Tag = tagName || 'div';
+
+  // _forgeWpCompileTime gates the Node SSR pass used to bake static export
+  // HTML (render-theme.mts) — that context also lacks forgeWpHydration, so
+  // without this short-circuit it would be misread as "local dev" and ship
+  // a live, native-editable contenteditable="true" to real site visitors.
+  const isEditable =
+    (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime)
+      ? false
+      : (typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV === true) ||
+        (typeof window !== 'undefined' && !(window as any).forgeWpHydration);
 
   const handleBlur = (e: React.FocusEvent<HTMLElement>) => {
     if (onChange) {
-      onChange(e.currentTarget.innerText || '');
+      onChange(e.currentTarget.innerHTML || '');
     }
   };
 
@@ -52,14 +63,13 @@ export function WpEditable<T extends ElementType = 'div'>({
 
   return (
     <Tag
-      contentEditable
+      contentEditable={isEditable}
       suppressContentEditableWarning
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDown}
+      onBlur={isEditable ? handleBlur : undefined}
+      onKeyDown={isEditable ? handleKeyDown : undefined}
       className={`forgewp-editable ${className}`.trim()}
+      dangerouslySetInnerHTML={{ __html: value }}
       {...props}
-    >
-      {value}
-    </Tag>
+    />
   );
 }

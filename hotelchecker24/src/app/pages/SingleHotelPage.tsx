@@ -1,6 +1,6 @@
 import React from 'react';
 import { useRoute } from 'wouter';
-import { Hydrate } from '@forgewp/react';
+
 import { HotelListicles } from '../../components/HotelListicles';
 import {
   WpHead,
@@ -15,6 +15,7 @@ import {
   useWpI18n,
   useWpLanguage,
   useWpPageLink,
+  useWpOption,
   defineEditable,
   text,
 } from '../../.forgewp/wordpress';
@@ -67,8 +68,16 @@ export function SingleHotelPage() {
   const { homeUrl } = useWpLanguage();
   const homeHref = homeUrl;
   const hotelsHref = useWpPageLink('hotels-page', '/hotels');
-  const [, params] = useRoute('/hotel/:id');
-  const routeParam = params?.id;
+
+  const reviewHeading = useWpOption('single_hotel_review_heading', __('Redaktionelle Bewertung'));
+  const galleryHeading = useWpOption('single_hotel_gallery_heading', __('Impressionen & Galerie'));
+  const specsHeading = useWpOption('single_hotel_specs_heading', __('Hotel Spezifikationen'));
+  const contactHeading = useWpOption('single_hotel_contact_heading', __('Kontakt & Buchung'));
+  const inquiryCta = useWpOption('single_hotel_inquiry_cta', __('Jetzt Aufenthalt anfragen'));
+  const backLabel = useWpOption('single_hotel_back_label', __('Zurück zum Verzeichnis'));
+  const [, params1] = useRoute('/hotel/:id');
+  const [, params2] = useRoute('/hotel/:id/');
+  const routeParam = params1?.id || params2?.id;
 
   // In production, forgeWpHydration.post.id holds the real WP numeric ID
   const hydrationId =
@@ -197,7 +206,7 @@ export function SingleHotelPage() {
           <div className="lg:col-span-2 space-y-8">
             <article className="bg-white border border-slate-200/50 shadow-xs rounded-2xl p-5 sm:p-7 overflow-hidden">
               <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight text-slate-950 mb-4 border-l-4 border-primary pl-4">
-                {__('Redaktionelle Bewertung')}
+                {reviewHeading}
               </h3>
               <div 
                 className="prose prose-slate prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tight prose-a:text-primary hover:prose-a:underline max-w-none text-slate-600 leading-relaxed font-sans text-sm"
@@ -208,7 +217,7 @@ export function SingleHotelPage() {
             {/* ── EDITORIAL PHOTO GALLERY ─────────────────────────── */}
             <div className="bg-white border border-slate-200/50 shadow-xs rounded-2xl p-5 sm:p-7 space-y-6 overflow-hidden">
               <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight text-slate-950 border-l-4 border-primary pl-4">
-                {__('Impressionen & Galerie')}
+                {galleryHeading}
               </h3>
               <div className="flex sm:grid overflow-x-auto sm:overflow-x-visible snap-x snap-mandatory sm:snap-none sm:grid-cols-3 gap-4 pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
                 {galleryImages.map((imgUrl, index) => (
@@ -228,15 +237,13 @@ export function SingleHotelPage() {
               </div>
             </div>
 
-            <Hydrate trigger="load">
-              <HotelListicles hotelId={id} />
-            </Hydrate>
+            <HotelListicles hotelId={id} />
           </div>
 
           <div className="space-y-6">
             <div className="bg-white border border-slate-200/50 shadow-xs rounded-2xl p-5 space-y-4 text-slate-800">
               <h4 className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2">
-                {__('Hotel Spezifikationen')}
+                {specsHeading}
               </h4>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#929f5d]/10 flex items-center justify-center border border-[#929f5d]/20 shrink-0 text-primary">
@@ -267,7 +274,7 @@ export function SingleHotelPage() {
 
             <div className="bg-white border border-slate-200/50 shadow-xs rounded-2xl p-5 space-y-4">
               <h4 className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2">
-                {__('Kontakt & Buchung')}
+                {contactHeading}
               </h4>
               <div className="space-y-1">
                 <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 leading-none">{__('Hausanschrift')}</span>
@@ -301,7 +308,7 @@ export function SingleHotelPage() {
                 href={inquiryUrl}
                 className="inline-flex items-center justify-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 h-9 px-4 w-full bg-primary hover:bg-primary/95 text-white font-bold text-[10px] uppercase tracking-wider py-4 rounded-xl cursor-pointer shadow-xs transition-all duration-300 active:scale-95 mt-2"
               >
-                {__('Jetzt Aufenthalt anfragen')}
+                {inquiryCta}
               </WpLink>
             </div>
 
@@ -311,7 +318,7 @@ export function SingleHotelPage() {
                 className="inline-flex items-center justify-center gap-2 w-full px-5 py-3.5 border border-slate-200 hover:border-slate-800 text-slate-700 hover:text-slate-900 font-mono font-bold uppercase text-[10px] tracking-wider rounded-xl transition-all duration-300 group cursor-pointer bg-white"
               >
                 <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-                {__('Zurück zum Verzeichnis')}
+                {backLabel}
               </WpLink>
             </div>
           </div>
@@ -326,7 +333,6 @@ export const editable = defineEditable({
     label: 'Rating (Expert Score)',
     default: '4.8',
   }),
-
   location: text({
     label: 'Location (Address)',
     default: 'Schubertring 10-12, 1010 Vienna',
@@ -360,3 +366,5 @@ export const editable = defineEditable({
     default: '',
   }),
 });
+
+

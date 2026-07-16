@@ -63,13 +63,21 @@ const IS_DEV =
   // @ts-ignore
   import.meta.env?.DEV === true;
 
+
 // ── STANDALONE HYDRATION FALLBACK STATE ────────────────────────────────────
 // Used when components are hydrated outside of WpAuthProvider in monolith mode.
 let globalUser: WpUser | null = null;
 let globalLoading = false;
-let globalInitializing = true;
+// In compile-time SSR (window._forgeWpCompileTime = true) or pure Node.js SSR,
+// there is no session to initialize — render "not loading" state immediately.
+// In a real browser, this starts as true but the initialization block below
+// runs synchronously at module load time and sets it to false before any
+// React component renders, so no spinner is ever shown.
+let globalInitializing =
+  typeof window !== 'undefined' && (window as any)._forgeWpCompileTime !== true;
 let globalError: string | null = null;
 const globalListeners = new Set<() => void>();
+
 
 function notifyAuthSubscribers() {
   globalListeners.forEach((fn) => fn());
@@ -80,11 +88,13 @@ function getStandAloneApiBaseUrl(): string {
     return window.FORGEWP_API_URL;
   }
   try {
-    const fwUrl = (import.meta as any).env?.FORGEWP_API_URL;
+    // @ts-ignore
+    const fwUrl = import.meta.env.FORGEWP_API_URL;
     if (fwUrl) return fwUrl;
   } catch (e) {}
   try {
-    const viteUrl = (import.meta as any).env?.VITE_WP_API_URL;
+    // @ts-ignore
+    const viteUrl = import.meta.env.VITE_WP_API_URL;
     if (viteUrl) return viteUrl;
   } catch (e) {}
   if (typeof window !== 'undefined') {
@@ -103,11 +113,13 @@ function isStandaloneJwtEnabled(): boolean {
     return true;
   }
   try {
-    const fwJwt = (import.meta as any).env?.FORGEWP_JWT_AUTH;
+    // @ts-ignore
+    const fwJwt = import.meta.env.FORGEWP_JWT_AUTH;
     if (fwJwt === true || fwJwt === 'true') return true;
   } catch (e) {}
   try {
-    const viteJwt = (import.meta as any).env?.VITE_WP_JWT_AUTH;
+    // @ts-ignore
+    const viteJwt = import.meta.env.VITE_WP_JWT_AUTH;
     if (viteJwt === 'true') return true;
   } catch (e) {}
   return false;
@@ -254,6 +266,17 @@ export function useWpAuth() {
       });
 
       if (found && password.length >= 3) {
+        // @ts-ignore
+        const envEmailVerification = import.meta.env.FORGEWP_AUTH_EMAIL_VERIFICATION === 'true' || import.meta.env.FORGEWP_AUTH_EMAIL_VERIFICATION === true;
+        // @ts-ignore
+        const envBlockLogin = import.meta.env.FORGEWP_AUTH_BLOCK_LOGIN_UNVERIFIED === 'true' || import.meta.env.FORGEWP_AUTH_BLOCK_LOGIN_UNVERIFIED === true;
+        if (envEmailVerification && envBlockLogin && found.emailVerified !== true) {
+          globalError = 'Your email address has not been verified yet. Please check your inbox or resend the verification link.';
+          globalLoading = false;
+          notifyAuthSubscribers();
+          return false;
+        }
+
         globalUser = found;
         window.localStorage.setItem('forgewp_auth_session', JSON.stringify(found));
         globalLoading = false;
@@ -494,6 +517,14 @@ export function useWpAuth() {
         const found = mockUsers.find((u: any) => u.id === userId);
         if (found) {
           found.emailVerified = true;
+
+          // Persist verified state to cms/users.json on disk so logout + re-login still works
+          fetch('/forgewp-dev-api/write-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(found),
+          }).catch(() => {});
+
           delete mockPending[token];
           window.localStorage.setItem('forgewp_mock_verification_tokens', JSON.stringify(mockPending));
           globalUser = found;

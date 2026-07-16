@@ -51,12 +51,12 @@ export default function ForgotPasswordFormWrapper() {
 
   if (initializing) {
     return (
-      <Card className="flex flex-col items-center justify-center p-8 min-h-[340px]">
-        <div className='w-8 h-8 border-4 border-zinc-300 border-t-zinc-900 rounded-full animate-spin'></div>
-        <p className='text-zinc-500 font-mono text-xs uppercase tracking-wider mt-4'>
+      <div className='flex flex-col items-center justify-center p-8 min-h-[300px]'>
+        <div className='w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin'></div>
+        <p className='text-slate-500 font-mono text-sm mt-4'>
           Checking session...
         </p>
-      </Card>
+      </div>
     );
   }
 
@@ -77,9 +77,15 @@ export default function ForgotPasswordFormWrapper() {
             <p className="mb-4">
               We have sent instructions to reset your password.
             </p>
-            <div className="bg-zinc-50 border border-zinc-100 rounded-lg p-3 text-xs text-zinc-500 text-left font-mono">
+            <div className="bg-zinc-50 border border-zinc-100 rounded-lg p-3 text-xs text-zinc-500 text-left font-mono mb-4">
               <strong>Dev Notice:</strong> Look for the simulated email in <code className="bg-zinc-200 px-1 rounded">cms/email-logs.json</code> to click the recovery link.
             </div>
+            <button
+              onClick={() => setSuccess(false)}
+              className="text-primary hover:underline text-sm font-medium cursor-pointer"
+            >
+              Didn&apos;t receive the email? Try again
+            </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
