@@ -66,28 +66,42 @@ export function HeroSection({
         <div className='lg:col-span-7 flex flex-col items-start text-left'>
           {/* Heading */}
           <h1 className='text-4xl sm:text-5xl md:text-6xl font-sans font-black tracking-tight text-slate-800 leading-[1.1] mb-6 uppercase'>
-            <WpEditable
-              tagName="span"
-              value={title}
-              onChange={(val) => setAttributes && setAttributes({ title: val })}
-            />
-            <br />
-            <span className='bg-linear-to-r from-primary via-slate-700 to-accent bg-clip-text text-transparent'>
+            {setAttributes ? (
               <WpEditable
                 tagName="span"
-                value={titleColored}
-                onChange={(val) => setAttributes && setAttributes({ titleColored: val })}
+                value={title}
+                onChange={(val) => setAttributes({ title: val })}
               />
+            ) : (
+              title
+            )}
+            <br />
+            <span className='bg-linear-to-r from-primary via-slate-700 to-accent bg-clip-text text-transparent'>
+              {setAttributes ? (
+                <WpEditable
+                  tagName="span"
+                  value={titleColored}
+                  onChange={(val) => setAttributes({ titleColored: val })}
+                />
+              ) : (
+                titleColored
+              )}
             </span>
           </h1>
 
           {/* Subtitle */}
-          <WpEditable
-            tagName="p"
-            value={subtitle}
-            onChange={(val) => setAttributes && setAttributes({ subtitle: val })}
-            className='text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed'
-          />
+          {setAttributes ? (
+            <WpEditable
+              tagName="p"
+              value={subtitle}
+              onChange={(val) => setAttributes({ subtitle: val })}
+              className='text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed'
+            />
+          ) : (
+            <p className='text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed'>
+              {subtitle}
+            </p>
+          )}
 
           <HeroSearchBoard searchPlaceholder={searchPlaceholder} />
         </div>

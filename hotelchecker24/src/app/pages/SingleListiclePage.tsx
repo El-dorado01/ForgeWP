@@ -81,6 +81,7 @@ export function SingleListiclePage() {
       <WpHead 
         title={title} 
         description={excerpt} 
+        ogImage={featuredImage}
       />
       <div className="max-w-7xl mx-auto animate-fade-in duration-500">
         {/* Navigation Breadcrumbs */}

@@ -2,6 +2,40 @@ import { readFileSync, existsSync } from "node:fs";
 import { ts } from "./is-interactive.js";
 
 /**
+ * Matches only the Tailwind utility families that affect box geometry/
+ * positioning within a parent (the auto-island wrapper's actual job, per
+ * this file's own module doc). Deliberately excludes anything decorative
+ * (bg-*, border*, rounded-*, shadow-*, padding, text-*, font-*, etc.) —
+ * the wrapper sits OUTSIDE the component's own root element, so copying a
+ * decorative class means both wrapper and root render it, doubling up
+ * backgrounds/borders/shadows/padding into a visible "box inside a box".
+ * Only a class needed to keep the wrapper from collapsing to an unstyled
+ * shrink-to-fit box belongs here.
+ */
+const LAYOUT_CLASS_PATTERN = new RegExp(
+  '^(?:' +
+    '[whm]in-w-|[whm]ax-w-|[whm]in-h-|[whm]ax-h-|w-|h-|size-|' +
+    'block$|inline(?:-|$)|flex(?:-|$)|grid(?:-|$)|hidden$|table(?:-|$)|contents$|flow-root$|' +
+    'static$|relative$|absolute$|fixed$|sticky$|inset-|top-|right-|bottom-|left-|z-|' +
+    'col-|row-|gap-|items-|justify-|self-|place-|order-|basis-|shrink|grow|' +
+    'overflow-|aspect-' +
+  ')',
+);
+
+function filterToLayoutClasses(classString) {
+  const kept = classString
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((cls) => {
+      // Responsive/state variants (sm:flex, hover:flex) — check the utility
+      // after the last ':' so a variant prefix doesn't block a real match.
+      const bare = cls.includes(':') ? cls.slice(cls.lastIndexOf(':') + 1) : cls;
+      return LAYOUT_CLASS_PATTERN.test(bare);
+    });
+  return kept.length > 0 ? kept.join(' ') : null;
+}
+
+/**
  * Statically extracts the literal `className` of a component's outermost returned
  * JSX element, so auto-generated <Hydrate> wrapper divs (Smart Discovery) can inherit
  * layout-critical classes (w-full, flex, grid, sticky, ...) instead of defaulting to a
@@ -133,12 +167,12 @@ function extractClassNameFromJsxRoot(expr) {
 
   const init = classAttr.initializer;
   if (ts.isStringLiteral(init)) {
-    return { resolvable: true, className: init.text };
+    return { resolvable: true, className: filterToLayoutClasses(init.text) };
   }
   if (ts.isJsxExpression(init) && init.expression) {
     const inner = init.expression;
     if (ts.isStringLiteral(inner) || ts.isNoSubstitutionTemplateLiteral(inner)) {
-      return { resolvable: true, className: inner.text };
+      return { resolvable: true, className: filterToLayoutClasses(inner.text) };
     }
   }
 

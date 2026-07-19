@@ -48,6 +48,21 @@ if (typeof globalThis.window === "undefined") {
     querySelectorAll: () => [],
   } as any;
   globalThis.SVGElement = class SVGElement {} as any;
+
+  const originalEncode = globalThis.encodeURIComponent;
+  globalThis.encodeURIComponent = function (val: any): string {
+    const str = String(val);
+    if (
+      str.includes('__FORGEWP_') &&
+      !str.includes('_DEFAULT_') &&
+      !str.includes('__FORGEWP_I18N_') &&
+      !str.includes('__FORGEWP_OPTION_') &&
+      !str.includes('__FORGEWP_THEME_MOD_')
+    ) {
+      return `__FORGEWP_URLENCODE_START__${str}__FORGEWP_URLENCODE_END__`;
+    }
+    return originalEncode ? originalEncode(str) : encodeURIComponent(str);
+  };
 }
 
 const { renderToStaticMarkup } = require("react-dom/server");

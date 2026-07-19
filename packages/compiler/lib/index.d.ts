@@ -46,6 +46,60 @@ export interface ForgeWPPlugin {
   transformFunctionsPhp?: (php: string, config: ForgeWPThemeConfig, themeRoot: string) => string;
 }
 
+export type ForgeWPFormFieldType =
+  | 'text' | 'email' | 'tel' | 'number' | 'textarea' | 'select' | 'checkbox';
+
+export interface ForgeWPFormField {
+  type: ForgeWPFormFieldType;
+  label?: string;
+  required?: boolean;
+  options?: string[];
+  maxLength?: number;
+  placeholder?: string;
+}
+
+export type ForgeWPFormFieldSeed = Array<ForgeWPFormField & { name: string }>;
+
+export interface ForgeWPFormClientFieldsConfig {
+  enabled: boolean;
+  /**
+   * Initial client-owned field set. A flat array is used for every configured
+   * locale (fine for a single-language theme, or as a same-content starting
+   * point before translating). For a theme with `i18n.locales.length > 1`,
+   * provide a per-locale map instead so each language seeds independently —
+   * client-owned labels/options are runtime content, not compiled strings,
+   * so they can't go through the usual __()/translations.json pipeline.
+   */
+  seed: ForgeWPFormFieldSeed | Record<string, ForgeWPFormFieldSeed>;
+}
+
+export interface ForgeWPFormConfig {
+  /**
+   * 'native' (default): ForgeWP generates the REST endpoint, mail delivery,
+   * optional submission storage, and the wp-admin field editor. Requires
+   * `mailTo` and `fields`.
+   *
+   * 'shortcode': escape hatch for clients who want to self-manage a form
+   * entirely inside a WordPress plugin (CF7, WPForms, Gravity…). ForgeWP
+   * generates none of the above — the developer renders the plugin's
+   * markup directly with <WpShortcode code={...} />. Requires `shortcode`.
+   * `mailTo`, `fields`, `clientFields`, and `storeSubmissions` are ignored.
+   */
+  mode?: 'native' | 'shortcode';
+  /** Default/example shortcode string for 'shortcode' mode, e.g. '[contact-form-7 id="58" title="Contact Form"]'. */
+  shortcode?: string;
+  /** 'admin' → get_option('admin_email'); or a literal email;
+   *  or 'option:some_key' → get_option('some_key'). Required in 'native' mode. */
+  mailTo?: string;
+  /** Email subject line. Supports {field} interpolation from submitted values. */
+  subject?: string;
+  /** Dev-owned fields — the fixed part of the server-side allowlist. Required in 'native' mode. */
+  fields?: Record<string, ForgeWPFormField>;
+  clientFields?: ForgeWPFormClientFieldsConfig;
+  /** Store each submission in the forgewp_submission CPT (client inbox). Default true. */
+  storeSubmissions?: boolean;
+}
+
 export interface WpOptionField {
   _type: 'text' | 'url' | 'email' | 'textarea' | 'toggle' | 'number' | 'postPicker';
   label?: string;
@@ -119,6 +173,7 @@ export interface ForgeWPThemeConfig {
     };
   };
   plugins?: ForgeWPPlugin[];
+  forms?: Record<string, ForgeWPFormConfig>;
 }
 
 

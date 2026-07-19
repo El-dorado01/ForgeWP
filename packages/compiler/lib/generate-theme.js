@@ -33,6 +33,7 @@ import {
   buildBuilderPagePhp,
 } from './php-builders.js';
 import { buildFunctionsPhp } from './functions/index.js';
+import { lintFormsUsage } from './functions/forms.js';
 import { buildSettingsPagePhp } from './functions/settings-page.js';
 import { compileBlocks, warmupIconCache } from './blocks/index.js';
 import { findHtmlTagEnd } from './blocks/shared-utils.js';
@@ -933,8 +934,12 @@ const useWpTaxonomyList = (taxonomy, fallback) => fallback || '';
 const useWpMenu = (location) => ({ items: [], loading: false });
 const useWpPrefetch = () => (to) => {};
 const useWpLanguage = () => ({
-    currentLanguage: 'de',
-    languages: ['de', 'en'],
+    currentLanguage: ${JSON.stringify(
+      config.i18n?.defaultLocale || (Array.isArray(config.i18n?.locales) && config.i18n.locales[0]) || 'en',
+    )},
+    languages: ${JSON.stringify(
+      Array.isArray(config.i18n?.locales) && config.i18n.locales.length > 0 ? config.i18n.locales : ['en'],
+    )},
     homeUrl: '/',
     urls: {},
     homeUrls: {},
@@ -1631,6 +1636,12 @@ if (window.forgeWpBlocks) {
     throw error;
   }
 
+  try {
+    lintFormsUsage(themeRoot, config);
+  } catch (error) {
+    console.warn(`[ForgeWP Compiler] Forms usage lint failed to run: ${error.message}`);
+  }
+
   if (projectHooks && typeof projectHooks.processFunctionsPhp === 'function') {
     functionsPhpContent = projectHooks.processFunctionsPhp(functionsPhpContent, config);
   }
@@ -1864,14 +1875,9 @@ get_footer();
                   const name = match[1];
                   const decoded = decodeURIComponent(match[2]);
                   redirectSetup = `    $redirect_url = home_url('${decoded.replace(/'/g, "\\'")}');
-    $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
-    $get_pages_args = array('meta_key' => '_wp_page_template', 'meta_value' => 'page-${name}.php', 'number' => 1);
-    if (!empty($current_lang)) {
-        $get_pages_args['lang'] = $current_lang;
-    }
-    $matched_pages = get_pages($get_pages_args);
-    if (!empty($matched_pages)) {
-        $redirect_url = get_permalink($matched_pages[0]->ID);
+    $__fwp_id = forgewp_resolve_route_page_id('${name}');
+    if ($__fwp_id) {
+        $redirect_url = get_permalink($__fwp_id);
     }`;
                   redirectUrlExpr = '$redirect_url';
                 } else {
@@ -1879,14 +1885,9 @@ get_footer();
                   if (matchPlain) {
                     const name = matchPlain[1];
                     redirectSetup = `    $redirect_url = home_url('/');
-    $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
-    $get_pages_args = array('meta_key' => '_wp_page_template', 'meta_value' => 'page-${name}.php', 'number' => 1);
-    if (!empty($current_lang)) {
-        $get_pages_args['lang'] = $current_lang;
-    }
-    $matched_pages = get_pages($get_pages_args);
-    if (!empty($matched_pages)) {
-        $redirect_url = get_permalink($matched_pages[0]->ID);
+    $__fwp_id = forgewp_resolve_route_page_id('${name}');
+    if ($__fwp_id) {
+        $redirect_url = get_permalink($__fwp_id);
     }`;
                     redirectUrlExpr = '$redirect_url';
                   } else {
@@ -1896,14 +1897,9 @@ get_footer();
               } else if (redirect.startsWith('template:')) {
                 const name = redirect.replace('template:', '');
                 redirectSetup = `    $redirect_url = home_url('/');
-    $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
-    $get_pages_args = array('meta_key' => '_wp_page_template', 'meta_value' => 'page-${name}.php', 'number' => 1);
-    if (!empty($current_lang)) {
-        $get_pages_args['lang'] = $current_lang;
-    }
-    $matched_pages = get_pages($get_pages_args);
-    if (!empty($matched_pages)) {
-        $redirect_url = get_permalink($matched_pages[0]->ID);
+    $__fwp_id = forgewp_resolve_route_page_id('${name}');
+    if ($__fwp_id) {
+        $redirect_url = get_permalink($__fwp_id);
     }`;
                 redirectUrlExpr = '$redirect_url';
               } else {
@@ -1921,14 +1917,9 @@ ${redirectSetup ? redirectSetup + '\n' : ''}    wp_safe_redirect( ${redirectUrlE
     $email_verified = ( $verified_meta === '' ) || ( $verified_meta === '1' ) || ( $verified_meta === true );
     if ( $email_verification_enabled && ! $email_verified ) {
         $verify_url = home_url( '/verify-email' );
-        $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
-        $get_pages_args = array('meta_key' => '_wp_page_template', 'meta_value' => 'page-verify-email-page.php', 'number' => 1);
-        if (!empty($current_lang)) {
-            $get_pages_args['lang'] = $current_lang;
-        }
-        $matched_pages = get_pages($get_pages_args);
-        if (!empty($matched_pages)) {
-            $verify_url = get_permalink($matched_pages[0]->ID);
+        $__fwp_id = forgewp_resolve_route_page_id('verify-email-page');
+        if ($__fwp_id) {
+            $verify_url = get_permalink($__fwp_id);
         }
         wp_safe_redirect( $verify_url );
         exit;

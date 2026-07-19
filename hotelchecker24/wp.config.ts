@@ -33,6 +33,9 @@ export default defineConfig({
   options: siteOptions,
   themeMods: themeMods,
 
+  // forms.contact now lives in cms/forms/contact.ts (auto-discovered, same
+  // convention as cms/editables/**) — nothing needed here anymore.
+
   postTypes: {
     listicle: {
       translatable: true,

@@ -321,21 +321,21 @@ var descProp = (typeof __attr["formDescription"] !== 'undefined') ? __attr["form
   const formDescription = descProp ?? descMeta;
 
   
-return createElement("div", { className: (("w-full min-w-0") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, setAttributes && (createElement("div", { className: "mb-3 space-y-1" }, createElement(wp.blockEditor.RichText, {
+return createElement("div", { className: (("w-full min-w-0") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, setAttributes ? (createElement("div", { className: "mb-6 p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3" }, createElement("div", { className: "text-xs font-bold uppercase tracking-wider text-slate-400" }, "Contact Form settings"), createElement("div", { className: "space-y-1" }, createElement("div", { className: "text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500" }, "Form Title:"), createElement(wp.blockEditor.RichText, {
         tagName: "div",
         value: (function(){ var __v = (attributes.formTitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ formTitle: val }),
-        className: "text-xs font-mono text-slate-400",
+        className: "text-sm text-slate-800 font-bold",
         disableLineBreaks: true,
         allowedFormats: []
-      }), createElement(wp.blockEditor.RichText, {
+      })), createElement("div", { className: "space-y-1" }, createElement("div", { className: "text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500" }, "Form Description:"), createElement(wp.blockEditor.RichText, {
         tagName: "div",
         value: (function(){ var __v = (attributes.formDescription); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ formDescription: val }),
-        className: "text-xs font-mono text-slate-400",
+        className: "text-xs text-slate-600",
         disableLineBreaks: true,
         allowedFormats: []
-      }))), createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "ContactForm - interactive preview"), createElement("span", { style: {display:'block'} }, "This section is interactive on the live site (forms, state, live data). Edit text and options in the block sidebar under Block Settings, or use any inline fields shown on the canvas above/below this box. The full interactive UI appears on the visitor page.")));
+      })), createElement("p", { className: "text-[10px] text-slate-400 pt-2 border-t border-slate-200/60" }, "Form fields (subject, message) are managed under Appearance → Forms."))) : (createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "ContactForm - interactive preview"), createElement("span", { style: {display:'block'} }, "This section is interactive on the live site (forms, state, live data). Edit text and options in the block sidebar under Block Settings, or use any inline fields shown on the canvas above/below this box. The full interactive UI appears on the visitor page."))));
 })()"
 `;
 
@@ -668,28 +668,28 @@ var searchPlaceholderProp = (typeof __attr["searchPlaceholder"] !== 'undefined')
   const searchPlaceholder = searchPlaceholderProp ?? searchPlaceholderMeta;
 
   
-return createElement("section", { className: (("relative w-full overflow-hidden bg-slate-50 selection:bg-primary selection:text-white") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "absolute top-0 right-0 w-150 h-150 bg-[radial-gradient(circle,rgba(109,155,174,0.12)_0%,transparent_70%)] blur-3xl pointer-events-none z-0" }), createElement("div", { className: "absolute bottom-0 left-0 w-125 h-125 bg-[radial-gradient(circle,rgba(146,159,93,0.08)_0%,transparent_70%)] blur-3xl pointer-events-none z-0" }), createElement("div", { className: "relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center z-10" }, createElement("div", { className: "lg:col-span-7 flex flex-col items-start text-left" }, createElement("h1", { className: "text-4xl sm:text-5xl md:text-6xl font-sans font-black tracking-tight text-slate-800 leading-[1.1] mb-6 uppercase" }, createElement(wp.blockEditor.RichText, {
+return createElement("section", { className: (("relative w-full overflow-hidden bg-slate-50 selection:bg-primary selection:text-white") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "absolute top-0 right-0 w-150 h-150 bg-[radial-gradient(circle,rgba(109,155,174,0.12)_0%,transparent_70%)] blur-3xl pointer-events-none z-0" }), createElement("div", { className: "absolute bottom-0 left-0 w-125 h-125 bg-[radial-gradient(circle,rgba(146,159,93,0.08)_0%,transparent_70%)] blur-3xl pointer-events-none z-0" }), createElement("div", { className: "relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center z-10" }, createElement("div", { className: "lg:col-span-7 flex flex-col items-start text-left" }, createElement("h1", { className: "text-4xl sm:text-5xl md:text-6xl font-sans font-black tracking-tight text-slate-800 leading-[1.1] mb-6 uppercase" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
         tagName: "span",
         value: (function(){ var __v = (attributes.title); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ title: val }),
         className: "",
         disableLineBreaks: true,
         allowedFormats: []
-      }), createElement("br", null), createElement("span", { className: "bg-linear-to-r from-primary via-slate-700 to-accent bg-clip-text text-transparent" }, createElement(wp.blockEditor.RichText, {
+      })) : (title), createElement("br", null), createElement("span", { className: "bg-linear-to-r from-primary via-slate-700 to-accent bg-clip-text text-transparent" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
         tagName: "span",
         value: (function(){ var __v = (attributes.titleColored); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ titleColored: val }),
         className: "",
         disableLineBreaks: true,
         allowedFormats: []
-      }))), createElement(wp.blockEditor.RichText, {
+      })) : (titleColored))), setAttributes ? (createElement(wp.blockEditor.RichText, {
         tagName: "p",
         value: (function(){ var __v = (attributes.subtitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ subtitle: val }),
         className: "text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed",
         disableLineBreaks: true,
         allowedFormats: []
-      }), createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "HeroSearchBoard - interactive preview"), createElement("span", { style: {display:'block'} }, "This section loads live data (hotels, terms, posts) on the visitor page. Edit headings and labels in the block sidebar under Block Settings, or use any inline fields shown on the canvas above this box. The live grid/list appears on the frontend after save."))), createElement("div", { className: "lg:col-span-5 flex items-center justify-center relative w-full mt-8 lg:mt-0" }, createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "HeroSpotlight - interactive preview"), createElement("span", { style: {display:'block'} }, "This section loads live data (hotels, terms, posts) on the visitor page. Edit headings and labels in the block sidebar under Block Settings, or use any inline fields shown on the canvas above this box. The live grid/list appears on the frontend after save.")))));
+      })) : (createElement("p", { className: "text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed" }, attributes.subtitle)), createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "HeroSearchBoard - interactive preview"), createElement("span", { style: {display:'block'} }, "This section loads live data (hotels, terms, posts) on the visitor page. Edit headings and labels in the block sidebar under Block Settings, or use any inline fields shown on the canvas above this box. The live grid/list appears on the frontend after save."))), createElement("div", { className: "lg:col-span-5 flex items-center justify-center relative w-full mt-8 lg:mt-0" }, createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "HeroSpotlight - interactive preview"), createElement("span", { style: {display:'block'} }, "This section loads live data (hotels, terms, posts) on the visitor page. Edit headings and labels in the block sidebar under Block Settings, or use any inline fields shown on the canvas above this box. The live grid/list appears on the frontend after save.")))));
 })()"
 `;
 
@@ -1014,14 +1014,14 @@ $hotelsHref = forgewp_resolve_page_link('hotels-page', '/hotels');
               <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $badge ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['badge'] ?? null) ); ?>
+<?php echo esc_html( ($badge ?? null) ); ?>
 <?php endif; ?>
             </span>
             <h1 class="text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-slate-900 mb-4 whitespace-pre-line">
               <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $title ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['title'] ?? null) ); ?>
+<?php echo esc_html( ($title ?? null) ); ?>
 <?php endif; ?>
             </h1>
             <?php if (($setAttributes ?? null)): ?>
@@ -1035,7 +1035,7 @@ $hotelsHref = forgewp_resolve_page_link('hotels-page', '/hotels');
                   <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $primaryButtonLabel ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['primaryButtonLabel'] ?? null) ); ?>
+<?php echo esc_html( ($primaryButtonLabel ?? null) ); ?>
 <?php endif; ?>
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-4 h-4"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
                 </span>
@@ -1044,7 +1044,7 @@ $hotelsHref = forgewp_resolve_page_link('hotels-page', '/hotels');
                 <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $secondaryButtonLabel ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['secondaryButtonLabel'] ?? null) ); ?>
+<?php echo esc_html( ($secondaryButtonLabel ?? null) ); ?>
 <?php endif; ?>
               </a>
             </div>
@@ -1505,12 +1505,23 @@ $formDescription = ($descProp ?? null) ?? ($descMeta ?? null);
 ?>
 <div class="w-full min-w-0 <?php echo esc_attr( forgewp_padding_classes($attributes ?? array()) ); ?>">
       <?php if (($setAttributes ?? null)): ?>
-<div class="mb-3 space-y-1">
-          <div class="text-xs font-mono text-slate-400"><?php echo esc_html( $formTitle ?? '' ); ?></div>
-          <div class="text-xs font-mono text-slate-400"><?php echo esc_html( $formDescription ?? '' ); ?></div>
+<div class="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+          <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Contact Form settings</div>
+          <div class="space-y-1">
+            <div class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">Form Title:</div>
+            <div class="text-sm text-slate-800 font-bold"><?php echo esc_html( $formTitle ?? '' ); ?></div>
+          </div>
+          <div class="space-y-1">
+            <div class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">Form Description:</div>
+            <div class="text-xs text-slate-600"><?php echo esc_html( $formDescription ?? '' ); ?></div>
+          </div>
+          <p class="text-[10px] text-slate-400 pt-2 border-t border-slate-200/60">
+            Form fields (subject, message) are managed under Appearance → Forms.
+          </p>
         </div>
+<?php else: ?>
+<div class="forgewp-hydrate-boundary" data-forgewp-hydrate="contact-form" data-forgewp-props="<?php echo esc_attr( json_encode( array('formTitle' => ($attributes['formTitle'] ?? null), 'formDescription' => ($attributes['formDescription'] ?? null)) ) ); ?>" data-forgewp-trigger="visible" style="display: <?php echo esc_attr( 'block' ); ?>;"></div>
 <?php endif; ?>
-      <div class="forgewp-hydrate-boundary" data-forgewp-hydrate="contact-form" data-forgewp-props="<?php echo esc_attr( json_encode( array('formTitle' => ($attributes['formTitle'] ?? null), 'formDescription' => ($attributes['formDescription'] ?? null)) ) ); ?>" data-forgewp-trigger="visible" style="display: <?php echo esc_attr( 'block' ); ?>;"></div>
     </div>
 "
 `;
@@ -1559,14 +1570,14 @@ $cardBadge = ($cardBadgeProp ?? null) ?? ($cardBadgeMeta ?? null);
               <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $badge ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['badge'] ?? null) ); ?>
+<?php echo esc_html( ($badge ?? null) ); ?>
 <?php endif; ?>
             </span>
             <h1 class="text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-slate-900 mb-2">
               <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $title ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['title'] ?? null) ); ?>
+<?php echo esc_html( ($title ?? null) ); ?>
 <?php endif; ?>
             </h1>
             <?php if (($setAttributes ?? null)): ?>
@@ -1622,7 +1633,7 @@ $subtitle = ($subtitleProp ?? null) ?? ($subtitleMeta ?? null);
             <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $heading ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['heading'] ?? null) ); ?>
+<?php echo esc_html( ($heading ?? null) ); ?>
 <?php endif; ?>
           </h2>
           <?php if (($setAttributes ?? null)): ?>
@@ -1686,21 +1697,21 @@ $listiclesHref = forgewp_resolve_page_link('listicles-page', '/hotelvergleiche')
             <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $badge ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['badge'] ?? null) ); ?>
+<?php echo esc_html( ($badge ?? null) ); ?>
 <?php endif; ?>
           </span>
           <h2 class="text-3xl sm:text-4xl font-black text-white uppercase tracking-tight leading-tight mb-4">
             <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $heading ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['heading'] ?? null) ); ?>
+<?php echo esc_html( ($heading ?? null) ); ?>
 <?php endif; ?>
             <br />
             <span class="text-[#929f5d]">
               <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $headingColored ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['headingColored'] ?? null) ); ?>
+<?php echo esc_html( ($headingColored ?? null) ); ?>
 <?php endif; ?>
             </span>
           </h2>
@@ -1713,7 +1724,7 @@ $listiclesHref = forgewp_resolve_page_link('listicles-page', '/hotelvergleiche')
             <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $ctaLabel ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['ctaLabel'] ?? null) ); ?>
+<?php echo esc_html( ($ctaLabel ?? null) ); ?>
 <?php endif; ?>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-3.5 h-3.5"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
           </a>
@@ -1725,7 +1736,7 @@ $listiclesHref = forgewp_resolve_page_link('listicles-page', '/hotelvergleiche')
               <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $feature1Label ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['feature1Label'] ?? null) ); ?>
+<?php echo esc_html( ($feature1Label ?? null) ); ?>
 <?php endif; ?>
             </p>
             <?php if (($setAttributes ?? null)): ?>
@@ -1740,7 +1751,7 @@ $listiclesHref = forgewp_resolve_page_link('listicles-page', '/hotelvergleiche')
               <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $feature2Label ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['feature2Label'] ?? null) ); ?>
+<?php echo esc_html( ($feature2Label ?? null) ); ?>
 <?php endif; ?>
             </p>
             <?php if (($setAttributes ?? null)): ?>
@@ -1755,7 +1766,7 @@ $listiclesHref = forgewp_resolve_page_link('listicles-page', '/hotelvergleiche')
               <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $feature3Label ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['feature3Label'] ?? null) ); ?>
+<?php echo esc_html( ($feature3Label ?? null) ); ?>
 <?php endif; ?>
             </p>
             <?php if (($setAttributes ?? null)): ?>
@@ -1770,7 +1781,7 @@ $listiclesHref = forgewp_resolve_page_link('listicles-page', '/hotelvergleiche')
               <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $feature4Label ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['feature4Label'] ?? null) ); ?>
+<?php echo esc_html( ($feature4Label ?? null) ); ?>
 <?php endif; ?>
             </p>
             <?php if (($setAttributes ?? null)): ?>
@@ -1816,14 +1827,14 @@ $hotelsHref = forgewp_resolve_page_link('hotels-page', '/hotels');
               <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $badge ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['badge'] ?? null) ); ?>
+<?php echo esc_html( ($badge ?? null) ); ?>
 <?php endif; ?>
             </span>
             <h2 class="text-3xl font-sans font-black text-slate-800 uppercase tracking-tight mt-3">
               <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $heading ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['heading'] ?? null) ); ?>
+<?php echo esc_html( ($heading ?? null) ); ?>
 <?php endif; ?>
             </h2>
             <?php if (($setAttributes ?? null)): ?>
@@ -1836,7 +1847,7 @@ $hotelsHref = forgewp_resolve_page_link('hotels-page', '/hotels');
             <?php if (($setAttributes ?? null)): ?>
 <span><?php echo esc_html( $linkLabel ?? '' ); ?></span>
 <?php else: ?>
-<?php echo esc_html( ($attributes['linkLabel'] ?? null) ); ?>
+<?php echo esc_html( ($linkLabel ?? null) ); ?>
 <?php endif; ?>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-3.5 h-3.5"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
           </a>
@@ -1880,15 +1891,29 @@ $searchPlaceholder = ($searchPlaceholderProp ?? null) ?? ($searchPlaceholderMeta
         <div class="lg:col-span-7 flex flex-col items-start text-left">
           
           <h1 class="text-4xl sm:text-5xl md:text-6xl font-sans font-black tracking-tight text-slate-800 leading-[1.1] mb-6 uppercase">
-            <span><?php echo esc_html( $title ?? '' ); ?></span>
+            <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $title ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($title ?? null) ); ?>
+<?php endif; ?>
             <br />
             <span class="bg-linear-to-r from-primary via-slate-700 to-accent bg-clip-text text-transparent">
-              <span><?php echo esc_html( $titleColored ?? '' ); ?></span>
+              <?php if (($setAttributes ?? null)): ?>
+<span><?php echo esc_html( $titleColored ?? '' ); ?></span>
+<?php else: ?>
+<?php echo esc_html( ($titleColored ?? null) ); ?>
+<?php endif; ?>
             </span>
           </h1>
 
           
-          <p class="text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed"><?php echo esc_html( $subtitle ?? '' ); ?></p>
+          <?php if (($setAttributes ?? null)): ?>
+<p class="text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed"><?php echo esc_html( $subtitle ?? '' ); ?></p>
+<?php else: ?>
+<p class="text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed">
+              <?php echo esc_html( $subtitle ?? '' ); ?>
+            </p>
+<?php endif; ?>
 
           <div class="forgewp-hydrate-boundary" data-forgewp-hydrate="hero-search-board" data-forgewp-props="<?php echo esc_attr( json_encode( array('searchPlaceholder' => ($attributes['searchPlaceholder'] ?? null)) ) ); ?>" data-forgewp-trigger="visible" style="display: <?php echo esc_attr( 'block' ); ?>;"></div>
         </div>

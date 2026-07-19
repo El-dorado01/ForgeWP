@@ -70,9 +70,11 @@ import {
   optionToggle,
   optionNumber,
   optionPostPicker,
+  WpFormFields,
+  submitWpForm,
 } from '@forgewp/react';
 
-export { WpPostContext, defineEditable, getEditableDefaults, buildPageEditable, pickEditable, mergeEditable, text, richText, image, boolean, repeater, color, url, select, number, icon, isEditorPreview, useIsEditorPreview, WpRepeater, WpIcon, defineWpOptions, optionText, optionUrl, optionEmail, optionTextarea, optionToggle, optionNumber, optionPostPicker };
+export { WpPostContext, defineEditable, getEditableDefaults, buildPageEditable, pickEditable, mergeEditable, text, richText, image, boolean, repeater, color, url, select, number, icon, isEditorPreview, useIsEditorPreview, WpRepeater, WpIcon, defineWpOptions, optionText, optionUrl, optionEmail, optionTextarea, optionToggle, optionNumber, optionPostPicker, WpFormFields, submitWpForm };
 
 import type {
   WpQueryLoopProps,
@@ -88,7 +90,12 @@ import type {
   BlockAreaProps,
   WpRepeaterProps,
   WpIconProps,
+  WpFormFieldsProps,
+  WpFormFieldDescriptor,
+  WpFormResult,
 } from '@forgewp/react';
+
+export type { WpFormFieldsProps, WpFormFieldDescriptor, WpFormResult };
 
 const IS_DEV =
   typeof import.meta !== 'undefined' &&
@@ -140,6 +147,33 @@ if (IS_DEV) {
     };
     (window as any)._forgeWpMockPosts = mockData;
     (window as any)._forgeWpMockMenus = menusData;
+
+    const mockForms: Record<string, { fields: any[] }> = {};
+    if (wpConfig && wpConfig.forms) {
+      // clientFields.seed is either a flat array (single-locale theme, or
+      // "same content for every locale") or a per-locale map — pick the
+      // URL-prefix-detected language (matching useWpI18n's own dev-mode
+      // detection below), falling back to the configured default locale.
+      const configuredLocales: string[] = wpConfig.i18n?.locales || [];
+      let devLang: string | undefined = wpConfig.i18n?.defaultLocale || configuredLocales[0];
+      if (configuredLocales.length > 1) {
+        const match = window.location.pathname.match(/^\/([a-zA-Z]{2})(?:\/|$)/);
+        if (match && configuredLocales.includes(match[1])) {
+          devLang = match[1];
+        }
+      }
+      for (const [formName, formConfig] of Object.entries(wpConfig.forms as Record<string, any>)) {
+        const seed = formConfig?.clientFields?.enabled ? formConfig.clientFields.seed : undefined;
+        let seedFields: any[] = [];
+        if (Array.isArray(seed)) {
+          seedFields = seed;
+        } else if (seed && typeof seed === 'object') {
+          seedFields = seed[devLang as string] || (configuredLocales[0] && seed[configuredLocales[0]]) || Object.values(seed)[0] || [];
+        }
+        mockForms[formName] = { fields: seedFields };
+      }
+    }
+    (window as any)._forgeWpMockForms = mockForms;
   }
 }
 
@@ -1368,7 +1402,10 @@ export function useWpLanguage() {
 
     const switchLanguage = React.useCallback((lang: string) => {
       if (typeof window !== 'undefined') {
-        window.location.href = urls[lang] || (lang === defaultLanguage ? '/' : `/${lang}/`);
+        const search = window.location.search;
+        const base = urls[lang] || (lang === defaultLanguage ? '/' : `/${lang}/`);
+        const separator = base.includes('?') ? '&' : '?';
+        window.location.href = search ? (base + separator + search.substring(1)) : base;
       }
     }, [urls, defaultLanguage]);
 
@@ -1400,11 +1437,10 @@ export function useWpLanguage() {
   // Redirection helper to switch safely between languages
   const switchLanguage = React.useCallback((lang: string) => {
     if (typeof window !== 'undefined') {
-      if (urls && urls[lang]) {
-        window.location.href = urls[lang];
-      } else {
-        window.location.href = lang === 'de' ? '/' : `/${lang}/`;
-      }
+      const search = window.location.search;
+      const base = (urls && urls[lang]) ? urls[lang] : (lang === 'de' ? '/' : `/${lang}/`);
+      const separator = base.includes('?') ? '&' : '?';
+      window.location.href = search ? (base + separator + search.substring(1)) : base;
     }
   }, [urls]);
 

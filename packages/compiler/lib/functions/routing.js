@@ -42,6 +42,20 @@ ${pagesPhpArray}
             }
         }
 
+        // Tag the page with a durable route marker, independent of whichever
+        // template it's currently assigned (the template is user-editable in
+        // wp-admin — e.g. switching to a generic block-based template — and
+        // link resolution elsewhere (forgewp_resolve_route_page_id) must keep
+        // working even after that happens). Runs unconditionally (not gated
+        // by $has_run) so it self-heals on every request, including on sites
+        // that were already activated before this marker was introduced.
+        if ($page_id > 0) {
+            $route_id = preg_replace('/^page-|\.php$/', '', $p['template']);
+            if (get_post_meta($page_id, 'forgewp_route_id', true) !== $route_id) {
+                update_post_meta($page_id, 'forgewp_route_id', $route_id);
+            }
+        }
+
         // Phase 3: Automatically seed default post meta fields if not already populated for ALL pages using this template
         if (isset($schema_defaults[$p['template']])) {
             $matching_pages = get_posts(array(
@@ -373,11 +387,26 @@ function forgewp_resolve_head_target() {
 }
 
 /**
+ * Whether a known SEO plugin (Yoast, RankMath, All in One SEO, or SEOPress)
+ * is currently active. Single source of truth — everywhere ForgeWP needs to
+ * yield head-content/title/sitemap responsibility to a standard SEO plugin
+ * calls this instead of re-deriving its own plugin-detection condition, so
+ * the detected plugin list can't drift out of sync between call sites.
+ */
+function forgewp_seo_plugin_active() {
+    return defined('WPSEO_VERSION')
+        || class_exists('RankMath')
+        || class_exists('All_in_One_SEO_Pack')
+        || defined('AIOSEO_VERSION')
+        || class_exists('SEOPress\\Services\\Title');
+}
+
+/**
  * Custom document title filter for ForgeWP.
  * Maps title enqueued via <WpHead /> in React to WordPress.
  */
 function forgewp_custom_document_title( $title ) {
-    if ( defined('WPSEO_VERSION') || class_exists('RankMath') || class_exists('All_in_One_SEO_Pack') || defined('AIOSEO_VERSION') ) {
+    if ( forgewp_seo_plugin_active() ) {
         return $title;
     }
     $target = forgewp_resolve_head_target();
@@ -429,13 +458,21 @@ function forgewp_disable_emojis_remove_dns_prefetch($urls, $relation_type) {
 function forgewp_gettext_translation_bridge($translated, $text, $domain) {
     if ($domain === '${config.textDomain}') {
         static $translations = null;
-        if ($translations === null) {
-            $file = get_template_directory() . '/translations.json';
-            if (file_exists($file)) {
+        static $translations_mtime = null;
+        $file = get_template_directory() . '/translations.json';
+        // Keyed on the file's mtime rather than just "already loaded once",
+        // so a redeployed translations.json takes effect immediately within
+        // this worker instead of only after it's recycled — PHP static
+        // function-local variables otherwise persist across every request a
+        // PHP-FPM worker serves, not just the one that first populated them.
+        $current_mtime = file_exists($file) ? filemtime($file) : false;
+        if ($translations === null || $translations_mtime !== $current_mtime) {
+            if ($current_mtime !== false) {
                 $translations = json_decode(file_get_contents($file), true);
             } else {
                 $translations = array();
             }
+            $translations_mtime = $current_mtime;
         }
         $type = '';
         if (function_exists('pll_current_language')) {

@@ -29,9 +29,10 @@ function forgewp_init_custom_json_ld_schema() {
     $current_lang = strtolower($current_lang);
     
     $schemas = array();
+    $seo_active = defined('WPSEO_VERSION') || class_exists('RankMath') || defined('AIOSEO_VERSION') || class_exists('All_in_One_SEO_Pack');
     
     // A. BreadcrumbList Schema (Sitewide except Home)
-    if (!is_front_page()) {
+    if (!is_front_page() && !$seo_active) {
         $breadcrumbs = array();
         
         // Add Home
@@ -158,7 +159,7 @@ function forgewp_init_custom_json_ld_schema() {
     }
     
     // B. Organization Schema (Homepage)
-    if (is_front_page()) {
+    if (is_front_page() && !$seo_active) {
         $logo_id = get_theme_mod('custom_logo');
         $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'full') : get_template_directory_uri() . '/Logo/hotelchecker24-logo_farbe.svg';
         
@@ -171,15 +172,18 @@ function forgewp_init_custom_json_ld_schema() {
             }
         }
         
-        $schemas[] = array(
+        $org_schema = array(
             '@context' => 'https://schema.org',
             '@type' => 'Organization',
             'name' => get_bloginfo('name'),
             'url' => home_url('/'),
             'logo' => esc_url($logo_url),
             'description' => get_bloginfo('description'),
-            'sameAs' => $same_as
         );
+        if (!empty($same_as)) {
+            $org_schema['sameAs'] = $same_as;
+        }
+        $schemas[] = $org_schema;
     }
     
     // C. Hotel Schema (Hotel post type)
@@ -207,11 +211,27 @@ function forgewp_init_custom_json_ld_schema() {
         );
         
         if (!empty($location)) {
+            $country_code = '';
+            $countries = get_the_terms($post_id, 'country');
+            if (!empty($countries) && !is_wp_error($countries)) {
+                $country_slug = $countries[0]->slug;
+                if (strpos($country_slug, 'oesterreich') !== false || strpos($country_slug, 'austria') !== false || strpos($country_slug, 'at') !== false) {
+                    $country_code = 'AT';
+                } elseif (strpos($country_slug, 'deutschland') !== false || strpos($country_slug, 'germany') !== false || strpos($country_slug, 'de') !== false) {
+                    $country_code = 'DE';
+                } elseif (strpos($country_slug, 'schweiz') !== false || strpos($country_slug, 'switzerland') !== false || strpos($country_slug, 'ch') !== false) {
+                    $country_code = 'CH';
+                } elseif (strpos($country_slug, 'italien') !== false || strpos($country_slug, 'italy') !== false || strpos($country_slug, 'it') !== false) {
+                    $country_code = 'IT';
+                } else {
+                    $country_code = strtoupper(substr($country_slug, 0, 2));
+                }
+            }
             $hotel_schema['address'] = array(
                 '@type' => 'PostalAddress',
                 'streetAddress' => $location,
                 'addressLocality' => !empty($city) ? $city : '',
-                'addressCountry' => ''
+                'addressCountry' => $country_code
             );
         }
         
@@ -235,15 +255,7 @@ function forgewp_init_custom_json_ld_schema() {
             );
         }
         
-        if (!empty($rating) && is_numeric($rating)) {
-            $hotel_schema['aggregateRating'] = array(
-                '@type' => 'AggregateRating',
-                'ratingValue' => floatval($rating),
-                'bestRating' => '5.0',
-                'worstRating' => '1.0',
-                'ratingCount' => 1
-            );
-        }
+        // Removed aggregateRating to prevent policy violations since rating count is 1 for editorial scores.
         
         $lat = get_post_meta($post_id, 'latitude', true);
         $lng = get_post_meta($post_id, 'longitude', true);
@@ -297,7 +309,47 @@ function forgewp_init_custom_json_ld_schema() {
         );
     }
     
-    // E. Hook into Yoast or RankMath to merge if active,
+    // E. FAQPage Schema (auto-generated from <dl><dt>/<dd> Q&A content in
+    // listicle posts, so it can never go stale/forgotten the way manually
+    // maintained schema would). The client's FAQ sections are authored as
+    // plain <dl> definition lists (question = <dt>, answer = <dd>) with no
+    // special block or class — matching visible text 1:1 by construction,
+    // since it's extracted directly from what's rendered.
+    if (is_singular('listicle')) {
+        $rendered_content = apply_filters('the_content', $post->post_content);
+        $faq_items = array();
+
+        if (preg_match_all('/<dl[^>]*>(.*?)<\/dl>/is', $rendered_content, $dl_matches)) {
+            foreach ($dl_matches[1] as $dl_inner) {
+                if (preg_match_all('/<dt[^>]*>(.*?)<\/dt>\s*<dd[^>]*>(.*?)<\/dd>/is', $dl_inner, $qa_matches, PREG_SET_ORDER)) {
+                    foreach ($qa_matches as $qa) {
+                        $question = trim(wp_strip_all_tags(html_entity_decode($qa[1], ENT_QUOTES, 'UTF-8')));
+                        $answer = trim(wp_strip_all_tags(html_entity_decode($qa[2], ENT_QUOTES, 'UTF-8')));
+                        if ($question !== '' && $answer !== '') {
+                            $faq_items[] = array(
+                                '@type' => 'Question',
+                                'name' => $question,
+                                'acceptedAnswer' => array(
+                                    '@type' => 'Answer',
+                                    'text' => $answer,
+                                ),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!empty($faq_items)) {
+            $schemas[] = array(
+                '@context' => 'https://schema.org',
+                '@type' => 'FAQPage',
+                'mainEntity' => $faq_items,
+            );
+        }
+    }
+
+    // F. Hook into Yoast or RankMath to merge if active,
     // otherwise stash them for printing in wp_head.
     if (!empty($schemas)) {
         $forgewp_custom_schemas = $schemas;

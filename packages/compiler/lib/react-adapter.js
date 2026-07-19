@@ -1143,6 +1143,191 @@ export function ${pascalCase}() {
   console.log(`   Add it inside your ${pc.cyan('src/app/routes.tsx')} file.\n`);
 }
 
+export function onMakeForm(themeRoot, { slug, pascalCase, fields, mailTo, pc }) {
+  const formsDir = path.join(themeRoot, 'cms', 'forms');
+  if (!existsSync(formsDir)) {
+    mkdirSync(formsDir, { recursive: true });
+  }
+  const formConfigFile = path.join(formsDir, `${slug}.ts`);
+  if (existsSync(formConfigFile)) {
+    console.error(pc.red(`\n❌ Error: Form "${slug}.ts" already exists at cms/forms/\n`));
+    process.exit(1);
+  }
+
+  const componentsDir = path.join(themeRoot, 'src', 'components', 'forms');
+  if (!existsSync(componentsDir)) {
+    mkdirSync(componentsDir, { recursive: true });
+  }
+  const componentName = `${pascalCase}Form`;
+  const componentFile = path.join(componentsDir, `${componentName}.tsx`);
+  if (existsSync(componentFile)) {
+    console.error(pc.red(`\n❌ Error: Form component "${componentName}.tsx" already exists at src/components/forms/\n`));
+    process.exit(1);
+  }
+
+  const toLabel = (name) =>
+    name
+      .replace(/[_-]+/g, ' ')
+      .split(' ')
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+
+  // ── cms/forms/{slug}.ts ──────────────────────────────────────────────
+  const fieldsConfigPhp = fields
+    .map(({ name, type }) => {
+      const label = toLabel(name);
+      if (type === 'select') {
+        return `    ${name}: { type: 'select', label: '${label}', required: true, options: ['Option 1', 'Option 2'] },`;
+      }
+      return `    ${name}: { type: '${type}', label: '${label}', required: true },`;
+    })
+    .join('\n');
+
+  const formConfigTemplate = `/**
+ * ${toLabel(slug)} form — server-side contract for submitWpForm('${slug}', ...).
+ *
+ * Source of truth for:
+ *  - REST endpoint (/forgewp/v1/forms/${slug}/submit)
+ *  - mail delivery + optional submission storage (wp-admin > Forms Submissions)
+ *
+ * Discovered automatically from this file — nothing else needs to reference
+ * it. See ${componentName}.tsx (src/components/forms/) for the matching UI.
+ *
+ * Want client-editable fields (added/removed later in wp-admin, without a
+ * redeploy)? Add a \`clientFields\` key here and render it with
+ * <WpFormFields form="${slug}" render={...} /> — see forgewp_forms_spec.md.
+ */
+import { defineWpForm } from '@forgewp/react/config';
+
+export const form = defineWpForm({
+  mailTo: '${mailTo}',
+  subject: 'New ${toLabel(slug)} submission',
+  fields: {
+${fieldsConfigPhp}
+  },
+  storeSubmissions: true,
+});
+`;
+
+  writeFileSync(formConfigFile, formConfigTemplate, 'utf8');
+
+  // ── src/components/forms/{Name}Form.tsx ─────────────────────────────
+  const inputClassName =
+    'w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all';
+
+  const fieldMarkup = fields
+    .map(({ name, type }) => {
+      const label = toLabel(name);
+      let control;
+      if (type === 'textarea') {
+        control = `<textarea
+          name="${name}"
+          required
+          rows={5}
+          className="${inputClassName} resize-none"
+        />`;
+      } else if (type === 'select') {
+        control = `<select name="${name}" required className="${inputClassName} bg-white">
+          <option value="">Please choose…</option>
+          <option value="Option 1">Option 1</option>
+          <option value="Option 2">Option 2</option>
+        </select>`;
+      } else if (type === 'checkbox') {
+        control = `<input type="checkbox" name="${name}" required />`;
+      } else {
+        control = `<input
+          type="${type}"
+          name="${name}"
+          required
+          className="${inputClassName}"
+        />`;
+      }
+      return `        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+            ${label}
+          </label>
+          ${control}
+        </div>`;
+    })
+    .join('\n');
+
+  const componentTemplate = `import * as React from "react";
+import { submitWpForm } from "../../.forgewp/wordpress";
+
+/**
+ * ⚡ ForgeWP Form — "${componentName}"
+ *
+ * Submits to the "${slug}" form declared in cms/forms/${slug}.ts. ForgeWP
+ * auto-detects this component as interactive (uses React state) and
+ * hydrates it in the browser so onSubmit fires instead of a native form
+ * GET submit.
+ */
+export default function ${componentName}() {
+  const [status, setStatus] = React.useState<"idle" | "sending" | "success" | "error">("idle");
+  const [errorMsg, setErrorMsg] = React.useState("");
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setStatus("sending");
+    setErrorMsg("");
+
+    const result = await submitWpForm("${slug}", new FormData(e.currentTarget));
+
+    if (result.ok) {
+      setStatus("success");
+      e.currentTarget.reset();
+    } else {
+      setErrorMsg(result.message || "Something went wrong. Please try again.");
+      setStatus("error");
+    }
+  };
+
+  if (status === "success") {
+    return (
+      <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-8 text-center">
+        <h2 className="text-lg font-bold text-slate-900 mb-2">Thanks — message sent!</h2>
+        <p className="text-slate-500 text-sm">We'll get back to you soon.</p>
+        <button
+          onClick={() => setStatus("idle")}
+          className="mt-6 bg-primary text-white text-xs font-bold uppercase tracking-wider px-6 py-3 rounded-xl cursor-pointer hover:bg-primary/90 transition-all"
+        >
+          Send another message
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-white border border-slate-100 rounded-2xl shadow-xs p-8 space-y-5">
+${fieldMarkup}
+
+      {status === "error" && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl px-4 py-3">
+          {errorMsg}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={status === "sending"}
+        className="w-full bg-primary hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all cursor-pointer"
+      >
+        {status === "sending" ? "Sending…" : "Send"}
+      </button>
+    </form>
+  );
+}
+`;
+
+  writeFileSync(componentFile, componentTemplate, 'utf8');
+
+  console.log(pc.green(`\n⚡ Form "${slug}" successfully created!`));
+  console.log(`   Config:    ${pc.cyan(`cms/forms/${slug}.ts`)}`);
+  console.log(`   Component: ${pc.cyan(`src/components/forms/${componentName}.tsx`)}`);
+  console.log(`\n🎉 Use it in a page:`);
+  console.log(`   ${pc.yellow(`import ${componentName} from "@/components/forms/${componentName}";`)}\n`);
+}
+
 export function onSyncRoutes(themeRoot, { routesToScaffold, isForce, pc }) {
   function toPascalCase(str) {
     return str

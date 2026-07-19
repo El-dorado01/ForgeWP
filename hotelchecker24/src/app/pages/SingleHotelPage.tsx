@@ -98,7 +98,7 @@ export function SingleHotelPage() {
 
   // Isomorphic dynamic mapping (compiles directly to WP loops in production)
   const title = useWpTitle() || devPost?.title || __('Luxushotel');
-  const kontaktHref = useWpPageLink('kontakt-page', '/kontakt');
+  const kontaktHref = useWpPageLink('kontakt-page', '/contact');
   const inquiryUrl = `${kontaktHref}?subject=hotel-inquiry&inquiry_hotel=${encodeURIComponent(title)}`;
   const content =
     useWpContent() || devPost?.content || `<p>${__('Lade Hoteldetails...')}</p>`;
@@ -165,6 +165,7 @@ export function SingleHotelPage() {
       <WpHead 
         title={title} 
         description={excerpt} 
+        ogImage={featuredImage}
       />
       
       <section className="relative h-[60vh] min-h-100 w-full overflow-hidden bg-slate-900 flex items-end">

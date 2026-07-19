@@ -2,6 +2,7 @@ import fs, { existsSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createJiti } from 'jiti';
+import { scanForFormSchemas } from './hydration/form-schemas.js';
 
 /**
  * @param {string} themeRoot
@@ -18,7 +19,22 @@ export async function loadConfig(themeRoot) {
     interopDefault: true,
   });
 
-  const config = await jiti.import(configPath);
+  const importedConfig = await jiti.import(configPath);
+
+  // With interopDefault, jiti (this version, at least) returns a CJS-style
+  // wrapper `{ __esModule: true, default: <real config object> }` whose
+  // properties forward reads to `.default` — but that forwarding is
+  // resolved once via static analysis of wp.config.ts's source, not a live
+  // proxy: a NEW property added to `.default` at runtime (e.g. this
+  // function's own `config.forms = ...` a few lines down) is invisible
+  // through the wrapper forever afterward, even though it's genuinely
+  // there on `.default`. Unwrap to the real object up front so every
+  // mutation below (there are many) is a normal, unsurprising object
+  // mutation with no wrapper involved.
+  const config =
+    importedConfig && importedConfig.__esModule && importedConfig.default
+      ? importedConfig.default
+      : importedConfig;
 
   if (!config?.slug || !config?.name) {
     throw new Error(
@@ -227,6 +243,26 @@ export async function loadConfig(themeRoot) {
         plugin.validateConfig(config, themeRoot, { fs, path });
       }
     }
+  }
+
+  // Merge in forms discovered under cms/forms/** (one defineWpForm() call
+  // per file, filename → form key — mirrors cms/editables/**'s convention
+  // and scanForEditableSchemas' discovery approach). An explicit `forms` key
+  // already in wp.config.ts always wins on a same-key collision — inline
+  // config is the more deliberate declaration and shouldn't be silently
+  // overridden by a colocated file the developer might not remember exists.
+  const discoveredForms = scanForFormSchemas(themeRoot);
+  if (Object.keys(discoveredForms).length > 0) {
+    const inlineForms = config.forms || {};
+    for (const key of Object.keys(discoveredForms)) {
+      if (Object.prototype.hasOwnProperty.call(inlineForms, key)) {
+        console.warn(
+          `\x1b[33m%s\x1b[0m`,
+          `⚠️  Form "${key}" is declared both in wp.config.ts's \`forms\` key and in cms/forms/${key}.ts — the wp.config.ts version wins. Remove one of them.`,
+        );
+      }
+    }
+    config.forms = { ...discoveredForms, ...inlineForms };
   }
 
   return config;

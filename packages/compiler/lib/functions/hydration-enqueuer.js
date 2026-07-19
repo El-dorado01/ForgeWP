@@ -4,6 +4,17 @@ import path from 'node:path';
 export function buildHydrationEnqueuerPhp(config, assets, mainJs, uniqueMetaKeys, uniqueRichTextKeys, repeaterFieldsPhp, manifestPairs, optionsPairs, themeModsPairs, page_links_php, fontsEnqueue, i18nKeysPhp, headlessScript, currentUserHydrationField, defaultLoginField) {
   const css = assets.cssFile.replace(/^assets\//, '');
 
+  // Only forms need restUrl/restNonce/forms in the hydration payload — kept
+  // out entirely for themes without a `forms` config so their generated
+  // output stays byte-identical.
+  const hasForms = config.forms && Object.keys(config.forms).length > 0;
+  const formsHydrationFields = hasForms
+    ? `
+                'restUrl' => esc_url_raw( rest_url( 'forgewp/v1' ) ),
+                'restNonce' => is_user_logged_in() ? wp_create_nonce( 'wp_rest' ) : '',
+                'forms' => forgewp_forms_hydration_payload(),`
+    : '';
+
   let hydrationEnqueue = '';
   if (mainJs) {
     hydrationEnqueue = `
@@ -73,7 +84,7 @@ ${page_links_php}
                 'themeUri' => $theme_uri,
                 'menus' => $hydrated_menus,
                 'pageLinks' => $page_links,
-                'loginField' => get_option( 'forgewp_auth_login_field', '${defaultLoginField}' ),${currentUserHydrationField}
+                'loginField' => get_option( 'forgewp_auth_login_field', '${defaultLoginField}' ),${currentUserHydrationField}${formsHydrationFields}
                 'manifest' => array(
 ${manifestPairs}
                 ),

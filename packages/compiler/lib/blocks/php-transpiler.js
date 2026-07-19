@@ -552,6 +552,163 @@ export function translateJsonParse(jsExpr) {
   return result;
 }
 
+/**
+ * Finds the index of the backtick that closes a template literal opened at
+ * `openIdx`, skipping over `${...}` interpolation bodies (which may contain
+ * their own nested braces and quoted strings) so a `}` or a quote character
+ * inside an interpolation can't be mistaken for the end of the literal.
+ * Returns -1 if unterminated.
+ */
+function findMatchingBacktickClose(str, openIdx) {
+  let i = openIdx + 1;
+  let braceDepth = 0;
+  while (i < str.length) {
+    const c = str[i];
+    if (c === '\\') {
+      i += 2;
+      continue;
+    }
+    if (braceDepth === 0 && c === '`') return i;
+    if (braceDepth === 0 && c === '$' && str[i + 1] === '{') {
+      braceDepth = 1;
+      i += 2;
+      continue;
+    }
+    if (braceDepth > 0) {
+      if (c === '{') {
+        braceDepth++;
+      } else if (c === '}') {
+        braceDepth--;
+      } else if (c === "'" || c === '"') {
+        const q = c;
+        i++;
+        while (i < str.length && str[i] !== q) {
+          if (str[i] === '\\') i++;
+          i++;
+        }
+      }
+    }
+    i++;
+  }
+  return -1;
+}
+
+/**
+ * Converts the raw text between a template literal's backticks into a PHP
+ * string-concatenation expression. Literal text segments become escaped
+ * PHP string literals; each `${...}` interpolation becomes a parenthesized,
+ * still-raw-JS fragment (`(expr)`) left for the rest of
+ * translateJsExpressionToPhp's pipeline to translate exactly as it would any
+ * other part of the expression — this function only unwraps the template
+ * literal's own syntax, it doesn't translate the interpolated JS itself.
+ */
+function translateTemplateLiteralBody(inner) {
+  const parts = [];
+  let textBuf = '';
+  const flushText = () => {
+    if (textBuf !== '') {
+      parts.push(`'${textBuf.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`);
+      textBuf = '';
+    }
+  };
+  let i = 0;
+  while (i < inner.length) {
+    const c = inner[i];
+    if (c === '\\') {
+      textBuf += inner[i + 1] || '';
+      i += 2;
+      continue;
+    }
+    if (c === '$' && inner[i + 1] === '{') {
+      flushText();
+      let depth = 1;
+      let j = i + 2;
+      while (j < inner.length && depth > 0) {
+        const cj = inner[j];
+        if (cj === '{') {
+          depth++;
+        } else if (cj === '}') {
+          depth--;
+          if (depth === 0) break;
+        } else if (cj === "'" || cj === '"') {
+          const q = cj;
+          j++;
+          while (j < inner.length && inner[j] !== q) {
+            if (inner[j] === '\\') j++;
+            j++;
+          }
+        }
+        j++;
+      }
+      const exprText = inner.slice(i + 2, j).trim();
+      parts.push(exprText === '' ? "''" : `(${exprText})`);
+      i = j + 1;
+      continue;
+    }
+    textBuf += c;
+    i++;
+  }
+  flushText();
+  if (parts.length === 0) return "''";
+  return parts.join(' . ');
+}
+
+// Translates a JS template literal (backtick string, optionally with ${}
+// interpolation) into PHP string concatenation. Without this, backtick
+// delimiters pass straight through every later, non-quote-aware regex pass
+// in this pipeline untouched — and a PHP backtick is the shell-exec
+// operator, not a string literal, so the result is syntactically valid but
+// semantically wrong PHP (attempts to shell-exec a garbage string) with no
+// visible error anywhere. Must run first, before any other pass in
+// translateJsExpressionToPhp touches the expression text, so backtick
+// content is converted to safe PHP syntax before anything else can mangle it.
+//
+// `/hotelvergleich/${l.id}` -> '/hotelvergleich/' . (l.id)
+export function translateTemplateLiteral(jsExpr) {
+  if (!jsExpr || typeof jsExpr !== 'string') return jsExpr;
+  let result = '';
+  let i = 0;
+  while (i < jsExpr.length) {
+    const c = jsExpr[i];
+    if (c === "'" || c === '"') {
+      const q = c;
+      result += c;
+      i++;
+      while (i < jsExpr.length) {
+        if (jsExpr[i] === '\\') {
+          result += jsExpr[i] + (jsExpr[i + 1] || '');
+          i += 2;
+          continue;
+        }
+        result += jsExpr[i];
+        if (jsExpr[i] === q) {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (c === '`') {
+      const closeIdx = findMatchingBacktickClose(jsExpr, i);
+      if (closeIdx === -1) {
+        // Unterminated/unsupported shape — leave untouched rather than risk
+        // mangling something this pass doesn't understand.
+        result += c;
+        i++;
+        continue;
+      }
+      const inner = jsExpr.slice(i + 1, closeIdx);
+      result += translateTemplateLiteralBody(inner);
+      i = closeIdx + 1;
+      continue;
+    }
+    result += c;
+    i++;
+  }
+  return result;
+}
+
 export function translateJsExpressionToPhp(jsExpr, blockAttrKeys = [], localVars = new Set(), freeFunctions = new Set()) {
   const skipWords = new Set([
     'true', 'false', 'null', 'undefined', 'attributes', 'props',
@@ -567,6 +724,10 @@ export function translateJsExpressionToPhp(jsExpr, blockAttrKeys = [], localVars
 
   // Replace ?. with . first
   let cleanedExpr = jsExpr.replace(/\?\./g, '.');
+
+  // Must run before every other pass below — they aren't backtick-aware and
+  // would otherwise mangle a template literal's text/interpolation syntax.
+  cleanedExpr = translateTemplateLiteral(cleanedExpr);
 
   cleanedExpr = translateJsonParse(cleanedExpr);
   cleanedExpr = translateReplaceTrim(cleanedExpr);
@@ -586,9 +747,15 @@ export function translateJsExpressionToPhp(jsExpr, blockAttrKeys = [], localVars
       return `['${generalProp}']`;
     }
     if (attrGroup && attrNextGroup) {
+      if (localVars.has(attrNextGroup)) {
+        return `($${attrNextGroup} ?? null)`;
+      }
       return `($attributes['${attrNextGroup}'] ?? null)`;
     }
     if (attrGroup2 && attrNextGroup2) {
+      if (localVars.has(attrNextGroup2)) {
+        return `$${attrNextGroup2}`;
+      }
       return `$attributes['${attrNextGroup2}']`;
     }
     return match;
@@ -609,19 +776,19 @@ export function translateJsExpressionToPhp(jsExpr, blockAttrKeys = [], localVars
     if (freeFunctions.has(match)) {
       return match;
     }
-    if (blockAttrKeys.includes(match)) {
-      const nextChar = str[offset + match.length];
-      if (nextChar === '.' || nextChar === '[') {
-        return `$attributes['${match}']`;
-      }
-      return `($attributes['${match}'] ?? null)`;
-    }
     if (localVars.has(match)) {
       const nextChar = str[offset + match.length];
       if (nextChar === '.' || nextChar === '[') {
         return `$${match}`;
       }
       return `($${match} ?? null)`;
+    }
+    if (blockAttrKeys.includes(match)) {
+      const nextChar = str[offset + match.length];
+      if (nextChar === '.' || nextChar === '[') {
+        return `$attributes['${match}']`;
+      }
+      return `($attributes['${match}'] ?? null)`;
     }
     // Loop vars already rewritten to $row['x'] may still leave bare identifiers in mixed expr —
     // only $prefix when clearly a simple JS identifier (not PHP keywords we missed)
@@ -2808,6 +2975,17 @@ function emitPhpWpIcon(attrs, code, context) {
   return `<?php forgewp_render_theme_icon( ${namePhp}, ${classPhp}, ${JSON.stringify(provider)} ); ?>`;
 }
 
+function emitPhpWpShortcode(attrs, code, context) {
+  const codeAttr = findPhpAttr(attrs, 'code');
+  let codePhp = "''";
+  if (codeAttr && codeAttr.valueNode) {
+    codePhp = codeAttr.valueNode.type === 'StringLiteral'
+      ? `'${codeAttr.valueNode.value.replace(/'/g, "\\'")}'`
+      : translateJsExpressionToPhp(code.slice(codeAttr.valueNode.start, codeAttr.valueNode.end), context.attrKeys, context.localVars, context.freeFunctions);
+  }
+  return `<?php echo do_shortcode( ${codePhp} ); ?>`;
+}
+
 function emitPhpWpEditable(attrs, children, code, blockSettings, context) {
   const tagAttr = findPhpAttr(attrs, 'tagName');
   const tag = (tagAttr && tagAttr.valueNode && tagAttr.valueNode.type === 'StringLiteral') ? tagAttr.valueNode.value : 'div';
@@ -2903,6 +3081,7 @@ function emitPhpNode(node, code, blockSettings, context) {
   const attrs = readPhpJsxAttrs(node.openingElement);
 
   if (tagName === 'WpIcon') return emitPhpWpIcon(attrs, code, context);
+  if (tagName === 'WpShortcode') return emitPhpWpShortcode(attrs, code, context);
   if (tagName === 'WpEditable') return emitPhpWpEditable(attrs, node.children, code, blockSettings, context);
 
   const isPascalCase = /^[A-Z]/.test(tagName);

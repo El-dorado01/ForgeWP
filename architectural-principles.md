@@ -36,6 +36,9 @@ Hooks and components must behave like *isomorphic orchestration elements* rather
 ### 10. Compiler Diagnostics as the Primary Safeguard
 Rather than relying on runtime error boundaries, we enforce quality, performance, and configuration correctness during the compilation phase. The compiler warns developers of missing metadata, unhydrated loops, or layout size mismatches *before* code is exported.
 
+### 11. Capabilities as Compiler Intelligence, Not Component Vocabulary
+New framework capabilities must not grow a component vocabulary that developers have to learn. Developers write ordinary React — the compiler makes WordPress happen. A new feature may add, in strict order of preference: **(1)** compiler/generated-PHP behavior that costs the developer nothing, **(2)** a declarative `wp.config.ts` key, or **(3)** at most one runtime function or component — and only when a WordPress-specific touchpoint is genuinely unavoidable. A feature that requires developers to adopt a new component family is a design smell **unless** the component expresses something WordPress-specific that plain React cannot (the `<WpEditable>` exemption: CMS-owned state has no plain-React equivalent). Whatever already works for the developer — their form library, their toast library, their styling approach — must keep working untouched.
+
 ---
 
 ## 🗺️ Strategic Implementation Roadmap & Checklist
@@ -121,3 +124,10 @@ During our Developer Beta review phase, we finalized three core architecture-def
 
 #### 3. Isomorphic Query Simulation Engine
 * **The Decision**: **JSON-First by Default, SQLite by Intention.** To preserve our signature zero-dependency local setup, themes start with a simple, Git-friendly mock database (`mock-data.json`). When projects scale to require complex nested queries, large taxonomy queries, dynamic search sorting, or eCommerce joins, developers run `pnpm forgewp db:init` to activate an embeddable SQLite engine, giving them high-fidelity local query simulations seamlessly.
+
+#### 4. Native Form Infrastructure with a Field-Ownership Split
+* **The Decision**: **Forms are plain React; ForgeWP owns only the submission backend and the client-managed fields.** We do not ship a form-component vocabulary (`<WpForm>`, `<WpTextField>`, …) and we do not build adapters that puppet third-party form plugins — the hydration island system already gives developers full-fidelity forms with any React library they choose. The framework's footprint is deliberately minimal (per Principle 11):
+  - **`submitWpForm(name, data)`** — a single runtime function (not a hook, so it composes with react-hook-form, plain `onSubmit`, anything) that POSTs to a compiler-generated `forgewp/v1/forms/{name}/submit` REST endpoint with nonce, honeypot, per-type sanitization, a strict field allowlist, `wp_mail()` delivery, and optional submission storage in a `forgewp_submission` CPT (the client's inbox in wp-admin).
+  - **`forms` key in `wp.config.ts`** — the declarative source of truth for each form's developer-owned fields and delivery settings. The compiler generates the endpoint and its server-side validation from this; it never parses the developer's JSX to find inputs.
+  - **Field ownership is explicit.** Every field is either **developer-owned** (written as plain JSX, guaranteed present and stable — the backend may rely on it) or **client-owned** (defined by the site editor in wp-admin, rendered through the single `<WpFormFields>` slot with a developer-supplied render prop, so client-added fields always appear in developer-styled markup). A form can sit anywhere on the spectrum: all fields fixed, all fields client-managed, or a mix — but a field never has two owners.
+  - **`<WpShortcode>` remains the escape hatch** for clients who insist on managing forms in CF7/WPForms — acknowledged as a styled black box, never deeply integrated.

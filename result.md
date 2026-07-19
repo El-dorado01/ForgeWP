@@ -39,3 +39,14 @@ No existing reusable helper covers this — it needs a small dedicated JSON.pars
 
 
 
+and with this form controls that we have built, how do we handle the ones we did in the auth that the framework supports? there is a support that allows devs to add more custom fields to the registration form, do you think we should allow clients to be able to manage those as well?
+
+📋 Not code fixes — need WP-Admin / editorial action (I can't do these from source)
+#4 Meta descriptions "via AIOSEO field" — note: the React <WpHead description=...> prop is now set on every page I checked, so there may already be real descriptions rendering; whether AIOSEO's own per-page field is also filled in (or conflicts with it) needs a look in wp-admin.
+
+#5 DE menu pointing to EN pages — WordPress menu assignment, not theme code.
+
+#6 /single-hotel, /single-listicle demo posts — I confirmed these aren't referenced in mock-data.json or wp.config.ts, meaning they're real published posts sitting in the database with demo content. Needs deleting (or noindex) in wp-admin; sitemap exclusion is an AIOSEO setting.
+#11 Missing EN listicle translations — content creation.
+#12 Duplicate H1 on one specific listicle — this is post content (Gutenberg body), not a template bug (it doesn't affect other listicles), so I can't fix it from code — needs opening that one post and removing the duplicate heading.
+#18 /contact vs /kontakt slug decision — a call for you/the client, not something to silently pick for you.

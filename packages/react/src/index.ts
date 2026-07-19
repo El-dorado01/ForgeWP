@@ -6,9 +6,10 @@
  *
  * Public API surface (intentionally minimal):
  *
- *   Components:    WpQueryLoop, WpMenu, WpShortcode
+ *   Components:    WpQueryLoop, WpMenu, WpShortcode, WpFormFields
  *   Hooks:         useWpTitle, useWpContent, useWpExcerpt, useWpPermalink,
  *                  useWpDate, useWpAuthor, useWpFeaturedImage, useWpCustomField
+ *   Functions:     submitWpForm
  *   Types:         WpPost, WpMenuItem, WpMenuData, WpMenuLocation
  *   Context:       WpPostContext (advanced use only)
  */
@@ -44,6 +45,9 @@ export type { WpRepeaterProps } from "./components/WpRepeater";
 export { WpIcon } from "./components/WpIcon";
 export type { WpIconProps } from "./components/WpIcon";
 
+export { WpFormFields } from "./components/WpFormFields";
+export type { WpFormFieldsProps, WpFormFieldDescriptor } from "./components/WpFormFields";
+
 // Hooks & Utilities
 export {
   useWpTitle,
@@ -68,6 +72,7 @@ export {
   defineBlock,
   defineTheme,
   useWpMeta,
+  submitWpForm,
   resolveDualHost,
   WpBlockContext,
   defineEditable,
@@ -125,6 +130,7 @@ export type {
   PageEditableSectionSource,
   WpOptionField,
   WpOptionsSchema,
+  WpFormResult,
 } from "./hooks";
 
 // Types

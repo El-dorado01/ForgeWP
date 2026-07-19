@@ -7,7 +7,17 @@ import SiteFooter from "../components/SiteFooter";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="forgewp-root" lang="de" translate="no">
+    // No lang attribute here — the real <html lang="..."> (set correctly
+    // per-page by WordPress's own language_attributes() in header.php via
+    // Polylang) already covers everything inside via normal inheritance.
+    // A hardcoded lang on this wrapper would override that for all visible
+    // content, telling browsers the page is German even on /en/ pages —
+    // exactly the mismatch that triggers an unwanted browser/Google
+    // "Translate this page?" prompt. useWpLanguage() can't fix this here
+    // either: it reads window.forgeWpTranslations, which doesn't exist
+    // during the Node SSR pass that bakes this static wrapper, so it would
+    // just bake the same wrong 'de' fallback in a different way.
+    <div className="forgewp-root" translate="no">
       {/* Dev-only preset variables and font enqueues (no-op in production) */}
       <PresetsStyle />
 
@@ -25,6 +35,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         keywords="WordPress, React, Tailwind, ForgeWP"
         ogType="website"
         twitterCard="summary_large_image"
+        ogImage="https://hotelchecker24.com/wp-content/themes/hotelchecker24/Logo/hotelchecker24-logo_farbe.svg"
       />
 
       {/* GLOBAL SITE HEADER (Unified MiniHeader + Navbar) */}

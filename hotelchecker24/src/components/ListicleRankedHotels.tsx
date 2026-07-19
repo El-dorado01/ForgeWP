@@ -122,6 +122,7 @@ export function ListicleRankedHotels({ listicleId }: ListicleRankedHotelsProps) 
                     src={imageSrc}
                     alt={h.title}
                     className="absolute inset-0 w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-500 pointer-events-none"
+                    loading="lazy"
                   />
                   <div className="absolute inset-0 bg-linear-to-t from-slate-950/50 via-transparent to-transparent md:hidden" />
                   {/* Floating Premium Rank Badge */}

@@ -82,3 +82,82 @@ export function defineWpOptions(schema: WpOptionsSchema): WpOptionsSchema {
   // Runtime no-op — compiler reads source files statically.
   return schema;
 }
+
+export type WpFormFieldType =
+  | 'text' | 'email' | 'tel' | 'number' | 'textarea' | 'select' | 'checkbox';
+
+export interface WpFormField {
+  type: WpFormFieldType;
+  label?: string;
+  required?: boolean;
+  options?: string[];
+  maxLength?: number;
+  placeholder?: string;
+}
+
+export type WpFormFieldSeed = Array<WpFormField & { name: string }>;
+
+export interface WpFormClientFieldsConfig {
+  enabled: boolean;
+  /**
+   * Initial client-owned field set. A flat array is used for every configured
+   * locale (fine for a single-language theme, or as a same-content starting
+   * point before translating). For a theme with `i18n.locales.length > 1`,
+   * provide a per-locale map instead so each language seeds independently.
+   */
+  seed: WpFormFieldSeed | Record<string, WpFormFieldSeed>;
+}
+
+export interface WpFormConfig {
+  /**
+   * 'native' (default): ForgeWP generates the REST endpoint, mail delivery,
+   * optional submission storage, and the wp-admin field editor. Requires
+   * `mailTo` and `fields`.
+   *
+   * 'shortcode': escape hatch for clients who want to self-manage a form
+   * entirely inside a WordPress plugin (CF7, WPForms, Gravity…). Requires
+   * `shortcode`. `mailTo`, `fields`, `clientFields`, and `storeSubmissions`
+   * are ignored.
+   */
+  mode?: 'native' | 'shortcode';
+  /** Default/example shortcode string for 'shortcode' mode. */
+  shortcode?: string;
+  /** 'admin' → get_option('admin_email'); a literal email; or 'option:some_key'. */
+  mailTo?: string;
+  /** Email subject line. Supports {field} interpolation from submitted values. */
+  subject?: string;
+  /** Dev-owned fields — the fixed part of the server-side allowlist. Required in 'native' mode. */
+  fields?: Record<string, WpFormField>;
+  clientFields?: WpFormClientFieldsConfig;
+  /** Store each submission in the forgewp_submission CPT (client inbox). Default true. */
+  storeSubmissions?: boolean;
+}
+
+/**
+ * Declares one form's server-side contract — REST endpoint, mail delivery,
+ * optional submission storage, and the wp-admin client-field editor.
+ *
+ * Place one call per file in `cms/forms/{form-name}.ts` (the filename becomes
+ * the form's key, matching `cms/editables/{slug}.ts`'s convention) — the
+ * compiler discovers every file in that directory automatically, so there's
+ * no need to also list the form under `forms` in `wp.config.ts`.
+ *
+ * @example
+ * ```ts
+ * // cms/forms/contact.ts
+ * import { defineWpForm } from '@forgewp/react/config';
+ *
+ * export const form = defineWpForm({
+ *   mailTo: 'admin',
+ *   subject: 'New contact form submission',
+ *   fields: {
+ *     name: { type: 'text', label: 'Name', required: true },
+ *     email: { type: 'email', label: 'Email', required: true },
+ *   },
+ * });
+ * ```
+ */
+export function defineWpForm(config: WpFormConfig): WpFormConfig {
+  // Runtime no-op — the compiler reads source files statically.
+  return config;
+}

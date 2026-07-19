@@ -199,6 +199,113 @@ export function useWpOption(optionName: string, defaultValue = ''): string {
   return defaultValue || `[option: ${optionName}]`;
 }
 
+// ── Native Forms ──────────────────────────────────────────────────────────────
+// submitWpForm + WpFormFields (components/WpFormFields.tsx) are the ONLY
+// runtime additions for forms — see architectural-principles.md Principle 11.
+// Forms are otherwise plain React; the compiler generates the REST backend
+// from the `forms` key in wp.config.ts. See forgewp_forms_spec.md.
+
+export interface WpFormResult {
+  ok: boolean;
+  /** Human-readable server message (already translated server-side). */
+  message?: string;
+  /** Per-field validation errors keyed by field name. */
+  errors?: Record<string, string>;
+}
+
+// Module-load timestamp, used as the server-side time-trap's baseline —
+// a genuine human takes more than a few seconds between page load and
+// submit; a bot firing the request immediately does not.
+const forgeWpFormsLoadedAt = typeof window !== 'undefined' ? Date.now() : 0;
+
+function isProductionForms(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).forgeWpHydration?.restUrl;
+}
+
+/**
+ * Submits a form declared in wp.config.ts's `forms` key. Deliberately a
+ * plain function (not a hook) so it composes with any form library —
+ * react-hook-form's handleSubmit, a plain onSubmit, anything.
+ *
+ * Never throws: network failures resolve to { ok: false, message }, so
+ * callers never need try/catch around this call.
+ */
+export async function submitWpForm(
+  name: string,
+  data: FormData | Record<string, unknown>,
+): Promise<WpFormResult> {
+  if (!isProductionForms()) {
+    let plain: Record<string, unknown>;
+    if (data instanceof FormData) {
+      plain = {};
+      data.forEach((value, key) => {
+        plain[key] = value;
+      });
+    } else {
+      plain = data;
+    }
+    // eslint-disable-next-line no-console
+    console.log(`[forgewp:forms] submit "${name}"`, plain);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const errors: Record<string, string> = {};
+    for (const [key, value] of Object.entries(plain)) {
+      if (value === '__fail__') {
+        errors[key] = 'Simulated error (dev)';
+      }
+    }
+    if (Object.keys(errors).length > 0) {
+      return { ok: false, errors, message: 'Simulated error (dev)' };
+    }
+    return { ok: true, message: 'Simulated (dev)' };
+  }
+
+  try {
+    const win = window as any;
+    const restUrl = win.forgeWpHydration.restUrl;
+    const elapsed = String(Date.now() - forgeWpFormsLoadedAt);
+
+    // The visitor's page language (Polylang/WPML), not the browser's own
+    // locale — needed server-side so the submission validates against and
+    // stores under the same language's client-owned field set the visitor
+    // actually saw, not always the site default.
+    const lang = win.forgeWpTranslations?.currentLanguage;
+
+    let response: Response;
+    if (data instanceof FormData) {
+      data.set('_forgewp_elapsed', elapsed);
+      if (lang) data.set('lang', lang);
+      const headers: Record<string, string> = {};
+      if (win.forgeWpHydration.restNonce) {
+        headers['X-WP-Nonce'] = win.forgeWpHydration.restNonce;
+      }
+      response = await fetch(`${restUrl}/forms/${name}/submit`, {
+        method: 'POST',
+        body: data,
+        headers,
+      });
+    } else {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (win.forgeWpHydration.restNonce) {
+        headers['X-WP-Nonce'] = win.forgeWpHydration.restNonce;
+      }
+      response = await fetch(`${restUrl}/forms/${name}/submit`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ ...data, _forgewp_elapsed: elapsed, ...(lang ? { lang } : {}) }),
+      });
+    }
+
+    const json = await response.json().catch(() => ({}) as any);
+    if (!response.ok) {
+      return { ok: false, message: json.message, errors: json.errors };
+    }
+    return { ok: true, message: json.message };
+  } catch {
+    return { ok: false, message: 'network' };
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // defineWpOptions — compiler-only site option schema declaration
 // Declare site-wide option metadata centrally in src/cms/site-options.ts.

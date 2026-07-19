@@ -106,6 +106,7 @@ export function AboutTeam({
                   src={avatarUrl(row.avatar)}
                   alt={row.name}
                   className='w-full h-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-500'
+                  loading='lazy'
                 />
               </div>
 

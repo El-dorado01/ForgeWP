@@ -523,28 +523,18 @@ ${phpArgs}
     /__FORGEWP_PAGELINK_([a-zA-Z0-9_-]+)_DEFAULT_(.*?)__/g,
     (match, name, defaultVal) => {
       const decoded = decodeURIComponent(defaultVal);
-      return `<?php 
-      $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
-      $get_pages_args = array('meta_key' => '_wp_page_template', 'meta_value' => 'page-${name}.php', 'number' => 1);
-      if (!empty($current_lang)) {
-          $get_pages_args['lang'] = $current_lang;
-      }
-      $matched_pages = get_pages($get_pages_args);
-      echo esc_url(!empty($matched_pages) ? get_permalink($matched_pages[0]->ID) : '${decoded.replace(/'/g, "\\'")}'); 
+      return `<?php
+      $__fwp_id = forgewp_resolve_route_page_id('${name}');
+      echo esc_url($__fwp_id ? get_permalink($__fwp_id) : '${decoded.replace(/'/g, "\\'")}');
       ?>`;
     },
   );
   processed = processed.replace(
     /__FORGEWP_PAGELINK_([a-zA-Z0-9_-]+)__/g,
     (match, name) => {
-      return `<?php 
-      $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
-      $get_pages_args = array('meta_key' => '_wp_page_template', 'meta_value' => 'page-${name}.php', 'number' => 1);
-      if (!empty($current_lang)) {
-          $get_pages_args['lang'] = $current_lang;
-      }
-      $matched_pages = get_pages($get_pages_args);
-      echo esc_url(!empty($matched_pages) ? get_permalink($matched_pages[0]->ID) : ''); 
+      return `<?php
+      $__fwp_id = forgewp_resolve_route_page_id('${name}');
+      echo esc_url($__fwp_id ? get_permalink($__fwp_id) : '');
       ?>`;
     },
   );
@@ -730,6 +720,31 @@ ${phpArgs}
   processed = processed.replace(
     /__FORGEWP_PRODUCT_RATING__/g,
     '<?php global $product; echo wp_kses_post( wc_get_rating_html( $product->get_average_rating() ) ); ?>'
+  );
+
+  // ── Translate Compile-Time encodeURIComponent Wrapper to rawurlencode in PHP ──
+  processed = processed.replace(
+    /__FORGEWP_URLENCODE_START__(.*?)__FORGEWP_URLENCODE_END__/gs,
+    (match, content) => {
+      const tokens = [];
+      let lastIndex = 0;
+      const phpRegex = /<\?php\s+(?:echo\s+)?(.*?);\s*\?>/g;
+      let m;
+      while ((m = phpRegex.exec(content)) !== null) {
+        if (m.index > lastIndex) {
+          const staticText = content.substring(lastIndex, m.index);
+          tokens.push(JSON.stringify(staticText));
+        }
+        tokens.push(`(${m[1]})`);
+        lastIndex = phpRegex.lastIndex;
+      }
+      if (lastIndex < content.length) {
+        const staticText = content.substring(lastIndex);
+        tokens.push(JSON.stringify(staticText));
+      }
+      const phpExpr = tokens.join(' . ');
+      return `<?php echo rawurlencode(${phpExpr}); ?>`;
+    }
   );
 
   return processed;

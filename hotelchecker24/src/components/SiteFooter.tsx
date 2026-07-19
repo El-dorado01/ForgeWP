@@ -80,10 +80,11 @@ export default function SiteFooter() {
           <div className="flex-1 min-w-[280px] max-w-md flex flex-col items-start">
             {/* Logo with clean silver-white filter */}
             <WpLink href={homeHref} className="hover:opacity-90 transition-opacity mb-6">
-              <img 
-                src={themeUri + "/Logo/hotelchecker24-logo_farbe.svg"} 
-                alt="Hotelchecker24 Logo" 
-                className="h-7 w-auto object-contain brightness-0 invert opacity-95" 
+              <img
+                src={themeUri + "/Logo/hotelchecker24-logo_farbe.svg"}
+                alt="Hotelchecker24 Logo"
+                loading="lazy"
+                className="h-7 w-auto object-contain brightness-0 invert opacity-95"
               />
             </WpLink>
             

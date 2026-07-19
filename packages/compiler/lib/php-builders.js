@@ -216,14 +216,11 @@ export function buildHeaderPhp(config) {
   <meta charset="<?php bloginfo('charset'); ?>">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <?php
-  // Yield metadata control to active SEO plugins to prevent duplication
-  $seo_plugin_active = defined('WPSEO_VERSION') ||
-                       class_exists('RankMath') ||
-                       class_exists('All_in_One_SEO_Pack') ||
-                       defined('AIOSEO_VERSION') ||
-                       class_exists('SEOPress\\\\Services\\\\Title');
-
-  if ( ! $seo_plugin_active ) {
+  // Yield metadata control to active SEO plugins to prevent duplication.
+  // forgewp_seo_plugin_active() (functions.php) is the single source of
+  // truth for this check — every place ForgeWP yields to a standard SEO
+  // plugin uses the same function so the detected plugin list can't drift.
+  if ( ! forgewp_seo_plugin_active() ) {
       $target = forgewp_resolve_head_target();
       if (file_exists($target)) {
           ob_start();

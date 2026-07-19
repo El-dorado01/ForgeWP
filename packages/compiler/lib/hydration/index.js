@@ -3,6 +3,7 @@ export { getComponentRootClassName } from "./root-class-extractor.js";
 export { scanForHydrationIslands, scanForHydrationIslandsWithProps, findComponentPath } from "./islands-scanner.js";
 export { getHydrationRollupInputs } from "./rollup-inputs.js";
 export { scanForEditableSchemas } from "./editable-schemas.js";
+export { scanForFormSchemas } from "./form-schemas.js";
 export { runStaticLintChecks } from "./static-lint.js";
 export { resolveImportPath, doesComponentUseAuthHooks } from "./utils.js";
 export { transformThemeFile } from "./transform.js";

@@ -130,7 +130,7 @@ function forgewp_register_segmented_xml_sitemaps() {
     if (!function_exists('wp_sitemaps_get_server')) {
         return;
     }
-    if (defined('WPSEO_VERSION') || class_exists('RankMath') || class_exists('All_in_One_SEO_Pack') || defined('AIOSEO_VERSION')) {
+    if (forgewp_seo_plugin_active()) {
         return;
     }
     add_filter('wp_sitemaps_post_types', function($post_types) {

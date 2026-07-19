@@ -35,23 +35,34 @@ export function ContactFormSection({
 
   return (
     <div className='w-full min-w-0'>
-      {setAttributes && (
-        <div className="mb-3 space-y-1">
-          <WpEditable
-            tagName="div"
-            value={formTitle}
-            onChange={(val) => setAttributes({ formTitle: val })}
-            className="text-xs font-mono text-slate-400"
-          />
-          <WpEditable
-            tagName="div"
-            value={formDescription}
-            onChange={(val) => setAttributes({ formDescription: val })}
-            className="text-xs font-mono text-slate-400"
-          />
+      {setAttributes ? (
+        <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Contact Form settings</div>
+          <div className="space-y-1">
+            <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">Form Title:</div>
+            <WpEditable
+              tagName="div"
+              value={formTitle}
+              onChange={(val) => setAttributes({ formTitle: val })}
+              className="text-sm text-slate-800 font-bold"
+            />
+          </div>
+          <div className="space-y-1">
+            <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">Form Description:</div>
+            <WpEditable
+              tagName="div"
+              value={formDescription}
+              onChange={(val) => setAttributes({ formDescription: val })}
+              className="text-xs text-slate-600"
+            />
+          </div>
+          <p className="text-[10px] text-slate-400 pt-2 border-t border-slate-200/60">
+            Form fields (subject, message) are managed under Appearance → Forms.
+          </p>
         </div>
+      ) : (
+        <ContactForm formTitle={formTitle} formDescription={formDescription} />
       )}
-      <ContactForm formTitle={formTitle} formDescription={formDescription} />
     </div>
   );
 }

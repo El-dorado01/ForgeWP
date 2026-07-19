@@ -16,6 +16,7 @@ const subcommands = {
   "make:page": path.join(__dirname, "make-page.js"),
   "make:island": path.join(__dirname, "make-island.js"),
   "make:editable": path.join(__dirname, "make-editable.js"),
+  "make:form": path.join(__dirname, "make-form.js"),
   "make:sandbox": path.join(__dirname, "make-sandbox.js"),
   "sync:routes": path.join(__dirname, "sync-routes.js"),
   "sync:hooks": path.join(__dirname, "sync-hooks.js"),
@@ -55,6 +56,8 @@ if (!targetScript) {
     targetScript = subcommands["make:island"];
   } else if (command === "make-editable" || command === "editable" || command === "make:editable") {
     targetScript = subcommands["make:editable"];
+  } else if (command === "make-form" || command === "form" || command === "make:form") {
+    targetScript = subcommands["make:form"];
   } else if (command === "make-sandbox" || command === "sandbox" || command === "make:sandbox") {
     targetScript = subcommands["make:sandbox"];
   } else if (command === "sync-routes" || command === "sync" || command === "sync:routes") {
@@ -106,6 +109,7 @@ function printHelp() {
     ${pc.cyan("make:page <Name>")}         Scaffold a custom WordPress Page Template
     ${pc.cyan("make:island <Name>")}       Scaffold an interactive selective hydration island
     ${pc.cyan("make:editable <Name>")}     Scaffold a colocated editable content schema (cms/editables/)
+    ${pc.cyan("make:form <Name>")}         Scaffold a form (cms/forms/) + starter component (src/components/forms/)
     ${pc.cyan("make:sandbox <type>")}         Scaffold sandbox mock databases (e.g. ecommerce, auth)
     ${pc.cyan("sync:routes")}             Synchronize sitemap menus with routes and scaffold pages
     ${pc.cyan("sync:hooks")}              Propagate wordpress.tsx hooks to all workspace projects
@@ -129,6 +133,7 @@ function printHelp() {
     pnpm forgewp make:page AboutUs
     pnpm forgewp make:island CounterIsland
     pnpm forgewp make:editable AboutPage --fields=hero_badge:text,hero_title:text,hero_subtitle:richText
+    pnpm forgewp make:form Contact --fields=name:text,email:email,message:textarea
     pnpm forgewp sync:routes
     pnpm forgewp doctor
     pnpm forgewp analyze

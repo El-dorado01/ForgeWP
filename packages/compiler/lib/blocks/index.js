@@ -924,6 +924,7 @@ $grid_class  = ${JSON.stringify(gridClass ? `forgewp-block-shell__grid ${gridCla
                 }
 
                 const ast = parseJsxToAst(editJsx);
+                if (!ast) throw new Error('editJsx did not parse as a single JSX expression');
                 const customEditJsx = generateReactCreateElement(ast, settings);
                 const paddingTokensToStrip = settings._detectedPaddingTokens
                   ? [...settings._detectedPaddingTokens.y, ...settings._detectedPaddingTokens.x]
@@ -1801,6 +1802,34 @@ $grid_class  = ${JSON.stringify(gridClass ? `forgewp-block-shell__grid ${gridCla
           const lengthCheckResult = translateStaticArrayLengthCheck(phpMarkup, sourceCodeForStaticMap, settings, localVars, phpFreeFunctions);
           phpMarkup = lengthCheckResult.jsx;
           phpVarDefinitions += lengthCheckResult.prelude;
+
+          // Must run after transpileStaticArrayObjectMap/translateStaticArrayLengthCheck
+          // above (which need to see a template literal's raw `${propName}`
+          // text to inline that row's own static value) but before
+          // transpileLoops/transpileConditionals/transpileTernaries below:
+          // those scan for bare `{...}` JSX expression containers with no
+          // awareness that a `${...}` inside a backtick template literal
+          // isn't one — transpileTernaries in particular will happily "find"
+          // the ternary inside e.g. `${cond ? 'a' : 'b'}`, transpile it in
+          // place as if it were a real top-level JSX ternary, and leave the
+          // surrounding backtick/`$` characters behind as broken literal text
+          // (a stray `$` sitting right before the resulting <?php if (...): ?>
+          // block). Resolving every remaining attr={`...`} template literal
+          // into a plain PHP-interpolated string here removes the
+          // backtick/${} syntax before those later passes can ever misread it.
+          phpMarkup = phpMarkup.replace(
+            /([a-zA-Z0-9_-]+)=\{\s*`([\s\S]*?)`\s*\}/g,
+            (match, attr, templateLiteralContent) => {
+              const escFunc = (attr === 'href' || attr === 'src') ? 'esc_url' : 'esc_attr';
+              const processed = templateLiteralContent.replace(/\$\{\s*([\s\S]*?)\s*\}/g, (m, jsExpr) => {
+                const phpExpr = translateJsExpressionToPhp(jsExpr, Object.keys(settings.attributes || {}), localVars, phpFreeFunctions);
+                return `<?php echo ${escFunc}( ${phpExpr} ); ?>`;
+              });
+              const attrName = attr === 'className' ? 'class' : attr;
+              return `${attrName}="${processed}"`;
+            },
+          );
+
           phpMarkup = transpileLoops(phpMarkup);
           phpMarkup = transpileConditionals(phpMarkup, Object.keys(settings.attributes || {}));
           phpMarkup = transpileTernaries(phpMarkup, Object.keys(settings.attributes || {}));
