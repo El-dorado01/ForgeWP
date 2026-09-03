@@ -1,69 +1,66 @@
-import { WpHead } from '../.forgewp/wordpress';
-import { Hydrate } from '@forgewp/react';
-import Navbar from '../components/navigation/Navbar';
-import HeroSection from '../components/HeroSection';
-import EditorialLookbook from '../components/EditorialLookbook';
-import AboutSection from '../components/AboutSection';
-import LightingShowcase from '../components/LightingShowcase';
-import ProductShowroom from '../components/ProductShowroom';
-import BannerCta from '../components/BannerCta';
-import Footer from '../components/Footer';
+import { Hero } from '@/components/marketing/hero';
+import { TrustStrip } from '@/components/marketing/trust-strip';
+import { PressStrip } from '@/components/marketing/press-strip';
+import { CategoryGrid } from '@/components/marketing/category-grid';
+import { ShowroomSplit } from '@/components/marketing/showroom-split';
+import { PickedCollection } from '@/components/marketing/picked-collection';
+import { MaterialityAccordion } from '@/components/marketing/materiality-accordion';
+import { CuratorQuote } from '@/components/marketing/curator-quote';
+import { ReviewsMarquee } from '@/components/marketing/reviews-marquee';
+import { JournalPreview } from '@/components/marketing/journal-preview';
+import { NewsletterCta } from '@/components/marketing/newsletter-cta';
+import {
+  getSaleProducts,
+  getAllProducts,
+} from '@/data/products';
+import { WpHead } from '@forgewp/react';
 
 export default function HomePage() {
+  const all = getAllProducts();
+  // 5 flagship products for the Curated Living Archive
+  const collection =
+    getSaleProducts(5).length >= 5
+      ? getSaleProducts(5)
+      : all.slice(2, 7);
+
   return (
-    <div className='min-h-screen bg-[#FAF9F6] text-zinc-800 selection:bg-brand selection:text-white relative font-sans'>
+    <>
       <WpHead
-        title='CD. — Comfortable Decor Parallax Experience'
-        description='A premium parallax decor catalog featuring minimalist furniture, lighting, and ceramics.'
-        ogType='website'
+        title="Comfortable Decor — Curated Architectural Living & Furniture"
+        description="Premium furniture, lighting, and eco-friendly décor for warm, modern homes. Timeless Scandinavian design and material honesty."
+        ogType="website"
       />
 
-      {/* Navbar is hydrated on load for interactive menus */}
-      <Hydrate trigger='load'>
-        <Navbar />
-      </Hydrate>
+      {/* 1. Monumental Hero with Interactive Hotspot & Dual-Sliding Actions */}
+      <Hero />
 
-      <main>
-        <Hydrate trigger='load'>
-          <HeroSection />
-        </Hydrate>
-        <Hydrate
-          trigger='visible'
-          preload='near-visible'
-        >
-          <EditorialLookbook />
-        </Hydrate>
-        <Hydrate
-          trigger='visible'
-          preload='near-visible'
-        >
-          <AboutSection />
-        </Hydrate>
-        <Hydrate
-          trigger='visible'
-          preload='near-visible'
-        >
-          <LightingShowcase />
-        </Hydrate>
-        <Hydrate
-          trigger='visible'
-          preload='near-visible'
-        >
-          <ProductShowroom />
-        </Hydrate>
-        <Hydrate
-          trigger='visible'
-          preload='near-visible'
-        >
-          <BannerCta />
-        </Hydrate>
-        <Hydrate
-          trigger='visible'
-          preload='near-visible'
-        >
-          <Footer />
-        </Hydrate>
-      </main>
-    </div>
+      {/* 2. Architectural Provenance Strip & Press Recognition */}
+      <TrustStrip />
+      <PressStrip />
+
+      {/* 3. (01) Collection Atlas — 6-Card Popular Categories Grid */}
+      <CategoryGrid />
+
+      {/* 4. (02) Physical Showroom Experience — Munich Living Space */}
+      <ShowroomSplit />
+
+      {/* 5. (03) Curated Living Archive — Flagship Shoppable Products + Architectural Moodboard */}
+      <PickedCollection products={collection} />
+
+      {/* 6. (04) Materiality & Craft Accordion with Permanent Header Highlighter */}
+      <MaterialityAccordion />
+
+      {/* 7. (05) Curator's Perspective & Design Manifesto */}
+      <CuratorQuote />
+
+      {/* 8. (06) Client Reflections & Continuous Brand Signature Marquee */}
+      <ReviewsMarquee />
+
+      {/* 9. (07) Architectural Journal — Design Insights & Reading Times */}
+      <JournalPreview />
+
+      {/* 10. (08) Archival Newsletter & Member Rewards */}
+      <NewsletterCta />
+    </>
   );
 }

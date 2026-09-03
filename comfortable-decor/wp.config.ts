@@ -1,15 +1,44 @@
 import { defineConfig } from '@forgewp/compiler/define-config';
-// import seoPlugin from '@forgewp/plugin-seo';
 import { siteOptions } from './cms/site-options';
 import { themeMods } from './cms/theme-mods';
+// import seoPlugin from '@forgewp/plugin-seo';
 
 export default defineConfig({
+  seed: {
+    products: 'upsert',
+    mockData: 'once',
+    developmentOnly: false,
+  },
+
+  auth: {
+    loginField: 'usernameAndEmail',
+    defaultRole: 'subscriber',
+    reservedUsernames: ['admin', 'system', 'root', 'administrator'],
+    features: {
+      registration: true,
+      emailVerification: true,
+      blockLoginUntilVerified: true,
+      autoLoginAfterSignup: false,
+    },
+    emails: {
+      verification: {
+        subject: 'Verify your ForgeWP Account',
+        body: 'Welcome to ForgeWP! Click this link to verify your email address:\n\n{verification_url}',
+      },
+      passwordReset: {
+        subject: 'Password Reset Request',
+        body: 'Click the link below to reset your password:\n\n{reset_url}',
+      },
+    },
+  },
   name: "Comfortable Decor",
   slug: "comfortable-decor",
   version: "0.1.0",
   description: "A premium block-theme built with React, Tailwind CSS, and ForgeWP.",
   textDomain: "comfortable-decor",
   configVersion: 1,
+  options: siteOptions,
+  themeMods: themeMods,
   // favicon: '/Logo/favicon.svg',
   // plugins: [
   //   seoPlugin({
@@ -25,8 +54,18 @@ export default defineConfig({
   // ],
   style: "shadcn", // "forgewp" (sharp corners) or "shadcn" (smooth modern curves)
   frameworkAdapter: "react",
-  options: siteOptions,
-  themeMods: themeMods,
+
+  postTypes: {
+    product: {
+      icon: 'dashicons-products',
+    },
+    project: {
+      icon: 'dashicons-portfolio',
+    },
+    review: {
+      icon: 'dashicons-star-filled',
+    },
+  },
 
   i18n: {
     locales: ['en', 'de'],
@@ -42,7 +81,7 @@ export default defineConfig({
     color: {
       custom: true,
       palette: [
-        { name: 'Brand Primary', slug: 'brand', color: '#4F6D60' },
+        { name: 'Brand Primary', slug: 'brand', color: '#ff000c' },
         { name: 'Brand Secondary', slug: 'secondary', color: '#1e293b' },
         { name: 'Accent Amber', slug: 'accent', color: '#f59e0b' },
         { name: 'Background Light', slug: 'background', color: '#fafafa' },

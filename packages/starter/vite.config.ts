@@ -3,11 +3,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig, type PluginOption } from 'vite';
+import { defineConfig, type PluginOption, type UserConfig } from 'vite';
 import {
   loadConfig,
   loadFrameworkAdapter,
   validateCriticalFiles,
+  forgewpVirtualPlugin,
 } from '@forgewp/compiler';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -29,11 +30,14 @@ function forgewpValidationPlugin(): PluginOption {
     },
     configureServer(server) {
       // Automatically watch the local database and trigger a reload (skip programmatically written files)
-      server.watcher.add(path.resolve(__dirname, 'cms/*.json'));
+      server.watcher.add([
+        path.resolve(__dirname, 'cms/*.json'),
+        path.resolve(__dirname, 'cms/*.ts'),
+      ]);
       server.watcher.on('change', (file) => {
         if (
           file.includes('cms') &&
-          file.endsWith('.json') &&
+          (file.endsWith('.json') || file.endsWith('.ts')) &&
           !file.includes('email-logs.json') &&
           !file.includes('users.json')
         ) {
@@ -120,7 +124,7 @@ function forgewpValidationPlugin(): PluginOption {
   };
 }
 
-export default defineConfig(async () => {
+export default defineConfig(async (): Promise<UserConfig> => {
   const config = await loadConfig(__dirname);
   const adapterName = config.frameworkAdapter || 'react';
   const adapter = await loadFrameworkAdapter(adapterName);
@@ -139,12 +143,14 @@ export default defineConfig(async () => {
     plugins: [
       react(),
       tailwindcss(),
+      forgewpVirtualPlugin({ projectRoot: __dirname }),
       forgewpValidationPlugin(),
     ] as PluginOption[],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
       },
+      dedupe: ['react', 'react-dom'],
     },
     server: {
       port: 5173,
@@ -159,6 +165,7 @@ export default defineConfig(async () => {
       manifest: true,
       rollupOptions: {
         input: getHydrationRollupInputs(__dirname),
+        preserveEntrySignatures: 'exports-only',
       },
     },
     experimental: {

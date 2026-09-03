@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { WpHead } from "../.forgewp/wordpress";
-import { PresetsStyle } from "../.forgewp/PresetsStyle";
+import { WpHead } from '@forgewp/react';
+import { PresetsStyle } from '@forgewp/react';
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

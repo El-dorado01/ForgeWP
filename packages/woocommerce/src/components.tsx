@@ -26,6 +26,7 @@ import {
   useWpProduct,
   useWpProductCategories,
   useWpProductTags,
+  useWpProductReviews,
   fetchStoreApi,
   mapStoreApiToCartState,
   IS_DEV
@@ -158,9 +159,9 @@ export function WpCartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    let itemPrice = parseFloat(product.price || "0");
+    let itemPrice = parseFloat(String(product.price || "0"));
     let variationId = "";
-    let itemTitle = product.title;
+    let itemTitle = product.title || product.name || "Product";
 
     if (product.type === "variable" && variation && product.variations) {
       // Find matching variation
@@ -168,10 +169,10 @@ export function WpCartProvider({ children }: { children: React.ReactNode }) {
         return Object.entries(variation).every(([attr, val]) => v.attributes[attr] === val);
       });
       if (match) {
-        itemPrice = parseFloat(match.price);
+        itemPrice = parseFloat(String(match.price));
         variationId = String(match.id);
         const desc = Object.entries(variation).map(([k, v]) => `${k}: ${v}`).join(", ");
-        itemTitle = `${product.title} (${desc})`;
+        itemTitle = `${product.title || product.name || "Product"} (${desc})`;
       }
     }
 
@@ -245,19 +246,19 @@ export function WpCartProvider({ children }: { children: React.ReactNode }) {
       const product = products.find((p) => p.id === b.productId);
       if (!product) return;
 
-      let itemPrice = parseFloat(product.price || "0");
+      let itemPrice = parseFloat(String(product.price || "0"));
       let variationId = "";
-      let itemTitle = product.title;
+      let itemTitle = product.title || product.name || "Product";
 
       if (product.type === "variable" && b.variation && product.variations) {
         const match = product.variations.find((v) => {
           return Object.entries(b.variation!).every(([attr, val]) => v.attributes[attr] === val);
         });
         if (match) {
-          itemPrice = parseFloat(match.price);
+          itemPrice = parseFloat(String(match.price));
           variationId = String(match.id);
           const desc = Object.entries(b.variation).map(([k, v]) => `${k}: ${v}`).join(", ");
-          itemTitle = `${product.title} (${desc})`;
+          itemTitle = `${product.title || product.name || "Product"} (${desc})`;
         }
       }
 
@@ -515,7 +516,8 @@ export function WpProductGallery({ productId }: { productId: number }) {
 
   React.useEffect(() => {
     if (product) {
-      setActiveImage(product.featuredImage);
+      const defaultImg = product.featuredImage || (typeof product.images?.[0] === 'string' ? product.images[0] : product.images?.[0]?.url) || "";
+      setActiveImage(defaultImg);
     }
   }, [product]);
 
@@ -523,8 +525,9 @@ export function WpProductGallery({ productId }: { productId: number }) {
   React.useEffect(() => {
     const handleVariation = (e: Event) => {
       const variationDetail = (e as CustomEvent).detail;
-      if (variationDetail && variationDetail.image && variationDetail.image.url) {
-        setActiveImage(variationDetail.image.url);
+      if (variationDetail && variationDetail.image) {
+        const imgUrl = typeof variationDetail.image === 'string' ? variationDetail.image : variationDetail.image.url;
+        if (imgUrl) setActiveImage(imgUrl);
       }
     };
     window.addEventListener(`forgewp-variation-selected-${productId}`, handleVariation);
@@ -547,31 +550,34 @@ export function WpProductGallery({ productId }: { productId: number }) {
             Sale
           </span>
         )}
-        <img src={activeImage} alt={product.title} className="max-w-full max-h-full object-cover" />
+        <img src={activeImage} alt={product.title || product.name || "Product"} className="max-w-full max-h-full object-cover" />
       </div>
 
       {/* Thumbnails */}
       {galleryImages.length > 0 && (
         <div className="grid grid-cols-4 gap-2">
           <button
-            onClick={() => setActiveImage(product.featuredImage)}
+            onClick={() => setActiveImage(product.featuredImage || "")}
             className={`border-2 border-black p-1 bg-white aspect-square overflow-hidden flex items-center justify-center ${
               activeImage === product.featuredImage ? "outline outline-4 outline-black" : ""
             }`}
           >
-            <img src={product.featuredImage} alt="Featured" className="max-w-full max-h-full object-cover" />
+            <img src={product.featuredImage || ""} alt="Featured" className="max-w-full max-h-full object-cover" />
           </button>
-          {galleryImages.map((img: any, idx: number) => (
-            <button
-              key={img.id || idx}
-              onClick={() => setActiveImage(img.url)}
-              className={`border-2 border-black p-1 bg-white aspect-square overflow-hidden flex items-center justify-center ${
-                activeImage === img.url ? "outline outline-4 outline-black" : ""
-              }`}
-            >
-              <img src={img.url} alt={`Gallery ${idx}`} className="max-w-full max-h-full object-cover" />
-            </button>
-          ))}
+          {galleryImages.map((img: any, idx: number) => {
+            const imgUrl = typeof img === 'string' ? img : img.url;
+            return (
+              <button
+                key={img.id || idx}
+                onClick={() => setActiveImage(imgUrl)}
+                className={`border-2 border-black p-1 bg-white aspect-square overflow-hidden flex items-center justify-center ${
+                  activeImage === imgUrl ? "outline outline-4 outline-black" : ""
+                }`}
+              >
+                <img src={imgUrl} alt={`Gallery ${idx}`} className="max-w-full max-h-full object-cover" />
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -586,7 +592,7 @@ export function WpProductPrice({ productId }: { productId: number }) {
     const handleVariation = (e: Event) => {
       const variationDetail = (e as CustomEvent).detail;
       if (variationDetail && variationDetail.price) {
-        setSelectedPriceHtml(`$${parseFloat(variationDetail.price).toFixed(2)}`);
+        setSelectedPriceHtml(`$${parseFloat(String(variationDetail.price)).toFixed(2)}`);
       }
     };
     window.addEventListener(`forgewp-variation-selected-${productId}`, handleVariation);
@@ -602,7 +608,7 @@ export function WpProductPrice({ productId }: { productId: number }) {
   }
 
   if (product.type === "variable" && product.variations && product.variations.length > 0) {
-    const prices = product.variations.map((v) => parseFloat(v.price));
+    const prices = product.variations.map((v) => parseFloat(String(v.price)));
     const minPrice = Math.min(...prices).toFixed(2);
     const maxPrice = Math.max(...prices).toFixed(2);
     return (
@@ -617,9 +623,9 @@ export function WpProductPrice({ productId }: { productId: number }) {
   return (
     <div className="flex items-center gap-3 font-mono text-2xl font-black">
       {hasDiscount && (
-        <span className="text-zinc-400 line-through text-lg">${parseFloat(product.regular_price!).toFixed(2)}</span>
+        <span className="text-zinc-400 line-through text-lg">${parseFloat(String(product.regular_price!)).toFixed(2)}</span>
       )}
-      <span>${parseFloat(product.price).toFixed(2)}</span>
+      <span>${parseFloat(String(product.price)).toFixed(2)}</span>
     </div>
   );
 }
@@ -654,16 +660,17 @@ export function WpProductVariationSelector({ productId }: { productId: number })
           <span className="font-bold text-xs uppercase text-zinc-500">{attr.name}</span>
           <div className="flex flex-wrap gap-2">
             {attr.options.map((opt) => {
-              const isSelected = selections[attr.name] === opt;
+              const optVal = typeof opt === 'string' ? opt : opt.value || opt.label || "";
+              const isSelected = selections[attr.name] === optVal;
               return (
                 <button
-                  key={opt}
-                  onClick={() => handleSelect(attr.name, opt)}
+                  key={optVal}
+                  onClick={() => handleSelect(attr.name, optVal)}
                   className={`border-2 border-black px-4 py-2 text-xs font-black uppercase transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
                     isSelected ? "bg-black text-white translate-x-[1px] translate-y-[1px] shadow-none" : "bg-white text-black hover:bg-zinc-100"
                   }`}
                 >
-                  {opt}
+                  {optVal}
                 </button>
               );
             })}
@@ -738,9 +745,9 @@ export function WpRelatedProducts({ productId, limit = 4 }: { productId: number;
               <span className="font-mono font-bold text-xs uppercase text-zinc-400">
                 {p._terms?.product_cat?.[0]?.name}
               </span>
-              <h3 className="font-mono font-black text-lg uppercase my-1 truncate">{p.title}</h3>
+              <h3 className="font-mono font-black text-lg uppercase my-1 truncate">{p.title || p.name || "Product"}</h3>
               <div className="font-mono font-black text-md text-accent">
-                ${parseFloat(p.price || "0").toFixed(2)}
+                ${parseFloat(String(p.price || "0")).toFixed(2)}
               </div>
             </div>
             <a
@@ -757,15 +764,8 @@ export function WpRelatedProducts({ productId, limit = 4 }: { productId: number;
 }
 
 export function WpProductReviews({ productId }: { productId: number }) {
-  const { product, loading } = useWpProduct(productId);
-  const [reviews, setReviews] = React.useState<any[]>([]);
+  const { reviews, ratingCount, submitReview, loading, isSubmitting, error } = useWpProductReviews(productId);
   const [rating, setRating] = React.useState(5);
-
-  React.useEffect(() => {
-    if (product && product.reviews) {
-      setReviews(product.reviews);
-    }
-  }, [product]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -775,63 +775,26 @@ export function WpProductReviews({ productId }: { productId: number }) {
 
     if (!author || !content) return;
 
-    if (!IS_DEV) {
-      try {
-        const body = new URLSearchParams();
-        body.append("comment_post_ID", String(productId));
-        body.append("author", author);
-        body.append("email", `${author.toLowerCase().replace(/\s+/g, "")}@example.com`);
-        body.append("comment", content);
-        body.append("rating", String(rating));
-
-        const response = await fetch("/wp-comments-post.php", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
-          },
-          body: body.toString()
-        });
-
-        if (response.ok || response.redirected) {
-          const newRev = {
-            id: Date.now(),
-            author,
-            content,
-            rating,
-            date: new Date().toISOString().split("T")[0]
-          };
-          setReviews([newRev, ...reviews]);
-          e.currentTarget.reset();
-        } else {
-          console.error("Failed to submit WooCommerce review");
-        }
-      } catch (err) {
-        console.error("Error submitting review:", err);
-      }
-      return;
-    }
-
-    const newRev = {
-      id: Date.now(),
+    const ok = await submitReview({
       author,
       content,
       rating,
-      date: new Date().toISOString().split("T")[0]
-    };
+    });
 
-    const next = [newRev, ...reviews];
-    setReviews(next);
-    e.currentTarget.reset();
+    if (ok) {
+      e.currentTarget.reset();
+      setRating(5);
+    }
   };
 
-  if (loading || !product) return null;
+  if (loading) return null;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 font-mono border-t-4 border-black pt-8">
       {/* Review Feed */}
       <div className="space-y-6">
         <h3 className="font-black text-2xl uppercase border-b-4 border-black pb-2">
-          Customer Feedbacks ({reviews.length})
+          Customer Feedbacks ({ratingCount})
         </h3>
         {reviews.length === 0 ? (
           <p className="text-zinc-500 italic text-sm">No reviews yet. Be the first to leave one!</p>
@@ -858,6 +821,11 @@ export function WpProductReviews({ productId }: { productId: number }) {
       {/* Review Form Island */}
       <div className="border-4 border-black p-6 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] self-start">
         <h3 className="font-black text-xl uppercase mb-4 border-b-2 border-black pb-2">Add a Review</h3>
+        {error && (
+          <div className="border-2 border-red-500 bg-red-50 text-red-700 p-2 text-xs font-bold mb-4">
+            {error}
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase text-zinc-500">Rating</label>
@@ -893,9 +861,10 @@ export function WpProductReviews({ productId }: { productId: number }) {
           </div>
           <button
             type="submit"
-            className="w-full border-4 border-black bg-black text-white font-bold py-3 uppercase text-xs hover:bg-white hover:text-black transition-all"
+            disabled={isSubmitting}
+            className="w-full border-4 border-black bg-black text-white font-bold py-3 uppercase text-xs hover:bg-white hover:text-black transition-all disabled:opacity-50"
           >
-            Submit Feedback
+            {isSubmitting ? "Submitting..." : "Submit Feedback"}
           </button>
         </form>
       </div>
@@ -1706,8 +1675,8 @@ export function WpWishlistList() {
             <img src={p.featuredImage} alt={p.title} className="max-w-full max-h-full object-cover" />
           </div>
           <div>
-            <h3 className="font-black text-lg uppercase truncate mb-1">{p.title}</h3>
-            <span className="font-bold text-accent">${parseFloat(p.price || "0").toFixed(2)}</span>
+            <h3 className="font-black text-lg uppercase truncate mb-1">{p.title || p.name || "Product"}</h3>
+            <span className="font-bold text-accent">${parseFloat(String(p.price || "0")).toFixed(2)}</span>
           </div>
           <a
             href={`/product/${p.sku}`}
@@ -1821,12 +1790,12 @@ export function WpProductLoop({
       {filtered.map((prod) => {
         const postShape = {
           id: prod.id,
-          title: prod.title,
-          excerpt: prod.excerpt,
-          content: prod.content,
+          title: prod.title || prod.name || "Product",
+          excerpt: prod.excerpt || prod.shortDescription || "",
+          content: prod.content || prod.description || "",
           date: "",
           author: "Admin",
-          featuredImage: prod.featuredImage,
+          featuredImage: prod.featuredImage || (typeof prod.images?.[0] === 'string' ? prod.images[0] : prod.images?.[0]?.url) || "",
           customFields: {
             price: prod.price,
             regular_price: prod.regular_price,

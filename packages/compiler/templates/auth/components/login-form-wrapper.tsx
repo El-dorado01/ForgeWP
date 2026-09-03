@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useWpAuth, useWpUser } from '@forgewp/auth';
-import { useWpPageLink, useLocation } from '../.forgewp/wordpress';
+import { useWpPageLink, useLocation } from '@forgewp/react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,21 +30,38 @@ export default function LoginFormWrapper({
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [localError, setLocalError] = React.useState<string | null>(null);
+  const [unverifiedNotice, setUnverifiedNotice] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
   const [resendStatus, setResendStatus] = React.useState<'idle' | 'sending' | 'success' | 'failed'>('idle');
   const [resendErrorMessage, setResendErrorMessage] = React.useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = React.useState(0);
+  const cooldownTimerRef = React.useRef<any>(null);
 
   const forgotPasswordUrl = useWpPageLink('forgot-password-page', '/forgot-password');
   const signUpUrl = useWpPageLink('sign-up-page', '/signup');
-  const dashboardUrl = useWpPageLink('dashboard-page', '/dashboard');
+  const dashboardUrl = useWpPageLink('account-page', '/account');
+
+  React.useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) {
+        clearInterval(cooldownTimerRef.current);
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     if (user) {
       setLocation(dashboardUrl);
     }
   }, [user, setLocation, dashboardUrl]);
+
+  React.useEffect(() => {
+    const activeErr = localError || error;
+    if (activeErr && /verif/i.test(activeErr)) {
+      setUnverifiedNotice(activeErr);
+    }
+  }, [localError, error]);
 
   const handleResendVerification = async () => {
     const input = username.trim();
@@ -60,11 +77,22 @@ export default function LoginFormWrapper({
       const ok = await resendVerificationEmail(input);
       if (ok) {
         setResendStatus('success');
-        // 30-second cooldown before they can request again
-        setResendCooldown(30);
-        const interval = setInterval(() => {
-          setResendCooldown((prev) => {
-            if (prev <= 1) { clearInterval(interval); return 0; }
+        // Ensure unverifiedNotice stays active so the box never collapses
+        if (!unverifiedNotice) {
+          setUnverifiedNotice('Please verify your email address before logging in.');
+        }
+        // 60-second cooldown before they can request again
+        setResendCooldown(60);
+        if (cooldownTimerRef.current) {
+          clearInterval(cooldownTimerRef.current);
+        }
+        cooldownTimerRef.current = setInterval(() => {
+          setResendCooldown((prev: number) => {
+            if (prev <= 1) {
+              clearInterval(cooldownTimerRef.current);
+              cooldownTimerRef.current = null;
+              return 0;
+            }
             return prev - 1;
           });
         }, 1000);
@@ -81,6 +109,7 @@ export default function LoginFormWrapper({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+    setUnverifiedNotice(null);
     setResendStatus('idle');
     setResendErrorMessage(null);
 
@@ -96,7 +125,11 @@ export default function LoginFormWrapper({
     try {
       await login(trimmedUsername, trimmedPassword, dashboardUrl);
     } catch (err: any) {
-      setLocalError(err.message || 'Login failed. Please try again.');
+      const msg = err.message || 'Login failed. Please try again.';
+      setLocalError(msg);
+      if (/verif/i.test(msg)) {
+        setUnverifiedNotice(msg);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -113,6 +146,10 @@ export default function LoginFormWrapper({
     );
   }
 
+  const activeRawError = localError || error;
+  const isUnverified = Boolean(unverifiedNotice || (activeRawError && /verif/i.test(activeRawError)));
+  const displayedError = unverifiedNotice || activeRawError;
+
   return (
     <div
       className={cn('flex flex-col gap-6', className)}
@@ -128,61 +165,88 @@ export default function LoginFormWrapper({
         <CardContent>
           <form onSubmit={handleSubmit}>
             <FieldGroup>
-              {(localError || error) && (
-                <div className="bg-red-50 text-red-600 border border-red-200 text-sm p-3 rounded-md font-medium flex flex-col gap-2">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangleIcon className="h-4 w-4 shrink-0 mt-0.5" />
-                    <span>{localError || error}</span>
-                  </div>
-                  {((localError || error) as string).includes('not been verified yet') && (
-                    <div className="mt-2 pt-3 border-t border-red-100">
-                      {resendStatus === 'success' ? (
-                        <div className="flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-md p-3">
-                          <CheckCircle2Icon className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-green-700 text-xs font-semibold">Verification email sent!</span>
-                            <span className="text-green-600 text-xs">
-                              Check your inbox (and spam folder). The link expires in 24 hours on the live site.
-                            </span>
-                            {resendCooldown > 0 && (
-                              <button
-                                type="button"
-                                disabled
-                                className="text-green-500 text-xs mt-1 cursor-not-allowed"
-                              >
-                                Resend again in {resendCooldown}s
-                              </button>
-                            )}
-                          </div>
-                        </div>
+              {isUnverified ? (
+                resendStatus === 'success' ? (
+                  <div className="bg-emerald-50 text-emerald-950 border border-emerald-200/80 text-sm p-4 rounded-lg flex flex-col gap-3 shadow-xs">
+                    <div className="flex items-start gap-3">
+                      <div className="p-1.5 bg-emerald-100 rounded-md text-emerald-700 shrink-0">
+                        <CheckCircle2Icon className="h-4 w-4" />
+                      </div>
+                      <div className="flex flex-col gap-1 flex-1">
+                        <span className="font-semibold text-emerald-950 text-sm">Verification Link Sent</span>
+                        <p className="text-emerald-800 text-xs leading-relaxed">
+                          A fresh verification link has been sent to your email. Please check your inbox (and spam folder).
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap text-xs text-emerald-900 pt-2.5 border-t border-emerald-200/60">
+                      <span>Didn&apos;t receive it?</span>
+                      {resendCooldown > 0 ? (
+                        <span className="text-emerald-700/90 font-medium">
+                          Resend available in {resendCooldown}s
+                        </span>
                       ) : (
-                        <div className="flex flex-col gap-2">
-                          <p className="text-red-600 text-xs">
-                            Didn&apos;t receive the email? Check your spam folder or request a new one.
-                          </p>
-                          <button
-                            type="button"
-                            disabled={resendStatus === 'sending' || resendCooldown > 0}
-                            onClick={handleResendVerification}
-                            className="inline-flex items-center gap-1.5 self-start text-xs font-semibold text-white bg-red-600 hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed px-3 py-1.5 rounded-md transition-colors cursor-pointer"
-                          >
-                            {resendStatus === 'sending' ? (
-                              <><RefreshCwIcon className="h-3 w-3 animate-spin" /> Sending&hellip;</>
-                            ) : resendCooldown > 0 ? (
-                              <><MailIcon className="h-3 w-3" /> Resend in {resendCooldown}s</>
-                            ) : (
-                              <><MailIcon className="h-3 w-3" /> Resend Verification Email</>
-                            )}
-                          </button>
-                          {resendStatus === 'failed' && resendErrorMessage && (
-                            <span className="text-red-500 text-xs">{resendErrorMessage}</span>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={handleResendVerification}
+                          className="font-semibold underline underline-offset-2 hover:text-emerald-950 cursor-pointer inline-flex items-center gap-1 transition-colors"
+                        >
+                          Resend verification email
+                        </button>
                       )}
                     </div>
-                  )}
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 text-amber-950 border border-amber-200/80 text-sm p-4 rounded-lg flex flex-col gap-3 shadow-xs">
+                    <div className="flex items-start gap-3">
+                      <div className="p-1.5 bg-amber-100 rounded-md text-amber-700 shrink-0">
+                        <MailIcon className="h-4 w-4" />
+                      </div>
+                      <div className="flex flex-col gap-1 flex-1">
+                        <span className="font-semibold text-amber-950 text-sm">Email Verification Required</span>
+                        <p className="text-amber-800 text-xs leading-relaxed">
+                          {displayedError || 'Please verify your email address before logging in.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 pt-2.5 border-t border-amber-200/60">
+                      <div className="flex items-center gap-1.5 flex-wrap text-xs text-amber-900">
+                        <span>Need a new link sent to your inbox?</span>
+                        {resendCooldown > 0 ? (
+                          <span className="text-amber-800/80 font-medium">
+                            Resend available in {resendCooldown}s
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={resendStatus === 'sending'}
+                            onClick={handleResendVerification}
+                            className="font-semibold underline underline-offset-2 hover:text-amber-950 disabled:opacity-50 cursor-pointer inline-flex items-center gap-1 transition-colors"
+                          >
+                            {resendStatus === 'sending' ? (
+                              <><RefreshCwIcon className="h-3 w-3 animate-spin inline" /> Sending...</>
+                            ) : (
+                              'Resend verification email'
+                            )}
+                          </button>
+                        )}
+                      </div>
+                      {resendStatus === 'failed' && resendErrorMessage && (
+                        <span className="text-red-600 text-xs font-medium bg-red-50 p-2 rounded border border-red-100">
+                          {resendErrorMessage}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              ) : activeRawError ? (
+                <div className="bg-red-50 text-red-700 border border-red-200 text-sm p-3.5 rounded-lg flex items-start gap-2.5 shadow-xs">
+                  <AlertTriangleIcon className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                  <span className="font-medium text-xs leading-relaxed">{activeRawError}</span>
                 </div>
-              )}
+              ) : null}
               <Field>
                 <FieldLabel htmlFor='username'>
                   {loginField === 'usernameOnly' ? 'Username' : loginField === 'emailOnly' ? 'Email Address' : 'Username or Email'}

@@ -1,4 +1,4 @@
-import { useWpQuery, WpLink, useWpI18n, useWpPageLink } from '../.forgewp/wordpress';
+import { useWpQuery, WpLink, useWpI18n, useWpPageLink } from '@forgewp/react';
 import { useIsEditorPreview } from '@forgewp/react';
 import { Star, MapPin, ArrowRight, Hotel, Sparkles } from 'lucide-react';
 

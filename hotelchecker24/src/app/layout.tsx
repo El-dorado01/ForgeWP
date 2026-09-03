@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { WpHead } from "../.forgewp/wordpress";
-import { PresetsStyle } from "../.forgewp/PresetsStyle";
+import { WpHead } from '@forgewp/react';
+import { PresetsStyle } from '@forgewp/react';
 import { SiteHeader } from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 

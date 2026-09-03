@@ -1,0 +1,9 @@
+[
+  {
+    "to": "user@forgewp.local",
+    "subject": "Verify your ForgeWP Account",
+    "message": "Welcome to ForgeWP! Click this link to verify your email address:\n\nhttp://localhost:5173/verify-email?userId=2&token=mock-verification-m5ofls68",
+    "verification_url": "http://localhost:5173/verify-email?userId=2&token=mock-verification-m5ofls68",
+    "timestamp": "2026-06-28T16:14:50.908Z"
+  }
+]

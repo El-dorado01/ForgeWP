@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWpQuery, useWpI18n, WpLink } from '../.forgewp/wordpress';
+import { useWpQuery, useWpI18n, WpLink } from '@forgewp/react';
 import { BookOpen, ChevronRight } from 'lucide-react';
 
 interface HotelListiclesProps {

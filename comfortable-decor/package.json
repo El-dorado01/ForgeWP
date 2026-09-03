@@ -11,26 +11,26 @@
     "export": "forgewp export",
     "fresh": "forgewp fresh",
     "reset": "forgewp fresh",
-    "forgewp": "forgewp",
-    "deploy": "node deploy-theme.js"
+    "forgewp": "forgewp"
   },
   "dependencies": {
+    "@forgewp/auth": "workspace:*",
     "@forgewp/plugin-seo": "workspace:*",
     "@forgewp/react": "workspace:*",
+    "@forgewp/woocommerce": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-label": "^2.1.10",
+    "@radix-ui/react-separator": "^1.1.10",
     "@radix-ui/react-slot": "^1.2.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "embla-carousel-react": "^8.6.0",
-    "framer-motion": "^11.18.2",
-    "gsap": "^3.15.0",
+    "framer-motion": "^13.0.0",
     "lucide-react": "^0.475.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-helmet-async": "^3.0.0",
-    "tailwind-merge": "^3.3.0",
-    "wouter": "^3.9.0"
+    "tailwind-merge": "^3.3.0"
   },
   "devDependencies": {
     "@forgewp/compiler": "workspace:*",

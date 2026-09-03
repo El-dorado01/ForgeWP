@@ -5,6 +5,7 @@ import path from 'node:path';
 import pc from 'picocolors';
 import { loadConfig } from '../lib/load-config.js';
 import { extractKeysFromDirectory } from '../lib/i18n/extractor.js';
+import { loadTranslationsData, writeTranslationsData } from '../lib/functions/load-translations.js';
 
 console.log(`\n🗣️  ${pc.bold(pc.bgCyan(pc.black("  FORGEWP I18N EXTRACTOR  ")))}\n`);
 
@@ -43,15 +44,7 @@ async function run() {
       fs.mkdirSync(cmsDir, { recursive: true });
     }
 
-    const translationsPath = path.join(cmsDir, 'translations.json');
-    let translations = {};
-    if (fs.existsSync(translationsPath)) {
-      try {
-        translations = JSON.parse(fs.readFileSync(translationsPath, 'utf8'));
-      } catch (err) {
-        console.warn(pc.yellow(`⚠️  Could not parse existing translations.json, starting fresh.`));
-      }
-    }
+    let translations = loadTranslationsData(themeRoot);
 
     // Initialize missing locales
     for (const locale of locales) {
@@ -100,7 +93,7 @@ async function run() {
       sortedTranslations[locale] = sortedMap;
     }
 
-    fs.writeFileSync(translationsPath, JSON.stringify(sortedTranslations, null, 2), 'utf8');
+    const translationsPath = writeTranslationsData(themeRoot, sortedTranslations);
 
     console.log(`\n${pc.bold("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")}`);
     console.log(`  ✨ ${pc.green("Extraction completed successfully!")}`);

@@ -60,6 +60,11 @@ for (const targetPrune of directoriesToPrune) {
 // 3. Restore Standard Database & Sitemap Menus from Core Blueprints
 const coreFilesToReset = ["cms/menus.json", "cms/mock-data.json", "cms/products.json"];
 for (const relPath of coreFilesToReset) {
+  const tsVariant = relPath.replace(/\.json$/, ".ts");
+  if (existsSync(path.join(projectRoot, tsVariant))) {
+    console.log(`  ${pc.gray("ℹ️  Skipping JSON reset")} ${pc.cyan(relPath)} ${pc.gray(`(${tsVariant} is the active source)`)}`);
+    continue;
+  }
   const fullPath = path.join(projectRoot, relPath);
   const blueprintContent = SYSTEM_BLUEPRINTS[relPath];
   if (blueprintContent) {

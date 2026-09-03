@@ -1,4 +1,4 @@
-import { Route, Switch } from "wouter";
+import { Route, Switch } from "@forgewp/react";
 import HomePage from "./page";
 import LoginPage from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";

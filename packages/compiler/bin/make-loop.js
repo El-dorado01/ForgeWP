@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import pc from "picocolors";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
+import { loadMockData } from "../lib/functions/seed-mock-data.js";
 
 const args = process.argv.slice(2);
 let rawLoopName = args.find(a => !a.startsWith("-"));
@@ -62,59 +63,55 @@ if (postTypeArg) {
 }
 
 const projectRoot = process.cwd();
-const mockDataPath = path.join(projectRoot, "cms", "mock-data.json");
+const mockDataTsPath = path.join(projectRoot, "cms", "mock-data.ts");
+const mockDataJsonPath = path.join(projectRoot, "cms", "mock-data.json");
 
 if (!existsSync(path.join(projectRoot, "src"))) {
   console.error(pc.red(`\n❌ Error: "src" folder not found. Are you in your theme's root directory?\n`));
   process.exit(1);
 }
 
-// Try to load custom fields from mock-data.json for this post type
+// Load custom fields from cms/mock-data.ts (preferred) or mock-data.json
 let customFields = [];
 let automaticallySeeded = false;
+const mockData = { ...loadMockData(projectRoot) };
+const existingRecords = mockData[postType] || [];
 
-if (existsSync(mockDataPath)) {
+if (existingRecords.length > 0 && existingRecords[0].customFields) {
+  customFields = Object.keys(existingRecords[0].customFields);
+} else if (!mockData[postType] && existsSync(mockDataJsonPath) && !existsSync(mockDataTsPath)) {
   try {
-    const mockData = JSON.parse(readFileSync(mockDataPath, "utf8"));
-    if (!mockData[postType]) {
-      // SMART ACTION: Automatically register and seed postType records in the JSON database
-      mockData[postType] = [
-        {
-          id: 1,
-          title: `Sample ${postType.charAt(0).toUpperCase() + postType.slice(1)} Item 1`,
-          excerpt: `This is a custom ${postType} post seeded dynamically via ForgeWP CLI.`,
-          content: `<p>Welcome to your new custom <strong>${postType}</strong> post loop! Edit this in cms/mock-data.json.</p>`,
-          date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
-          author: "ForgeWP CLI",
-          featuredImage: `https://picsum.photos/seed/${postType}1/1200/630`,
-          customFields: {
-            client_name: "Mock Enterprise",
-            project_budget: "$30,000",
-          }
-        },
-        {
-          id: 2,
-          title: `Sample ${postType.charAt(0).toUpperCase() + postType.slice(1)} Item 2`,
-          excerpt: `This is another custom ${postType} post seeded dynamically via ForgeWP CLI.`,
-          content: `<p>This is the second custom post for the ${postType} post type.</p>`,
-          date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
-          author: "ForgeWP CLI",
-          featuredImage: `https://picsum.photos/seed/${postType}2/1200/630`,
-          customFields: {
-            client_name: "Mock Organization",
-            project_budget: "$55,000",
-          }
+    mockData[postType] = [
+      {
+        id: 1,
+        title: `Sample ${postType.charAt(0).toUpperCase() + postType.slice(1)} Item 1`,
+        excerpt: `This is a custom ${postType} post seeded dynamically via ForgeWP CLI.`,
+        content: `<p>Welcome to your new custom <strong>${postType}</strong> post loop! Edit this in cms/mock-data.json.</p>`,
+        date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+        author: "ForgeWP CLI",
+        featuredImage: `https://picsum.photos/seed/${postType}1/1200/630`,
+        customFields: {
+          client_name: "Mock Enterprise",
+          project_budget: "$30,000",
         }
-      ];
-      // Save updated JSON
-      writeFileSync(mockDataPath, JSON.stringify(mockData, null, 2), "utf8");
-      automaticallySeeded = true;
-    }
-
-    const records = mockData[postType] || [];
-    if (records.length > 0 && records[0].customFields) {
-      customFields = Object.keys(records[0].customFields);
-    }
+      },
+      {
+        id: 2,
+        title: `Sample ${postType.charAt(0).toUpperCase() + postType.slice(1)} Item 2`,
+        excerpt: `This is another custom ${postType} post seeded dynamically via ForgeWP CLI.`,
+        content: `<p>This is the second custom post for the ${postType} post type.</p>`,
+        date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+        author: "ForgeWP CLI",
+        featuredImage: `https://picsum.photos/seed/${postType}2/1200/630`,
+        customFields: {
+          client_name: "Mock Organization",
+          project_budget: "$55,000",
+        }
+      }
+    ];
+    writeFileSync(mockDataJsonPath, JSON.stringify(mockData, null, 2), "utf8");
+    automaticallySeeded = true;
+    customFields = Object.keys(mockData[postType][0].customFields);
   } catch (err) {
     // Ignore and fallback
   }

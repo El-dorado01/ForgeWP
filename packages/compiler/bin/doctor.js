@@ -77,14 +77,17 @@ runCheck("User Configuration & HTML Layout", () => {
 
 // 3. Database Check
 runCheck("Mock Database Schema Integration", () => {
-  const dbPath = path.join(projectRoot, "cms", "mock-data.json");
-  if (!existsSync(dbPath)) {
-    throw new Error(`Database "cms/mock-data.json" was not found!`);
+  const dbTsPath = path.join(projectRoot, "cms", "mock-data.ts");
+  const dbJsonPath = path.join(projectRoot, "cms", "mock-data.json");
+  if (!existsSync(dbTsPath) && !existsSync(dbJsonPath)) {
+    throw new Error(`Database "cms/mock-data.ts" or "cms/mock-data.json" was not found!`);
   }
-  try {
-    JSON.parse(readFileSync(dbPath, "utf8"));
-  } catch (err) {
-    throw new Error(`Database "cms/mock-data.json" contains invalid JSON syntax!\n        Message: ${err.message}`);
+  if (existsSync(dbJsonPath)) {
+    try {
+      JSON.parse(readFileSync(dbJsonPath, "utf8"));
+    } catch (err) {
+      throw new Error(`Database "cms/mock-data.json" contains invalid JSON syntax!\n        Message: ${err.message}`);
+    }
   }
   return null;
 });
@@ -94,6 +97,12 @@ runCheck("System Internal Framework Libraries", () => {
   const systemFiles = Object.keys(SYSTEM_BLUEPRINTS);
   const missing = [];
   for (const sf of systemFiles) {
+    if (sf.startsWith("cms/") && sf.endsWith(".json")) {
+      const tsVariant = sf.replace(/\.json$/, ".ts");
+      if (existsSync(path.join(projectRoot, tsVariant))) {
+        continue;
+      }
+    }
     if (!existsSync(path.join(projectRoot, sf))) {
       missing.push(sf);
     }

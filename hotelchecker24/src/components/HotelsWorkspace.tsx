@@ -5,7 +5,7 @@ import {
   useWpI18n,
   useWpTerms,
   useWpPagePath,
-} from '../.forgewp/wordpress';
+} from '@forgewp/react';
 import { Search, SlidersHorizontal, MapPin, Tag } from 'lucide-react';
 import { HotelsGrid } from './HotelsGrid';
 

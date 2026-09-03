@@ -18,10 +18,27 @@ export interface FontFamilyPreset {
 
 export interface CustomPostTypeConfig {
   translatable?: boolean;
+  icon?: string;
   labels?: {
     singular?: string;
     plural?: string;
   };
+  supports?: string[];
+  public?: boolean;
+  hasArchive?: boolean;
+  showInRest?: boolean;
+}
+
+export interface CustomTaxonomyConfig {
+  translatable?: boolean;
+  hierarchical?: boolean;
+  labels?: {
+    singular?: string;
+    plural?: string;
+  };
+  public?: boolean;
+  showUi?: boolean;
+  showInRest?: boolean;
 }
 
 export interface ForgeWPI18nConfig {
@@ -107,7 +124,30 @@ export interface WpOptionField {
   postType?: string;
 }
 
-export type WpOptionsSchema = Record<string, WpOptionField>;
+export type ForgeWPSeedStrategy = boolean | 'once' | 'upsert' | 'force';
+
+export interface ForgeWPSeedConfig {
+  /**
+   * Sync local products from `cms/products.ts` (or `products.json`) into WooCommerce.
+   * Default: false
+   */
+  products?: ForgeWPSeedStrategy;
+  /**
+   * Sync mock posts, pages, and CPTs from `cms/mock-data.ts` (or `mock-data.json`).
+   * Default: false
+   */
+  mockData?: ForgeWPSeedStrategy | Record<string, ForgeWPSeedStrategy>;
+  /**
+   * Automatically sideload remote CDN image URLs into the WordPress Media Library.
+   * Default: true
+   */
+  sideloadImages?: boolean;
+  /**
+   * Safety guard: Only execute when WP_DEBUG is true or in development environments.
+   * Default: true
+   */
+  developmentOnly?: boolean;
+}
 
 export interface ForgeWPThemeConfig {
   name: string;
@@ -154,8 +194,10 @@ export interface ForgeWPThemeConfig {
     };
   };
   postTypes?: Record<string, CustomPostTypeConfig>;
+  taxonomies?: Record<string, CustomTaxonomyConfig>;
   options?: WpOptionsSchema;
   themeMods?: Record<string, any>;
+  seed?: ForgeWPSeedConfig;
   i18n?: ForgeWPI18nConfig;
   settings?: {
     layout?: {
@@ -299,4 +341,5 @@ export function loadFrameworkAdapter(
 ): Promise<ForgeWPFrameworkAdapterModule>;
 
 export function forgewpPageConfigPlugin(): any;
+export function forgewpVirtualPlugin(options?: { projectRoot?: string }): any;
 

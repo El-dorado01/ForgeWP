@@ -10,10 +10,39 @@ export interface WpUser {
   username: string;
   email: string;
   displayName: string;
+  firstName?: string;
+  lastName?: string;
   roles: string[];
   avatarUrl: string;
   capabilities?: string[];
   emailVerified?: boolean;
+  billing?: {
+    first_name?: string;
+    last_name?: string;
+    company?: string;
+    address_1?: string;
+    address_2?: string;
+    city?: string;
+    state?: string;
+    postcode?: string;
+    country?: string;
+    email?: string;
+    phone?: string;
+  };
+  shipping?: {
+    first_name?: string;
+    last_name?: string;
+    company?: string;
+    address_1?: string;
+    address_2?: string;
+    city?: string;
+    state?: string;
+    postcode?: string;
+    country?: string;
+    phone?: string;
+  };
+  metadata?: Record<string, any>;
+  meta?: Record<string, any>;
 }
 
 export interface WpAuthContextType {
@@ -21,7 +50,7 @@ export interface WpAuthContextType {
   loading: boolean;
   initializing: boolean;
   error: string | null;
-  login: (username: string, password: string, redirectUrl?: string) => Promise<boolean>;
+  login: (credential: string, password: string, redirectUrl?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   register: (username: string, email: string, password: string, metadata?: Record<string, any>) => Promise<boolean>;
   loginField?: 'usernameOnly' | 'emailOnly' | 'usernameAndEmail';
@@ -40,11 +69,7 @@ declare global {
     _compileTime?: boolean;
     loginField?: 'usernameOnly' | 'emailOnly' | 'usernameAndEmail';
     emailVerificationEnabled?: boolean;
-    siteSettings?: {
-      options?: {
-        home?: string;
-      };
-    };
+    siteSettings?: any;
   }
 
   interface Window {
@@ -142,7 +167,21 @@ function decodeStandaloneJwt(token: string): any {
 }
 
 // Initialize standalone state
-if (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime !== true && typeof document !== 'undefined') {
+const compileTimeMockUser: WpUser = {
+  id: 1,
+  username: 'member',
+  email: 'member@example.com',
+  displayName: 'Member',
+  firstName: '',
+  lastName: '',
+  roles: ['customer', 'subscriber'],
+  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
+};
+
+if (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime === true) {
+  globalUser = compileTimeMockUser;
+  globalInitializing = false;
+} else if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   if (IS_DEV) {
     const cached = typeof window.localStorage !== 'undefined' ? window.localStorage.getItem('forgewp_auth_session') : null;
     if (cached) {
@@ -348,7 +387,7 @@ export function useWpAuth() {
         const res = await fetch(`${getStandAloneApiBaseUrl()}/wp-json/forgewp/v1/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ credential: username, username, password }),
         });
 
         if (!res.ok) {
@@ -360,8 +399,9 @@ export function useWpAuth() {
         }
 
         const data = await res.json();
-        if (data && data.id) {
-          globalUser = data;
+        const userObj = (data && (data.user || data.id ? (data.user || data) : null)) as WpUser | null;
+        if (userObj && userObj.id) {
+          globalUser = userObj;
           globalLoading = false;
           notifyAuthSubscribers();
           if (redirectUrl) {
@@ -405,49 +445,63 @@ export function useWpAuth() {
 
       try {
         await fetch(`${getStandAloneApiBaseUrl()}/wp-json/forgewp/v1/auth/logout`, { method: 'POST' });
-      } catch (e) {}
-      globalUser = null;
-      globalLoading = false;
-      notifyAuthSubscribers();
-      window.location.reload();
+        globalUser = null;
+        globalLoading = false;
+        notifyAuthSubscribers();
+        if (typeof window !== 'undefined') {
+          window.location.reload();
+        }
+      } catch (err: any) {
+        globalError = err.message || 'Logout failed.';
+        globalLoading = false;
+        notifyAuthSubscribers();
+      }
     }
   };
 
-  const register = async (username: string, email: string, password: string, metadata?: Record<string, any>): Promise<boolean> => {
+  const register = async (
+    username: string,
+    email: string,
+    password: string,
+    metadata?: Record<string, any>
+  ): Promise<boolean> => {
     globalLoading = true;
     globalError = null;
     notifyAuthSubscribers();
 
     if (IS_DEV) {
-      await new Promise((res) => setTimeout(res, 800));
+      await new Promise((res) => setTimeout(res, 500));
       const mockUsers = window._forgeWpMockUsers || [];
-      const exists = mockUsers.some(
-        (u) => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === email.toLowerCase()
-      );
 
-      if (exists) {
-        globalError = 'Username or email already exists.';
+      if (mockUsers.some((u: any) => u.username.toLowerCase() === username.toLowerCase())) {
+        globalError = 'Username is already taken.';
         globalLoading = false;
         notifyAuthSubscribers();
         return false;
       }
 
-      const emailVerificationEnabled = window.forgeWpHydration?.emailVerificationEnabled || false;
-      const newUser = {
-        id: Math.floor(Math.random() * 1000) + 10,
+      if (mockUsers.some((u: any) => u.email.toLowerCase() === email.toLowerCase())) {
+        globalError = 'Email is already registered.';
+        globalLoading = false;
+        notifyAuthSubscribers();
+        return false;
+      }
+
+      const defaultRole = (window.forgeWpHydration?.siteSettings?.authDefaultRole) || 'subscriber';
+      const emailVerificationEnabled = window.forgeWpHydration?.emailVerificationEnabled ?? false;
+
+      const newUser: WpUser = {
+        id: Date.now(),
         username,
         email,
-        displayName: username.charAt(0).toUpperCase() + username.slice(1),
-        roles: ['subscriber'],
+        displayName: username,
+        roles: [defaultRole],
         avatarUrl: `https://picsum.photos/seed/${username}/150/150`,
-        capabilities: [],
         emailVerified: !emailVerificationEnabled,
-        ...metadata,
       };
 
-      if (window._forgeWpMockUsers) {
-        window._forgeWpMockUsers.push(newUser);
-      }
+      mockUsers.push(newUser);
+      window._forgeWpMockUsers = mockUsers;
 
       if (emailVerificationEnabled) {
         globalLoading = false;
@@ -485,8 +539,9 @@ export function useWpAuth() {
           return true;
         }
 
-        if (data && data.id) {
-          globalUser = data;
+        const userObj = (data && (data.user || data.id ? (data.user || data) : null)) as WpUser | null;
+        if (userObj && userObj.id) {
+          globalUser = userObj;
           globalLoading = false;
           notifyAuthSubscribers();
           return true;
@@ -554,14 +609,18 @@ export function useWpAuth() {
           return false;
         }
 
-        const data = await res.json();
-        if (data && data.success && data.user) {
-          globalUser = data.user;
+        const data = await res.json().catch(() => ({}));
+        if (data && data.success) {
+          if (data.user) {
+            globalUser = data.user;
+            window.localStorage.setItem('forgewp_auth_session', JSON.stringify(data.user));
+          }
           globalLoading = false;
           notifyAuthSubscribers();
           return true;
         }
-        globalError = 'Verification succeeded, but login response was empty.';
+
+        globalError = data.message || 'Email verification failed.';
         globalLoading = false;
         notifyAuthSubscribers();
         return false;
@@ -832,7 +891,16 @@ export function useWpUser(): WpUser | null {
   }
 
   if (typeof window !== 'undefined' && window._forgeWpCompileTime === true) {
-    return null;
+    return window.forgeWpHydration?.currentUser || {
+      id: 1,
+      username: 'customer',
+      email: 'customer@example.com',
+      displayName: 'Valued Customer',
+      firstName: 'Valued',
+      lastName: 'Customer',
+      roles: ['customer', 'subscriber'],
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
+    };
   }
 
   const user = standaloneUser;

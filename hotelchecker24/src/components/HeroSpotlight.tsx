@@ -1,4 +1,4 @@
-import { useWpQuery, useWpOption, useWpI18n, WpLink } from '../.forgewp/wordpress';
+import { useWpQuery, useWpOption, useWpI18n, WpLink } from '@forgewp/react';
 import { MapPin, Star } from 'lucide-react';
 
 /**

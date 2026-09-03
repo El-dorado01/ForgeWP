@@ -1,0 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Mogra&family=Space+Grotesk:wght@300;400;500;600;700;800;900&display=swap');
+@import 'tailwindcss';
+@plugin "tailwindcss-animate";
+
+@theme {
+  /* Font Family Mappings */
+  --font-sans: var(
+    --wp--preset--font-family--sans,
+    'Mogra',
+    system-ui,
+    sans-serif
+  );
+  --font-heading: 'Space Grotesk', var(--font-sans);
+
+  /* Color Palette Mappings */
+  --color-brand: var(--wp--preset--color--brand, #C3B19F);
+  --color-brand-foreground: #1e293b;
+  --color-secondary: var(--wp--preset--color--secondary, #4f46e5);
+  --color-accent: var(--wp--preset--color--accent, #f59e0b);
+  --color-bg-light: var(--wp--preset--color--background, #fafafa);
+  --color-text-slate: var(--wp--preset--color--text, #0f172a);
+
+  /* Shadcn Core Theme Compatibility (Tailwind v4) */
+  --color-background: var(--wp--preset--color--background, #fafafa);
+  --color-foreground: var(--wp--preset--color--text, #0f172a);
+  --color-primary: var(--wp--preset--color--brand, #C3B19F);
+  --color-primary-foreground: #1e293b;
+  --color-card: var(--wp--preset--color--background, #fafafa);
+  --color-card-foreground: var(--wp--preset--color--text, #0f172a);
+  --color-border: #e4e4e7;
+  --color-input: #e4e4e7;
+  --color-ring: var(--wp--preset--color--brand, #C3B19F);
+  --color-muted: #f4f4f5;
+  --color-muted-foreground: #71717a;
+}
+
+@layer base {
+  *, ::before, ::after {
+    border-color: var(--color-border);
+  }
+  html,
+  body {
+    @apply antialiased;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-bg-light font-sans text-text-slate;
+  }
+  body:not(.editor-styles-wrapper):not(#tinymce):not(.mce-content-body) {
+    min-height: 100vh;
+  }
+}
+
+/* Prevent Gutenberg editor iframe height feedback loop caused by min-h-screen on body */
+.editor-styles-wrapper {
+  min-height: auto !important;
+}
+
+/* Shimmer sweep keyframe — used via Tailwind's arbitrary animate-[shimmer-sweep_...]  */
+@keyframes shimmer-sweep {
+  0%   { transform: translateX(-250%) skewX(-25deg); }
+  50%  { transform: translateX(350%) skewX(-25deg); }
+  100% { transform: translateX(350%) skewX(-25deg); }
+}

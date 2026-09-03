@@ -1,5 +1,5 @@
-import { useWpTerms, WpLink, useWpI18n, useWpPageLink } from '../.forgewp/wordpress';
-import type { WpTerm } from '../.forgewp/wordpress';
+import { useWpTerms, WpLink, useWpI18n, useWpPageLink } from '@forgewp/react';
+import type { WpTerm } from '@forgewp/react';
 import { MapPin, Globe, ArrowRight } from 'lucide-react';
 
 // ── Skeleton loader shown while terms are fetching ────────────────────────────

@@ -1,13 +1,22 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  readdirSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import pc from 'picocolors';
+import { loadMockData } from './functions/seed-mock-data.js';
 import {
   scanForHydrationIslands,
   findComponentPath,
   getHydrationRollupInputs,
+  resolveIslandChunk,
+  scanAppProviders,
 } from './hydration/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -123,6 +132,13 @@ export function generateHydrationRuntime(
     );
   }
 
+  const layoutProviders = scanAppProviders(themeRoot);
+  for (const provider of layoutProviders) {
+    if (!hydrationIslands.includes(provider.kebab)) {
+      hydrationIslands = hydrationIslands.concat(provider.kebab);
+    }
+  }
+
   const mapping = {};
   let mainJsFile = '';
   const entryChunk =
@@ -133,28 +149,7 @@ export function generateHydrationRuntime(
   }
 
   for (const island of hydrationIslands) {
-    const pascalName = island
-      .split('-')
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join('');
-
-    let resolvedChunk = null;
-    for (const [key, value] of Object.entries(viteManifest)) {
-      const fileBasename = path.basename(value.file || '');
-      const cleanName = fileBasename.replace(/-[A-Za-z0-9_-]+\.js$/, '');
-      if (
-        key.endsWith(`/${pascalName}.tsx`) ||
-        key.endsWith(`/${pascalName}.ts`) ||
-        key.endsWith(`/${island}.tsx`) ||
-        key.endsWith(`/${island}.ts`) ||
-        cleanName === island ||
-        cleanName === pascalName.toLowerCase()
-      ) {
-        resolvedChunk = value.file;
-        break;
-      }
-    }
-
+    const resolvedChunk = resolveIslandChunk(viteManifest, island);
     if (resolvedChunk) {
       mapping[island] = resolvedChunk;
     }
@@ -163,8 +158,8 @@ export function generateHydrationRuntime(
   if (!mainJsFile) {
     throw new Error(
       `\n[ForgeWP Compiler Error] Hydration generation failed: could not resolve the React runtime entry chunk.\n` +
-      `This usually happens if Vite failed to compile the entry file (e.g. src/main.tsx) or did not emit a manifest.json.\n` +
-      `Ensure that you have run 'pnpm run build' inside your theme directory and that 'dist/.vite/manifest.json' exists.\n`
+        `This usually happens if Vite failed to compile the entry file (e.g. src/main.tsx) or did not emit a manifest.json.\n` +
+        `Ensure that you have run 'pnpm run build' inside your theme directory and that 'dist/.vite/manifest.json' exists.\n`,
     );
   }
 
@@ -172,28 +167,141 @@ export function generateHydrationRuntime(
     (island) => !(island in mapping),
   );
   if (missingIslands.length > 0) {
-    const formattedComponents = missingIslands.map(island => {
-      return island.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') + '.tsx';
-    }).join(', ');
+    const formattedComponents = missingIslands
+      .map((island) => {
+        return (
+          island
+            .split('-')
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join('') + '.tsx'
+        );
+      })
+      .join(', ');
     throw new Error(
       `\n[ForgeWP Compiler Error] Hydration generation failed: missing compiled chunk for island(s): ${missingIslands.join(', ')}.\n` +
-      `Vite was unable to locate these hydration islands in its compilation manifest.\n` +
-      `Verification Steps:\n` +
-      ` 1. Ensure the React component(s) exist under 'src/components/' (e.g., ${formattedComponents}).\n` +
-      ` 2. Ensure they are correctly exported and referenced via <Hydrate island="..."> in your page layout/components.\n` +
-      ` 3. Check for syntax or import errors in these files that might have caused Vite compilation to skip or fail.\n`
+        `Vite was unable to locate these hydration islands in its compilation manifest.\n` +
+        `Verification Steps:\n` +
+        ` 1. Ensure the React component(s) exist under 'src/components/' (e.g., ${formattedComponents}).\n` +
+        ` 2. Ensure they are correctly exported and referenced via <Hydrate island="..."> in your page layout/components.\n` +
+        ` 3. Check for syntax or import errors in these files that might have caused Vite compilation to skip or fail.\n`,
     );
   }
 
+  const providerIdsJson = JSON.stringify(layoutProviders.map((p) => p.kebab));
   const hydratorScript = `(function () {
   const config = window.forgeWpHydration || { themeUri: "", manifest: {} };
-  const islands = document.querySelectorAll("[data-forgewp-hydrate]");
+  if (!config.providers) config.providers = ${providerIdsJson};
+  window.ForgeWP = window.ForgeWP || {};
+  window.ForgeWP.hydratedIslands = window.ForgeWP.hydratedIslands || new Set();
+  window.ForgeWP.onHydrated = function(callback) {
+    if (typeof callback !== "function") return;
+    window.addEventListener("forgewp:hydrated", function(e) {
+      callback(e.detail);
+    });
+  };
+
+  // Cross-island DOM resolution bridge: guarantees that DOM queries captured
+  // prior to asynchronous child island hydration resolve seamlessly to live elements.
+  if (typeof Element !== "undefined" && !Element.prototype.__forgewpBound) {
+    Element.prototype.__forgewpBound = true;
+    const origGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function () {
+      if (!this.isConnected) {
+        if (this.id) {
+          const live = document.getElementById(this.id);
+          if (live && live !== this && live.isConnected) return origGetBoundingClientRect.call(live);
+        }
+        if (this.className && typeof this.className === "string") {
+          const classes = this.className.trim().split(/\\s+/).filter(Boolean);
+          for (let i = 0; i < classes.length; i++) {
+            const cls = classes[i];
+            if (!cls.startsWith("bg-") && !cls.startsWith("text-") && !cls.startsWith("p-") && !cls.startsWith("m-") && !cls.startsWith("flex") && !cls.startsWith("grid") && !cls.startsWith("w-") && !cls.startsWith("h-") && !cls.startsWith("border")) {
+              try {
+                const live = document.querySelector("." + (CSS.escape ? CSS.escape(cls) : cls));
+                if (live && live !== this && live.isConnected) return origGetBoundingClientRect.call(live);
+              } catch (e) {}
+            }
+          }
+        }
+        if (this.tagName) {
+          try {
+            const live = document.querySelector(this.tagName.toLowerCase());
+            if (live && live !== this && live.isConnected) return origGetBoundingClientRect.call(live);
+          } catch (e) {}
+        }
+      }
+      return origGetBoundingClientRect.call(this);
+    };
+
+    if (typeof IntersectionObserver !== "undefined") {
+      const origObserve = IntersectionObserver.prototype.observe;
+      IntersectionObserver.prototype.observe = function (target) {
+        if (!target) return;
+        origObserve.call(this, target);
+        const observer = this;
+        window.ForgeWP.onHydrated(function () {
+          if (!target.isConnected) {
+            let live = null;
+            if (target.id) live = document.getElementById(target.id);
+            if (!live && target.className && typeof target.className === "string") {
+              const classes = target.className.trim().split(/\\s+/).filter(Boolean);
+              for (let i = 0; i < classes.length; i++) {
+                const cls = classes[i];
+                if (!cls.startsWith("bg-") && !cls.startsWith("text-") && !cls.startsWith("p-") && !cls.startsWith("m-") && !cls.startsWith("flex") && !cls.startsWith("grid") && !cls.startsWith("w-") && !cls.startsWith("h-") && !cls.startsWith("border")) {
+                  try {
+                    live = document.querySelector("." + (CSS.escape ? CSS.escape(cls) : cls));
+                    if (live && live.isConnected) break;
+                  } catch (e) {}
+                }
+              }
+            }
+            if (live && live.isConnected) {
+              try { observer.unobserve(target); } catch (e) {}
+              try { origObserve.call(observer, live); } catch (e) {}
+            }
+          }
+        });
+      };
+    }
+  }
+
+  const allIslands = Array.from(document.querySelectorAll("[data-forgewp-hydrate]"));
+  const islands = allIslands.filter((el) => {
+    let parent = el.parentElement;
+    while (parent) {
+      if (parent.hasAttribute && parent.hasAttribute("data-forgewp-hydrate")) {
+        return false;
+      }
+      parent = parent.parentElement;
+    }
+    return true;
+  });
+
+  function firstObservableBox(el) {
+    if (!el || el.nodeType !== 1) return null;
+    try {
+      const display = window.getComputedStyle(el).display;
+      if (display !== "contents") return el;
+    } catch (e) {
+      return el;
+    }
+    for (let i = 0; i < el.children.length; i++) {
+      const found = firstObservableBox(el.children[i]);
+      if (found) return found;
+    }
+    return null;
+  }
 
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
       if (entry.isIntersecting) {
-        const hydrate = entry.target.__forgewpHydrate;
-        if (typeof hydrate === "function") hydrate();
+        let node = entry.target;
+        while (node && typeof node.__forgewpHydrate !== "function") {
+          node = node.parentElement;
+        }
+        if (node && typeof node.__forgewpHydrate === "function") {
+          node.__forgewpHydrate();
+        }
         observer.unobserve(entry.target);
       }
     });
@@ -210,20 +318,6 @@ export function generateHydrationRuntime(
     });
   }, { rootMargin: "600px" });
 
-  // Helper: checks if an element's bounding box overlaps the extended viewport (with rootMargin).
-  // Used as an immediate fallback for IntersectionObserver's async nature.
-  function isNearViewport(el, margin) {
-    var rect = el.getBoundingClientRect();
-    var vw = window.innerWidth || document.documentElement.clientWidth;
-    var vh = window.innerHeight || document.documentElement.clientHeight;
-    return (
-      rect.bottom >= -margin &&
-      rect.right >= -margin &&
-      rect.top <= vh + margin &&
-      rect.left <= vw + margin
-    );
-  }
-
   const StrategyRegistry = {
     load: (el, hydrate) => {
       if (document.readyState === "complete") {
@@ -233,14 +327,20 @@ export function generateHydrationRuntime(
       }
     },
     visible: (el, hydrate) => {
-      // Immediate check: if already in/near viewport, hydrate right away.
-      // IO fires asynchronously so this prevents missed hydrations on page load.
-      if (isNearViewport(el, 200)) {
+      el.__forgewpHydrate = hydrate;
+      const target = firstObservableBox(el);
+      if (!target || (target === el && window.getComputedStyle(el).display === "contents")) {
         hydrate();
         return;
       }
-      el.__forgewpHydrate = hydrate;
-      observer.observe(el);
+      const rect = target.getBoundingClientRect();
+      const vw = window.innerWidth || document.documentElement.clientWidth;
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      if (rect.bottom >= -200 && rect.right >= -200 && rect.top <= vh + 200 && rect.left <= vw + 200) {
+        hydrate();
+        return;
+      }
+      observer.observe(target);
     },
     interaction: (el, hydrate) => {
       const run = () => {
@@ -335,6 +435,22 @@ export function generateHydrationRuntime(
     }
   });
 
+  // Native scroll-reveal observer for static layout animations (preserves 100% CSS grid/flex layout)
+  if (typeof IntersectionObserver !== "undefined") {
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("forgewp-in-view");
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12 });
+
+    document.querySelectorAll("[data-forgewp-reveal]").forEach((el) => {
+      revealObserver.observe(el);
+    });
+  }
+
   function preloadElement(el) {
     const islandName = el.getAttribute("data-forgewp-hydrate");
     const chunkPath = config.manifest?.[islandName];
@@ -355,6 +471,8 @@ export function generateHydrationRuntime(
       console.error("[ForgeWP Hydrator] Missing data-forgewp-hydrate attribute on hydration boundary.");
       return;
     }
+    if (el.__forgewpHydrated) return;
+    el.__forgewpHydrated = true;
 
     const rawProps = el.getAttribute("data-forgewp-props") || "{}";
     let props = {};
@@ -378,13 +496,7 @@ export function generateHydrationRuntime(
 
     import(scriptUrl)
       .then((module) => {
-        let Component = module.default;
-        if (!Component) {
-          Component = Object.values(module).find((val) => typeof val === "function");
-          if (!Component) {
-            Component = Object.values(module)[0];
-          }
-        }
+        const Component = resolveExport(module, islandName);
         if (typeof Component !== "function") {
           const exportsList = Object.keys(module).join(", ");
           console.error(
@@ -403,9 +515,41 @@ export function generateHydrationRuntime(
         const React = window.React;
 
         if (ReactDOM && React) {
-          const WpBlockContext = window._forgeWpBlockContext || (window._forgeWpBlockContext = React.createContext(null));
-          const root = ReactDOM.createRoot(el);
-          root.render(React.createElement(WpBlockContext.Provider, { value: props }, React.createElement(Component, props)));
+          const backup = el.innerHTML;
+          const needsProviders = el.getAttribute("data-forgewp-needs-providers") === "true";
+          const providerReady = needsProviders ? loadProviderComponents() : Promise.resolve([]);
+          providerReady.then(function (providerComponents) {
+            const nextProps = Object.assign({}, props);
+            if (el.getAttribute("data-forgewp-slot-children") === "true") {
+              const ssrHtml = el.innerHTML;
+              if (ssrHtml && String(ssrHtml).trim()) {
+                nextProps.children = React.createElement("span", {
+                  style: { display: "contents" },
+                  dangerouslySetInnerHTML: { __html: ssrHtml },
+                });
+              }
+            }
+            let tree = React.createElement(Component, nextProps);
+            for (let i = providerComponents.length - 1; i >= 0; i--) {
+              tree = React.createElement(providerComponents[i], null, tree);
+            }
+            try {
+              const root = ReactDOM.createRoot(el);
+              root.render(tree);
+              if (window.ForgeWP && window.ForgeWP.hydratedIslands) {
+                window.ForgeWP.hydratedIslands.add(islandName);
+              }
+              const eventDetail = { island: islandName, element: el };
+              window.dispatchEvent(new CustomEvent("forgewp:hydrated", { detail: eventDetail }));
+              window.dispatchEvent(new CustomEvent("forgewp:island-ready", { detail: eventDetail }));
+            } catch (err) {
+              el.innerHTML = backup;
+              console.error("[ForgeWP Hydrator] Render failed for " + islandName + ", restored SSR HTML:", err);
+            }
+          }).catch(function (err) {
+            el.innerHTML = backup;
+            console.error("[ForgeWP Hydrator] Provider wrap failed for " + islandName + ":", err);
+          });
         } else {
           console.error("[ForgeWP Hydration Error] React or ReactDOM not found on window. Ensure main.tsx exposes window.React and window.ReactDOM.");
         }
@@ -413,6 +557,84 @@ export function generateHydrationRuntime(
       .catch((err) => {
         console.error("[ForgeWP Hydrator] Failed to load chunk for " + islandName + ":", err);
       });
+  }
+
+  function resolveExport(module, islandName) {
+    if (!module || typeof module !== "object") return undefined;
+    const pascalName = islandName
+      .split("-")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join("");
+    const camelName = pascalName.charAt(0).toLowerCase() + pascalName.slice(1);
+
+    if (typeof module[pascalName] === "function") return module[pascalName];
+    if (typeof module[camelName] === "function") return module[camelName];
+    if (typeof module.default === "function") return module.default;
+
+    const keys = Object.keys(module);
+    for (let i = 0; i < keys.length; i++) {
+      const val = module[keys[i]];
+      if (typeof val === "function") {
+        if (val.displayName === pascalName || val.name === pascalName) return val;
+        if (val.displayName === camelName || val.name === camelName) return val;
+      }
+    }
+
+    const cleanIsland = islandName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      if (k.toLowerCase() === cleanIsland && typeof module[k] === "function") {
+        return module[k];
+      }
+    }
+
+    const fnKeys = keys.filter(function (k) {
+      return typeof module[k] === "function";
+    });
+    if (fnKeys.length === 1) return module[fnKeys[0]];
+
+    const nonHooks = fnKeys.filter(function (k) {
+      const fn = module[k];
+      const fnName = fn.displayName || fn.name || k;
+      return !/^use[A-Z]/.test(fnName);
+    });
+    if (nonHooks.length === 1) return module[nonHooks[0]];
+
+    if (islandName.endsWith("-provider") || islandName.includes("provider")) {
+      const provMatch = fnKeys.find(function (k) {
+        const fnName = module[k].displayName || module[k].name || k;
+        return /Provider$/i.test(fnName);
+      });
+      if (provMatch) return module[provMatch];
+    }
+
+    if (nonHooks.length > 0) return module[nonHooks[0]];
+    if (fnKeys.length > 0) return module[fnKeys[0]];
+    return undefined;
+  }
+
+  let providerComponentsPromise = null;
+  function loadProviderComponents() {
+    if (providerComponentsPromise) return providerComponentsPromise;
+    const ids = config.providers || [];
+    if (!ids.length) {
+      providerComponentsPromise = Promise.resolve([]);
+      return providerComponentsPromise;
+    }
+    providerComponentsPromise = Promise.all(ids.map(function (id) {
+      const chunkPath = config.manifest && config.manifest[id];
+      if (!chunkPath) return Promise.resolve(null);
+      const scriptUrl = config.themeUri + "/assets/" + chunkPath.replace("assets/", "").replace("assets\\\\", "");
+      return import(scriptUrl).then(function (module) {
+        return resolveExport(module, id);
+      }).catch(function (err) {
+        console.error("[ForgeWP Hydrator] Failed to load provider " + id + ":", err);
+        return null;
+      });
+    })).then(function (list) {
+      return list.filter(function (fn) { return typeof fn === "function"; });
+    });
+    return providerComponentsPromise;
   }
 })();`;
 
@@ -435,10 +657,69 @@ export async function onFresh(themeRoot) {
   const routesPath = path.join(themeRoot, 'src', 'app', 'routes.tsx');
   const pagePath = path.join(themeRoot, 'src', 'app', 'page.tsx');
 
-  const routesContent = `import { Route, Switch } from "wouter";
-import HomePage from "./page";
-import QuerySandbox from "./query-sandbox";
-import WpEditablePage from "./wp-editable";
+  const routesContent = `import type { ComponentType, ReactNode } from "react";
+import { Route, Switch } from "@forgewp/react";
+import * as HomePage from "./page";
+import * as QuerySandbox from "./query-sandbox";
+import * as WpEditablePage from "./wp-editable";
+
+/**
+ * Automatically discover all layouts in src/app/layouts via Vite eager glob.
+ * Any layout file created (e.g. dashboard.tsx, auth.tsx, blank.tsx) is instantly
+ * available without needing manual imports or registration.
+ */
+const layoutModules = import.meta.glob<Record<string, any>>("./layouts/*.{tsx,jsx,ts,js}", { eager: true });
+const layouts: Record<string, ComponentType<{ children: ReactNode }>> = {};
+
+for (const filePath in layoutModules) {
+  const match = filePath.match(/\\/([^/]+)\\.(tsx|jsx|ts|js)$/);
+  if (match) {
+    const layoutName = match[1];
+    const mod = layoutModules[filePath];
+    const comp = mod.default || Object.values(mod).find((v) => typeof v === "function");
+    if (comp) {
+      layouts[layoutName] = comp as ComponentType<{ children: ReactNode }>;
+    }
+  }
+}
+
+/**
+ * Layout-aware wrapper for local React dev routing.
+ * Resolves layout dynamically from \`export const pageConfig = { layout: '...' }\`
+ */
+function withLayout(componentOrModule: any, customConfig?: any) {
+  return function PageWithLayout(props: any) {
+    const Component =
+      typeof componentOrModule === "function"
+        ? componentOrModule
+        : componentOrModule?.default || (() => null);
+
+    const config =
+      customConfig ||
+      componentOrModule?.pageConfig ||
+      (Component as any)?.pageConfig ||
+      {};
+
+    const layoutKey = config.layout ?? "default";
+
+    if (layoutKey === false || layoutKey === "blank") {
+      const BlankLayout = layouts["blank"] || (({ children }: any) => <>{children}</>);
+      return (
+        <BlankLayout>
+          <Component {...props} />
+        </BlankLayout>
+      );
+    }
+
+    const Layout = layouts[layoutKey] || layouts["default"] || (({ children }: any) => <>{children}</>);
+
+    return (
+      <Layout>
+        <Component {...props} />
+      </Layout>
+    );
+  };
+}
 
 /**
  * Local Developer Routes — ForgeWP.
@@ -447,32 +728,34 @@ import WpEditablePage from "./wp-editable";
  *
  * @example
  * // 1. Create a component in src/app/about.tsx
- * // 2. Import it here: import AboutPage from "./about";
- * // 3. Add the Route: <Route path="/about" component={AboutPage} />
+ * // 2. Import it here: import * as AboutPage from "./about";
+ * // 3. Add the Route: <Route path="/about" component={withLayout(AboutPage)} />
  */
 export default function AppRoutes() {
   return (
     <Switch>
       {/* Home preview */}
-      <Route path="/" component={HomePage} />
+      <Route path="/" component={withLayout(HomePage)} />
 
       {/* Relational Query Engine Sandbox — verifies taxQuery, metaQuery, pagination */}
-      <Route path="/query-sandbox" component={QuerySandbox} />
+      <Route path="/query-sandbox" component={withLayout(QuerySandbox)} />
 
       {/* WpEditable Block Canvas Preview — verifies inline editing primitive */}
-      <Route path="/wp-editable" component={WpEditablePage} />
+      <Route path="/wp-editable" component={withLayout(WpEditablePage)} />
 
       {/* Fallback route */}
       <Route>
-        <div className="flex min-h-[60vh] flex-col items-center justify-center text-center p-6">
-          <h1 className="text-4xl font-bold font-serif text-zinc-950">404</h1>
-          <p className="mt-2 text-zinc-600">Page not found locally.</p>
-          <div className="mt-4 flex flex-col items-center gap-2 text-sm">
-            <a href="/" className="text-brand font-semibold hover:underline">← Go back home</a>
-            <a href="/query-sandbox" className="text-zinc-500 font-mono hover:underline text-xs">→ Query Engine Sandbox</a>
-            <a href="/wp-editable" className="text-zinc-500 font-mono hover:underline text-xs">→ WpEditable Canvas</a>
+        {withLayout(() => (
+          <div className="flex min-h-[60vh] flex-col items-center justify-center text-center p-6">
+            <h1 className="text-4xl font-bold font-serif text-zinc-950">404</h1>
+            <p className="mt-2 text-zinc-600">Page not found locally.</p>
+            <div className="mt-4 flex flex-col items-center gap-2 text-sm">
+              <a href="/" className="text-brand font-semibold hover:underline">← Go back home</a>
+              <a href="/query-sandbox" className="text-zinc-500 font-mono hover:underline text-xs">→ Query Engine Sandbox</a>
+              <a href="/wp-editable" className="text-zinc-500 font-mono hover:underline text-xs">→ WpEditable Canvas</a>
+            </div>
           </div>
-        </div>
+        ))()}
       </Route>
     </Switch>
   );
@@ -623,16 +906,22 @@ export default function HomePage() {
 
   try {
     writeFileSync(routesPath, routesContent, 'utf8');
-    console.log(`  ${pc.green('✅ Reset routes definition')}: src/app/routes.tsx`);
+    console.log(
+      `  ${pc.green('✅ Reset routes definition')}: src/app/routes.tsx`,
+    );
   } catch (err) {
-    console.log(pc.red(`  ❌ Failed to reset src/app/routes.tsx: ${err.message}`));
+    console.log(
+      pc.red(`  ❌ Failed to reset src/app/routes.tsx: ${err.message}`),
+    );
   }
 
   try {
     writeFileSync(pagePath, pageContent, 'utf8');
     console.log(`  ${pc.green('✅ Reset core template')}: src/app/page.tsx`);
   } catch (err) {
-    console.log(pc.red(`  ❌ Failed to reset src/app/page.tsx: ${err.message}`));
+    console.log(
+      pc.red(`  ❌ Failed to reset src/app/page.tsx: ${err.message}`),
+    );
   }
 
   // Ensure shadcn's components.json is present so `forgewp add` works
@@ -640,39 +929,47 @@ export default function HomePage() {
   const componentsJsonPath = path.join(themeRoot, 'components.json');
   if (!existsSync(componentsJsonPath)) {
     const defaultComponentsJson = {
-      "$schema": "https://ui.shadcn.com/schema.json",
-      "style": "new-york",
-      "rsc": false,
-      "tsx": true,
-      "tailwind": {
-        "config": "tailwind.config.js",
-        "css": "src/app/globals.css",
-        "baseColor": "zinc",
-        "cssVariables": true,
-        "prefix": ""
+      $schema: 'https://ui.shadcn.com/schema.json',
+      style: 'new-york',
+      rsc: false,
+      tsx: true,
+      tailwind: {
+        config: 'tailwind.config.js',
+        css: 'src/app/globals.css',
+        baseColor: 'zinc',
+        cssVariables: true,
+        prefix: '',
       },
-      "aliases": {
-        "components": "@/components",
-        "utils": "@/lib/utils",
-        "ui": "@/components/ui",
-        "lib": "@/lib",
-        "hooks": "@/hooks"
+      aliases: {
+        components: '@/components',
+        utils: '@/lib/utils',
+        ui: '@/components/ui',
+        lib: '@/lib',
+        hooks: '@/hooks',
       },
-      "iconLibrary": "lucide"
+      iconLibrary: 'lucide',
     };
     try {
-      writeFileSync(componentsJsonPath, JSON.stringify(defaultComponentsJson, null, 2), 'utf8');
+      writeFileSync(
+        componentsJsonPath,
+        JSON.stringify(defaultComponentsJson, null, 2),
+        'utf8',
+      );
       console.log(`  ${pc.green('✅ Created shadcn config')}: components.json`);
     } catch (err) {
-      console.log(pc.yellow(`  ⚠️  Could not create components.json: ${err.message}`));
+      console.log(
+        pc.yellow(`  ⚠️  Could not create components.json: ${err.message}`),
+      );
     }
   } else {
     console.log(`  ${pc.dim('↳ components.json already present')}`);
   }
 }
 
-
-export function onMakeBlock(themeRoot, { pascalCase, readableTitle, attributesList, pc }) {
+export function onMakeBlock(
+  themeRoot,
+  { pascalCase, readableTitle, attributesList, pc },
+) {
   const blocksDir = path.join(themeRoot, 'src', 'blocks');
   if (!existsSync(blocksDir)) {
     mkdirSync(blocksDir, { recursive: true });
@@ -680,22 +977,28 @@ export function onMakeBlock(themeRoot, { pascalCase, readableTitle, attributesLi
 
   const targetFile = path.join(blocksDir, `${pascalCase}.tsx`);
   if (existsSync(targetFile)) {
-    console.error(pc.red(`\n❌ Error: Block "${pascalCase}.tsx" already exists at src/blocks/\n`));
+    console.error(
+      pc.red(
+        `\n❌ Error: Block "${pascalCase}.tsx" already exists at src/blocks/\n`,
+      ),
+    );
     process.exit(1);
   }
 
-  const nameSlug = pascalCase.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+  const nameSlug = pascalCase
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase();
 
   const attributesRegistry = attributesList
-    .map(a => `    ${a}: { type: "string", default: "Customize ${a} here" }`)
+    .map((a) => `    ${a}: { type: "string", default: "Customize ${a} here" }`)
     .join(',\n');
 
   const editFields = attributesList
-    .map(a => {
+    .map((a) => {
       const cleanLabel = a
         .replace(/_/g, ' ')
-        .replace(/(?:^\w|[A-Z]|\b\w)/g, word => word.toUpperCase());
-      
+        .replace(/(?:^\w|[A-Z]|\b\w)/g, (word) => word.toUpperCase());
+
       if (a === 'content' || a === 'description' || a === 'body') {
         return `<div className="border border-slate-100 p-4 bg-slate-50/30 rounded-none">
             <label className="block text-xs font-mono font-bold uppercase text-slate-700 mb-1">${cleanLabel}</label>
@@ -794,10 +1097,14 @@ ${attributesRegistry}
 
   writeFileSync(targetFile, blockTemplate, 'utf8');
 
-  console.log(pc.green(`\n⚡ Modern Block "${pascalCase}" successfully created!`));
+  console.log(
+    pc.green(`\n⚡ Modern Block "${pascalCase}" successfully created!`),
+  );
   console.log(`   Location: ${pc.cyan(`src/blocks/${pascalCase}.tsx`)}`);
   console.log(`   Gutenberg Title: ${pc.yellow(`Sharp ${readableTitle}`)}`);
-  console.log(`\n🎉 Run ${pc.cyan('pnpm export')} to automatically register it inside your WordPress theme!\n`);
+  console.log(
+    `\n🎉 Run ${pc.cyan('pnpm export')} to automatically register it inside your WordPress theme!\n`,
+  );
 }
 
 /**
@@ -805,18 +1112,21 @@ ${attributesRegistry}
  * @param {string} themeRoot
  * @param {object} opts
  */
-export function onMakeShell(themeRoot, {
-  pascalCase,
-  nameSlug,
-  readableTitle,
-  childrenSlugs = [],
-  shell = {},
-  innerBlocks = {},
-  category = 'theme',
-  icon = 'columns',
-  description = '',
-  pc: colors,
-}) {
+export function onMakeShell(
+  themeRoot,
+  {
+    pascalCase,
+    nameSlug,
+    readableTitle,
+    childrenSlugs = [],
+    shell = {},
+    innerBlocks = {},
+    category = 'theme',
+    icon = 'columns',
+    description = '',
+    pc: colors,
+  },
+) {
   const log = colors || pc;
   const blocksDir = path.join(themeRoot, 'src', 'blocks');
   if (!existsSync(blocksDir)) {
@@ -825,17 +1135,24 @@ export function onMakeShell(themeRoot, {
 
   const targetFile = path.join(blocksDir, `${pascalCase}.tsx`);
   if (existsSync(targetFile)) {
-    console.error(log.red(`\n❌ Error: Block "${pascalCase}.tsx" already exists at src/blocks/\n`));
+    console.error(
+      log.red(
+        `\n❌ Error: Block "${pascalCase}.tsx" already exists at src/blocks/\n`,
+      ),
+    );
     process.exit(1);
   }
 
-  const slug = nameSlug || pascalCase
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-');
+  const slug =
+    nameSlug ||
+    pascalCase
+      .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-');
 
   const title = readableTitle || pascalCase.replace(/([A-Z])/g, ' $1').trim();
-  const className = shell.className || 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16';
+  const className =
+    shell.className || 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16';
   const gridClassName =
     shell.gridClassName ||
     'grid grid-cols-1 lg:grid-cols-2 gap-12 items-center';
@@ -870,7 +1187,8 @@ export function onMakeShell(themeRoot, {
         : JSON.stringify(templateLock);
 
   const descLit = JSON.stringify(
-    description || `Layout shell for ${title}${allowed.length ? ` (${allowed.join(' + ')})` : ''}`,
+    description ||
+      `Layout shell for ${title}${allowed.length ? ` (${allowed.join(' + ')})` : ''}`,
   );
 
   const shellTemplate = `import { defineBlock } from '@forgewp/react';
@@ -915,7 +1233,9 @@ export default defineBlock({
   if (allowed.length) {
     console.log(`   Children: ${log.cyan(allowed.join(', '))}`);
   } else {
-    console.log(`   Children: ${log.dim('(none — open shell; any allowed at runtime)')}`);
+    console.log(
+      `   Children: ${log.dim('(none — open shell; any allowed at runtime)')}`,
+    );
   }
   console.log(`   Layout: ${log.dim(gridClassName)}`);
   console.log(
@@ -923,7 +1243,10 @@ export default defineBlock({
   );
 }
 
-export function onMakeLoop(themeRoot, { pascalCase, postType, customFields, automaticallySeeded, pc }) {
+export function onMakeLoop(
+  themeRoot,
+  { pascalCase, postType, customFields, automaticallySeeded, pc },
+) {
   const loopsDir = path.join(themeRoot, 'src', 'loops');
   if (!existsSync(loopsDir)) {
     mkdirSync(loopsDir, { recursive: true });
@@ -931,17 +1254,21 @@ export function onMakeLoop(themeRoot, { pascalCase, postType, customFields, auto
 
   const targetFile = path.join(loopsDir, `${pascalCase}.tsx`);
   if (existsSync(targetFile)) {
-    console.error(pc.red(`\n❌ Error: Loop "${pascalCase}.tsx" already exists at src/loops/\n`));
+    console.error(
+      pc.red(
+        `\n❌ Error: Loop "${pascalCase}.tsx" already exists at src/loops/\n`,
+      ),
+    );
     process.exit(1);
   }
 
   let customFieldsMarkup = '';
   if (customFields.length > 0) {
     customFieldsMarkup = customFields
-      .map(f => {
+      .map((f) => {
         const cleanLabel = f
           .replace(/_/g, ' ')
-          .replace(/(?:^\w|[A-Z]|\b\w)/g, word => word.toUpperCase());
+          .replace(/(?:^\w|[A-Z]|\b\w)/g, (word) => word.toUpperCase());
         return `<div className="flex justify-between border-t border-slate-100 pt-2 text-xs font-mono text-slate-500">
               <span>${cleanLabel}:</span>
               <span className="font-bold text-slate-800">{useWpCustomField("${f}")}</span>
@@ -1013,18 +1340,28 @@ export default function ${pascalCase}() {
   writeFileSync(targetFile, loopTemplate, 'utf8');
 
   if (automaticallySeeded) {
-    console.log(pc.yellow(`\n⚠️  Post type "${postType}" was missing from local database (mock-data.json).`));
-    console.log(`   We have automatically registered it and seeded default custom fields for you!`);
+    console.log(
+      pc.yellow(
+        `\n⚠️  Post type "${postType}" was missing from local database (mock-data.json).`,
+      ),
+    );
+    console.log(
+      `   We have automatically registered it and seeded default custom fields for you!`,
+    );
   }
 
   console.log(pc.green(`\n⚡ Post Loop "${pascalCase}" successfully created!`));
   console.log(`   Location: ${pc.cyan(`src/loops/${pascalCase}.tsx`)}`);
   console.log(`   Target Post Type: ${pc.yellow(postType)}`);
   if (customFields.length > 0) {
-    console.log(`   Seeded Custom Fields: ${pc.yellow(customFields.join(', '))}`);
+    console.log(
+      `   Seeded Custom Fields: ${pc.yellow(customFields.join(', '))}`,
+    );
   }
   console.log(`\n🎉 You can now import it directly inside your pages:`);
-  console.log(`   ${pc.cyan(`import ${pascalCase} from "@/loops/${pascalCase}";`)}\n`);
+  console.log(
+    `   ${pc.cyan(`import ${pascalCase} from "@/loops/${pascalCase}";`)}\n`,
+  );
 }
 
 export function onMakeIsland(themeRoot, { pascalCase, pc }) {
@@ -1035,7 +1372,11 @@ export function onMakeIsland(themeRoot, { pascalCase, pc }) {
 
   const targetFile = path.join(componentsDir, `${pascalCase}.tsx`);
   if (existsSync(targetFile)) {
-    console.error(pc.red(`\n❌ Error: Island "${pascalCase}.tsx" already exists at src/components/\n`));
+    console.error(
+      pc.red(
+        `\n❌ Error: Island "${pascalCase}.tsx" already exists at src/components/\n`,
+      ),
+    );
     process.exit(1);
   }
 
@@ -1074,12 +1415,22 @@ export default function ${pascalCase}(_props: ${pascalCase}Props) {
 
   writeFileSync(targetFile, islandTemplate, 'utf8');
 
-  console.log(pc.green(`\n⚡ Selective Hydration Island "${pascalCase}" successfully created!`));
+  console.log(
+    pc.green(
+      `\n⚡ Selective Hydration Island "${pascalCase}" successfully created!`,
+    ),
+  );
   console.log(`   Location: ${pc.cyan(`src/components/${pascalCase}.tsx`)}`);
-  console.log(`\n🎉 ForgeWP automatically detects and hydrates this component on compile!`);
-  console.log(`   If you want to customize the trigger (e.g. hydrate on click):`);
+  console.log(
+    `\n🎉 ForgeWP automatically detects and hydrates this component on compile!`,
+  );
+  console.log(
+    `   If you want to customize the trigger (e.g. hydrate on click):`,
+  );
   console.log(`   Wrap it with:`);
-  console.log(`   ${pc.cyan(`<Hydrate trigger="click">\n     <${pascalCase} />\n   </Hydrate>`)}\n`);
+  console.log(
+    `   ${pc.cyan(`<Hydrate trigger="click">\n     <${pascalCase} />\n   </Hydrate>`)}\n`,
+  );
 }
 
 export function onMakePage(themeRoot, { pascalCase, pc }) {
@@ -1090,7 +1441,11 @@ export function onMakePage(themeRoot, { pascalCase, pc }) {
 
   const targetFile = path.join(pagesDir, `${pascalCase}.tsx`);
   if (existsSync(targetFile)) {
-    console.error(pc.red(`\n❌ Error: Page Template "${pascalCase}.tsx" already exists at src/app/pages/\n`));
+    console.error(
+      pc.red(
+        `\n❌ Error: Page Template "${pascalCase}.tsx" already exists at src/app/pages/\n`,
+      ),
+    );
     process.exit(1);
   }
 
@@ -1136,21 +1491,28 @@ export function ${pascalCase}() {
 
   writeFileSync(targetFile, pageTemplate, 'utf8');
 
-  console.log(pc.green(`\n⚡ Custom Page Template "${pascalCase}" successfully created!`));
+  console.log(
+    pc.green(`\n⚡ Custom Page Template "${pascalCase}" successfully created!`),
+  );
   console.log(`   Location: ${pc.cyan(`src/app/pages/${pascalCase}.tsx`)}`);
   console.log(`   WordPress Template Name: ${pc.yellow(pascalCase)}`);
   console.log(`\n🎉 To link it in your application routing:`);
   console.log(`   Add it inside your ${pc.cyan('src/app/routes.tsx')} file.\n`);
 }
 
-export function onMakeForm(themeRoot, { slug, pascalCase, fields, mailTo, pc }) {
+export function onMakeForm(
+  themeRoot,
+  { slug, pascalCase, fields, mailTo, pc },
+) {
   const formsDir = path.join(themeRoot, 'cms', 'forms');
   if (!existsSync(formsDir)) {
     mkdirSync(formsDir, { recursive: true });
   }
   const formConfigFile = path.join(formsDir, `${slug}.ts`);
   if (existsSync(formConfigFile)) {
-    console.error(pc.red(`\n❌ Error: Form "${slug}.ts" already exists at cms/forms/\n`));
+    console.error(
+      pc.red(`\n❌ Error: Form "${slug}.ts" already exists at cms/forms/\n`),
+    );
     process.exit(1);
   }
 
@@ -1161,7 +1523,11 @@ export function onMakeForm(themeRoot, { slug, pascalCase, fields, mailTo, pc }) 
   const componentName = `${pascalCase}Form`;
   const componentFile = path.join(componentsDir, `${componentName}.tsx`);
   if (existsSync(componentFile)) {
-    console.error(pc.red(`\n❌ Error: Form component "${componentName}.tsx" already exists at src/components/forms/\n`));
+    console.error(
+      pc.red(
+        `\n❌ Error: Form component "${componentName}.tsx" already exists at src/components/forms/\n`,
+      ),
+    );
     process.exit(1);
   }
 
@@ -1169,7 +1535,7 @@ export function onMakeForm(themeRoot, { slug, pascalCase, fields, mailTo, pc }) 
     name
       .replace(/[_-]+/g, ' ')
       .split(' ')
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');
 
   // ── cms/forms/{slug}.ts ──────────────────────────────────────────────
@@ -1323,19 +1689,25 @@ ${fieldMarkup}
 
   console.log(pc.green(`\n⚡ Form "${slug}" successfully created!`));
   console.log(`   Config:    ${pc.cyan(`cms/forms/${slug}.ts`)}`);
-  console.log(`   Component: ${pc.cyan(`src/components/forms/${componentName}.tsx`)}`);
+  console.log(
+    `   Component: ${pc.cyan(`src/components/forms/${componentName}.tsx`)}`,
+  );
   console.log(`\n🎉 Use it in a page:`);
-  console.log(`   ${pc.yellow(`import ${componentName} from "@/components/forms/${componentName}";`)}\n`);
+  console.log(
+    `   ${pc.yellow(`import ${componentName} from "@/components/forms/${componentName}";`)}\n`,
+  );
 }
 
 export function onSyncRoutes(themeRoot, { routesToScaffold, isForce, pc }) {
   function toPascalCase(str) {
-    return str
-      .replace(/[^a-zA-Z0-9]/g, ' ')
-      .trim()
-      .split(/\s+/)
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join('') + 'Page';
+    return (
+      str
+        .replace(/[^a-zA-Z0-9]/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join('') + 'Page'
+    );
   }
 
   const pagesDir = path.join(themeRoot, 'src', 'app', 'pages');
@@ -1417,33 +1789,77 @@ export function ${componentName}() {
 `;
 
     if (existsSync(componentPath) && !isForce) {
-      console.log(`  ${pc.gray('ℹ️ [Skip] Component already exists:')} src/app/pages/${componentName}.tsx`);
+      console.log(
+        `  ${pc.gray('ℹ️ [Skip] Component already exists:')} src/app/pages/${componentName}.tsx`,
+      );
       skippedCount++;
     } else {
       writeFileSync(componentPath, componentContent, 'utf8');
-      console.log(`  ${pc.green('✅ Scaffolded component')}: src/app/pages/${componentName}.tsx`);
+      console.log(
+        `  ${pc.green('✅ Scaffolded component')}: src/app/pages/${componentName}.tsx`,
+      );
       scaffoldedCount++;
     }
   }
 
-  // Discover Custom Post Types (CPTs) from cms/mock-data.json
-  const mockDataPath = path.join(themeRoot, 'cms', 'mock-data.json');
+  // Discover Custom Post Types from cms/mock-data.ts (preferred) plus leftover cms/*.json
+  const cmsDir = path.join(themeRoot, 'cms');
   let cpts = [];
-  if (existsSync(mockDataPath)) {
-    try {
-      const mockData = JSON.parse(readFileSync(mockDataPath, 'utf8'));
-      for (const [key, value] of Object.entries(mockData)) {
-        if (
-          Array.isArray(value) &&
-          !key.startsWith('_') &&
-          !['post', 'page', 'menu', 'primary', 'utility'].includes(key)
-        ) {
-          cpts.push(key);
-        }
+  const skipCptKeys = new Set([
+    'post',
+    'posts',
+    'page',
+    'pages',
+    'menu',
+    'menus',
+    'primary',
+    'utility',
+    'attachment',
+  ]);
+  const ingestCptMap = (fileContent) => {
+    if (
+      !fileContent ||
+      typeof fileContent !== 'object' ||
+      Array.isArray(fileContent)
+    )
+      return;
+    for (const [key, value] of Object.entries(fileContent)) {
+      if (
+        Array.isArray(value) &&
+        !key.startsWith('_') &&
+        !skipCptKeys.has(key) &&
+        !cpts.includes(key)
+      ) {
+        cpts.push(key);
       }
-    } catch (e) {
-      console.log(pc.yellow(`  ⚠️  Warning: Failed to parse cms/mock-data.json for CPT auto-discovery.`));
     }
+  };
+  try {
+    ingestCptMap(loadMockData(themeRoot));
+    if (existsSync(cmsDir)) {
+      const skipJson = new Set([
+        'menus.json',
+        'users.json',
+        'roles.json',
+        'sessions.json',
+        'translations.json',
+        'mock-data.json',
+      ]);
+      const jsonFiles = readdirSync(cmsDir).filter(
+        (f) => f.endsWith('.json') && !skipJson.has(f),
+      );
+      for (const f of jsonFiles) {
+        try {
+          ingestCptMap(JSON.parse(readFileSync(path.join(cmsDir, f), 'utf8')));
+        } catch {}
+      }
+    }
+  } catch (e) {
+    console.log(
+      pc.yellow(
+        `  ⚠️  Warning: Failed to read cms/ directory for CPT auto-discovery.`,
+      ),
+    );
   }
 
   let cptScaffoldedCount = 0;
@@ -1451,18 +1867,20 @@ export function ${componentName}() {
 
   for (const cpt of cpts) {
     const pascalCpt = cpt.charAt(0).toUpperCase() + cpt.slice(1);
-    
+
     // 1. Scaffold thin wrapper src/app/single-${cpt}.tsx
     const wrapperPath = path.join(themeRoot, 'src', 'app', `single-${cpt}.tsx`);
     const wrapperContent = `import { Single${pascalCpt}Page } from "./pages/Single${pascalCpt}Page";
 export default Single${pascalCpt}Page;
 `;
-    
+
     if (existsSync(wrapperPath) && !isForce) {
       // Skip wrapper
     } else {
       writeFileSync(wrapperPath, wrapperContent, 'utf8');
-      console.log(`  ${pc.green('✅ Scaffolded thin CPT wrapper')}: src/app/single-${cpt}.tsx`);
+      console.log(
+        `  ${pc.green('✅ Scaffolded thin CPT wrapper')}: src/app/single-${cpt}.tsx`,
+      );
     }
 
     // 2. Scaffold page component src/app/pages/Single${pascalCpt}Page.tsx
@@ -1477,8 +1895,8 @@ export default Single${pascalCpt}Page;
  * To force reset this page back to boilerplate defaults, run:
  * 'pnpm forgewp sync:routes --force'
  */
-import { useRoute } from "wouter";
 import { 
+  useRoute,
   WpHead, 
   WpLink, 
   useWpQuery, 
@@ -1568,11 +1986,15 @@ export function Single${pascalCpt}Page() {
 `;
 
     if (existsSync(cptPagePath) && !isForce) {
-      console.log(`  ${pc.gray('ℹ️ [Skip] CPT Page Component already exists:')} src/app/pages/Single${pascalCpt}Page.tsx`);
+      console.log(
+        `  ${pc.gray('ℹ️ [Skip] CPT Page Component already exists:')} src/app/pages/Single${pascalCpt}Page.tsx`,
+      );
       cptSkippedCount++;
     } else {
       writeFileSync(cptPagePath, cptPageContent, 'utf8');
-      console.log(`  ${pc.green('✅ Scaffolded CPT Page Component')}: src/app/pages/Single${pascalCpt}Page.tsx`);
+      console.log(
+        `  ${pc.green('✅ Scaffolded CPT Page Component')}: src/app/pages/Single${pascalCpt}Page.tsx`,
+      );
       cptScaffoldedCount++;
     }
   }
@@ -1585,9 +2007,13 @@ export function Single${pascalCpt}Page() {
     for (const route of routesToScaffold) {
       const componentName = toPascalCase(route.title);
 
-      const importRegex = new RegExp(`import\\s+\\{\\s*${componentName}\\s*\\}\\s+from\\s+["']\\./pages/${componentName}["']`);
+      const importRegex = new RegExp(
+        `import\\s+\\{\\s*${componentName}\\s*\\}\\s+from\\s+["']\\./pages/${componentName}["']`,
+      );
       if (!importRegex.test(routesContent)) {
-        const defaultExportIndex = routesContent.indexOf('export default function');
+        const defaultExportIndex = routesContent.indexOf(
+          'export default function',
+        );
         if (defaultExportIndex !== -1) {
           routesContent =
             routesContent.slice(0, defaultExportIndex) +
@@ -1599,12 +2025,17 @@ export function Single${pascalCpt}Page() {
 
       const routeRegex = new RegExp(`path\\s*=\\s*["']${route.path}["']`);
       if (!routeRegex.test(routesContent)) {
+        const hasWithLayout = routesContent.includes('withLayout');
+        const compTarget = hasWithLayout
+          ? `withLayout(${componentName})`
+          : componentName;
+
         const fallbackMarker = '{/* Fallback route */}';
         const fallbackIndex = routesContent.indexOf(fallbackMarker);
         if (fallbackIndex !== -1) {
           routesContent =
             routesContent.slice(0, fallbackIndex) +
-            `<Route path="${route.path}" component={${componentName}} />\n\n      ` +
+            `<Route path="${route.path}" component={${compTarget}} />\n\n      ` +
             routesContent.slice(fallbackIndex);
           modified = true;
         } else {
@@ -1612,7 +2043,7 @@ export function Single${pascalCpt}Page() {
           if (switchCloseIndex !== -1) {
             routesContent =
               routesContent.slice(0, switchCloseIndex) +
-              `  <Route path="${route.path}" component={${componentName}} />\n      ` +
+              `  <Route path="${route.path}" component={${compTarget}} />\n      ` +
               routesContent.slice(switchCloseIndex);
             modified = true;
           }
@@ -1625,9 +2056,13 @@ export function Single${pascalCpt}Page() {
       const pascalCpt = cpt.charAt(0).toUpperCase() + cpt.slice(1);
       const componentName = `Single${pascalCpt}Page`;
 
-      const importRegex = new RegExp(`import\\s+\\{\\s*${componentName}\\s*\\}\\s+from\\s+["']\\./pages/${componentName}["']`);
+      const importRegex = new RegExp(
+        `import\\s+\\{\\s*${componentName}\\s*\\}\\s+from\\s+["']\\./pages/${componentName}["']`,
+      );
       if (!importRegex.test(routesContent)) {
-        const defaultExportIndex = routesContent.indexOf('export default function');
+        const defaultExportIndex = routesContent.indexOf(
+          'export default function',
+        );
         if (defaultExportIndex !== -1) {
           routesContent =
             routesContent.slice(0, defaultExportIndex) +
@@ -1639,12 +2074,17 @@ export function Single${pascalCpt}Page() {
 
       const routeRegex = new RegExp(`path\\s*=\\s*["']/${cpt}/:id["']`);
       if (!routeRegex.test(routesContent)) {
+        const hasWithLayout = routesContent.includes('withLayout');
+        const compTarget = hasWithLayout
+          ? `withLayout(${componentName})`
+          : componentName;
+
         const fallbackMarker = '{/* Fallback route */}';
         const fallbackIndex = routesContent.indexOf(fallbackMarker);
         if (fallbackIndex !== -1) {
           routesContent =
             routesContent.slice(0, fallbackIndex) +
-            `<Route path="/${cpt}/:id" component={${componentName}} />\n\n      ` +
+            `<Route path="/${cpt}/:id" component={${compTarget}} />\n\n      ` +
             routesContent.slice(fallbackIndex);
           modified = true;
         } else {
@@ -1652,7 +2092,7 @@ export function Single${pascalCpt}Page() {
           if (switchCloseIndex !== -1) {
             routesContent =
               routesContent.slice(0, switchCloseIndex) +
-              `  <Route path="/${cpt}/:id" component={${componentName}} />\n      ` +
+              `  <Route path="/${cpt}/:id" component={${compTarget}} />\n      ` +
               routesContent.slice(switchCloseIndex);
             modified = true;
           }
@@ -1662,16 +2102,26 @@ export function Single${pascalCpt}Page() {
 
     if (modified) {
       writeFileSync(routesFilePath, routesContent, 'utf8');
-      console.log(`  ${pc.green('✅ Synced routing paths in')}: src/app/routes.tsx`);
+      console.log(
+        `  ${pc.green('✅ Synced routing paths in')}: src/app/routes.tsx`,
+      );
     } else {
-      console.log(`  ${pc.gray('ℹ️  Routes are already fully up to date in')}: src/app/routes.tsx`);
+      console.log(
+        `  ${pc.gray('ℹ️  Routes are already fully up to date in')}: src/app/routes.tsx`,
+      );
     }
   } else {
-    console.log(pc.yellow(`  ⚠️  Warning: routes.tsx not found. Skipped route linking.`));
+    console.log(
+      pc.yellow(`  ⚠️  Warning: routes.tsx not found. Skipped route linking.`),
+    );
   }
 
   console.log('\n' + '─'.repeat(60));
-  console.log(pc.green(`\n🎉 ${pc.bold('SITEMAP SYNC COMPLETE:')} Generated ${scaffoldedCount} sitemap pages, ${cptScaffoldedCount} custom post-type templates (skipped ${skippedCount} pages, ${cptSkippedCount} templates).\n`));
+  console.log(
+    pc.green(
+      `\n🎉 ${pc.bold('SITEMAP SYNC COMPLETE:')} Generated ${scaffoldedCount} sitemap pages, ${cptScaffoldedCount} custom post-type templates (skipped ${skippedCount} pages, ${cptSkippedCount} templates).\n`,
+    ),
+  );
 }
 
 export { scanForHydrationIslands, findComponentPath, getHydrationRollupInputs };

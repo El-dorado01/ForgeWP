@@ -1,4 +1,4 @@
-import { WpHead, useWpI18n } from '../../.forgewp/wordpress';
+import { WpHead, useWpI18n } from '@forgewp/react';
 import { ImpressumHero } from '../../components/ImpressumHero';
 import { ImpressumContent } from '../../components/ImpressumContent';
 

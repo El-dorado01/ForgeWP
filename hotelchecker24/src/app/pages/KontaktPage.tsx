@@ -1,4 +1,4 @@
-import { WpHead, useWpI18n } from '../../.forgewp/wordpress';
+import { WpHead, useWpI18n } from '@forgewp/react';
 import { ContactHero } from '../../components/ContactHero';
 import { ContactDetails } from '../../components/ContactDetails';
 import { ContactFormSection } from '../../components/ContactFormSection';

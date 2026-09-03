@@ -26,6 +26,9 @@
       ],
       "@forgewp/react": [
         "../../react/src/index.ts"
+      ],
+      "@forgewp/compiler": [
+        "../../compiler/lib/index.d.ts"
       ]
     }
   },

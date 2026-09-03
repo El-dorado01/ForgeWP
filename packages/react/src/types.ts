@@ -17,6 +17,13 @@ export interface WpAttachment {
   sizes?: Record<string, { url: string; width: number; height: number }>;
 }
 
+export interface StaticImageData {
+  src: string;
+  height?: number;
+  width?: number;
+  blurDataURL?: string;
+}
+
 export interface WpPost {
   id: number;
   title: string;
@@ -32,8 +39,17 @@ export interface WpPost {
 }
 
 export interface WpMenuItem {
+  id?: number | string;
   title: string;
   url: string;
+  target?: string;
+  classes?: string[];
+  description?: string;
+  attrTitle?: string;
+  badge?: string;
+  image?: string;
+  icon?: string;
+  customFields?: Record<string, any>;
   children?: WpMenuItem[];
 }
 

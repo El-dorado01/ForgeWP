@@ -15,8 +15,8 @@ import {
   useWpOption,
   defineEditable,
   text,
-} from '../../.forgewp/wordpress';
-import { useRoute } from 'wouter';
+} from '@forgewp/react';
+import { useRoute } from '@forgewp/react';
 
 import { ChevronRight, User, Calendar, BookOpen, ArrowLeft } from 'lucide-react';
 import ListicleQuicklinks from '../../components/ListicleQuicklinks';

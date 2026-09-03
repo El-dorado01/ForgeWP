@@ -1,4 +1,4 @@
-import { WpHead, useWpI18n } from '../../.forgewp/wordpress';
+import { WpHead, useWpI18n } from '@forgewp/react';
 import { ListiclesHero } from '../../components/ListiclesHero';
 import { ListiclesWorkspace } from '../../components/ListiclesWorkspace';
 

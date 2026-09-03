@@ -142,17 +142,54 @@ function findReturnedJsxExpression(fnNode) {
   return null;
 }
 
+function extractStaticStringsFromExpression(node) {
+  if (!node) return [];
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+    return [node.text];
+  }
+  if (ts.isTemplateExpression(node)) {
+    const parts = [node.head.text];
+    for (const span of node.templateSpans) {
+      parts.push(span.literal.text);
+    }
+    return parts;
+  }
+  if (ts.isCallExpression(node)) {
+    const parts = [];
+    for (const arg of node.arguments) {
+      parts.push(...extractStaticStringsFromExpression(arg));
+    }
+    return parts;
+  }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    return [
+      ...extractStaticStringsFromExpression(node.left),
+      ...extractStaticStringsFromExpression(node.right),
+    ];
+  }
+  return [];
+}
+
 function extractClassNameFromJsxRoot(expr) {
   if (!expr) return { resolvable: true, className: null };
 
-  // Fragments, conditionals, and other non-element roots have no single node to
-  // hoist a className onto — bail without flagging it as risky (there's no
-  // "class we couldn't reach", just no candidate node).
-  if (!ts.isJsxElement(expr) && !ts.isJsxSelfClosingElement(expr)) {
+  let targetElement = expr;
+
+  // Handle Fragments (<> ... </>) by inspecting the first child element
+  if (ts.isJsxFragment(expr)) {
+    const firstChild = expr.children.find(
+      (c) => ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c)
+    );
+    if (firstChild) {
+      targetElement = firstChild;
+    }
+  }
+
+  if (!ts.isJsxElement(targetElement) && !ts.isJsxSelfClosingElement(targetElement)) {
     return { resolvable: true, className: null };
   }
 
-  const opening = ts.isJsxElement(expr) ? expr.openingElement : expr;
+  const opening = ts.isJsxElement(targetElement) ? targetElement.openingElement : targetElement;
   const classAttr = opening.attributes.properties.find(
     (p) => ts.isJsxAttribute(p) && p.name && p.name.text === "className"
   );
@@ -161,7 +198,6 @@ function extractClassNameFromJsxRoot(expr) {
     return { resolvable: true, className: null };
   }
   if (!classAttr.initializer) {
-    // Bare `className` attribute (no value) — not valid JSX in practice, be safe.
     return { resolvable: false, className: null, reason: "dynamic-classname" };
   }
 
@@ -170,12 +206,15 @@ function extractClassNameFromJsxRoot(expr) {
     return { resolvable: true, className: filterToLayoutClasses(init.text) };
   }
   if (ts.isJsxExpression(init) && init.expression) {
-    const inner = init.expression;
-    if (ts.isStringLiteral(inner) || ts.isNoSubstitutionTemplateLiteral(inner)) {
-      return { resolvable: true, className: filterToLayoutClasses(inner.text) };
+    const staticStrings = extractStaticStringsFromExpression(init.expression);
+    if (staticStrings.length > 0) {
+      const combined = staticStrings.join(" ");
+      const layoutClasses = filterToLayoutClasses(combined);
+      if (layoutClasses) {
+        return { resolvable: true, className: layoutClasses };
+      }
     }
   }
 
-  // `className={someVar}`, `className={cn(...)}`, `className={`${x} ...`}`, etc.
   return { resolvable: false, className: null, reason: "dynamic-classname" };
 }

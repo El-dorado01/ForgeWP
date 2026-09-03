@@ -6,7 +6,7 @@ import {
   Youtube,
   Linkedin
 } from "lucide-react";
-import { WpMenu, useWpOption, useWpThemeMod, useWpThemeUri, useWpI18n, useWpLanguage, useWpPageLink, WpLink } from "../.forgewp/wordpress";
+import { WpMenu, useWpOption, useWpThemeMod, useWpThemeUri, useWpI18n, useWpLanguage, useWpPageLink, WpLink } from '@forgewp/react';
 
 const TiktokIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg

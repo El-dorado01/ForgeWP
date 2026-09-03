@@ -1,5 +1,5 @@
 import { MapPin, Mail, Landmark, ShieldCheck } from 'lucide-react';
-import { useWpMeta } from '../.forgewp/wordpress';
+import { useWpMeta } from '@forgewp/react';
 import { pickEditable, WpEditable } from '@forgewp/react';
 import { editable as impressumPageEditable, defaults } from '../../cms/editables/impressum-page';
 

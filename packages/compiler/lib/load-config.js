@@ -232,6 +232,25 @@ export async function loadConfig(themeRoot) {
     }
   }
 
+  // Validate seed configuration
+  if (config.seed !== undefined) {
+    if (typeof config.seed !== 'object' || config.seed === null) {
+      throw new Error('seed must be an object configuration in wp.config.ts');
+    }
+    const validStrategies = [true, false, 'once', 'upsert', 'force'];
+    if (config.seed.products !== undefined && !validStrategies.includes(config.seed.products)) {
+      throw new Error(
+        `Invalid seed.products strategy: "${config.seed.products}". Expected true, false, "once", "upsert", or "force".`
+      );
+    }
+    if (config.seed.developmentOnly === undefined) {
+      config.seed.developmentOnly = true;
+    }
+    if (config.seed.sideloadImages === undefined) {
+      config.seed.sideloadImages = true;
+    }
+  }
+
   if (!config.frameworkAdapter) {
     config.frameworkAdapter = 'react';
   }

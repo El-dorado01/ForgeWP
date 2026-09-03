@@ -1,0 +1,44 @@
+{
+  "name": "photo-memories",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
+    "preview": "vite preview",
+    "export": "forgewp export",
+    "fresh": "forgewp fresh",
+    "reset": "forgewp fresh",
+    "forgewp": "forgewp"
+  },
+  "dependencies": {
+    "@forgewp/react": "workspace:*",
+    "@forgewp/woocommerce": "workspace:*",
+    "@forgewp/plugin-seo": "workspace:*",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-slot": "^1.2.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.475.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-helmet-async": "^3.0.0",
+    "tailwind-merge": "^3.3.0",
+    "wouter": "^3.9.0"
+  },
+  "devDependencies": {
+    "@forgewp/compiler": "workspace:*",
+    "@tailwindcss/vite": "^4.1.7",
+    "@types/node": "^22.19.19",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.5",
+    "@vitejs/plugin-react": "^4.4.1",
+    "tailwindcss": "^4.1.7",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.8.3",
+    "vite": "^6.4.2"
+  }
+}

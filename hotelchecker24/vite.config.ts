@@ -8,6 +8,7 @@ import {
   loadFrameworkAdapter,
   validateCriticalFiles,
   forgewpPageConfigPlugin,
+  forgewpVirtualPlugin,
 } from '@forgewp/compiler';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -57,6 +58,7 @@ export default defineConfig(async () => {
       forgewpPageConfigPlugin(),
       react(),
       tailwindcss(),
+      forgewpVirtualPlugin({ projectRoot: __dirname }),
       forgewpValidationPlugin(),
     ] as PluginOption[],
     resolve: {

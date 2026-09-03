@@ -51,7 +51,8 @@ export interface HydrateProps {
   className?: string;
   /**
    * Optional inline styles to apply directly to the hydration island wrapper element.
-   * Merged with the mandatory `display: block` internal style.
+   * Merged with the default `display: contents` style so the wrapper does not
+   * generate a layout box (sticky / absolute children keep their intended containing block).
    * Use when Tailwind classes are unavailable or for dynamic style values.
    *
    * @example
@@ -60,6 +61,18 @@ export interface HydrateProps {
    * </Hydrate>
    */
   style?: React.CSSProperties;
+  /**
+   * When true, the client hydrator re-feeds this island's server HTML as
+   * `children` (wrappers like tilt/magnetic cards). Self-closing islands
+   * must not set this — their innerHTML is their own output, not children.
+   */
+  slotChildren?: boolean;
+  /**
+   * Wrap this island with the app's layout providers (only when the
+   * component imports those modules). Sections that do not consume
+   * context must not remount under a motion-heavy provider tree.
+   */
+  needsProviders?: boolean;
   /**
    * The single interactive React Component to undergo selective hydration.
    */
@@ -75,6 +88,8 @@ export function Hydrate({
   connection = "any",
   className,
   style,
+  slotChildren = false,
+  needsProviders = false,
   children,
 }: HydrateProps) {
   // Enforce single children constraint
@@ -98,7 +113,27 @@ export function Hydrate({
   const kebabName = resolvedName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 
   // Serialize initial props so the client Micro-Hydrator can supply them upon dynamic import mount
-  const propsData = children.props ? JSON.stringify(children.props) : "{}";
+  let propsData = "{}";
+  if (children.props) {
+    try {
+      const { children: _ignoredChildren, ...serializableProps } = (children.props as any) || {};
+      const seen = new WeakSet();
+      propsData = JSON.stringify(serializableProps, (key, value) => {
+        if (key === "children" || typeof value === "function" || typeof value === "symbol") {
+          return undefined;
+        }
+        if (typeof value === "object" && value !== null) {
+          if (value.$$typeof || seen.has(value)) {
+            return undefined;
+          }
+          seen.add(value);
+        }
+        return value;
+      }) || "{}";
+    } catch {
+      propsData = "{}";
+    }
+  }
 
   // SSR bypass guard for client-only elements
   const isSSR = typeof window === "undefined" || (window as any)._forgeWpCompileTime;
@@ -107,6 +142,14 @@ export function Hydrate({
   if (isSSR && children && (children as any).props && (children as any).props["data-forgewp-auto-island"]) {
     return children;
   }
+
+  const childProps = (children as any)?.props || {};
+  const childStyle = childProps.style;
+  const mergedStyle: React.CSSProperties = {
+    display: (style && style.display) || "contents",
+    ...(typeof childStyle === "object" && childStyle !== null ? childStyle : {}),
+    ...style,
+  };
 
   return (
     <div
@@ -117,8 +160,10 @@ export function Hydrate({
       data-forgewp-preload={preload !== "none" ? preload : undefined}
       data-forgewp-media={media || undefined}
       data-forgewp-connection={connection !== "any" ? connection : undefined}
+      data-forgewp-slot-children={slotChildren ? "true" : undefined}
+      data-forgewp-needs-providers={needsProviders ? "true" : undefined}
       className={className}
-      style={{ display: "block", ...style }}
+      style={mergedStyle}
     >
       {shouldRender ? children : null}
     </div>

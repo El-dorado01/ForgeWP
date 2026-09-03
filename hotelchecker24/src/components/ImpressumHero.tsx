@@ -1,5 +1,5 @@
 import { ChevronRight, FileText } from 'lucide-react';
-import { useWpPageLink, WpLink, useWpMeta, useWpI18n } from '../.forgewp/wordpress';
+import { useWpPageLink, WpLink, useWpMeta, useWpI18n } from '@forgewp/react';
 import { pickEditable, WpEditable } from '@forgewp/react';
 import { editable as impressumPageEditable, defaults } from '../../cms/editables/impressum-page';
 

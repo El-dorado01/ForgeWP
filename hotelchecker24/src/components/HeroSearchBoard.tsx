@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWpLocation, useWpTerms, useWpI18n, useWpPagePath } from '../.forgewp/wordpress';
+import { useWpLocation, useWpTerms, useWpI18n, useWpPagePath } from '@forgewp/react';
 import { Search, Navigation, MapPin, ArrowRight, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
 

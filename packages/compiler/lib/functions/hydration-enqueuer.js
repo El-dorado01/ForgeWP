@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-export function buildHydrationEnqueuerPhp(config, assets, mainJs, uniqueMetaKeys, uniqueRichTextKeys, repeaterFieldsPhp, manifestPairs, optionsPairs, themeModsPairs, page_links_php, fontsEnqueue, i18nKeysPhp, headlessScript, currentUserHydrationField, defaultLoginField) {
+export function buildHydrationEnqueuerPhp(config, assets, mainJs, uniqueMetaKeys, uniqueRichTextKeys, repeaterFieldsPhp, manifestPairs, optionsPairs, themeModsPairs, page_links_php, fontsEnqueue, i18nKeysPhp, headlessScript, currentUserHydrationField, defaultLoginField, providersPhp = '') {
   const css = assets.cssFile.replace(/^assets\//, '');
 
   // Only forms need restUrl/restNonce/forms in the hydration payload — kept
@@ -25,7 +25,7 @@ export function buildHydrationEnqueuerPhp(config, assets, mainJs, uniqueMetaKeys
             '${config.textDomain}-react-runtime',
             $theme_uri . '/assets/${mainJs}',
             array(),
-            FORGEWP_THEME_VERSION,
+            filemtime($js_path),
             true
         );
 ${headlessScript}
@@ -51,6 +51,54 @@ ${headlessScript}
                 }
             }
         }
+        if (!function_exists('forgewp_build_menu_tree')) {
+            function forgewp_build_menu_tree($menu_items, $parent_id = 0) {
+                $branch = array();
+                foreach ($menu_items as $item) {
+                    if ((int)$item->menu_item_parent === (int)$parent_id) {
+                        $children = forgewp_build_menu_tree($menu_items, $item->ID);
+                        $node = array(
+                            'id'    => (int)$item->ID,
+                            'title' => $item->title,
+                            'url'   => $item->url,
+                        );
+                        if (!empty($item->target)) {
+                            $node['target'] = $item->target;
+                        }
+                        if (!empty($item->classes) && is_array($item->classes)) {
+                            $classes = array_values(array_filter($item->classes));
+                            if (!empty($classes)) {
+                                $node['classes'] = $classes;
+                            }
+                        }
+                        if (!empty($item->description)) {
+                            $node['description'] = $item->description;
+                        }
+                        if (!empty($item->attr_title)) {
+                            $node['attrTitle'] = $item->attr_title;
+                        }
+                        $badge = get_post_meta($item->ID, '_forgewp_menu_badge', true);
+                        if (!empty($badge)) {
+                            $node['badge'] = $badge;
+                        }
+                        $image = get_post_meta($item->ID, '_forgewp_menu_image', true);
+                        if (!empty($image)) {
+                            $node['image'] = $image;
+                        }
+                        $icon = get_post_meta($item->ID, '_forgewp_menu_icon', true);
+                        if (!empty($icon)) {
+                            $node['icon'] = $icon;
+                        }
+                        if (!empty($children)) {
+                            $node['children'] = $children;
+                        }
+                        $branch[] = $node;
+                    }
+                }
+                return $branch;
+            }
+        }
+
         foreach ($registered_locations as $loc) {
             $base_loc = $loc;
             if (strpos($loc, '___') !== false) {
@@ -61,13 +109,7 @@ ${headlessScript}
             $menu_id = forgewp_get_menu_id_for_lang($base_loc, $current_lang);
             $raw_items = $menu_id ? wp_get_nav_menu_items($menu_id) : array();
             $menu_items = is_array($raw_items) ? $raw_items : array();
-            $items_list = array();
-            foreach ($menu_items as $item) {
-                $items_list[] = array(
-                    'title' => $item->title,
-                    'url' => $item->url
-                );
-            }
+            $items_list = forgewp_build_menu_tree($menu_items, 0);
             $hydrated_menus[$base_loc] = $items_list;
             if (!empty($current_lang)) {
                 $hydrated_menus[$base_loc . '___' . $current_lang] = $items_list;
@@ -87,7 +129,7 @@ ${page_links_php}
                 'loginField' => get_option( 'forgewp_auth_login_field', '${defaultLoginField}' ),${currentUserHydrationField}${formsHydrationFields}
                 'manifest' => array(
 ${manifestPairs}
-                ),
+                ),${providersPhp}
                 'siteSettings' => array(
                     'options' => array(
 ${optionsPairs}
@@ -101,11 +143,12 @@ ${themeModsPairs}
         );
 
         // Enqueue Micro-Hydrator orchestrator script
+        $hydrator_path = get_template_directory() . '/assets/forgewp-hydrator.js';
         wp_enqueue_script(
             '${config.textDomain}-hydrator',
             $theme_uri . '/assets/forgewp-hydrator.js',
             array('${config.textDomain}-react-runtime'),
-            FORGEWP_THEME_VERSION,
+            file_exists($hydrator_path) ? filemtime($hydrator_path) : FORGEWP_THEME_VERSION,
             true
         );
 
@@ -224,7 +267,11 @@ ${repeaterFieldsPhp}
         }
 
         $extra_posts_hydration = array();
-        $front_page_id = get_option('page_on_front');
+        // forgewp_resolve_front_page_id() — not the raw page_on_front option
+        // — so this hydrates the CURRENT-language homepage's own fields (a
+        // Polylang site has a separate post per language), not whichever
+        // post happens to be the raw, non-language-aware option value.
+        $front_page_id = forgewp_resolve_front_page_id();
         if ($front_page_id > 0 && $front_page_id != $post_id) {
             $front_custom_fields = array();
             foreach ($registered_keys as $key) {
@@ -307,7 +354,7 @@ ${fontsEnqueue}
             '${config.textDomain}-app',
             $theme_uri . '/assets/${css}',
             array(),
-            FORGEWP_THEME_VERSION
+            filemtime($css_path)
         );
     }
 ${hydrationEnqueue}

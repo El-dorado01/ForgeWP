@@ -1,4 +1,4 @@
-import { WpHead, useWpI18n } from '../.forgewp/wordpress';
+import { WpHead, useWpI18n } from '@forgewp/react';
 import { HeroSection } from '../components/HeroSection';
 import { TrustStrip } from '../components/TrustStrip';
 import { FeaturedHotels } from '../components/FeaturedHotels';

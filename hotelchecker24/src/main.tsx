@@ -2,7 +2,7 @@ import * as React from "react";
 import * as ReactDOM from "react-dom/client";
 import { StrictMode } from "react";
 import { HelmetProvider } from "react-helmet-async";
-import { Router } from "wouter";
+import { Router } from "@forgewp/react";
 import RootLayout from "./app/layout";
 import AppRoutes from "./app/routes";
 import "./app/globals.css";

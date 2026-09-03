@@ -18,3 +18,4 @@ export {
   generateVisualReport,
 } from './diagnostics.js';
 export { forgewpPageConfigPlugin } from './page-config-plugin.js';
+export { forgewpVirtualPlugin } from './virtual-plugin.js';

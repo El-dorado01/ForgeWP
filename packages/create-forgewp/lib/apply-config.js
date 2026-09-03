@@ -175,161 +175,41 @@ export function applyProjectConfig(targetDir, config) {
     }
   }
 
-  // Handle products.json
-  const productsPath = path.join(cmsDir, 'products.json');
+  // Handle products.ts
+  const productsTsPath = path.join(cmsDir, 'products.ts');
+  const productsJsonPath = path.join(cmsDir, 'products.json');
   if (hasEcommerce) {
-    const defaultProducts = {
-      "product": [],
-      "_taxonomy_product_cat": [],
-      "_taxonomy_product_tag": []
-    };
-    writeJson(productsPath, defaultProducts);
+    const defaultProductsTs = `import { defineProducts } from '@forgewp/woocommerce';\n\nexport const products = defineProducts([]);\n\nexport const _taxonomy_product_cat = [];\nexport const _taxonomy_product_tag = [];\n\nexport default products;\n`;
+    writeFileSync(productsTsPath, defaultProductsTs, 'utf8');
+    if (existsSync(productsJsonPath)) rmSync(productsJsonPath, { force: true });
   } else {
-    if (existsSync(productsPath)) {
-      rmSync(productsPath, { force: true });
-    }
+    if (existsSync(productsTsPath)) rmSync(productsTsPath, { force: true });
+    if (existsSync(productsJsonPath)) rmSync(productsJsonPath, { force: true });
   }
 
   // Handle Auth files
-  const usersPath = path.join(cmsDir, 'users.json');
-  const rolesPath = path.join(cmsDir, 'roles.json');
+  const usersTsPath = path.join(cmsDir, 'users.ts');
+  const usersJsonPath = path.join(cmsDir, 'users.json');
+  const rolesTsPath = path.join(cmsDir, 'roles.ts');
+  const rolesJsonPath = path.join(cmsDir, 'roles.json');
   const sessionsPath = path.join(cmsDir, 'sessions.json');
 
   if (hasAuth) {
-    const defaultUsers = [
-      {
-        "id": 1,
-        "username": "admin",
-        "email": "admin@forgewp.local",
-        "displayName": "Concrete Designer",
-        "roles": ["administrator"],
-        "avatarUrl": "https://picsum.photos/seed/avatar1/150/150",
-        "emailVerified": true
-      },
-      {
-        "id": 2,
-        "username": "subscriber",
-        "email": "user@forgewp.local",
-        "displayName": "Sub Concrete",
-        "roles": ["subscriber"],
-        "avatarUrl": "https://picsum.photos/seed/avatar2/150/150",
-        "emailVerified": true
-      },
-      {
-        "id": 3,
-        "username": "editor",
-        "email": "editor@forgewp.local",
-        "displayName": "Concrete Editor",
-        "roles": ["editor"],
-        "avatarUrl": "https://picsum.photos/seed/avatar3/150/150",
-        "emailVerified": true
-      },
-      {
-        "id": 4,
-        "username": "customer",
-        "email": "customer@forgewp.local",
-        "displayName": "Concrete Customer",
-        "roles": ["customer"],
-        "avatarUrl": "https://picsum.photos/seed/avatar4/150/150",
-        "emailVerified": true
-      }
-    ];
-    const defaultRoles = {
-      "administrator": ["manage_options", "edit_theme_options", "edit_posts", "edit_others_posts", "publish_posts", "read"],
-      "editor": ["edit_posts", "edit_others_posts", "publish_posts", "read"],
-      "author": ["edit_posts", "publish_posts", "read"],
-      "subscriber": ["read"],
-      "customer": ["read"]
-    };
+    const defaultUsersTs = `import { defineWpUsers } from '@forgewp/react';\n\nexport const users = defineWpUsers([\n  {\n    id: 1,\n    username: "admin",\n    email: "admin@forgewp.local",\n    displayName: "Concrete Designer",\n    roles: ["administrator"],\n    avatarUrl: "https://picsum.photos/seed/avatar1/150/150",\n    emailVerified: true\n  },\n  {\n    id: 2,\n    username: "subscriber",\n    email: "user@forgewp.local",\n    displayName: "Sub Concrete",\n    roles: ["subscriber"],\n    avatarUrl: "https://picsum.photos/seed/avatar2/150/150",\n    emailVerified: true\n  },\n  {\n    id: 3,\n    username: "editor",\n    email: "editor@forgewp.local",\n    displayName: "Concrete Editor",\n    roles: ["editor"],\n    avatarUrl: "https://picsum.photos/seed/avatar3/150/150",\n    emailVerified: true\n  },\n  {\n    id: 4,\n    username: "customer",\n    email: "customer@forgewp.local",\n    displayName: "Concrete Customer",\n    roles: ["customer"],\n    avatarUrl: "https://picsum.photos/seed/avatar4/150/150",\n    emailVerified: true\n  }\n]);\n\nexport default users;\n`;
+    const defaultRolesTs = `import { defineWpRoles } from '@forgewp/react';\n\nexport const roles = defineWpRoles({\n  administrator: ["manage_options", "edit_theme_options", "edit_posts", "edit_others_posts", "publish_posts", "read"],\n  editor: ["edit_posts", "edit_others_posts", "publish_posts", "read"],\n  author: ["edit_posts", "publish_posts", "read"],\n  subscriber: ["read"],\n  customer: ["read"]\n});\n\nexport default roles;\n`;
     const defaultSessions = [];
 
-    writeJson(usersPath, defaultUsers);
-    writeJson(rolesPath, defaultRoles);
+    writeFileSync(usersTsPath, defaultUsersTs, 'utf8');
+    writeFileSync(rolesTsPath, defaultRolesTs, 'utf8');
     writeJson(sessionsPath, defaultSessions);
+    if (existsSync(usersJsonPath)) rmSync(usersJsonPath, { force: true });
+    if (existsSync(rolesJsonPath)) rmSync(rolesJsonPath, { force: true });
   } else {
-    if (existsSync(usersPath)) rmSync(usersPath, { force: true });
-    if (existsSync(rolesPath)) rmSync(rolesPath, { force: true });
+    if (existsSync(usersTsPath)) rmSync(usersTsPath, { force: true });
+    if (existsSync(usersJsonPath)) rmSync(usersJsonPath, { force: true });
+    if (existsSync(rolesTsPath)) rmSync(rolesTsPath, { force: true });
+    if (existsSync(rolesJsonPath)) rmSync(rolesJsonPath, { force: true });
     if (existsSync(sessionsPath)) rmSync(sessionsPath, { force: true });
-  }
-
-  // Handle wordpress.tsx imports/exports depending on features
-  const wpHooksPath = path.join(targetDir, 'src', '.forgewp', 'wordpress.tsx');
-  if (existsSync(wpHooksPath)) {
-    let content = readFileSync(wpHooksPath, 'utf8');
-
-    // 1. Handle WooCommerce
-    if (!hasEcommerce) {
-      // Remove any WooCommerce exports
-      content = content.replace(/\/\/ ── WooCommerce Modular Extensions ───────────────────────────────────────────\r?\nexport \* from '@forgewp\/woocommerce';\r?\n?/g, '');
-      content = content.replace(/export \* from '@forgewp\/woocommerce';\r?\n?/g, '');
-      // Remove productsData import if any
-      content = content.replace(/\/\/ @ts-ignore\r?\nimport productsData from '\.\.\/\.\.\/cms\/products\.json';\r?\n?/g, '');
-      // Restore _forgeWpMockPosts mapping if it was modified
-      content = content.replace(
-        /\(window as any\)\._forgeWpMockPosts = \{\r?\n\s*\.\.\.mockData,\r?\n\s*\.\.\.productsData,\r?\n\s*\};/g,
-        '(window as any)._forgeWpMockPosts = mockData;'
-      );
-    } else {
-      // Ensure WooCommerce exports and imports are present if they aren't already
-      if (!content.includes("import productsData from '../../cms/products.json'")) {
-        content = content.replace(
-          "import translationsData from '../../cms/translations.json';",
-          "import translationsData from '../../cms/translations.json';\n// @ts-ignore\nimport productsData from '../../cms/products.json';"
-        );
-      }
-      if (!content.includes("...productsData")) {
-        content = content.replace(
-          "(window as any)._forgeWpMockPosts = mockData;",
-          `(window as any)._forgeWpMockPosts = {
-      ...mockData,
-      ...productsData,
-    };`
-        );
-      }
-      if (!content.includes("@forgewp/woocommerce")) {
-        content += `\n\n// ── WooCommerce Modular Extensions ───────────────────────────────────────────\nexport * from '@forgewp/woocommerce';\n`;
-      }
-    }
-
-    // 2. Handle Auth
-    if (hasAuth) {
-      // Add imports
-      if (!content.includes("import usersData from '../../cms/users.json'")) {
-        content = content.replace(
-          "import translationsData from '../../cms/translations.json';",
-          "import translationsData from '../../cms/translations.json';\n// @ts-ignore\nimport usersData from '../../cms/users.json';\n// @ts-ignore\nimport rolesData from '../../cms/roles.json';\n// @ts-ignore\nimport sessionsData from '../../cms/sessions.json';"
-        );
-      }
-      // Add window mocks
-      if (!content.includes("_forgeWpMockUsers")) {
-        content = content.replace(
-          "(window as any)._forgeWpMockMenus = menusData;",
-          `(window as any)._forgeWpMockMenus = menusData;
-    (window as any)._forgeWpMockUsers = usersData;
-    (window as any)._forgeWpMockRoles = rolesData;
-    (window as any)._forgeWpMockSessions = sessionsData;`
-        );
-      }
-      // Add exports
-      if (!content.includes("@forgewp/auth")) {
-        content += `\n\n// ── Auth Modular Extensions ───────────────────────────────────────────\nexport * from '@forgewp/auth';\n`;
-      }
-    } else {
-      // Remove any Auth exports
-      content = content.replace(/\/\/ ── Auth Modular Extensions ───────────────────────────────────────────\r?\nexport \* from '@forgewp\/auth';\r?\n?/g, '');
-      content = content.replace(/export \* from '@forgewp\/auth';\r?\n?/g, '');
-      // Remove imports
-      content = content.replace(/\/\/ @ts-ignore\r?\nimport usersData from '\.\.\/\.\.\/cms\/users\.json';\r?\n?/g, '');
-      content = content.replace(/\/\/ @ts-ignore\r?\nimport rolesData from '\.\.\/\.\.\/cms\/roles\.json';\r?\n?/g, '');
-      content = content.replace(/\/\/ @ts-ignore\r?\nimport sessionsData from '\.\.\/\.\.\/cms\/sessions\.json';\r?\n?/g, '');
-      // Remove window mocks
-      content = content.replace(
-        /\(window as any\)\._forgeWpMockMenus = menusData;\r?\n\s*\(window as any\)\._forgeWpMockUsers = usersData;\r?\n\s*\(window as any\)\._forgeWpMockRoles = rolesData;\r?\n\s*\(window as any\)\._forgeWpMockSessions = sessionsData;/g,
-        '(window as any)._forgeWpMockMenus = menusData;'
-      );
-    }
-
-    writeFileSync(wpHooksPath, content, 'utf8');
   }
 
   // Handle copying of pages and components from resources/auth if auth feature is active
@@ -368,14 +248,14 @@ export function applyProjectConfig(targetDir, config) {
       if (existsSync(routesPath)) {
         let routesContent = readFileSync(routesPath, 'utf8');
         if (!routesContent.includes('/forgot-password')) {
-          const importBlock = `import LoginPage from "./pages/LoginPage";\nimport SignUpPage from "./pages/SignUpPage";\nimport VerifyEmailPage from "./pages/VerifyEmailPage";\nimport ForgotPasswordPage from "./pages/ForgotPasswordPage";\nimport ResetPasswordPage from "./pages/ResetPasswordPage";\n`;
+          const importBlock = `import * as LoginPage from "./pages/LoginPage";\nimport * as SignUpPage from "./pages/SignUpPage";\nimport * as VerifyEmailPage from "./pages/VerifyEmailPage";\nimport * as ForgotPasswordPage from "./pages/ForgotPasswordPage";\nimport * as ResetPasswordPage from "./pages/ResetPasswordPage";\n`;
           routesContent = importBlock + routesContent;
 
-          const routesBlock = `      <Route path="/login" component={LoginPage} />\n      <Route path="/signup" component={SignUpPage} />\n      <Route path="/verify-email" component={VerifyEmailPage} />\n      <Route path="/forgot-password" component={ForgotPasswordPage} />\n      <Route path="/reset-password" component={ResetPasswordPage} />\n`;
+          const routesBlock = `      <Route path="/login" component={withLayout(LoginPage)} />\n      <Route path="/signup" component={withLayout(SignUpPage)} />\n      <Route path="/verify-email" component={withLayout(VerifyEmailPage)} />\n      <Route path="/forgot-password" component={withLayout(ForgotPasswordPage)} />\n      <Route path="/reset-password" component={withLayout(ResetPasswordPage)} />\n`;
           if (routesContent.includes('<Route path="/query-sandbox"')) {
             routesContent = routesContent.replace('<Route path="/query-sandbox"', routesBlock + '      <Route path="/query-sandbox"');
-          } else if (routesContent.includes('<Route path="/" component={HomePage} />')) {
-            routesContent = routesContent.replace('<Route path="/" component={HomePage} />', '<Route path="/" component={HomePage} />\n' + routesBlock);
+          } else if (routesContent.includes('<Route path="/" component={withLayout(HomePage)} />') || routesContent.includes('<Route path="/" component={HomePage} />')) {
+            routesContent = routesContent.replace(/<Route path="\/" component=\{.*?\} \/>/, (match) => `${match}\n${routesBlock}`);
           } else {
             routesContent = routesContent.replace(/<Switch>/i, `<Switch>\n${routesBlock}`);
           }

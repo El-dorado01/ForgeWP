@@ -36,8 +36,14 @@ export type { HydrateProps } from "./components/Hydrate";
 export { WpHead } from "./components/WpHead";
 export type { WpHeadProps } from "./components/WpHead";
 
+export { SEO } from "./components/SEO";
+export type { SEOProps } from "./components/SEO";
+
+export { PresetsStyle } from "./components/PresetsStyle";
+export type { PresetsStyleProps } from "./components/PresetsStyle";
+
 export { WpImage } from "./components/WpImage";
-export type { WpImageProps } from "./components/WpImage";
+export type { WpImageProps, StaticImageData } from "./components/WpImage";
 
 export { WpRepeater } from "./components/WpRepeater";
 export type { WpRepeaterProps } from "./components/WpRepeater";
@@ -47,6 +53,12 @@ export type { WpIconProps } from "./components/WpIcon";
 
 export { WpFormFields } from "./components/WpFormFields";
 export type { WpFormFieldsProps, WpFormFieldDescriptor } from "./components/WpFormFields";
+
+export { WpLink, Link } from "./components/Link";
+export type { LinkProps } from "./components/Link";
+
+export { Router, Route, Switch, useLocation, useSearch, useParams, useRoute, matchPath, normalizePath } from "./components/Router";
+export type { RouterProps, RouteProps, SwitchProps } from "./components/Router";
 
 // Hooks & Utilities
 export {
@@ -65,6 +77,7 @@ export {
   useWpOption,
   useWpThemeMod,
   useWpThemeUri,
+  resolveWpAsset,
   useWpPageLink,
   useWpMenu,
   useWpQuery,
@@ -92,15 +105,22 @@ export {
   icon,
   isEditorPreview,
   useIsEditorPreview,
-  defineWpOptions,
-  optionText,
-  optionUrl,
-  optionEmail,
-  optionTextarea,
-  optionToggle,
-  optionNumber,
-  optionPostPicker,
+  isDecoupled,
+  useIsDecoupled,
+  isWordPress,
+  useIsWordPress,
+  decodeHtmlEntities,
+  useWpPagePath,
+  useWpSearchParams,
+  useWpLocation,
+  useWpSearch,
+  useWpTerms,
+  useWpTaxonomyList,
+  useWpI18n,
+  useWpLanguage,
 } from "./hooks";
+
+export type { WpTerm } from "./hooks";
 
 export type {
   BlockDefinition,
@@ -147,5 +167,35 @@ export type {
 } from "./types";
 
 
+// Config helpers & types
+export {
+  defineWpForm,
+  definePageConfig,
+  defineWpPosts,
+  defineWpMenus,
+  defineWpUsers,
+  defineWpRoles,
+  defineTranslations,
+  defineWpThemeMods,
+  defineWpOptions,
+  optionText,
+  optionUrl,
+  optionEmail,
+  optionTextarea,
+  optionToggle,
+  optionNumber,
+  optionPostPicker,
+} from "./config";
+export type {
+  WpFormConfig,
+  WpFormField,
+  WpFormFieldType,
+  PageConfig,
+  WpPostBase,
+  WpPostsConfig,
+  WpUserSeed,
+} from "./config";
+
 // Context (exposed for advanced integrations — use sparingly)
 export { WpPostContext } from "./context";
+

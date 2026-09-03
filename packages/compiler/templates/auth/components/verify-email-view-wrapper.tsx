@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useWpAuth } from '@forgewp/auth';
-import { useWpPageLink, useLocation } from '../.forgewp/wordpress';
+import { useWpPageLink, useLocation } from '@forgewp/react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -16,7 +16,7 @@ export default function VerifyEmailViewWrapper() {
   const { verifyEmail, logout, error, initializing, resendVerificationEmail } = useWpAuth();
   const [_, setLocation] = useLocation();
   const loginUrl = useWpPageLink('login-page', '/login');
-  const dashboardUrl = useWpPageLink('dashboard-page', '/dashboard');
+  const dashboardUrl = useWpPageLink('account-page', '/account');
 
   const [status, setStatus] = React.useState<'pending' | 'verifying' | 'success' | 'failed'>('pending');
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
@@ -67,10 +67,10 @@ export default function VerifyEmailViewWrapper() {
             setStatus('success');
             setTimeout(() => {
               setLocation(dashboardUrl);
-            }, 3000);
+            }, 2500);
           } else {
             setStatus('failed');
-            setErrorMessage(error || 'Verification failed. The token may be expired or invalid.');
+            setErrorMessage('Verification failed. The token may be expired or invalid.');
           }
         })
         .catch((err) => {
@@ -80,7 +80,7 @@ export default function VerifyEmailViewWrapper() {
     } else {
       setStatus('pending');
     }
-  }, [verifyEmail, setLocation, dashboardUrl, error]);
+  }, [verifyEmail, setLocation, dashboardUrl]);
 
   if (initializing) {
     return (

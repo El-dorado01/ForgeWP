@@ -5,6 +5,7 @@ import path from 'node:path';
 import pc from 'picocolors';
 import { loadConfig } from '../lib/load-config.js';
 import { getProvider } from '../lib/i18n/providers.js';
+import { loadTranslationsData, writeTranslationsData, translationsSourcePath } from '../lib/functions/load-translations.js';
 
 console.log(`\n🤖  ${pc.bold(pc.bgCyan(pc.black("  FORGEWP I18N AUTO-TRANSLATOR  ")))}\n`);
 
@@ -30,17 +31,12 @@ async function run() {
     const locales = i18n.locales || ['en', 'de'];
     const providerName = i18n.provider || 'local';
 
-    const translationsPath = path.join(themeRoot, 'cms', 'translations.json');
-    if (!fs.existsSync(translationsPath)) {
-      throw new Error(`Translations catalog not found at ${translationsPath}. Please run "pnpm forgewp i18n:extract" first.`);
+    const translationsPath = translationsSourcePath(themeRoot);
+    if (!translationsPath) {
+      throw new Error(`Translations catalog not found at cms/translations.ts or cms/translations.json. Please run "pnpm forgewp i18n:extract" first.`);
     }
 
-    let translations = {};
-    try {
-      translations = JSON.parse(fs.readFileSync(translationsPath, 'utf8'));
-    } catch (err) {
-      throw new Error(`Failed to parse translations.json: ${err.message}`);
-    }
+    const translations = loadTranslationsData(themeRoot);
 
     console.log(`  🔌 Active provider: ${pc.cyan(providerName)}`);
     console.log(`  🌐 Default locale: ${pc.yellow(defaultLocale)}`);
@@ -88,15 +84,14 @@ async function run() {
       console.log(`  ✅ Translated ${pc.green(successCount)}/${pc.yellow(untranslatedKeys.length)} keys successfully.`);
     }
 
-    // Save changes
-    fs.writeFileSync(translationsPath, JSON.stringify(translations, null, 2), 'utf8');
+    const writtenPath = writeTranslationsData(themeRoot, translations);
 
     console.log(`\n${pc.bold("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")}`);
     console.log(`  ✨ ${pc.green("Translation execution completed successfully!")}`);
     if (totalTranslated > 0) {
       console.log(`  🎉 Total keys automated: ${pc.green(totalTranslated)}`);
     } else if (providerName === 'local' || providerName === 'manual') {
-      console.log(`  💡 Setup complete. Open ${pc.cyan("cms/translations.json")} to write translations manually.`);
+      console.log(`  💡 Setup complete. Open ${pc.cyan(path.relative(themeRoot, writtenPath))} to write translations manually.`);
       console.log(`     Or configure 'deepl' to auto-translate using environment variables.`);
     } else {
       console.log(`  ✅ All locales are 100% up-to-date. No API calls were made.`);

@@ -4,7 +4,7 @@ import {
   useWpI18n,
   useWpPageLink,
   useWpMeta,
-} from '../.forgewp/wordpress';
+} from '@forgewp/react';
 import { pickEditable, WpEditable } from '@forgewp/react';
 import { editable as berUnsPageEditable, defaults } from '../../cms/editables/ber-uns-page';
 import { ArrowRight, BookOpen } from 'lucide-react';

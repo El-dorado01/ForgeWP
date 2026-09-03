@@ -7,7 +7,7 @@ import {
   WpLink,
   useWpTerms,
   useWpPagePath,
-} from '../.forgewp/wordpress';
+} from '@forgewp/react';
 import {
   Search,
   BookOpen,

@@ -62,6 +62,19 @@ pnpm forgewp repair   # Force restore framework utility blueprints
 pnpm forgewp clean    # Prune build artifacts and clear caches
 ```
 
+### 7. Typed CMS & Seed Database (`cms/*.ts`)
+
+ForgeWP provides first-class TypeScript autocomplete, type validation, and JSDoc tooltips for all local development CMS mock data via helper definitions:
+
+- **`cms/products.ts`**: Authored using `defineProducts([...])` from `@forgewp/woocommerce` covering dimensions (`length`, `width`, `height`, `unit`), physical weights, regular and sale pricing, attributes, variations, stock management, reviews, and cross-sell/upsell associations.
+- **`cms/mock-data.ts`**: Authored using `defineWpPosts({...})` from `@forgewp/react` supporting core WordPress post types (`post`, `page`) alongside arbitrary Custom Post Types (`portfolio`, `project`, `review`, etc.) with typed custom meta fields.
+- **`cms/menus.ts`**: Authored using `defineWpMenus({...})` from `@forgewp/react` declaring hierarchical navigation structures.
+- **`cms/roles.ts`**: Authored using `defineWpRoles({...})` from `@forgewp/react` defining role capabilities.
+- **`cms/users.ts`**: Authored using `defineWpUsers([...])` from `@forgewp/react` defining seed user accounts.
+- **`cms/translations.ts`**: Authored using `defineTranslations({...})` from `@forgewp/react` declaring multilingual dictionaries.
+
+_The compiler automatically supports dual-resolution: modern typed `.ts` files are preferred by default, while legacy `.json` files remain 100% backward-compatible._
+
 ## 🔌 Configuration
 
 ForgeWP is controlled via `wp.config.ts` in your project root:

@@ -1,7 +1,7 @@
 import { existsSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import pc from "picocolors";
-import { SYSTEM_BLUEPRINTS } from "./blueprints.js";
+import { getSystemBlueprints, SYSTEM_BLUEPRINTS } from "./blueprints.js";
 
 /**
  * Preflight Check & Self-Healing Validator
@@ -36,11 +36,18 @@ export function validateCriticalFiles(themeRoot) {
   }
 
   // 2. Validate & Self-Heal System-Critical Files
-  for (const [relativePath, blueprintContent] of Object.entries(SYSTEM_BLUEPRINTS)) {
+  const blueprints = getSystemBlueprints(themeRoot);
+  for (const [relativePath, blueprintContent] of Object.entries(blueprints)) {
     const fullPath = path.join(themeRoot, relativePath);
     let shouldWrite = false;
 
     if (!existsSync(fullPath)) {
+      if (relativePath.startsWith("cms/") && relativePath.endsWith(".json")) {
+        const tsVariant = fullPath.replace(/\.json$/, ".ts");
+        if (existsSync(tsVariant)) {
+          continue; // Typed .ts file exists, do not recreate default .json blueprint
+        }
+      }
       console.log(pc.yellow(`  ⚠️  System file ${pc.bold(relativePath)} was missing! Restoring default system blueprint...`));
       shouldWrite = true;
     } else if (!relativePath.startsWith("cms/")) {

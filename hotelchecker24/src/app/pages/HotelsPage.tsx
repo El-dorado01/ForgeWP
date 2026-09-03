@@ -1,4 +1,4 @@
-import { WpHead, useWpI18n } from '../../.forgewp/wordpress';
+import { WpHead, useWpI18n } from '@forgewp/react';
 import { HotelsHero } from '../../components/HotelsHero';
 import { HotelsWorkspace } from '../../components/HotelsWorkspace';
 

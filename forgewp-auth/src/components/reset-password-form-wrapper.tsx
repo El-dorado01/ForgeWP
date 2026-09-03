@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useWpAuth, useWpUser } from '@forgewp/auth';
-import { useWpPageLink, useLocation } from '../.forgewp/wordpress';
+import { useWpPageLink, useLocation } from '@forgewp/react';
 import { Button } from '@/components/ui/button';
 import {
   Card,

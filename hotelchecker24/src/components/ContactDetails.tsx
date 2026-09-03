@@ -15,7 +15,7 @@ import {
   useWpOption,
   useWpMeta,
   useWpI18n,
-} from '../.forgewp/wordpress';
+} from '@forgewp/react';
 import { pickEditable, WpEditable } from '@forgewp/react';
 import { editable as kontaktPageEditable, defaults } from '../../cms/editables/kontakt-page';
 

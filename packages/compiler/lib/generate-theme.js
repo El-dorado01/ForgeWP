@@ -12,7 +12,7 @@ import fs, {
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
-import { scanForEditableSchemas, scanForHydrationIslandsWithProps } from './hydration/index.js';
+import { scanForEditableSchemas, scanForHydrationIslandsWithProps, resolveIslandChunk, scanAppProviders } from './hydration/index.js';
 import { loadFrameworkAdapter } from './framework-adapter.js';
 import {
   analyzeHydrationIslands,
@@ -30,14 +30,19 @@ import {
   build404Php,
   buildArchivePhp,
   buildPagePhp,
+  buildPlaceholderPagePhp,
   buildBuilderPagePhp,
 } from './php-builders.js';
+import { collectFallbackPageRoutes } from './collect-static-routes.js';
 import { buildFunctionsPhp } from './functions/index.js';
+import { loadMenusData } from './functions/load-menus.js';
+import { loadTranslationsData, translationsSourcePath } from './functions/load-translations.js';
 import { lintFormsUsage } from './functions/forms.js';
 import { buildSettingsPagePhp } from './functions/settings-page.js';
 import { compileBlocks, warmupIconCache } from './blocks/index.js';
 import { findHtmlTagEnd } from './blocks/shared-utils.js';
 import { buildEditorIconRegistry, FORGEWP_DEFAULT_ICON_SLUGS } from './icon-registry.js';
+import { scanAssetGraph, generatePreloadTags } from './assets/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -73,6 +78,7 @@ export async function generateTheme({
   notFoundHtml = '',
   archiveHtml = '',
   assets,
+  assetGraph,
   strict = false,
 }) {
   if (existsSync(outDir)) {
@@ -140,15 +146,11 @@ export async function generateTheme({
     }
   }
 
-  // Load menus configuration for auto-registration and setup
-  let menus = {};
-  const menusJsonSrc = path.join(themeRoot, 'cms', 'menus.json');
-  if (existsSync(menusJsonSrc)) {
-    try {
-      menus = JSON.parse(readFileSync(menusJsonSrc, 'utf8'));
-    } catch (e) {
-      console.warn('Failed to parse menus.json:', e.message);
-    }
+  // Prefer cms/menus.ts (defineWpMenus); fall back to legacy cms/menus.json.
+  const menus = loadMenusData(themeRoot);
+  const loadedMenuLocations = Object.keys(menus).filter((k) => !k.startsWith('_'));
+  if (loadedMenuLocations.length > 0) {
+    console.log(`[ForgeWP Compiler] Nav menu locations: ${loadedMenuLocations.join(', ')}`);
   }
 
   // Merge static menu definitions from defineTheme/wp.config.ts config.menus
@@ -238,13 +240,42 @@ export async function generateTheme({
     }
   }
 
+  // Menu + routes.tsx paths that have no compiled template still need a WP page,
+  // or redirect_canonical will steal similar CPT slugs (about → about-a-chair).
+  let routesSource = '';
+  const routesPath = path.join(themeRoot, 'src', 'app', 'routes.tsx');
+  if (existsSync(routesPath)) {
+    try {
+      routesSource = readFileSync(routesPath, 'utf8');
+    } catch {}
+  }
+  const fallbackPages = collectFallbackPageRoutes({
+    menus,
+    routesSource,
+    existingSlugs: pagesToAutoCreate.map((p) => p.slug),
+  });
+  for (const page of fallbackPages) {
+    pagesToAutoCreate.push(page);
+  }
+  if (fallbackPages.length > 0) {
+    console.log(
+      `[ForgeWP Compiler] Coming-next pages for unmatched routes: ${fallbackPages.map((p) => '/' + p.slug).join(', ')}`,
+    );
+  }
+
   const adapter = await loadFrameworkAdapter(config.frameworkAdapter);
   const scanForHydrationIslands =
     adapter.scanForHydrationIslands || adapter.default?.scanForHydrationIslands;
 
+  const layoutProviders = scanAppProviders(themeRoot);
   const hydrationIslands = scanForHydrationIslands
     ? scanForHydrationIslands(themeRoot)
     : [];
+  for (const provider of layoutProviders) {
+    if (!hydrationIslands.includes(provider.kebab)) {
+      hydrationIslands.push(provider.kebab);
+    }
+  }
   const hasHydration = hydrationIslands.length > 0;
 
   // Collect Smart Discovery islands (auto-detected interactive components with no explicit <Hydrate> wrapper)
@@ -274,8 +305,8 @@ export async function generateTheme({
     // tag-closing `>` — it would cut the match off mid-attribute. Reuse
     // findHtmlTagEnd (blocks/shared-utils.js), which already tracks
     // <?php ?> spans and quoted strings to find the tag's true end.
-    // The SSR emits: <div data-forgewp-auto-island="hero-section" style="display:block" data-forgewp-auto-island-props="{&quot;searchPlaceholder&quot;:&quot;...&quot;}">...</div>
-    // We need:      <div data-forgewp-hydrate="hero-section" data-forgewp-trigger="visible" data-forgewp-props="{&quot;searchPlaceholder&quot;:&quot;...&quot;}" style="display:block">...</div>
+    // The SSR emits: <div data-forgewp-auto-island="hero-section" style="display:contents" data-forgewp-auto-island-props="{&quot;searchPlaceholder&quot;:&quot;...&quot;}">...</div>
+    // We need:      <div data-forgewp-hydrate="hero-section" data-forgewp-trigger="visible" data-forgewp-props="{&quot;searchPlaceholder&quot;:&quot;...&quot;}" style="display:contents">...</div>
     const autoIslandMap = new Map(autoIslands.map(i => [i.name, i.trigger || 'visible']));
     const marker = 'data-forgewp-auto-island="';
     let result = '';
@@ -352,6 +383,7 @@ export async function generateTheme({
   };
 
   let hydrationManifestJson = '{}';
+  let hydrationData = null;
   if (hasHydration) {
     if (!existsSync(manifestPath)) {
       console.warn(
@@ -369,28 +401,7 @@ export async function generateTheme({
     }
 
     for (const island of hydrationIslands) {
-      const pascalName = island
-        .split('-')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join('');
-
-      let resolvedChunk = null;
-      for (const [key, value] of Object.entries(viteManifest)) {
-        const fileBasename = path.basename(value.file || '');
-        const cleanName = fileBasename.replace(/-[A-Za-z0-9_-]+\.js$/, '');
-        if (
-          key.endsWith(`/${pascalName}.tsx`) ||
-          key.endsWith(`/${pascalName}.ts`) ||
-          key.endsWith(`/${island}.tsx`) ||
-          key.endsWith(`/${island}.ts`) ||
-          cleanName === island ||
-          cleanName === pascalName.toLowerCase()
-        ) {
-          resolvedChunk = value.file;
-          break;
-        }
-      }
-
+      const resolvedChunk = resolveIslandChunk(viteManifest, island);
       if (resolvedChunk) {
         mapping[island] = resolvedChunk;
       }
@@ -412,15 +423,37 @@ export async function generateTheme({
       );
     }
 
+    const providerIdsJson = JSON.stringify(layoutProviders.map((p) => p.kebab));
     const hydratorScript = `(function () {
   const config = window.forgeWpHydration || { themeUri: "", manifest: {} };
+  if (!config.providers) config.providers = ${providerIdsJson};
   const islands = document.querySelectorAll("[data-forgewp-hydrate]");
+
+  function firstObservableBox(el) {
+    if (!el || el.nodeType !== 1) return null;
+    try {
+      const display = window.getComputedStyle(el).display;
+      if (display !== "contents") return el;
+    } catch (e) {
+      return el;
+    }
+    for (let i = 0; i < el.children.length; i++) {
+      const found = firstObservableBox(el.children[i]);
+      if (found) return found;
+    }
+    return null;
+  }
 
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
       if (entry.isIntersecting) {
-        const hydrate = entry.target.__forgewpHydrate;
-        if (typeof hydrate === "function") hydrate();
+        let node = entry.target;
+        while (node && typeof node.__forgewpHydrate !== "function") {
+          node = node.parentElement;
+        }
+        if (node && typeof node.__forgewpHydrate === "function") {
+          node.__forgewpHydrate();
+        }
         observer.unobserve(entry.target);
       }
     });
@@ -447,7 +480,19 @@ export async function generateTheme({
     },
     visible: (el, hydrate) => {
       el.__forgewpHydrate = hydrate;
-      observer.observe(el);
+      const target = firstObservableBox(el);
+      if (!target || (target === el && window.getComputedStyle(el).display === "contents")) {
+        hydrate();
+        return;
+      }
+      const rect = target.getBoundingClientRect();
+      const vw = window.innerWidth || document.documentElement.clientWidth;
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      if (rect.bottom >= -200 && rect.right >= -200 && rect.top <= vh + 200 && rect.left <= vw + 200) {
+        hydrate();
+        return;
+      }
+      observer.observe(target);
     },
     interaction: (el, hydrate) => {
       const run = () => {
@@ -562,6 +607,13 @@ export async function generateTheme({
       console.error("[ForgeWP Hydrator] Missing data-forgewp-hydrate attribute on hydration boundary.");
       return;
     }
+    if (el.__forgewpHydrated) return;
+    let parent = el.parentElement;
+    while (parent) {
+      if (parent.__forgewpHydrated) return;
+      parent = parent.parentElement;
+    }
+    el.__forgewpHydrated = true;
 
     const rawProps = el.getAttribute("data-forgewp-props") || "{}";
     let props = {};
@@ -585,13 +637,7 @@ export async function generateTheme({
 
     import(scriptUrl)
       .then((module) => {
-        let Component = module.default;
-        if (!Component) {
-          Component = Object.values(module).find((val) => typeof val === "function");
-          if (!Component) {
-            Component = Object.values(module)[0];
-          }
-        }
+        const Component = resolveExport(module, islandName);
         if (typeof Component !== "function") {
           const exportsList = Object.keys(module).join(", ");
           console.error(
@@ -610,8 +656,35 @@ export async function generateTheme({
         const React = window.React;
 
         if (ReactDOM && React) {
-          const root = ReactDOM.createRoot(el);
-          root.render(React.createElement(Component, props));
+          const backup = el.innerHTML;
+          const needsProviders = el.getAttribute("data-forgewp-needs-providers") === "true";
+          const providerReady = needsProviders ? loadProviderComponents() : Promise.resolve([]);
+          providerReady.then(function (providerComponents) {
+            const nextProps = Object.assign({}, props);
+            if (el.getAttribute("data-forgewp-slot-children") === "true") {
+              const ssrHtml = el.innerHTML;
+              if (ssrHtml && String(ssrHtml).trim()) {
+                nextProps.children = React.createElement("span", {
+                  style: { display: "contents" },
+                  dangerouslySetInnerHTML: { __html: ssrHtml },
+                });
+              }
+            }
+            let tree = React.createElement(Component, nextProps);
+            for (let i = providerComponents.length - 1; i >= 0; i--) {
+              tree = React.createElement(providerComponents[i], null, tree);
+            }
+            try {
+              const root = ReactDOM.createRoot(el);
+              root.render(tree);
+            } catch (err) {
+              el.innerHTML = backup;
+              console.error("[ForgeWP Hydrator] Render failed for " + islandName + ", restored SSR HTML:", err);
+            }
+          }).catch(function (err) {
+            el.innerHTML = backup;
+            console.error("[ForgeWP Hydrator] Provider wrap failed for " + islandName + ":", err);
+          });
         } else {
           console.error("[ForgeWP Hydration Error] React or ReactDOM not found on window. Ensure main.tsx exposes window.React and window.ReactDOM.");
         }
@@ -620,6 +693,84 @@ export async function generateTheme({
         console.error("[ForgeWP Hydrator] Failed to load chunk for " + islandName + ":", err);
       });
   }
+
+  function resolveExport(module, islandName) {
+    if (!module || typeof module !== "object") return undefined;
+    const pascalName = islandName
+      .split("-")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join("");
+    const camelName = pascalName.charAt(0).toLowerCase() + pascalName.slice(1);
+
+    if (typeof module[pascalName] === "function") return module[pascalName];
+    if (typeof module[camelName] === "function") return module[camelName];
+    if (typeof module.default === "function") return module.default;
+
+    const keys = Object.keys(module);
+    for (let i = 0; i < keys.length; i++) {
+      const val = module[keys[i]];
+      if (typeof val === "function") {
+        if (val.displayName === pascalName || val.name === pascalName) return val;
+        if (val.displayName === camelName || val.name === camelName) return val;
+      }
+    }
+
+    const cleanIsland = islandName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      if (k.toLowerCase() === cleanIsland && typeof module[k] === "function") {
+        return module[k];
+      }
+    }
+
+    const fnKeys = keys.filter(function (k) {
+      return typeof module[k] === "function";
+    });
+    if (fnKeys.length === 1) return module[fnKeys[0]];
+
+    const nonHooks = fnKeys.filter(function (k) {
+      const fn = module[k];
+      const fnName = fn.displayName || fn.name || k;
+      return !/^use[A-Z]/.test(fnName);
+    });
+    if (nonHooks.length === 1) return module[nonHooks[0]];
+
+    if (islandName.endsWith("-provider") || islandName.includes("provider")) {
+      const provMatch = fnKeys.find(function (k) {
+        const fnName = module[k].displayName || module[k].name || k;
+        return /Provider$/i.test(fnName);
+      });
+      if (provMatch) return module[provMatch];
+    }
+
+    if (nonHooks.length > 0) return module[nonHooks[0]];
+    if (fnKeys.length > 0) return module[fnKeys[0]];
+    return undefined;
+  }
+
+  let providerComponentsPromise = null;
+  function loadProviderComponents() {
+    if (providerComponentsPromise) return providerComponentsPromise;
+    const ids = config.providers || [];
+    if (!ids.length) {
+      providerComponentsPromise = Promise.resolve([]);
+      return providerComponentsPromise;
+    }
+    providerComponentsPromise = Promise.all(ids.map(function (id) {
+      const chunkPath = config.manifest && config.manifest[id];
+      if (!chunkPath) return Promise.resolve(null);
+      const scriptUrl = config.themeUri + "/assets/" + chunkPath.replace("assets/", "").replace("assets\\\\", "");
+      return import(scriptUrl).then(function (module) {
+        return resolveExport(module, id);
+      }).catch(function (err) {
+        console.error("[ForgeWP Hydrator] Failed to load provider " + id + ":", err);
+        return null;
+      });
+    })).then(function (list) {
+      return list.filter(function (fn) { return typeof fn === "function"; });
+    });
+    return providerComponentsPromise;
+  }
 })();`;
 
     writeFileSync(
@@ -627,10 +778,11 @@ export async function generateTheme({
       hydratorScript,
       'utf8',
     );
-    hydrationManifestJson = JSON.stringify({
+    hydrationData = {
       mainJsFile,
       mapping,
-    });
+    };
+    hydrationManifestJson = JSON.stringify(hydrationData);
 
     // Run compiler diagnostics & output detailed metrics
     const analysis = analyzeHydrationIslands(themeRoot, mapping);
@@ -686,20 +838,13 @@ export async function generateTheme({
     }
   }
 
-  // Load and merge keys from cms/translations.json
-  const translationsFileSrc = path.join(themeRoot, 'cms', 'translations.json');
-  if (existsSync(translationsFileSrc)) {
-    try {
-      const transData = JSON.parse(readFileSync(translationsFileSrc, 'utf8'));
-      for (const locale of Object.keys(transData)) {
-        if (transData[locale] && typeof transData[locale] === 'object') {
-          for (const key of Object.keys(transData[locale])) {
-            i18nKeys.add(key);
-          }
-        }
+  // Load and merge keys from cms/translations.ts (preferred) or translations.json
+  const transData = loadTranslationsData(themeRoot);
+  for (const locale of Object.keys(transData)) {
+    if (transData[locale] && typeof transData[locale] === 'object') {
+      for (const key of Object.keys(transData[locale])) {
+        i18nKeys.add(key);
       }
-    } catch (e) {
-      // Ignore parse/read errors during build time
     }
   }
 
@@ -708,53 +853,61 @@ export async function generateTheme({
   const processedHeader = injectAutoHydrationMarkers(processMarkup(headerHtml, config.textDomain, richTextFieldKeys));
   const processedFooter = injectAutoHydrationMarkers(processMarkup(footerHtml, config.textDomain, richTextFieldKeys));
 
+  function extractCleanContent(markup, header, footer) {
+    if (!markup) return '';
+    const boundaryMatch = markup.match(/<forgewp-content-boundary\b[^>]*>([\s\S]*?)<\/forgewp-content-boundary>/i);
+    let res = boundaryMatch ? boundaryMatch[1] : markup;
+
+    // If the boundary wraps layout shells (header/main/footer), extract inner <main> content
+    if (res.includes('<header') || res.includes('<footer') || res.includes('<main')) {
+      const mainMatch = res.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i);
+      if (mainMatch) {
+        return mainMatch[1];
+      }
+    }
+
+    if (header) {
+      const replaced = res.replace(header, '');
+      res = replaced !== res ? replaced : res.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
+    }
+    if (footer) {
+      const replaced = res.replace(footer, '');
+      res = replaced !== res ? replaced : res.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
+    }
+    return res;
+  }
+
   // Extract content (App markup minus Header/Footer)
-  let contentHtml = processedApp;
-  if (processedHeader) {
-    const replaced = contentHtml.replace(processedHeader, '');
-    contentHtml = replaced !== contentHtml ? replaced : contentHtml.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
-  }
-  if (processedFooter) {
-    const replaced = contentHtml.replace(processedFooter, '');
-    contentHtml = replaced !== contentHtml ? replaced : contentHtml.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
-  }
+  let contentHtml = extractCleanContent(processedApp, processedHeader, processedFooter);
   contentHtml = contentHtml.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
+  contentHtml = contentHtml.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
+
+  let cleanHeader = processedHeader.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
+  let cleanFooter = processedFooter.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
 
   // Process single post template if exists
   let processedSingle = '';
   if (singleHtml) {
     processedSingle = injectAutoHydrationMarkers(processMarkup(singleHtml, config.textDomain, richTextFieldKeys));
-    if (processedHeader) {
-      const replaced = processedSingle.replace(processedHeader, '');
-      processedSingle = replaced !== processedSingle ? replaced : processedSingle.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
-    }
-    if (processedFooter) {
-      const replaced = processedSingle.replace(processedFooter, '');
-      processedSingle = replaced !== processedSingle ? replaced : processedSingle.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
-    }
+    processedSingle = extractCleanContent(processedSingle, processedHeader, processedFooter);
     processedSingle = processedSingle.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
+    processedSingle = processedSingle.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
   }
 
   // Process 404 template if exists
   let processedNotFound = '';
   if (notFoundHtml) {
     processedNotFound = injectAutoHydrationMarkers(processMarkup(notFoundHtml, config.textDomain, richTextFieldKeys));
-    if (processedHeader) {
-      const replaced = processedNotFound.replace(processedHeader, '');
-      processedNotFound = replaced !== processedNotFound ? replaced : processedNotFound.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
-    }
-    if (processedFooter) {
-      const replaced = processedNotFound.replace(processedFooter, '');
-      processedNotFound = replaced !== processedNotFound ? replaced : processedNotFound.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
-    }
+    processedNotFound = extractCleanContent(processedNotFound, processedHeader, processedFooter);
     processedNotFound = processedNotFound.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
+    processedNotFound = processedNotFound.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
   }
 
   const staticDir = path.join(outDir, 'forgewp-static');
   mkdirSync(staticDir, { recursive: true });
   writeFileSync(path.join(staticDir, 'content.html'), replaceAssetPlaceholders(contentHtml), 'utf8');
-  writeFileSync(path.join(staticDir, 'header.html'), replaceAssetPlaceholders(processedHeader), 'utf8');
-  writeFileSync(path.join(staticDir, 'footer.html'), replaceAssetPlaceholders(processedFooter), 'utf8');
+  writeFileSync(path.join(staticDir, 'header.html'), replaceAssetPlaceholders(cleanHeader), 'utf8');
+  writeFileSync(path.join(staticDir, 'footer.html'), replaceAssetPlaceholders(cleanFooter), 'utf8');
   if (headHtml) {
     writeFileSync(path.join(staticDir, 'head.html'), replaceAssetPlaceholders(headHtml), 'utf8');
   }
@@ -776,15 +929,9 @@ export async function generateTheme({
   let processedArchive = '';
   if (archiveHtml) {
     processedArchive = injectAutoHydrationMarkers(processMarkup(archiveHtml, config.textDomain, richTextFieldKeys));
-    if (processedHeader) {
-      const replaced = processedArchive.replace(processedHeader, '');
-      processedArchive = replaced !== processedArchive ? replaced : processedArchive.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
-    }
-    if (processedFooter) {
-      const replaced = processedArchive.replace(processedFooter, '');
-      processedArchive = replaced !== processedArchive ? replaced : processedArchive.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
-    }
+    processedArchive = extractCleanContent(processedArchive, processedHeader, processedFooter);
     processedArchive = processedArchive.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
+    processedArchive = processedArchive.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
     writeFileSync(
       path.join(staticDir, 'archive.html'),
       replaceAssetPlaceholders(processedArchive),
@@ -1553,8 +1700,7 @@ if (window.forgeWpBlocks) {
 
   writeFileSync(path.join(outDir, 'style.css'), buildStyleCss(config), 'utf8');
 
-  let hydrationData = null;
-  if (hasHydration) {
+  if (!hydrationData && hasHydration) {
     try {
       hydrationData = JSON.parse(hydrationManifestJson);
     } catch {}
@@ -1683,14 +1829,22 @@ if (window.forgeWpBlocks) {
     'utf8',
   );
 
-  // Copy translations.json directly if it exists in the project cms/ folder
-  const translationsSrc = path.join(themeRoot, 'cms', 'translations.json');
-  if (existsSync(translationsSrc)) {
-    copyFileSync(translationsSrc, path.join(outDir, 'translations.json'));
+  // WordPress runtime reads translations.json from the theme root. Serialize
+  // cms/translations.ts (preferred) or the legacy JSON file into that artifact.
+  if (translationsSourcePath(themeRoot)) {
+    writeFileSync(
+      path.join(outDir, 'translations.json'),
+      JSON.stringify(transData, null, 2),
+      'utf8',
+    );
   }
+  // Generate priority preloads for <head> in header.php
+  const effectiveAssetGraph = assetGraph || scanAssetGraph(themeRoot);
+  const preloadTags = generatePreloadTags(effectiveAssetGraph, { isPhp: true });
+
   writeFileSync(
     path.join(outDir, 'header.php'),
-    buildHeaderPhp(config),
+    buildHeaderPhp(config, { preloadTags }),
     'utf8',
   );
   writeFileSync(
@@ -1704,6 +1858,11 @@ if (window.forgeWpBlocks) {
   writeFileSync(path.join(outDir, 'front-page.php'), buildIndexPhp(), 'utf8');
   writeFileSync(path.join(outDir, 'archive.php'), buildArchivePhp(), 'utf8');
   writeFileSync(path.join(outDir, 'page.php'), buildPagePhp(), 'utf8');
+  writeFileSync(
+    path.join(outDir, 'page-placeholder.php'),
+    buildPlaceholderPagePhp(config),
+    'utf8',
+  );
   writeFileSync(
     path.join(outDir, 'template-forgewp-builder.php'),
     buildBuilderPagePhp(),
@@ -1726,15 +1885,9 @@ if (window.forgeWpBlocks) {
       if (isHierarchyTemplate) {
         const rawHtml = readFileSync(path.join(forgewpDir, file), 'utf8');
         let processedHtml = injectAutoHydrationMarkers(processMarkup(rawHtml, config.textDomain, getRichTextKeysForSlug(`${name}-page`)));
-        if (processedHeader) {
-          const replaced = processedHtml.replace(processedHeader, '');
-          processedHtml = replaced !== processedHtml ? replaced : processedHtml.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
-        }
-        if (processedFooter) {
-          const replaced = processedHtml.replace(processedFooter, '');
-          processedHtml = replaced !== processedHtml ? replaced : processedHtml.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
-        }
+        processedHtml = extractCleanContent(processedHtml, processedHeader, processedFooter);
         processedHtml = processedHtml.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
+        processedHtml = processedHtml.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
 
         writeFileSync(path.join(staticDir, file), replaceAssetPlaceholders(processedHtml), 'utf8');
 
@@ -1938,16 +2091,42 @@ if ( ! current_user_can( '${allowed}' ) ) {
           cleanedRawHtml = cleanedRawHtml.replace(/<\/forgewp-require-auth>/gi, '');
         }
 
+        let pageConfigHeader = true;
+        let pageConfigFooter = true;
+        let pageConfigLayout = 'default';
+
+        const configMatch = rawHtml.match(/<forgewp-page-config\s*([^>]*)\/?>/i);
+        if (configMatch) {
+          const attribs = configMatch[1];
+          const headerAttr = attribs.match(/header="([^"]*)"/i);
+          const footerAttr = attribs.match(/footer="([^"]*)"/i);
+          const layoutAttr = attribs.match(/layout="([^"]*)"/i);
+
+          if (headerAttr) {
+            if (headerAttr[1] === 'false') pageConfigHeader = false;
+            else if (headerAttr[1] === 'true') pageConfigHeader = true;
+            else pageConfigHeader = headerAttr[1];
+          }
+          if (footerAttr) {
+            if (footerAttr[1] === 'false') pageConfigFooter = false;
+            else if (footerAttr[1] === 'true') pageConfigFooter = true;
+            else pageConfigFooter = footerAttr[1];
+          }
+          if (layoutAttr) {
+            pageConfigLayout = layoutAttr[1];
+            if (pageConfigLayout === 'blank' || pageConfigLayout === 'false') {
+              pageConfigHeader = false;
+              pageConfigFooter = false;
+            }
+          }
+          cleanedRawHtml = cleanedRawHtml.replace(/<forgewp-page-config\s*([^>]*)\/?>/gi, '');
+          cleanedRawHtml = cleanedRawHtml.replace(/<\/forgewp-page-config>/gi, '');
+        }
+
         let processedHtml = injectAutoHydrationMarkers(processMarkup(cleanedRawHtml, config.textDomain, getRichTextKeysForSlug(slug.replace('template-', ''))));
-        if (processedHeader) {
-          const replaced = processedHtml.replace(processedHeader, '');
-          processedHtml = replaced !== processedHtml ? replaced : processedHtml.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
-        }
-        if (processedFooter) {
-          const replaced = processedHtml.replace(processedFooter, '');
-          processedHtml = replaced !== processedHtml ? replaced : processedHtml.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
-        }
+        processedHtml = extractCleanContent(processedHtml, processedHeader, processedFooter);
         processedHtml = processedHtml.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
+        processedHtml = processedHtml.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
 
         if (projectHooks && typeof projectHooks.processTemplateMarkup === 'function') {
           processedHtml = projectHooks.processTemplateMarkup(slug, processedHtml, config);
@@ -1970,6 +2149,50 @@ if ( ! current_user_can( '${allowed}' ) ) {
           .split('-')
           .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
           .join(' ');
+
+        let headerCall = 'get_header();';
+        let footerCall = 'get_footer();';
+
+        if (pageConfigHeader === false) {
+          headerCall = `?><!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+  <meta charset="<?php bloginfo('charset'); ?>">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <?php
+  if ( ! forgewp_seo_plugin_active() ) {
+      $target = forgewp_resolve_head_target();
+      if (file_exists($target)) {
+          ob_start();
+          include $target;
+          echo preg_replace('/<title>.*?<\\/title>/is', '', ob_get_clean());
+      }
+  }
+  ?>
+  <?php wp_head(); ?>
+  <style>
+    a { text-decoration: none; }
+    a:hover { text-decoration: none; }
+    .underline { text-decoration: underline !important; }
+    .hover\\:underline:hover { text-decoration: underline !important; }
+  </style>
+</head>
+<body <?php body_class(); ?>>
+<?php wp_body_open(); ?>
+<?php`;
+        } else if (typeof pageConfigHeader === 'string') {
+          headerCall = `get_header('${pageConfigHeader}');`;
+        }
+
+        if (pageConfigFooter === false) {
+          footerCall = `?>
+<?php wp_footer(); ?>
+</body>
+</html>`;
+        } else if (typeof pageConfigFooter === 'string') {
+          footerCall = `get_footer('${pageConfigFooter}');`;
+        }
+
         const phpContent = `<?php
 /**
  * Template Name: ${templateName}
@@ -1977,14 +2200,14 @@ if ( ! current_user_can( '${allowed}' ) ) {
  * @package ${config.textDomain}
  */
 ${redirectPhp}
-get_header();
+${headerCall}
 
 $markup_file = get_template_directory() . '/forgewp-static/${file}';
 if (file_exists($markup_file)) {
     include $markup_file;
 }
 
-get_footer();
+${footerCall}
 `;
         writeFileSync(
           path.join(outDir, `page-${slug.replace('template-', '')}.php`),

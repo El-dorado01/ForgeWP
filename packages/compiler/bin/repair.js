@@ -15,6 +15,13 @@ try {
   for (const [relativePath, blueprintContent] of Object.entries(SYSTEM_BLUEPRINTS)) {
     const fullPath = path.join(projectRoot, relativePath);
 
+    if (relativePath.startsWith("cms/") && relativePath.endsWith(".json")) {
+      const tsVariant = fullPath.replace(/\.json$/, ".ts");
+      if (existsSync(tsVariant)) {
+        continue; // Typed .ts file exists, do not overwrite with .json blueprint
+      }
+    }
+
     // Ensure the folder exists
     const dirPath = path.dirname(fullPath);
     if (!existsSync(dirPath)) {
@@ -28,35 +35,16 @@ try {
   }
 
   // Ensure default mock data table is recreated if deleted
-  const mockDataPath = path.join(projectRoot, "cms", "mock-data.json");
-  if (!existsSync(mockDataPath)) {
-    const defaultJson = {
-      menu: {
-        primary: [
-          { title: "Home", url: "/" },
-          { title: "Blog", url: "/post" },
-          { title: "Archive", url: "/archive" }
-        ]
-      },
-      post: [
-        {
-          id: 1,
-          title: "Welcome to ForgeWP: The Headless Revolution",
-          excerpt: "Discover how ForgeWP bridges standard WordPress themes with React.",
-          content: "<p>Welcome to ForgeWP! Modify this in mock-data.json.</p>",
-          date: "May 10, 2026",
-          author: "Antigravity",
-          featuredImage: "https://picsum.photos/seed/forgewp/1200/630",
-          customFields: {}
-        }
-      ]
-    };
-    const dirPath = path.dirname(mockDataPath);
+  const mockDataTsPath = path.join(projectRoot, "cms", "mock-data.ts");
+  const mockDataJsonPath = path.join(projectRoot, "cms", "mock-data.json");
+  if (!existsSync(mockDataTsPath) && !existsSync(mockDataJsonPath)) {
+    const defaultTs = `import { defineWpPosts } from '@forgewp/react';\n\nexport const mockData = defineWpPosts({\n  post: [\n    {\n      id: 1,\n      title: "Welcome to ForgeWP: The Headless Revolution",\n      excerpt: "Discover how ForgeWP bridges standard WordPress themes with React.",\n      content: "<p>Welcome to ForgeWP! Modify this in cms/mock-data.ts.</p>",\n      date: "May 10, 2026",\n      author: "Antigravity",\n      featuredImage: "https://picsum.photos/seed/forgewp/1200/630",\n      customFields: {}\n    }\n  ]\n});\n\nexport default mockData;\n`;
+    const dirPath = path.dirname(mockDataTsPath);
     if (!existsSync(dirPath)) {
       mkdirSync(dirPath, { recursive: true });
     }
-    writeFileSync(mockDataPath, JSON.stringify(defaultJson, null, 2), "utf8");
-    console.log(`  ${pc.green("✅ Seeded Default Database")}: cms/mock-data.json`);
+    writeFileSync(mockDataTsPath, defaultTs, "utf8");
+    console.log(`  ${pc.green("✅ Seeded Default Database")}: cms/mock-data.ts`);
     repairedCount++;
   }
 

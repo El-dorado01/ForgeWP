@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWpQuery, useWpCustomField, useWpI18n } from '../.forgewp/wordpress';
+import { useWpQuery, useWpCustomField, useWpI18n } from '@forgewp/react';
 import { Building, ChevronRight } from 'lucide-react';
 
 interface ListicleQuicklinksProps {

@@ -1,5 +1,5 @@
 import { Phone, Mail, Facebook, Instagram, Twitter, Youtube, Linkedin } from "lucide-react";
-import { useWpOption } from "../.forgewp/wordpress";
+import { useWpOption } from '@forgewp/react';
 
 const TiktokIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg

@@ -1,4 +1,4 @@
-import { useWpQuery, WpLink, useWpSearchParams, useWpLocation, useWpI18n, useWpPagePath } from '../.forgewp/wordpress';
+import { useWpQuery, WpLink, useWpSearchParams, useWpLocation, useWpI18n, useWpPagePath } from '@forgewp/react';
 import { MapPin, Star, SlidersHorizontal, X, RotateCcw } from 'lucide-react';
 import { Button } from './ui/button';
 

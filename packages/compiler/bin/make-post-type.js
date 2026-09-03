@@ -45,28 +45,14 @@ if (!cleanName) {
 
 const projectRoot = process.cwd();
 const wpDir = path.join(projectRoot, "cms");
-const mockDataPath = path.join(wpDir, "mock-data.json");
+const mockDataTsPath = path.join(wpDir, "mock-data.ts");
+const mockDataJsonPath = path.join(wpDir, "mock-data.json");
+const isTs = existsSync(mockDataTsPath) || !existsSync(mockDataJsonPath);
+const activeFile = isTs ? "cms/mock-data.ts" : "cms/mock-data.json";
 
 // Ensure cms directory exists
 if (!existsSync(wpDir)) {
   mkdirSync(wpDir, { recursive: true });
-}
-
-let mockData = {};
-
-if (existsSync(mockDataPath)) {
-  try {
-    mockData = JSON.parse(readFileSync(mockDataPath, "utf8"));
-  } catch (err) {
-    console.error(pc.red(`\n❌ Error: Failed to parse cms/mock-data.json. Enforcing clean file.`));
-    mockData = {};
-  }
-}
-
-if (mockData[cleanName]) {
-  console.warn(pc.yellow(`\n⚠️  Post type "${cleanName}" already exists in cms/mock-data.json.`));
-  console.log(`   You can open the file directly to view or edit existing fields.\n`);
-  process.exit(0);
 }
 
 // Parse custom fields if provided via --customFields, -customFields, --custom-fields, etc.
@@ -94,7 +80,6 @@ if (customFieldsList.length > 0) {
     seededCustomFields2[field] = `[Seeded ${field} 2]`;
   }
 } else {
-  // Default fallbacks if no flag is provided
   seededCustomFields1["client_name"] = "Mock Enterprise";
   seededCustomFields1["project_budget"] = "$30,000";
 
@@ -102,37 +87,80 @@ if (customFieldsList.length > 0) {
   seededCustomFields2["project_budget"] = "$55,000";
 }
 
-// Generate template seed items for this custom post type
-mockData[cleanName] = [
+const cleanTitle = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+
+const seedItems = [
   {
     id: 1,
-    title: `Sample ${cleanName.charAt(0).toUpperCase() + cleanName.slice(1)} Item 1`,
+    title: `Sample ${cleanTitle} Item 1`,
     excerpt: `This is a custom ${cleanName} post seeded dynamically via ForgeWP CLI.`,
-    content: `<p>Welcome to your new custom <strong>${cleanName}</strong> post template! Edit this in cms/mock-data.json.</p>`,
-    date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+    content: `<p>Welcome to your new custom <strong>${cleanName}</strong> post template! Edit this in ${activeFile}.</p>`,
+    date: dateStr,
     author: "ForgeWP CLI",
     featuredImage: `https://picsum.photos/seed/${cleanName}1/1200/630`,
     customFields: seededCustomFields1
   },
   {
     id: 2,
-    title: `Sample ${cleanName.charAt(0).toUpperCase() + cleanName.slice(1)} Item 2`,
+    title: `Sample ${cleanTitle} Item 2`,
     excerpt: `This is another custom ${cleanName} post seeded dynamically via ForgeWP CLI.`,
     content: `<p>This is the second custom post for the ${cleanName} post type.</p>`,
-    date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+    date: dateStr,
     author: "ForgeWP CLI",
     featuredImage: `https://picsum.photos/seed/${cleanName}2/1200/630`,
     customFields: seededCustomFields2
   }
 ];
 
-// Write update JSON back to file
-writeFileSync(mockDataPath, JSON.stringify(mockData, null, 2), "utf8");
+if (isTs) {
+  if (existsSync(mockDataTsPath)) {
+    let content = readFileSync(mockDataTsPath, "utf8");
+    if (content.includes(`"${cleanName}":`) || content.includes(`${cleanName}:`)) {
+      console.warn(pc.yellow(`\n⚠️  Post type "${cleanName}" already exists in cms/mock-data.ts.`));
+      console.log(`   You can open the file directly to view or edit existing fields.\n`);
+      process.exit(0);
+    }
+
+    const snippet = `  ${cleanName}: ${JSON.stringify(seedItems, null, 4).replace(/^/gm, "  ").trim()},\n`;
+    if (content.includes("defineWpPosts({")) {
+      content = content.replace("defineWpPosts({", "defineWpPosts({\n" + snippet);
+    } else if (content.lastIndexOf("};") !== -1) {
+      const idx = content.lastIndexOf("};");
+      content = content.slice(0, idx) + snippet + content.slice(idx);
+    } else {
+      content += `\n\n// Added custom post type: ${cleanName}\n${snippet}`;
+    }
+    writeFileSync(mockDataTsPath, content, "utf8");
+  } else {
+    const defaultTs = `import { defineWpPosts } from '@forgewp/react';\n\nexport const mockData = defineWpPosts({\n  post: [],\n  ${cleanName}: ${JSON.stringify(seedItems, null, 4).replace(/^/gm, "  ").trim()}\n});\n\nexport default mockData;\n`;
+    writeFileSync(mockDataTsPath, defaultTs, "utf8");
+  }
+} else {
+  let mockData = {};
+  if (existsSync(mockDataJsonPath)) {
+    try {
+      mockData = JSON.parse(readFileSync(mockDataJsonPath, "utf8"));
+    } catch (err) {
+      console.error(pc.red(`\n❌ Error: Failed to parse cms/mock-data.json. Enforcing clean file.`));
+      mockData = {};
+    }
+  }
+
+  if (mockData[cleanName]) {
+    console.warn(pc.yellow(`\n⚠️  Post type "${cleanName}" already exists in cms/mock-data.json.`));
+    console.log(`   You can open the file directly to view or edit existing fields.\n`);
+    process.exit(0);
+  }
+
+  mockData[cleanName] = seedItems;
+  writeFileSync(mockDataJsonPath, JSON.stringify(mockData, null, 2), "utf8");
+}
 
 const suggestedField = customFieldsList.length > 0 ? customFieldsList[0] : "client_name";
 
 console.log(pc.green(`\n⚡ Post Type "${cleanName}" successfully registered!`));
-console.log(`   Local DB: ${pc.cyan(`cms/mock-data.json`)}`);
+console.log(`   Local DB: ${pc.cyan(activeFile)}`);
 console.log(`\n🎉 Query your seeded fields in React inside:`);
 console.log(`   ${pc.yellow(`<WpQueryLoop postType="${cleanName}" postsPerPage={2}>`)}`);
 console.log(`     ${pc.yellow(`<h3>{useWpTitle()}</h3>`)}`);

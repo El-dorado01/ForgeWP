@@ -1,5 +1,5 @@
 import { pickEditable, WpEditable } from '@forgewp/react';
-import { useWpMeta } from '../.forgewp/wordpress';
+import { useWpMeta } from '@forgewp/react';
 import { editable as berUnsPageEditable, defaults } from '../../cms/editables/ber-uns-page';
 
 export const editable = pickEditable(berUnsPageEditable, {

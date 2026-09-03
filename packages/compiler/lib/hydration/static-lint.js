@@ -2,6 +2,8 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { ts } from "./is-interactive.js";
 import { scanForHydrationIslandsWithProps } from "./islands-scanner.js";
+import { loadMockData } from "../functions/seed-mock-data.js";
+import { loadProductsData } from "../functions/seed-products.js";
 
 /**
  * Statically analyzes theme templates to detect missing metadata,
@@ -51,69 +53,72 @@ export function runStaticLintChecks(themeRoot) {
     } catch {}
   }
 
-  // 2. Scan CPTs, Taxonomies, and Custom Fields from cms/mock-data.json and cms/products.json
-  const dataFiles = [
-    path.join(themeRoot, "cms", "mock-data.json"),
-    path.join(themeRoot, "cms", "products.json")
-  ];
-  for (const dbPath of dataFiles) {
-    if (existsSync(dbPath)) {
-      try {
-        const mockData = JSON.parse(readFileSync(dbPath, "utf8"));
-        for (const pt of Object.keys(mockData)) {
-          if (
-            pt !== 'posts' &&
-            pt !== 'pages' &&
-            pt !== 'post' &&
-            pt !== 'page' &&
-            pt !== 'menus' &&
-            pt !== 'attachment' &&
-            !pt.startsWith('_')
-          ) {
-            validPostTypes.add(pt);
-            if (!postTypeTaxonomies[pt]) {
-              postTypeTaxonomies[pt] = new Set(["category", "post_tag"]);
-            }
-            if (!postTypeCustomFields[pt]) {
-              postTypeCustomFields[pt] = new Set();
-            }
+  // 2. Scan CPTs, taxonomies, and custom fields from cms/mock-data.(ts|json)
+  //    and cms/products.(ts|json) via the shared dual-resolution loaders.
+  const ingestCmsMap = (mockData) => {
+    if (!mockData || typeof mockData !== 'object') return;
+    for (const pt of Object.keys(mockData)) {
+      if (
+        pt !== 'posts' &&
+        pt !== 'pages' &&
+        pt !== 'post' &&
+        pt !== 'page' &&
+        pt !== 'menus' &&
+        pt !== 'attachment' &&
+        !pt.startsWith('_')
+      ) {
+        validPostTypes.add(pt);
+        if (!postTypeTaxonomies[pt]) {
+          postTypeTaxonomies[pt] = new Set(["category", "post_tag"]);
+        }
+        if (!postTypeCustomFields[pt]) {
+          postTypeCustomFields[pt] = new Set();
+        }
 
-            const items = mockData[pt];
-            if (Array.isArray(items)) {
-              for (const item of items) {
-                if (item._terms && typeof item._terms === 'object') {
-                  for (const tax of Object.keys(item._terms)) {
-                    postTypeTaxonomies[pt].add(tax);
-                  }
-                }
-                if (item.customFields && typeof item.customFields === 'object') {
-                  for (const key of Object.keys(item.customFields)) {
-                    postTypeCustomFields[pt].add(key);
-                  }
-                }
+        const items = mockData[pt];
+        if (Array.isArray(items)) {
+          for (const item of items) {
+            if (item._terms && typeof item._terms === 'object') {
+              for (const tax of Object.keys(item._terms)) {
+                postTypeTaxonomies[pt].add(tax);
               }
             }
-          } else if (pt === 'post' || pt === 'page') {
-            const items = mockData[pt];
-            if (Array.isArray(items)) {
-              for (const item of items) {
-                if (item._terms && typeof item._terms === 'object') {
-                  for (const tax of Object.keys(item._terms)) {
-                    postTypeTaxonomies[pt].add(tax);
-                  }
-                }
-                if (item.customFields && typeof item.customFields === 'object') {
-                  for (const key of Object.keys(item.customFields)) {
-                    postTypeCustomFields[pt].add(key);
-                  }
-                }
+            if (item.customFields && typeof item.customFields === 'object') {
+              for (const key of Object.keys(item.customFields)) {
+                postTypeCustomFields[pt].add(key);
               }
             }
           }
         }
-      } catch {}
+      } else if (pt === 'post' || pt === 'page') {
+        const items = mockData[pt];
+        if (Array.isArray(items)) {
+          for (const item of items) {
+            if (item._terms && typeof item._terms === 'object') {
+              for (const tax of Object.keys(item._terms)) {
+                postTypeTaxonomies[pt].add(tax);
+              }
+            }
+            if (item.customFields && typeof item.customFields === 'object') {
+              for (const key of Object.keys(item.customFields)) {
+                postTypeCustomFields[pt].add(key);
+              }
+            }
+          }
+        }
+      }
     }
-  }
+  };
+
+  try {
+    ingestCmsMap(loadMockData(themeRoot));
+    const products = loadProductsData(themeRoot);
+    if (Array.isArray(products) && products.length > 0) {
+      ingestCmsMap({ product: products });
+    } else if (products && typeof products === 'object' && !Array.isArray(products)) {
+      ingestCmsMap(products);
+    }
+  } catch {}
 
   const validSlugs = new Set(["page"]);
   const pagesDir = path.join(themeRoot, "src", "app", "pages");

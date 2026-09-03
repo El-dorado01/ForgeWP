@@ -161,3 +161,251 @@ export function defineWpForm(config: WpFormConfig): WpFormConfig {
   // Runtime no-op — the compiler reads source files statically.
   return config;
 }
+
+/**
+ * Configuration options for a page component declared via `export const pageConfig`.
+ */
+export interface PageConfig {
+  /**
+   * Layout identifier to wrap this page with.
+   * Resolves to `src/app/layouts/{layout}.tsx`.
+   * Set to `'blank'` or `false` to render the page without any header/footer shell.
+   * @default 'default'
+   */
+  layout?: string | false;
+
+  /**
+   * Whether to include the WordPress theme header on this page.
+   * Can be a boolean or a custom header template name (e.g. `'minimal'`).
+   * @default true
+   */
+  header?: boolean | string;
+
+  /**
+   * Whether to include the WordPress theme footer on this page.
+   * Can be a boolean or a custom footer template name (e.g. `'minimal'`).
+   * @default true
+   */
+  footer?: boolean | string;
+
+  /**
+   * Whether this page requires user authentication to access.
+   * @default false
+   */
+  protected?: boolean;
+
+  /**
+   * Required user role(s) or capabilities to access this page.
+   */
+  allowed?: string | string[];
+
+  /**
+   * URL to redirect unauthorized visitors to.
+   * @default '/login'
+   */
+  redirect?: string;
+
+  [key: string]: any;
+}
+
+/**
+ * Type-safe helper for declaring page configuration.
+ *
+ * @example
+ * ```tsx
+ * // src/app/pages/landing.tsx
+ * import { definePageConfig } from '@forgewp/react';
+ *
+ * export const pageConfig = definePageConfig({
+ *   layout: 'blank', // or header: false, footer: false
+ * });
+ * ```
+ */
+export function definePageConfig(config: PageConfig): PageConfig {
+  return config;
+}
+
+// ── 5. CMS Seed & Mock Data Typing Helpers ────────────────────────────────────
+
+export interface WpPostBase {
+  id: number;
+  slug?: string;
+  title?: string;
+  excerpt?: string;
+  content?: string;
+  date?: string;
+  modified?: string;
+  featuredImage?:
+    | string
+    | {
+        id?: number;
+        url: string;
+        alt?: string;
+        title?: string;
+        caption?: string;
+        width?: number;
+        height?: number;
+        sizes?: Record<string, { url: string; width?: number; height?: number }>;
+        [key: string]: any;
+      };
+  status?: 'publish' | 'draft' | 'pending' | 'private' | 'trash' | string;
+  _terms?: Record<string, Array<{ id?: number; slug: string; name: string }>>;
+  meta?: Record<string, any>;
+  [key: string]: any;
+}
+
+export type WpPostsConfig<TCustom = Record<string, any>> = {
+  post?: WpPostBase[];
+  page?: WpPostBase[];
+} & {
+  [K in keyof TCustom]?: Array<WpPostBase & TCustom[K]>;
+} & {
+  [postType: string]: any[];
+};
+
+/**
+ * Type-safe helper for declaring WordPress posts, pages, and custom post type seeds
+ * in `cms/mock-data.ts`.
+ *
+ * Provides strict autocomplete for core WordPress post fields (`title`, `excerpt`,
+ * `content`, `featuredImage`, `_terms`), while allowing open custom meta fields for
+ * custom post types (e.g. `project`, `event`, `property`).
+ *
+ * @example
+ * ```ts
+ * // cms/mock-data.ts
+ * import { defineWpPosts } from '@forgewp/react/config';
+ *
+ * export const mockData = defineWpPosts({
+ *   post: [
+ *     { id: 1, slug: 'hello-world', title: 'Hello World', content: '<p>Welcome</p>' }
+ *   ],
+ *   project: [
+ *     { id: 10, slug: 'loft', title: 'Loft', client: 'Studio A', year: 2026 }
+ *   ]
+ * });
+ * ```
+ */
+export function defineWpPosts<TCustom = Record<string, any>>(
+  posts: WpPostsConfig<TCustom>
+): WpPostsConfig<TCustom> {
+  return posts;
+}
+
+export interface WpMenuItem {
+  id?: number | string;
+  title: string;
+  url: string;
+  target?: '_blank' | '_self' | string;
+  classes?: string[] | string;
+  badge?: string;
+  image?: string;
+  description?: string;
+  attrTitle?: string;
+  children?: WpMenuItem[];
+  [key: string]: any;
+}
+
+/**
+ * Type-safe helper for declaring navigation menu trees in `cms/menus.ts`.
+ * Supports hierarchical child items and custom menu attributes.
+ *
+ * @example
+ * ```ts
+ * // cms/menus.ts
+ * import { defineWpMenus } from '@forgewp/react/config';
+ *
+ * export const menus = defineWpMenus({
+ *   primary: [
+ *     { title: 'Shop', url: '/shop' },
+ *     {
+ *       title: 'Categories',
+ *       url: '/categories',
+ *       children: [
+ *         { title: 'Furniture', url: '/category/furniture' }
+ *       ]
+ *     }
+ *   ],
+ *   footer: [
+ *     { title: 'Privacy Policy', url: '/privacy' }
+ *   ]
+ * });
+ * ```
+ */
+export function defineWpMenus(
+  menus: Record<string, WpMenuItem[]>
+): Record<string, WpMenuItem[]> {
+  return menus;
+}
+
+export interface WpUserSeed {
+  id: number;
+  username: string;
+  email: string;
+  displayName?: string;
+  roles: Array<
+    'administrator' | 'editor' | 'author' | 'contributor' | 'subscriber' | 'customer' | string
+  >;
+  avatarUrl?: string;
+  emailVerified?: boolean;
+  [key: string]: any;
+}
+
+/**
+ * Type-safe helper for declaring mock authentication users in `cms/users.ts`.
+ */
+export function defineWpUsers(users: WpUserSeed[]): WpUserSeed[] {
+  return users;
+}
+
+/**
+ * Type-safe helper for declaring custom role capability matrices in `cms/roles.ts`.
+ */
+export function defineWpRoles(
+  roles: Record<string, string[]>
+): Record<string, string[]> {
+  return roles;
+}
+
+/**
+ * Type-safe helper for declaring i18n localization dictionary strings in `cms/translations.ts`.
+ */
+export function defineTranslations(
+  translations: Record<string, Record<string, string>>
+): Record<string, Record<string, string>> {
+  return translations;
+}
+
+/**
+ * Type-safe helper for declaring WordPress Customizer theme modifications in `cms/theme-mods.ts`.
+ */
+export function defineWpThemeMods<T extends Record<string, any>>(mods: T): T {
+  return mods;
+}
+
+export type ForgeWPSeedStrategy = boolean | 'once' | 'upsert' | 'force';
+
+export interface ForgeWPSeedConfig {
+  /**
+   * Sync local products from `cms/products.ts` (or `products.json`) into WooCommerce.
+   * Default: false
+   */
+  products?: ForgeWPSeedStrategy;
+  /**
+   * Sync mock posts, pages, and CPTs from `cms/mock-data.ts` (or `mock-data.json`).
+   * Default: false
+   */
+  mockData?: ForgeWPSeedStrategy | Record<string, ForgeWPSeedStrategy>;
+  /**
+   * Automatically sideload remote CDN image URLs into the WordPress Media Library.
+   * Default: true
+   */
+  sideloadImages?: boolean;
+  /**
+   * Safety guard: Only execute when WP_DEBUG is true or in development environments.
+   * Default: true
+   */
+  developmentOnly?: boolean;
+}
+
+

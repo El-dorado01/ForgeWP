@@ -1,4 +1,4 @@
-import { Route, Switch } from "wouter";
+import { Route, Switch } from "@forgewp/react";
 import HomePage from "./page";
 import { ListiclesPage } from "./pages/ListiclesPage";
 import { HotelsPage } from "./pages/HotelsPage";
@@ -7,7 +7,7 @@ import { KontaktPage } from "./pages/KontaktPage";
 import { SingleListiclePage } from "./pages/SingleListiclePage";
 import { SingleHotelPage } from "./pages/SingleHotelPage";
 import { ImpressumPage } from "./pages/ImpressumPage";
-import { useWpLanguage, WpLink } from "../.forgewp/wordpress";
+import { useWpLanguage, WpLink } from '@forgewp/react';
 
 /**
  * Local Developer Routes — ForgeWP.

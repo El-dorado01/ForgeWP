@@ -54,10 +54,13 @@ ${navMenuLines.join('\n')}
     : '';
 
 
-  // Google fonts enqueuing
+  // Fonts enqueuing (self-hosted WOFF2 with remote fallback)
+  const fontConfig = config.fonts?.google || config.settings?.typography?.googleFonts || [];
+  const googleFontsList = Array.isArray(fontConfig) ? fontConfig : (fontConfig.families || []);
   let fontsEnqueueCode = '';
-  if (googleFonts.length > 0) {
-    const fontFamilies = googleFonts.map(f => {
+
+  if (googleFontsList.length > 0) {
+    const fontFamilies = googleFontsList.map(f => {
       if (typeof f === 'string') {
         return f.replace(/\s+/g, '+');
       }
@@ -67,15 +70,26 @@ ${navMenuLines.join('\n')}
         return `${name}${weights}`;
       }
       return '';
-    }).filter(Boolean).join('|');
+    }).filter(Boolean).join('&family=');
+
     fontsEnqueueCode = `
-    // Load custom typography from Google Fonts
-    wp_enqueue_style(
-        'forgewp-google-fonts',
-        'https://fonts.googleapis.com/css2?family=${fontFamilies}&display=swap',
-        array(),
-        null
-    );`;
+    // Load custom typography (prefers local self-hosted WOFF2, falls back to remote)
+    $fonts_file = get_template_directory() . '/assets/fonts/fonts.css';
+    if (file_exists($fonts_file)) {
+        wp_enqueue_style(
+            'forgewp-fonts',
+            get_theme_file_uri('assets/fonts/fonts.css'),
+            array(),
+            filemtime($fonts_file)
+        );
+    } elseif ( ! empty('${fontFamilies}') ) {
+        wp_enqueue_style(
+            'forgewp-google-fonts',
+            'https://fonts.googleapis.com/css2?family=${fontFamilies}&display=swap',
+            array(),
+            null
+        );
+    }`;
   }
 
   // Dashicons on the frontend so WpIcon provider="dashicons" (and Lucide miss fallbacks) paint
@@ -357,12 +371,21 @@ if ( ! function_exists( 'forgewp_theme_setup' ) ) :
         add_theme_support( 'responsive-embeds' );
         add_theme_support( 'html5', array( 'style', 'script' ) );
         add_theme_support( 'align-wide' );
+        // Gates Appearance → Menus in wp-admin (current_theme_supports('menus')).
+        add_theme_support( 'menus' );
 
         // Navigation menus
         ${menuRegistration}
     }
 endif;
 add_action( 'after_setup_theme', 'forgewp_theme_setup' );
+
+/**
+ * WordPress redirect_canonical() guesses 404s with post_name LIKE '{slug}%'.
+ * Visiting /about then 301s to /product/about-a-chair-aa51/ when no About page
+ * exists. Local React routing never fuzzy-matches like that.
+ */
+add_filter('do_redirect_guess_404_permalink', '__return_false');
 
 /**
  * Register core theme block categories.

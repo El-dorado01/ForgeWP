@@ -466,7 +466,7 @@ export function WpAuthProvider({
         const res = await fetch(`${getApiBaseUrl()}/wp-json/forgewp/v1/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ credential: username, username, password }),
         });
 
         if (!res.ok) {
@@ -477,8 +477,9 @@ export function WpAuthProvider({
         }
 
         const data = await res.json();
-        if (data && data.id) {
-          setUser(data);
+        const userObj = (data && (data.user || data.id ? (data.user || data) : null)) as WpUser | null;
+        if (userObj && userObj.id) {
+          setUser(userObj);
           setLoading(false);
           if (typeof window !== 'undefined') {
             if (redirectUrl) {
@@ -519,44 +520,56 @@ export function WpAuthProvider({
 
       try {
         await fetch(`${getApiBaseUrl()}/wp-json/forgewp/v1/auth/logout`, { method: 'POST' });
-      } catch (e) {}
-      setUser(null);
-      setLoading(false);
-      // Reload page to clear any cached states
-      if (typeof window !== 'undefined') {
-        window.location.reload();
+        setUser(null);
+        setLoading(false);
+        if (typeof window !== 'undefined') {
+          window.location.reload();
+        }
+      } catch (err: any) {
+        setError(err.message || 'Logout failed.');
+        setLoading(false);
       }
     }
   }, []);
 
-  const register = React.useCallback(async (username: string, email: string, password: string, metadata?: Record<string, any>): Promise<boolean> => {
+  const register = React.useCallback(async (
+    username: string,
+    email: string,
+    password: string,
+    metadata?: Record<string, any>
+  ): Promise<boolean> => {
     setLoading(true);
     setError(null);
 
     if (IS_DEV) {
-      await new Promise((res) => setTimeout(res, 800));
-      const mockUsers = (window as any)._forgeWpMockUsers || [];
-      const exists = mockUsers.some(
-        (u: any) => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === email.toLowerCase()
-      );
+      await new Promise((res) => setTimeout(res, 500));
+      const mockUsers = window._forgeWpMockUsers || [];
 
-      if (exists) {
-        setError('Username or email already exists.');
+      if (mockUsers.some((u: any) => u.username.toLowerCase() === username.toLowerCase())) {
+        setError('Username is already taken.');
         setLoading(false);
         return false;
       }
 
-      const newUser = resolveMockUserCapabilities({
-        id: Math.floor(Math.random() * 1000) + 10,
+      if (mockUsers.some((u: any) => u.email.toLowerCase() === email.toLowerCase())) {
+        setError('Email is already registered.');
+        setLoading(false);
+        return false;
+      }
+
+      const defaultRole = (window.forgeWpHydration?.siteSettings?.authDefaultRole) || 'subscriber';
+      const isEmailVerification = window.forgeWpHydration?.emailVerificationEnabled ?? emailVerificationEnabled;
+
+      const newUser: WpUser = {
+        id: Date.now(),
         username,
         email,
-        displayName: username.charAt(0).toUpperCase() + username.slice(1),
-        roles: ['subscriber'],
+        displayName: username,
+        roles: [defaultRole],
         avatarUrl: `https://picsum.photos/seed/${username}/150/150`,
-        capabilities: [],
-        emailVerified: !emailVerificationEnabled,
+        emailVerified: !isEmailVerification,
         ...metadata,
-      });
+      };
 
       if (window._forgeWpMockUsers) {
         if (!window._forgeWpMockUsers.some((u: any) => u.id === newUser.id)) {
@@ -617,11 +630,12 @@ export function WpAuthProvider({
         }
 
         const data = await res.json();
-        if (data && data.id) {
+        const userObj = (data && (data.user || data.id ? (data.user || data) : null)) as WpUser | null;
+        if (userObj && userObj.id) {
           if (isJwtAuthEnabled()) {
             return login(username, password);
           }
-          setUser(data);
+          setUser(userObj);
           setLoading(false);
           return true;
         }
@@ -687,13 +701,17 @@ export function WpAuthProvider({
           return false;
         }
 
-        const data = await res.json();
-        if (data && data.success && data.user) {
-          setUser(data.user);
+        const data = await res.json().catch(() => ({}));
+        if (data && data.success) {
+          if (data.user) {
+            setUser(data.user);
+            window.localStorage.setItem('forgewp_auth_session', JSON.stringify(data.user));
+          }
           setLoading(false);
           return true;
         }
-        setError('Verification succeeded, but login response was empty.');
+
+        setError(data.message || 'Email verification failed.');
         setLoading(false);
         return false;
       } catch (err: any) {
@@ -1006,8 +1024,57 @@ export function WpLoginForm({
   const [password, setPassword] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
   const [formErr, setFormErr] = React.useState<string | null>(null);
+  const [unverifiedNotice, setUnverifiedNotice] = React.useState<string | null>(null);
+  const [resendStatus, setResendStatus] = React.useState<'idle' | 'sending' | 'success' | 'failed'>('idle');
+  const [resendMsg, setResendMsg] = React.useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = React.useState(0);
+  const cooldownRef = React.useRef<any>(null);
 
   if (!context) return null;
+
+  React.useEffect(() => {
+    return () => {
+      if (cooldownRef.current) clearInterval(cooldownRef.current);
+    };
+  }, []);
+
+  const handleResend = async () => {
+    const input = username.trim();
+    if (!input) {
+      setResendMsg('Please enter your username or email above first.');
+      setResendStatus('failed');
+      return;
+    }
+    setResendStatus('sending');
+    setResendMsg(null);
+    try {
+      const ok = await context.resendVerificationEmail(input);
+      if (ok) {
+        setResendStatus('success');
+        if (!unverifiedNotice) {
+          setUnverifiedNotice('Please verify your email address before logging in.');
+        }
+        setResendCooldown(60);
+        if (cooldownRef.current) clearInterval(cooldownRef.current);
+        cooldownRef.current = setInterval(() => {
+          setResendCooldown((prev: number) => {
+            if (prev <= 1) {
+              clearInterval(cooldownRef.current);
+              cooldownRef.current = null;
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        setResendStatus('failed');
+        setResendMsg(context.error || 'Failed to resend verification email.');
+      }
+    } catch (err: any) {
+      setResendStatus('failed');
+      setResendMsg(err.message || 'An error occurred.');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1017,19 +1084,32 @@ export function WpLoginForm({
     }
     setSubmitting(true);
     setFormErr(null);
+    setUnverifiedNotice(null);
+    setResendStatus('idle');
     try {
       const ok = await context.login(username, password);
       if (ok) {
         if (onSuccess) onSuccess();
       } else {
-        setFormErr(context.error || 'Invalid credentials.');
+        const errStr = context.error || 'Invalid credentials.';
+        setFormErr(errStr);
+        if (/verif/i.test(errStr)) {
+          setUnverifiedNotice(errStr);
+        }
       }
     } catch (err: any) {
-      setFormErr(stripHtml(err.message) || 'Sign in failed.');
+      const msg = stripHtml(err.message) || 'Sign in failed.';
+      setFormErr(msg);
+      if (/verif/i.test(msg)) {
+        setUnverifiedNotice(msg);
+      }
     } finally {
       setSubmitting(false);
     }
   };
+
+  const isUnverified = Boolean(unverifiedNotice || (formErr && /verif/i.test(formErr)));
+  const displayMsg = unverifiedNotice || formErr;
 
   return (
     <form
@@ -1038,10 +1118,75 @@ export function WpLoginForm({
     >
       <h3 className="text-xl font-bold uppercase tracking-tight">Account Log In</h3>
       
-      {formErr && (
-        <div className="bg-red-100 border-2 border-red-500 text-red-700 p-3 font-semibold text-sm">
-          ⚠️ {formErr}
-        </div>
+      {displayMsg && (
+        isUnverified ? (
+          resendStatus === 'success' ? (
+            <div className="border-2 p-3 font-semibold text-sm flex flex-col gap-2 bg-emerald-50 border-emerald-500 text-emerald-900">
+              <div className="flex items-start gap-2">
+                <span>✓</span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-bold">Verification Link Sent</span>
+                  <span className="text-xs font-normal text-emerald-800">
+                    A fresh verification link has been sent to your email. Check your inbox (and spam folder).
+                  </span>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-emerald-300 flex items-center gap-1.5 flex-wrap text-xs text-emerald-900 mt-1">
+                <span>Didn&apos;t receive it?</span>
+                {resendCooldown > 0 ? (
+                  <span className="text-emerald-800 font-medium">
+                    Resend available in {resendCooldown}s
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    className="font-bold underline underline-offset-2 hover:text-emerald-950 cursor-pointer"
+                  >
+                    Resend verification email
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="border-2 p-3 font-semibold text-sm flex flex-col gap-2 bg-amber-50 border-amber-500 text-amber-900">
+              <div className="flex items-start gap-2">
+                <span>✉️</span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-bold">Email Verification Required</span>
+                  <span className="text-xs font-normal text-amber-800">{displayMsg}</span>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-amber-300 flex flex-col gap-1.5 mt-1">
+                <div className="flex items-center gap-1.5 flex-wrap text-xs text-amber-900">
+                  <span>Need a new link sent to your inbox?</span>
+                  {resendCooldown > 0 ? (
+                    <span className="text-amber-800 font-medium">
+                      Resend available in {resendCooldown}s
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={resendStatus === 'sending'}
+                      onClick={handleResend}
+                      className="font-bold underline underline-offset-2 hover:text-amber-950 disabled:opacity-50 cursor-pointer"
+                    >
+                      {resendStatus === 'sending' ? 'Sending...' : 'Resend verification email'}
+                    </button>
+                  )}
+                </div>
+                {resendStatus === 'failed' && resendMsg && (
+                  <span className="text-xs text-red-600 font-medium">{resendMsg}</span>
+                )}
+              </div>
+            </div>
+          )
+        ) : (
+          <div className="border-2 p-3 font-semibold text-sm flex items-start gap-2 bg-red-100 border-red-500 text-red-700">
+            <span>⚠️</span>
+            <span>{displayMsg}</span>
+          </div>
+        )
       )}
 
       <div className="flex flex-col gap-1">

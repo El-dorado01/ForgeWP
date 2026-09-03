@@ -1,4 +1,4 @@
-import { useWpTitle } from "@/.forgewp/wordpress";
+import { useWpTitle } from '@forgewp/react';
 
 export function Navbar() {
   const siteTitle = useWpTitle();

@@ -1,0 +1,70 @@
+@import 'tailwindcss';
+@plugin "tailwindcss-animate";
+
+@theme {
+  /* Font Family Mappings */
+  --font-sans: var(
+    --wp--preset--font-family--sans,
+    'Outfit',
+    'Segoe UI',
+    system-ui,
+    sans-serif
+  );
+  --font-heading: var(--font-sans);
+  --font-handwritten: var(--wp--preset--font-family--handwritten, 'Kalam', cursive);
+
+  /* Color Palette Mappings */
+  --color-brand: var(--wp--preset--color--brand, oklch(0.61 0.22 42.5));
+  --color-brand-foreground: #ffffff;
+  --color-secondary: var(--wp--preset--color--secondary, #4f46e5);
+  --color-accent: var(--wp--preset--color--accent, #f59e0b);
+  --color-bg-light: var(--wp--preset--color--background, #fafafa);
+  --color-text-slate: var(--wp--preset--color--text, #0f172a);
+
+  /* Shadcn Core Theme Compatibility (Tailwind v4) */
+  --color-background: var(--wp--preset--color--background, #fafafa);
+  --color-foreground: var(--wp--preset--color--text, #0f172a);
+  --color-primary: oklch(0.61 0.22 42.5);
+  --color-primary-foreground: #ffffff;
+  --color-card: var(--wp--preset--color--background, #fafafa);
+  --color-card-foreground: var(--wp--preset--color--text, #0f172a);
+  --color-border: #e4e4e7;
+  --color-input: #e4e4e7;
+  --color-ring: oklch(0.61 0.22 42.5);
+  --color-muted: #f4f4f5;
+  --color-muted-foreground: #71717a;
+}
+
+@layer base {
+  *, ::before, ::after {
+    border-color: var(--color-border);
+  }
+  html,
+  body {
+    @apply antialiased;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  body {
+    @apply bg-bg-light font-sans text-text-slate;
+  }
+  body:not(.editor-styles-wrapper):not(#tinymce):not(.mce-content-body) {
+    min-height: 100vh;
+  }
+  .forgewp-root {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+}
+
+/* Prevent Gutenberg editor iframe height feedback loop caused by min-h-screen on body */
+.editor-styles-wrapper {
+  min-height: auto !important;
+}

@@ -1,5 +1,5 @@
 import { pickEditable, WpEditable } from '@forgewp/react';
-import { useWpMeta } from '../.forgewp/wordpress';
+import { useWpMeta } from '@forgewp/react';
 import { editable as frontPageEditable, defaults } from '../../cms/editables/front-page';
 
 /** Page content from ACF + block-only layout (padding never on page ACF). */

@@ -1,4 +1,4 @@
-import { useWpQuery, WpLink, useWpI18n, useWpPageLink } from '../.forgewp/wordpress';
+import { useWpQuery, WpLink, useWpI18n, useWpPageLink } from '@forgewp/react';
 import { useIsEditorPreview } from '@forgewp/react';
 import { ArrowRight, User, BookOpen, Newspaper, PenLine } from 'lucide-react';
 

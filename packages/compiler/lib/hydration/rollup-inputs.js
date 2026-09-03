@@ -2,6 +2,7 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { scanForHydrationIslands, findComponentPath } from "./islands-scanner.js";
 import { splitInteractiveIslands } from "./island-split.js";
+import { scanAppProviders } from "./scan-app-providers.js";
 
 /**
  * Resolves Rollup's multi-entry input mapping for Vite based on discovered hydration islands.
@@ -33,6 +34,15 @@ export function getHydrationRollupInputs(themeRoot) {
     const compPath = findComponentPath(themeRoot, island);
     if (compPath) {
       inputs[island] = compPath;
+    }
+  }
+
+  // Provider modules are not UI islands, but every island remounts in its
+  // own React root and must be wrapped with the same provider tree the
+  // layout declared (flying hearts, cart drawer open, auth, …).
+  for (const provider of scanAppProviders(themeRoot)) {
+    if (!inputs[provider.kebab] && existsSync(provider.file)) {
+      inputs[provider.kebab] = provider.file;
     }
   }
 

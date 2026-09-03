@@ -139,7 +139,7 @@ export function processMarkup(html, textDomain = 'theme', richTextKeys = null) {
             return `' . __('${cleanText}', '${textDomain}') . '`;
           }
         );
-        const phpPostId = (postId && postId.toLowerCase() === 'front') ? "get_option('page_on_front')" : (postId ? postId : 'null');
+        const phpPostId = (postId && postId.toLowerCase() === 'front') ? 'forgewp_resolve_front_page_id()' : (postId ? postId : 'null');
         return `<?php forgewp_render_theme_icon(forgewp_get_meta_value('${key}', '${cleanDecoded}', false, ${phpPostId}), '${className}', '${provider}'); ?>`;
       }
 
@@ -181,7 +181,7 @@ export function processMarkup(html, textDomain = 'theme', richTextKeys = null) {
       );
       const isRichText = (richTextKeys instanceof Set ? richTextKeys.has(key) : false) ||
         decoded.includes('<p>') || decoded.includes('</p>') || decoded.includes('<br');
-      const phpPostId = (postId && postId.toLowerCase() === 'front') ? "get_option('page_on_front')" : (postId ? postId : 'null');
+      const phpPostId = (postId && postId.toLowerCase() === 'front') ? 'forgewp_resolve_front_page_id()' : (postId ? postId : 'null');
       return `<?php echo forgewp_get_meta_value( '${key}', '${cleanDecoded}', ${isRichText ? 'true' : 'false'}, ${phpPostId} ); ?>`;
     }
   );
@@ -424,29 +424,103 @@ ${phpArgs}
 
       const id = getAttr('id');
       const field = getAttr('field');
+      const src = getAttr('src');
       const size = getAttr('size') || 'full';
-      const className = getAttr('class-name');
+      const className = getAttr('class-name') || getAttr('class');
       const alt = getAttr('alt');
+      const width = getAttr('width');
+      const height = getAttr('height');
+      const priority = getAttr('priority') === 'true';
+      const loading = getAttr('loading') || (priority ? 'eager' : 'lazy');
+      const decoding = getAttr('decoding') || 'async';
+      const sizes = getAttr('sizes');
 
-      if (id) {
-        return `<?php echo wp_get_attachment_image( ${id}, '${size}', false, array( 'class' => '${className}', 'alt' => '${alt}' ) ); ?>`;
-      } else if (field === 'featuredImage') {
-        return `<?php echo wp_get_attachment_image( get_post_thumbnail_id( get_the_ID() ), '${size}', false, array( 'class' => '${className}', 'alt' => '${alt}' ) ); ?>`;
+      // Build PHP attribute array for wp_get_attachment_image
+      const phpAttrs = [];
+      if (className) phpAttrs.push(`'class' => '${className.replace(/'/g, "\\'")}'`);
+      if (alt) phpAttrs.push(`'alt' => '${alt.replace(/'/g, "\\'")}'`);
+      if (sizes) phpAttrs.push(`'sizes' => '${sizes.replace(/'/g, "\\'")}'`);
+      if (priority) {
+        phpAttrs.push(`'fetchpriority' => 'high'`);
+        phpAttrs.push(`'loading' => 'eager'`);
+      } else {
+        if (loading) phpAttrs.push(`'loading' => '${loading}'`);
+        if (decoding) phpAttrs.push(`'decoding' => '${decoding}'`);
+      }
+      const phpAttrStr = `array( ${phpAttrs.join(', ')} )`;
+
+      // Build standard HTML attributes for <img> tags
+      const htmlAttrs = [];
+      if (className) htmlAttrs.push(`class="${className}"`);
+      if (alt) htmlAttrs.push(`alt="${alt}"`);
+      if (width) htmlAttrs.push(`width="${width}"`);
+      if (height) htmlAttrs.push(`height="${height}"`);
+      if (priority) {
+        htmlAttrs.push(`fetchpriority="high"`);
+        htmlAttrs.push(`loading="eager"`);
+      } else {
+        if (loading) htmlAttrs.push(`loading="${loading}"`);
+        if (decoding) htmlAttrs.push(`decoding="${decoding}"`);
+      }
+      if (sizes) htmlAttrs.push(`sizes="${sizes}"`);
+      const extraHtmlStr = htmlAttrs.length > 0 ? ' ' + htmlAttrs.join(' ') : '';
+      const isNumericSrc = id || (/^\d+$/.test(src) ? src : null);
+      const isFeaturedImg = field === 'featuredImage' || field === 'featured_image' || src === 'featuredImage' || src === 'featured_image';
+
+      if (isNumericSrc) {
+        return `<?php echo wp_get_attachment_image( ${isNumericSrc}, '${size}', false, ${phpAttrStr} ); ?>`;
+      } else if (isFeaturedImg) {
+        return `<?php echo wp_get_attachment_image( get_post_thumbnail_id( get_the_ID() ), '${size}', false, ${phpAttrStr} ); ?>`;
       } else if (field) {
         return `<?php
   $img_val = get_post_meta( get_the_ID(), '${field}', true );
   if ( is_numeric( $img_val ) ) {
-      echo wp_get_attachment_image( $img_val, '${size}', false, array( 'class' => '${className}', 'alt' => '${alt}' ) );
+      echo wp_get_attachment_image( $img_val, '${size}', false, ${phpAttrStr} );
   } elseif ( ! empty( $img_val ) ) {
-      echo '<img src="' . esc_url( $img_val ) . '" class="' . esc_attr( '${className}' ) . '" alt="' . esc_attr( '${alt}' ) . '" />';
+      echo '<img src="' . esc_url( $img_val ) . '"' . esc_attr( '${extraHtmlStr}' ) . ' />';
   }
   ?>`;
+      } else if (src) {
+        if (/^https?:\/\//i.test(src) || /^\/\//.test(src)) {
+          return `<img src="${src}"${extraHtmlStr} />`;
+        }
+        // Local theme asset path
+        const cleanPath = src.replace(/^(\/|\.\/|@\/)+/, '');
+        return `<img src="<?php echo esc_url( get_theme_file_uri( '${cleanPath}' ) ); ?>"${extraHtmlStr} />`;
       } else {
-        return `<img class="${className}" alt="${alt}" src="<?php echo esc_url( get_theme_file_uri( 'assets/image-placeholder.png' ) ); ?>" />`;
+        return `<img src="<?php echo esc_url( get_theme_file_uri( 'assets/image-placeholder.png' ) ); ?>"${extraHtmlStr} />`;
       }
     },
   );
   processed = processed.replace(/<\/forgewp-image>/g, '');
+
+  // ── Universal Media Assets (video, audio, source, img) ──
+  const MEDIA_EXTS = /\.(png|jpe?g|webp|svg|gif|mp4|webm|ogg|mp3|wav|woff2?|ttf|eot)$/i;
+  processed = processed.replace(
+    /<(video|audio|source|img)\b([^>]*)\/?>/gi,
+    (tagMatch, tagName, attrsStr) => {
+      let updatedAttrs = attrsStr.replace(
+        /\b(src|poster)=(?:"([^"]*)"|'([^']*)')/gi,
+        (attrMatch, attrName, doubleVal, singleVal) => {
+          const val = doubleVal !== undefined ? doubleVal : singleVal;
+          if (
+            !val ||
+            /^https?:\/\//i.test(val) ||
+            /^\/\//.test(val) ||
+            /^data:/i.test(val) ||
+            /^blob:/i.test(val) ||
+            /<\?php/i.test(val) ||
+            !MEDIA_EXTS.test(val.split('?')[0])
+          ) {
+            return attrMatch;
+          }
+          const cleanPath = val.replace(/^(\/|\.\/|@\/)+/, '');
+          return `${attrName}="<?php echo esc_url( get_theme_file_uri( '${cleanPath}' ) ); ?>"`;
+        }
+      );
+      return `<${tagName}${updatedAttrs}>`;
+    }
+  );
 
   // ── Declarative WpRepeater Loops ──
   processed = processed.replace(

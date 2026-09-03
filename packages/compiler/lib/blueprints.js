@@ -8,10 +8,6 @@ const readTemplate = (name) => fs.readFileSync(path.join(__dirname, '..', 'templ
 const baseBlueprints = {
   'cms/menus.json': readTemplate('menus.json'),
   'cms/mock-data.json': readTemplate('mock-data.json'),
-  'src/.forgewp/forgewp-config.ts': readTemplate('forgewp-config.ts'),
-  'src/.forgewp/wordpress.tsx': readTemplate('wordpress.tsx'),
-  'src/.forgewp/SEO.tsx': readTemplate('SEO.tsx'),
-  'src/.forgewp/PresetsStyle.tsx': readTemplate('PresetsStyle.tsx'),
 };
 
 function checkHasWooCommerce(projectRoot) {
@@ -48,99 +44,43 @@ function checkHasAuth(projectRoot) {
   return false;
 }
 
+export function getSystemBlueprints(projectRoot = process.cwd()) {
+  const hasWooCommerce = checkHasWooCommerce(projectRoot);
+  const hasAuth = checkHasAuth(projectRoot);
+
+  const blueprints = { ...baseBlueprints };
+  if (hasWooCommerce) {
+    blueprints['cms/products.json'] = readTemplate('products.json');
+  }
+  if (hasAuth) {
+    blueprints['cms/users.json'] = readTemplate('users.json');
+    blueprints['cms/roles.json'] = readTemplate('roles.json');
+    blueprints['cms/sessions.json'] = readTemplate('sessions.json');
+  }
+
+  return blueprints;
+}
+
 export const SYSTEM_BLUEPRINTS = new Proxy(baseBlueprints, {
-  ownKeys(target) {
-    const keys = Reflect.ownKeys(target);
-    const extraKeys = [];
-    if (checkHasWooCommerce(process.cwd())) {
-      extraKeys.push('cms/products.json');
-    }
-    if (checkHasAuth(process.cwd())) {
-      extraKeys.push('cms/users.json', 'cms/roles.json', 'cms/sessions.json');
-    }
-    return [...keys, ...extraKeys];
+  ownKeys() {
+    return Reflect.ownKeys(getSystemBlueprints(process.cwd()));
   },
   getOwnPropertyDescriptor(target, prop) {
-    if (prop === 'cms/products.json') {
-      if (checkHasWooCommerce(process.cwd())) {
-        return {
-          enumerable: true,
-          configurable: true,
-          writable: true,
-          value: readTemplate('products.json')
-        };
-      }
-      return undefined;
+    const bps = getSystemBlueprints(process.cwd());
+    if (prop in bps) {
+      return {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: bps[prop]
+      };
     }
-    if (prop === 'cms/users.json' || prop === 'cms/roles.json' || prop === 'cms/sessions.json') {
-      if (checkHasAuth(process.cwd())) {
-        const templateName = prop.split('/').pop();
-        return {
-          enumerable: true,
-          configurable: true,
-          writable: true,
-          value: readTemplate(templateName)
-        };
-      }
-      return undefined;
-    }
-    return Reflect.getOwnPropertyDescriptor(target, prop);
+    return undefined;
   },
   get(target, prop) {
-    const projectRoot = process.cwd();
-    const hasWooCommerce = checkHasWooCommerce(projectRoot);
-    const hasAuth = checkHasAuth(projectRoot);
-
-    if (prop === 'cms/products.json') {
-      if (hasWooCommerce) {
-        return readTemplate('products.json');
-      }
-      return undefined;
-    }
-
-    if (prop === 'cms/users.json' || prop === 'cms/roles.json' || prop === 'cms/sessions.json') {
-      if (hasAuth) {
-        const templateName = prop.split('/').pop();
-        return readTemplate(templateName);
-      }
-      return undefined;
-    }
-
-    if (prop === 'src/.forgewp/wordpress.tsx') {
-      let content = target[prop];
-      let importsToAdd = "";
-      let windowMocksToAdd = "";
-
-      if (hasWooCommerce) {
-        importsToAdd += "\n// @ts-ignore\nimport productsData from '../../cms/products.json';";
-        content = content.replace(
-          "(window as any)._forgeWpMockPosts = mockData;",
-          "(window as any)._forgeWpMockPosts = {\n      ...mockData,\n      ...productsData,\n    };"
-        );
-        content += `\n\n// ── WooCommerce Modular Extensions ───────────────────────────────────────────\nexport * from '@forgewp/woocommerce';\n`;
-      }
-
-      if (hasAuth) {
-        importsToAdd += "\n// @ts-ignore\nimport usersData from '../../cms/users.json';\n// @ts-ignore\nimport rolesData from '../../cms/roles.json';\n// @ts-ignore\nimport sessionsData from '../../cms/sessions.json';";
-        windowMocksToAdd += "\n    (window as any)._forgeWpMockUsers = usersData;\n    (window as any)._forgeWpMockRoles = rolesData;\n    (window as any)._forgeWpMockSessions = sessionsData;";
-        content += `\n\n// ── Auth Modular Extensions ───────────────────────────────────────────\nexport * from '@forgewp/auth';\n`;
-      }
-
-      if (importsToAdd) {
-        content = content.replace(
-          "import translationsData from '../../cms/translations.json';",
-          "import translationsData from '../../cms/translations.json';" + importsToAdd
-        );
-      }
-
-      if (windowMocksToAdd) {
-        content = content.replace(
-          "(window as any)._forgeWpMockMenus = menusData;",
-          "(window as any)._forgeWpMockMenus = menusData;" + windowMocksToAdd
-        );
-      }
-
-      return content;
+    const bps = getSystemBlueprints(process.cwd());
+    if (typeof prop === 'string' && prop in bps) {
+      return bps[prop];
     }
     return target[prop];
   }

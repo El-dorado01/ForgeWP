@@ -790,6 +790,28 @@ export function translateJsExpressionToPhp(jsExpr, blockAttrKeys = [], localVars
       }
       return `($attributes['${match}'] ?? null)`;
     }
+    // "XProp" is the dual-host naming convention for a function parameter
+    // destructured from a block's own attribute of the same name (e.g.
+    // `{ title: titleProp }`, fed in via `<HeroSection {...props.attributes} />`
+    // in the compiled editor). `titleProp` itself never appears in
+    // blockAttrKeys (only `title` does), so without this it fell through to
+    // the generic bare-identifier case below — `($titleProp ?? null)`, a PHP
+    // variable that's never actually assigned anywhere, always null. That
+    // silently discarded every block's own attribute values (edited/saved
+    // in the block editor) on the frontend, permanently falling back to
+    // whichever *Meta (useWpMeta / page-template ACF) value the component
+    // also reads — confirmed live: block edits persisted correctly and
+    // showed in the editor, but never appeared for visitors.
+    if (match.endsWith('Prop') && match.length > 4 && !localVars.has(match)) {
+      const attrKey = match.slice(0, -4);
+      if (blockAttrKeys.includes(attrKey)) {
+        const nextChar = str[offset + match.length];
+        if (nextChar === '.' || nextChar === '[') {
+          return `$attributes['${attrKey}']`;
+        }
+        return `($attributes['${attrKey}'] ?? null)`;
+      }
+    }
     // Loop vars already rewritten to $row['x'] may still leave bare identifiers in mixed expr —
     // only $prefix when clearly a simple JS identifier (not PHP keywords we missed)
     const nextChar = str[offset + match.length];

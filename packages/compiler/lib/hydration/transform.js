@@ -1,8 +1,35 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { ts, isComponentInteractive } from "./is-interactive.js";
+import { ts, isComponentInteractive, isExportInteractive } from "./is-interactive.js";
 import { resolveImportPath, doesComponentUseAuthHooks } from "./utils.js";
 import { getComponentRootClassName } from "./root-class-extractor.js";
+import { scanAppProviders, fileImportsProvider } from "./scan-app-providers.js";
+
+/**
+ * True when wrapping this JSX usage as a bare <Hydrate> island would drop
+ * children the client cannot JSON-serialize (elements, expressions, text).
+ * Those usages stay as layout containers; we recurse to find leaf islands.
+ */
+function hasNonSerializableChildren(node) {
+  if (!node.children || node.children.length === 0) return false;
+  return node.children.some((c) => {
+    if (ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c) || ts.isJsxFragment(c)) return true;
+    if (ts.isJsxExpression(c) && c.expression) return true;
+    if (ts.isJsxText(c) && c.getText().trim().length > 0) return true;
+    return false;
+  });
+}
+
+export const BUILTIN_OR_PRIMITIVE_TAGS = new Set([
+  "Hydrate",
+  "WpHead",
+  "WpAuthGate",
+  "WpCapabilityGate",
+  "WpAuthProvider",
+  "Link",
+  "Switch",
+  "Route",
+]);
 
 /**
  * Transforms theme page/component source code to automatically inject page protect hooks
@@ -11,11 +38,13 @@ import { getComponentRootClassName } from "./root-class-extractor.js";
 export function transformThemeFile(code, id, themeRoot) {
   const normalizedPath = id.replace(/\\/g, '/');
   
-  // 1. Process pageConfig hook injection if applicable
+  // 1. Process pageConfig hook injection if protected: true
   let transformedCode = code;
   let hasPageConfigTransform = false;
 
-  if (normalizedPath.includes('/src/app/pages/') && code.includes('export const pageConfig')) {
+  const hasProtectedConfig = /export\s+const\s+pageConfig\s*=\s*(?:definePageConfig\s*\(\s*)?\{[\s\S]*?protected\s*:\s*true/g.test(code);
+
+  if (normalizedPath.includes('/src/app/pages/') && hasProtectedConfig) {
     // Prepend hook import
     transformedCode = `import { useWpPageProtect as _useWpPageProtect } from '@forgewp/auth';\n` + transformedCode;
 
@@ -33,6 +62,8 @@ export function transformThemeFile(code, id, themeRoot) {
       }
     }
   }
+
+  const layoutProviders = themeRoot ? scanAppProviders(themeRoot) : [];
 
   // 2. Process automatic island detection and provider wrapping
   if (!ts || !normalizedPath.endsWith('.tsx') || normalizedPath.includes('node_modules')) {
@@ -80,55 +111,33 @@ export function transformThemeFile(code, id, themeRoot) {
     collectImports(sourceFile);
 
     const replacements = [];
+    function isWithinExistingReplacement(start, end) {
+      return replacements.some(r => start >= r.start && end <= r.end);
+    }
+
     function findJsxElements(node) {
-      if (node.kind === ts.SyntaxKind.JsxOpeningElement || node.kind === ts.SyntaxKind.JsxSelfClosingElement) {
-        const tagNameNode = node.tagName;
+      // 1. Full JSX element with children <Foo>...</Foo>
+      if (node.kind === ts.SyntaxKind.JsxElement) {
+        const opening = node.openingElement;
+        const tagNameNode = opening.tagName;
         if (tagNameNode.kind === ts.SyntaxKind.Identifier) {
           const tagName = tagNameNode.text;
-          
-          // Ignore standard HTML tags and built-in framework wrappers
           const firstChar = tagName.charAt(0);
           const isComponent = firstChar === firstChar.toUpperCase() && firstChar !== firstChar.toLowerCase();
-          const isBuiltin = ["Hydrate", "WpHead", "WpAuthGate", "WpCapabilityGate", "WpAuthProvider", "Link", "Switch", "Route"].includes(tagName);
+          const isBuiltin = BUILTIN_OR_PRIMITIVE_TAGS.has(tagName) || /Provider$/.test(tagName);
 
           if (isComponent && !isBuiltin && imports[tagName]) {
             const importPath = imports[tagName];
             if (importPath.startsWith('.') || importPath.startsWith('@/')) {
               const resolvedPath = resolveImportPath(path.dirname(id), importPath, themeRoot);
-              const interactive = resolvedPath ? isComponentInteractive(resolvedPath) : false;
+              const interactive = resolvedPath ? isExportInteractive(resolvedPath, tagName) : false;
               if (resolvedPath && interactive) {
-                // Prevent double wrapping: check if this component is already nested inside a <Hydrate> block
-                let parent = node.parent;
-                let isAlreadyWrapped = false;
-                while (parent) {
-                  if (parent.kind === ts.SyntaxKind.JsxElement) {
-                    const opening = parent.openingElement;
-                    if (opening && opening.tagName.kind === ts.SyntaxKind.Identifier && opening.tagName.text === "Hydrate") {
-                      isAlreadyWrapped = true;
-                      break;
-                    }
-                  }
-                  parent = parent.parent;
-                }
-
-                if (!isAlreadyWrapped) {
-                  // This is an interactive component! We need to wrap it.
-                  // Determine where the element ends (either self-closing or matching closing tag)
-                  let elementNode = node;
-                  if (node.kind === ts.SyntaxKind.JsxOpeningElement) {
-                    elementNode = node.parent; // JSXElement containing opening, children, and closing
-                  }
-                  
-                  const start = elementNode.getStart(sourceFile);
-                  const end = elementNode.getEnd();
-                  
+                const start = node.getStart(sourceFile);
+                const end = node.getEnd();
+                if (!isWithinExistingReplacement(start, end)) {
                   const rawElementText = transformedCode.substring(start, end);
                   const kebabName = tagName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
-
                   const needsAuth = doesComponentUseAuthHooks(resolvedPath);
-                  // Resolve the component's own root className so the generated <Hydrate>
-                  // wrapper inherits its layout classes instead of defaulting to a bare
-                  // display:block box that can silently break width/flex sizing.
                   const rootInfo = getComponentRootClassName(resolvedPath);
                   replacements.push({
                     start,
@@ -138,13 +147,58 @@ export function transformThemeFile(code, id, themeRoot) {
                     needsAuth,
                     rawText: rawElementText,
                     rootClassName: rootInfo.resolvable ? rootInfo.className : null,
+                    slotChildren: node.kind === ts.SyntaxKind.JsxElement,
+                    needsProviders: fileImportsProvider(resolvedPath, layoutProviders),
                   });
+                  return;
                 }
               }
             }
           }
         }
       }
+
+      // 2. Self-closing element <Foo />
+      if (node.kind === ts.SyntaxKind.JsxSelfClosingElement) {
+        const tagNameNode = node.tagName;
+        if (tagNameNode.kind === ts.SyntaxKind.Identifier) {
+          const tagName = tagNameNode.text;
+          const firstChar = tagName.charAt(0);
+          const isComponent = firstChar === firstChar.toUpperCase() && firstChar !== firstChar.toLowerCase();
+          const isBuiltin = BUILTIN_OR_PRIMITIVE_TAGS.has(tagName) || /Provider$/.test(tagName);
+
+          if (isComponent && !isBuiltin && imports[tagName]) {
+            const importPath = imports[tagName];
+            if (importPath.startsWith('.') || importPath.startsWith('@/')) {
+              const resolvedPath = resolveImportPath(path.dirname(id), importPath, themeRoot);
+              const interactive = resolvedPath ? isExportInteractive(resolvedPath, tagName) : false;
+              if (resolvedPath && interactive) {
+                const start = node.getStart(sourceFile);
+                const end = node.getEnd();
+                if (!isWithinExistingReplacement(start, end)) {
+                  const rawElementText = transformedCode.substring(start, end);
+                  const kebabName = tagName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+                  const needsAuth = doesComponentUseAuthHooks(resolvedPath);
+                  const rootInfo = getComponentRootClassName(resolvedPath);
+                  replacements.push({
+                    start,
+                    end,
+                    tagName,
+                    kebabName,
+                    needsAuth,
+                    rawText: rawElementText,
+                    rootClassName: rootInfo.resolvable ? rootInfo.className : null,
+                    slotChildren: node.kind === ts.SyntaxKind.JsxElement,
+                    needsProviders: fileImportsProvider(resolvedPath, layoutProviders),
+                  });
+                  return;
+                }
+              }
+            }
+          }
+        }
+      }
+
       ts.forEachChild(node, findJsxElements);
     }
     findJsxElements(sourceFile);
@@ -163,7 +217,9 @@ export function transformThemeFile(code, id, themeRoot) {
       const classAttr = rep.rootClassName
         ? ` className={${JSON.stringify(rep.rootClassName)}}`
         : "";
-      let wrapped = `<Hydrate id="${rep.kebabName}"${classAttr}>`;
+      const slotAttr = rep.slotChildren ? " slotChildren" : "";
+      const providersAttr = rep.needsProviders ? " needsProviders" : "";
+      let wrapped = `<Hydrate id="${rep.kebabName}"${classAttr}${slotAttr}${providersAttr}>`;
       needsHydrateImport = true;
       
       if (rep.needsAuth) {

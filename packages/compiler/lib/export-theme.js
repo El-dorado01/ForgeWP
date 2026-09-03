@@ -10,6 +10,13 @@ import { validateCriticalFiles } from './validate.js';
 import { validateExport } from './validate-export.js';
 import { scanAndGenerateBlocks } from './blocks/index.js';
 import { splitInteractiveIslands } from './hydration/island-split.js';
+import {
+  scanAssetGraph,
+  runAssetPipeline,
+  orchestrateFonts,
+  generateAssetManifest,
+  printAssetDiagnosticsReport,
+} from './assets/index.js';
 
 /**
  * @param {Object} options
@@ -94,6 +101,39 @@ export async function exportTheme(options) {
     assets,
     strict,
   });
+
+  // Optimize static assets with Sharp & generate responsive variants
+  report('assets', 'Optimizing static image assets with Sharp…');
+  const assetGraph = scanAssetGraph(themeRoot);
+  const assetResults = await runAssetPipeline(themeRoot, assetGraph, {
+    outDir,
+    quality: config.assets?.images?.quality || 80,
+  });
+  if (assetResults.processedCount > 0) {
+    report(
+      'assets-done',
+      `Optimized ${assetResults.processedCount} image(s) (${assetResults.totalVariants} responsive WebP variants generated, ${assetResults.cachedCount} cached)`,
+      'green',
+    );
+  }
+
+  // Web Font Orchestration (self-host WOFF2 with local @font-face)
+  const fontResults = await orchestrateFonts(themeRoot, config, assetGraph, { outDir });
+  if (fontResults.strategy === 'self-host' && fontResults.downloadedCount > 0) {
+    report(
+      'fonts-done',
+      `Self-hosted ${fontResults.downloadedCount} WOFF2 font file(s) in assets/fonts/ with local @font-face`,
+      'green',
+    );
+  }
+
+  // Asset Manifest & Performance Diagnostics CLI Report
+  const assetManifest = generateAssetManifest(themeRoot, assetGraph, {
+    outDir,
+    config,
+    fontRules: fontResults.enrichedRules || [],
+  });
+  printAssetDiagnosticsReport(assetManifest);
 
   // Optional export validation
   if (options.validate) {

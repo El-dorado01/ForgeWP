@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWpI18n, submitWpForm, WpFormFields } from '../.forgewp/wordpress';
+import { useWpI18n, submitWpForm, WpFormFields } from '@forgewp/react';
 import { Send } from 'lucide-react';
 
 const inputClassName =

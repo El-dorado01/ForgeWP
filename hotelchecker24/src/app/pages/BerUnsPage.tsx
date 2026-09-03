@@ -1,7 +1,7 @@
 import {
   WpHead,
   useWpI18n,
-} from '../../.forgewp/wordpress';
+} from '@forgewp/react';
 import { AboutHero } from '../../components/AboutHero';
 import { AboutStats } from '../../components/AboutStats';
 import { AboutMission } from '../../components/AboutMission';

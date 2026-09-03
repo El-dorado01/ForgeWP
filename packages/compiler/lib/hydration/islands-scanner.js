@@ -1,7 +1,20 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
-import { isComponentInteractive, readComponentSource } from "./is-interactive.js";
+import { isComponentInteractive, getInteractiveExportNames, readComponentSource } from "./is-interactive.js";
 import { getComponentRootClassName } from "./root-class-extractor.js";
+
+/** True when `content` contains a JSX opening/self-closing tag for `tagName`. */
+function sourceUsesJsxTag(content, tagName) {
+  if (!content || !tagName) return false;
+  return new RegExp(`<${tagName}(?=[\\s/>])`).test(content);
+}
+
+function toKebabName(exportName) {
+  return exportName
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .toLowerCase();
+}
 
 // scanForHydrationIslands/scanForHydrationIslandsWithProps both run from
 // several integration points within one `forgewp export` (vite.config.ts's
@@ -47,6 +60,9 @@ export function findComponentPath(themeRoot, kebabName) {
     `${kebabName}.ts`,
   ];
 
+  const cleanKebab = kebabName.replace(/[-_]/g, "").toLowerCase();
+  const fileExtRegex = /\.(tsx|ts|jsx|js)$/;
+
   let result = null;
 
   function searchRecursive(dir) {
@@ -61,6 +77,13 @@ export function findComponentPath(themeRoot, kebabName) {
           if (candidates.includes(item.name)) {
             result = fullPath;
             return;
+          }
+          if (fileExtRegex.test(item.name)) {
+            const base = item.name.replace(fileExtRegex, "").replace(/[-_]/g, "").toLowerCase();
+            if (base === cleanKebab) {
+              result = fullPath;
+              return;
+            }
           }
         }
       }
@@ -82,6 +105,41 @@ export function findComponentPath(themeRoot, kebabName) {
   if (result) return result;
 
   searchRecursive(blocksDir);
+  if (result) return result;
+
+  // Pass 2: Search for named exports if no matching filename was found
+  function searchNamedExports(dir) {
+    if (result || !existsSync(dir)) return;
+    try {
+      const items = readdirSync(dir, { withFileTypes: true });
+      for (const item of items) {
+        const fullPath = path.join(dir, item.name);
+        if (item.isDirectory()) {
+          searchNamedExports(fullPath);
+        } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+          try {
+            const content = readFileSync(fullPath, "utf8");
+            const hasExport =
+              content.includes(`export function ${pascalName}`) ||
+              content.includes(`export const ${pascalName}`) ||
+              new RegExp(`\\bexport\\s*\\{[^}]*\\b${pascalName}\\b`).test(content);
+            if (hasExport) {
+              result = fullPath;
+              return;
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  searchNamedExports(compDir);
+  if (result) return result;
+
+  searchNamedExports(appDir);
+  if (result) return result;
+
+  searchNamedExports(blocksDir);
   return result;
 }
 
@@ -161,9 +219,11 @@ export function scanForHydrationIslands(themeRoot) {
     }
   }
 
-  // 3. Smart Component Discovery: scan src/components/ for interactive/animated components
+  // 3. Smart Component Discovery: scan src/components/ for interactive exports
+  // (per-export, not per-file — a file that also exports a static helper must
+  // not force that helper into a client island).
   const compDir = path.join(themeRoot, "src", "components");
-  const interactiveComponents = new Set();
+  const interactiveExports = new Map(); // PascalCase export name -> file path
 
   function scanComponentsRecursive(dir) {
     if (!existsSync(dir)) return;
@@ -175,9 +235,8 @@ export function scanForHydrationIslands(themeRoot) {
           scanComponentsRecursive(fullPath);
         } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
           try {
-            if (isComponentInteractive(fullPath)) {
-              const compName = path.basename(item.name, path.extname(item.name));
-              interactiveComponents.add(compName);
+            for (const exportName of getInteractiveExportNames(fullPath)) {
+              interactiveExports.set(exportName, fullPath);
             }
           } catch {}
         }
@@ -195,18 +254,14 @@ export function scanForHydrationIslands(themeRoot) {
       // dev's original, unmodified content — is what actually determines
       // which components need their own hydration bundle.
       const content = readComponentSource(filePath);
-      for (const compName of interactiveComponents) {
-        const pascalName = compName
-          .split('-')
-          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-          .join('');
-        if (content.includes(`<${compName}`) || content.includes(`<${pascalName}`)) {
-          const kebabName = compName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+      for (const exportName of interactiveExports.keys()) {
+        if (sourceUsesJsxTag(content, exportName)) {
+          const kebabName = toKebabName(exportName);
           if (!islands.has(kebabName)) {
             islands.add(kebabName);
             if (reportSmartDiscovery(
               `component:${kebabName}`,
-              `\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected "${compName}" uses interactive hooks/animations. Auto-enforcing code-splitting chunk. Wrap it in <Hydrate> in page markup for dynamic browser activation!\x1b[0m`,
+              `\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected "${exportName}" uses interactive hooks/animations. Auto-enforcing code-splitting chunk. Wrap it in <Hydrate> in page markup for dynamic browser activation!\x1b[0m`,
             )) newDiscoveries++;
           }
         }
@@ -215,27 +270,32 @@ export function scanForHydrationIslands(themeRoot) {
   }
 
   // 4. Smart Page Hydration: if a page file itself is interactive, register it directly
-  const appDir = path.join(themeRoot, "src", "app");
-  if (existsSync(appDir)) {
-    try {
-      const items = readdirSync(appDir, { withFileTypes: true });
-      for (const item of items) {
-        if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
-          const fullPath = path.join(appDir, item.name);
-          if (isComponentInteractive(fullPath)) {
-            const compName = path.basename(item.name, path.extname(item.name));
-            const kebabName = compName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
-            if (!islands.has(kebabName)) {
-              islands.add(kebabName);
-              if (reportSmartDiscovery(
-                `page:${kebabName}`,
-                `\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected interactive page file "${compName}". Auto-enforcing page hydration island!\x1b[0m`,
-              )) newDiscoveries++;
+  const pageDirs = [
+    path.join(themeRoot, "src", "app"),
+    path.join(themeRoot, "src", "app", "pages"),
+  ];
+  for (const pDir of pageDirs) {
+    if (existsSync(pDir)) {
+      try {
+        const items = readdirSync(pDir, { withFileTypes: true });
+        for (const item of items) {
+          if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+            const fullPath = path.join(pDir, item.name);
+            if (isComponentInteractive(fullPath)) {
+              const compName = path.basename(item.name, path.extname(item.name));
+              const kebabName = compName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+              if (!islands.has(kebabName)) {
+                islands.add(kebabName);
+                if (reportSmartDiscovery(
+                  `page:${kebabName}`,
+                  `\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected interactive page file "${compName}". Auto-enforcing page hydration island!\x1b[0m`,
+                )) newDiscoveries++;
+              }
             }
           }
         }
-      }
-    } catch {}
+      } catch {}
+    }
   }
 
   if (newDiscoveries > 0 && !process.env.FORGEWP_VERBOSE) {
@@ -351,9 +411,9 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
     }
   }
 
-  // Smart Discovery matching
+  // Smart Discovery matching — per interactive *export*, not per file.
   const compDir = path.join(themeRoot, "src", "components");
-  const interactiveComponents = new Map(); // compName -> absolute file path
+  const interactiveExports = new Map(); // PascalCase export name -> absolute file path
 
   function scanComponentsRecursive(dir) {
     if (!existsSync(dir)) return;
@@ -365,9 +425,8 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
           scanComponentsRecursive(fullPath);
         } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
           try {
-            if (isComponentInteractive(fullPath)) {
-              const compName = path.basename(item.name, path.extname(item.name));
-              interactiveComponents.set(compName, fullPath);
+            for (const exportName of getInteractiveExportNames(fullPath)) {
+              interactiveExports.set(exportName, fullPath);
             }
           } catch {}
         }
@@ -386,13 +445,9 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
       // dev's original, unmodified content — is what actually determines
       // which components need their own hydration bundle.
       const content = readComponentSource(filePath);
-      for (const [compName, compFullPath] of interactiveComponents) {
-        const pascalName = compName
-          .split('-')
-          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-          .join('');
-        if (content.includes(`<${compName}`) || content.includes(`<${pascalName}`)) {
-          const kebabName = compName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+      for (const [exportName, compFullPath] of interactiveExports) {
+        if (sourceUsesJsxTag(content, exportName)) {
+          const kebabName = toKebabName(exportName);
           if (!namesFound.has(kebabName)) {
             namesFound.add(kebabName);
             // Resolve the *component's own* root className (not the referencing page's),
@@ -402,7 +457,7 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
             discovered.push({
               name: kebabName,
               file: relFile,
-              trigger: "visible",
+              trigger: "load",
               preload: "none",
               media: null,
               connection: "any",
@@ -418,40 +473,45 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
   }
 
   // Smart Page Hydration: if a page file itself is interactive, register it directly
-  const appDir2 = path.join(themeRoot, "src", "app");
-  if (existsSync(appDir2)) {
-    try {
-      const items = readdirSync(appDir2, { withFileTypes: true });
-      for (const item of items) {
-        if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
-          const fullPath = path.join(appDir2, item.name);
-          if (isComponentInteractive(fullPath)) {
-            const compName = path.basename(item.name, path.extname(item.name));
-            const kebabName = compName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
-            if (!namesFound.has(kebabName)) {
-              namesFound.add(kebabName);
-              const rootInfo = getComponentRootClassName(fullPath);
-              discovered.push({
-                name: kebabName,
-                file: path.relative(themeRoot, fullPath).replace(/\\/g, "/"),
-                trigger: "load", // Pages should default to load trigger for immediate responsiveness
-                preload: "none",
-                media: null,
-                connection: "any",
-                clientOnly: false,
-                smartDiscovered: true,
-                rootClassName: rootInfo.resolvable ? rootInfo.className : null,
-                rootClassNameUnresolved: rootInfo.reason === "dynamic-classname",
-              });
-              if (reportSmartDiscovery(
-                `page:${kebabName}`,
-                `\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected interactive page file "${compName}". Auto-enforcing page hydration island!\x1b[0m`,
-              )) newDiscoveries++;
+  const pageDirs2 = [
+    path.join(themeRoot, "src", "app"),
+    path.join(themeRoot, "src", "app", "pages"),
+  ];
+  for (const pDir of pageDirs2) {
+    if (existsSync(pDir)) {
+      try {
+        const items = readdirSync(pDir, { withFileTypes: true });
+        for (const item of items) {
+          if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+            const fullPath = path.join(pDir, item.name);
+            if (isComponentInteractive(fullPath)) {
+              const compName = path.basename(item.name, path.extname(item.name));
+              const kebabName = compName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+              if (!namesFound.has(kebabName)) {
+                namesFound.add(kebabName);
+                const rootInfo = getComponentRootClassName(fullPath);
+                discovered.push({
+                  name: kebabName,
+                  file: path.relative(themeRoot, fullPath).replace(/\\/g, "/"),
+                  trigger: "load", // Pages should default to load trigger for immediate responsiveness
+                  preload: "none",
+                  media: null,
+                  connection: "any",
+                  clientOnly: false,
+                  smartDiscovered: true,
+                  rootClassName: rootInfo.resolvable ? rootInfo.className : null,
+                  rootClassNameUnresolved: rootInfo.reason === "dynamic-classname",
+                });
+                if (reportSmartDiscovery(
+                  `page:${kebabName}`,
+                  `\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected interactive page file "${compName}". Auto-enforcing page hydration island!\x1b[0m`,
+                )) newDiscoveries++;
+              }
             }
           }
         }
-      }
-    } catch {}
+      } catch {}
+    }
   }
 
   if (newDiscoveries > 0 && !process.env.FORGEWP_VERBOSE) {

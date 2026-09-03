@@ -113,6 +113,13 @@ try {
   }
 
   fs.cpSync(EXPORT_OUTPUT, TARGET_THEME_PATH, { recursive: true });
+  const altWpThemesPath = WP_THEMES_PATH.includes('Local Sites\\ForgeWP')
+    ? WP_THEMES_PATH.replace('Local Sites\\ForgeWP', 'Local Sites\\forgewp')
+    : WP_THEMES_PATH.replace('Local Sites\\forgewp', 'Local Sites\\ForgeWP');
+  if (fs.existsSync(altWpThemesPath)) {
+    const altTargetPath = path.join(altWpThemesPath, themeSlug);
+    fs.cpSync(EXPORT_OUTPUT, altTargetPath, { recursive: true });
+  }
   console.log(`✅ Theme synced successfully`);
 
   // Step 5: Report summary

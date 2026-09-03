@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { buildThemeSetupPhp } from './theme-setup.js';
 import { buildRoutingPhp } from './routing.js';
@@ -6,6 +6,9 @@ import { buildHydrationEnqueuerPhp } from './hydration-enqueuer.js';
 import { buildRestEndpointsPhp } from './rest-endpoints.js';
 import { buildSettingsPagePhp } from './settings-page.js';
 import { buildFormsPhp } from './forms.js';
+import { buildSeedProductsPhp } from './seed-products.js';
+import { buildSeedMockDataPhp, loadMockData } from './seed-mock-data.js';
+import { scanAppProviders } from '../hydration/scan-app-providers.js';
 
 export function buildFunctionsPhp(
   config,
@@ -20,21 +23,27 @@ export function buildFunctionsPhp(
   queries = [],
   wpOptions = [],
 ) {
-  let hasAuth = false;
-  try {
-    const packageJsonPath = path.join(themeRoot, 'package.json');
-    if (existsSync(packageJsonPath)) {
-      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-      if (
-        (pkg.dependencies && pkg.dependencies['@forgewp/auth']) ||
-        (pkg.devDependencies && pkg.devDependencies['@forgewp/auth']) ||
-        (pkg.peerDependencies && pkg.peerDependencies['@forgewp/auth'])
-      ) {
-        hasAuth = true;
+  let hasAuth = Boolean(
+    config.auth ||
+    (config.features && config.features.auth)
+  );
+
+  const rootsToInspect = [themeRoot, process.cwd()].filter(Boolean);
+  for (const root of rootsToInspect) {
+    try {
+      const packageJsonPath = path.join(root, 'package.json');
+      if (existsSync(packageJsonPath)) {
+        const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+        if (
+          (pkg.dependencies && pkg.dependencies['@forgewp/auth']) ||
+          (pkg.devDependencies && pkg.devDependencies['@forgewp/auth']) ||
+          (pkg.peerDependencies && pkg.peerDependencies['@forgewp/auth'])
+        ) {
+          hasAuth = true;
+          break;
+        }
       }
-    }
-  } catch (e) {
-    console.error('[DEBUG-BUILD] error:', e);
+    } catch (e) {}
   }
 
   const defaultLoginField = config.auth?.loginField || 'usernameAndEmail';
@@ -205,9 +214,36 @@ add_filter('rank_math/json_ld', function($data, $jsonld) {
 
   let cptRegistration = '';
   try {
-    const mockDataPath = path.join(themeRoot, 'cms', 'mock-data.json');
-    if (existsSync(mockDataPath)) {
-      const mockData = JSON.parse(readFileSync(mockDataPath, 'utf8'));
+    const cmsDir = path.join(themeRoot, 'cms');
+    let mockData = { ...loadMockData(themeRoot) };
+    if (existsSync(cmsDir)) {
+      const skipJson = new Set([
+        'menus.json',
+        'users.json',
+        'roles.json',
+        'sessions.json',
+        'translations.json',
+        'mock-data.json',
+      ]);
+      const jsonFiles = readdirSync(cmsDir).filter(
+        (f) => f.endsWith('.json') && !skipJson.has(f),
+      );
+      for (const f of jsonFiles) {
+        try {
+          const fileContent = JSON.parse(readFileSync(path.join(cmsDir, f), 'utf8'));
+          if (fileContent && typeof fileContent === 'object' && !Array.isArray(fileContent)) {
+            mockData = { ...mockData, ...fileContent };
+          }
+        } catch {}
+      }
+    }
+    if (config.postTypes && typeof config.postTypes === 'object') {
+      for (const pt of Object.keys(config.postTypes)) {
+        if (!mockData[pt]) mockData[pt] = [];
+      }
+    }
+
+    if (Object.keys(mockData).length > 0) {
       postTypes = Object.keys(mockData).filter(
         (k) =>
           k !== 'posts' &&
@@ -226,7 +262,7 @@ add_filter('rank_math/json_ld', function($data, $jsonld) {
         for (const pt of postTypes) {
           if (pt.length > 20) {
             throw new Error(
-              `Custom Post Type "${pt}" inferred from mock-data.json exceeds the WordPress limit of 20 characters. Please shorten the key.`
+              `Custom Post Type "${pt}" inferred from local mock data exceeds the WordPress limit of 20 characters. Please shorten the key.`
             );
           }
           postTypeTaxonomies[pt] = new Set();
@@ -250,6 +286,47 @@ add_filter('rank_math/json_ld', function($data, $jsonld) {
 
         registeredTaxonomies = Array.from(taxonomiesSet);
 
+        function formatSingularLabel(slug) {
+          if (!slug) return '';
+          const words = slug
+            .replace(/([a-z])([A-Z])/g, '$1 $2')
+            .split(/[_\-\s]+/)
+            .filter(Boolean);
+
+          const formatted = words.map((w) => {
+            const lower = w.toLowerCase();
+            if (lower === 'cat' || lower === 'cats') return 'Category';
+            if (lower === 'tag' || lower === 'tags') return 'Tag';
+            return w.charAt(0).toUpperCase() + w.slice(1);
+          });
+
+          return formatted.join(' ');
+        }
+
+        function pluralizeLabel(singularStr) {
+          if (!singularStr) return '';
+          const words = singularStr.trim().split(/\s+/);
+          const lastWord = words[words.length - 1];
+          const lastLower = lastWord.toLowerCase();
+
+          let pluralLast = lastWord;
+
+          if (lastLower.endsWith('y') && !/[aeiou]y$/i.test(lastLower)) {
+            pluralLast = lastWord.slice(0, -1) + (lastWord.charAt(lastWord.length - 1) === 'Y' ? 'IES' : 'ies');
+          } else if (/(?:s|x|z|ch|sh|ss)$/i.test(lastLower)) {
+            pluralLast = lastWord + (lastWord.charAt(lastWord.length - 1) === lastWord.charAt(lastWord.length - 1).toUpperCase() && lastWord.length > 1 ? 'ES' : 'es');
+          } else if (/(?:fe)$/i.test(lastLower)) {
+            pluralLast = lastWord.slice(0, -2) + 'ves';
+          } else if (/(?:[^f]f)$/i.test(lastLower)) {
+            pluralLast = lastWord.slice(0, -1) + 'ves';
+          } else if (!lastLower.endsWith('s')) {
+            pluralLast = lastWord + 's';
+          }
+
+          words[words.length - 1] = pluralLast;
+          return words.join(' ');
+        }
+
         cptRegistration = `
 /**
  * Register dynamic Custom Post Types inferred from local mock data.
@@ -258,41 +335,39 @@ function forgewp_register_custom_post_types() {
 ${postTypes
   .map(
     (pt) => {
-      let singular = pt.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      let plural = singular + 's';
       const ptConfig = config.postTypes?.[pt];
-      if (ptConfig?.labels?.singular) {
-        singular = ptConfig.labels.singular;
-      }
-      if (ptConfig?.labels?.plural) {
-        plural = ptConfig.labels.plural;
-      }
+      const singular = ptConfig?.labels?.singular || formatSingularLabel(pt);
+      const plural = ptConfig?.labels?.plural || pluralizeLabel(singular);
+      const icon = ptConfig?.icon || 'dashicons-admin-post';
+
       const nativeTaxes = Array.from(postTypeNativeTaxonomies[pt] || []);
       const taxonomiesLine = nativeTaxes.length > 0 
         ? `\n        'taxonomies'  => array('${nativeTaxes.join("', '")}'),`
         : '';
       const nativeTaxesCalls = nativeTaxes.map(tax => `\n    register_taxonomy_for_object_type('${tax}', '${pt}');`).join('');
-      return `    register_post_type('${pt}', array(
-         'labels'      => array(
-             'name'               => __('${plural}', '${config.textDomain}'),
-             'singular_name'      => __('${singular}', '${config.textDomain}'),
-             'menu_name'          => __('${plural}', '${config.textDomain}'),
-             'name_admin_bar'     => __('${singular}', '${config.textDomain}'),
-             'add_new'            => __('Add New', '${config.textDomain}'),
-             'add_new_item'       => __('Add New ${singular}', '${config.textDomain}'),
-             'new_item'           => __('New ${singular}', '${config.textDomain}'),
-             'edit_item'          => __('Edit ${singular}', '${config.textDomain}'),
-             'view_item'          => __('View ${singular}', '${config.textDomain}'),
-             'all_items'          => __('All ${plural}', '${config.textDomain}'),
-             'search_items'       => __('Search ${plural}', '${config.textDomain}'),
-             'not_found'          => __('No ${plural} found.', '${config.textDomain}'),
-         ),
-         'public'      => true,
-         'has_archive' => true,
-         'show_in_rest'=> true,${taxonomiesLine}
-         'supports'    => array('title', 'editor', 'thumbnail', 'custom-fields', 'excerpt'),
-         'menu_icon'   => 'dashicons-admin-post',
-      ));${nativeTaxesCalls}`;
+      return `    if ( ! post_type_exists('${pt}') ) {
+        register_post_type('${pt}', array(
+            'labels'      => array(
+                'name'               => __('${plural}', '${config.textDomain}'),
+                'singular_name'      => __('${singular}', '${config.textDomain}'),
+                'menu_name'          => __('${plural}', '${config.textDomain}'),
+                'name_admin_bar'     => __('${singular}', '${config.textDomain}'),
+                'add_new'            => __('Add New', '${config.textDomain}'),
+                'add_new_item'       => __('Add New ${singular}', '${config.textDomain}'),
+                'new_item'           => __('New ${singular}', '${config.textDomain}'),
+                'edit_item'          => __('Edit ${singular}', '${config.textDomain}'),
+                'view_item'          => __('View ${singular}', '${config.textDomain}'),
+                'all_items'          => __('All ${plural}', '${config.textDomain}'),
+                'search_items'       => __('Search ${plural}', '${config.textDomain}'),
+                'not_found'          => __('No ${plural} found.', '${config.textDomain}'),
+            ),
+            'public'      => true,
+            'has_archive' => true,
+            'show_in_rest'=> true,${taxonomiesLine}
+            'supports'    => array('title', 'editor', 'thumbnail', 'custom-fields', 'excerpt'),
+            'menu_icon'   => '${icon}',
+        ));${nativeTaxesCalls}
+    }`;
     }
   )
   .join('\n')}
@@ -300,28 +375,33 @@ ${postTypes
 ${registeredTaxonomies
   .map((tax) => {
     const associatedPostTypes = postTypes.filter((pt) => postTypeTaxonomies[pt].has(tax));
-    const taxLabel = tax.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-    return `    register_taxonomy('${tax}', array('${associatedPostTypes.join("', '")}'), array(
-        'labels'            => array(
-            'name'              => '${taxLabel}s',
-            'singular_name'     => '${taxLabel}',
-            'search_items'      => 'Search ${taxLabel}s',
-            'all_items'         => 'All ${taxLabel}s',
-            'parent_item'       => 'Parent ${taxLabel}',
-            'parent_item_colon' => 'Parent ${taxLabel}:',
-            'edit_item'         => 'Edit ${taxLabel}',
-            'update_item'       => 'Update ${taxLabel}',
-            'add_new_item'      => 'Add New ${taxLabel}',
-            'new_item_name'     => 'New ${taxLabel} Name',
-            'menu_name'         => '${taxLabel}s',
-        ),
-        'hierarchical'      => true,
-        'public'            => true,
-        'show_ui'           => true,
-        'show_admin_column' => true,
-        'query_var'         => true,
-        'show_in_rest'      => true,
-    ));`;
+    const taxConfig = config.taxonomies?.[tax];
+    const singular = taxConfig?.labels?.singular || formatSingularLabel(tax);
+    const plural = taxConfig?.labels?.plural || pluralizeLabel(singular);
+    const hierarchical = taxConfig?.hierarchical !== undefined ? Boolean(taxConfig.hierarchical) : true;
+    return `    if ( ! taxonomy_exists('${tax}') ) {
+        register_taxonomy('${tax}', array('${associatedPostTypes.join("', '")}'), array(
+            'labels'            => array(
+                'name'              => '${plural}',
+                'singular_name'     => '${singular}',
+                'search_items'      => 'Search ${plural}',
+                'all_items'         => 'All ${plural}',
+                'parent_item'       => 'Parent ${singular}',
+                'parent_item_colon' => 'Parent ${singular}:',
+                'edit_item'         => 'Edit ${singular}',
+                'update_item'       => 'Update ${singular}',
+                'add_new_item'      => 'Add New ${singular}',
+                'new_item_name'     => 'New ${singular} Name',
+                'menu_name'         => '${plural}',
+            ),
+            'hierarchical'      => ${hierarchical ? 'true' : 'false'},
+            'public'            => true,
+            'show_ui'           => true,
+            'show_admin_column' => true,
+            'query_var'         => true,
+            'show_in_rest'      => true,
+        ));
+    }`;
   })
   .join('\n\n')}
 }
@@ -741,28 +821,62 @@ ${menuLocations.map((loc) => `        '${loc}' => __('${loc.charAt(0).toUpperCas
 
   const pagesPhpArray = pagesToAutoCreate
     .map((p) => {
-      return `        array(
-            'title'    => '${p.title.replace(/'/g, "\\'")}',
-            'slug'     => '${p.slug.replace(/'/g, "\\'")}',
-            'template' => '${p.template.replace(/'/g, "\\'")}',
-        )`;
+      const lines = [
+        `            'title'       => '${p.title.replace(/'/g, "\\'")}',`,
+        `            'slug'        => '${p.slug.replace(/'/g, "\\'")}',`,
+        `            'template'    => '${p.template.replace(/'/g, "\\'")}',`,
+      ];
+      if (p.description) {
+        lines.push(`            'description' => '${p.description.replace(/'/g, "\\'")}',`);
+      }
+      return `        array(\n${lines.join('\n')}\n        )`;
     })
     .join(',\n');
+
+  function serializeMenuItemToPhp(item, indent = 16) {
+    const pad = ' '.repeat(indent);
+    const title = (item.title || '').replace(/'/g, "\\'");
+    const url = (item.url || '').replace(/'/g, "\\'");
+    const lines = [
+      `${pad}'title' => '${title}'`,
+      `${pad}'url'   => '${url}'`,
+    ];
+    if (item.target) {
+      lines.push(`${pad}'target' => '${String(item.target).replace(/'/g, "\\'")}'`);
+    }
+    if (item.description) {
+      lines.push(`${pad}'description' => '${String(item.description).replace(/'/g, "\\'")}'`);
+    }
+    if (item.attrTitle) {
+      lines.push(`${pad}'attrTitle' => '${String(item.attrTitle).replace(/'/g, "\\'")}'`);
+    }
+    if (item.classes && Array.isArray(item.classes) && item.classes.length > 0) {
+      const classStrs = item.classes.map((c) => `'${String(c).replace(/'/g, "\\'")}'`).join(', ');
+      lines.push(`${pad}'classes' => array(${classStrs})`);
+    }
+    if (item.badge) {
+      lines.push(`${pad}'badge' => '${String(item.badge).replace(/'/g, "\\'")}'`);
+    }
+    if (item.image) {
+      lines.push(`${pad}'image' => '${String(item.image).replace(/'/g, "\\'")}'`);
+    }
+    if (item.icon) {
+      lines.push(`${pad}'icon' => '${String(item.icon).replace(/'/g, "\\'")}'`);
+    }
+    if (item.children && Array.isArray(item.children) && item.children.length > 0) {
+      const childrenPhp = item.children.map((c) => serializeMenuItemToPhp(c, indent + 4)).join(',\n');
+      lines.push(`${pad}'children' => array(\n${childrenPhp}\n${pad})`);
+    }
+    return `${' '.repeat(indent - 4)}array(\n${lines.join(',\n')}\n${' '.repeat(indent - 4)})`;
+  }
 
   const menuItemsPhpArray = Object.entries(menus)
     .filter(([loc]) => !loc.startsWith('_'))
     .map(([loc, items]) => {
-      const itemsPhp = items
-        .map((item) => {
-          return `            array(
-                'title' => '${item.title.replace(/'/g, "\\'")}',
-                'url'   => '${item.url.replace(/'/g, "\\'")}',
-            )`;
-        })
+      const itemsPhp = (Array.isArray(items) ? items : [])
+        .map((item) => serializeMenuItemToPhp(item, 16))
         .join(',\n');
-      return `        '${loc}' => array(
-${itemsPhp}
-        )`;
+      return `        '${loc}' => array(\n${itemsPhp}\n        )`;
     })
     .join(',\n');
 
@@ -911,6 +1025,13 @@ ${fieldsPhpLines.join('\n')}
     mainJs = hydrationData.mainJsFile.replace(/^.*?[/\\]?assets[/\\]/, '');
   }
 
+  let providersPhp = '';
+  const layoutProviders = themeRoot ? scanAppProviders(themeRoot) : [];
+  if (layoutProviders.length > 0) {
+    const pKeys = layoutProviders.map((p) => `'${p.kebab}'`).join(', ');
+    providersPhp = `\n                'providers' => array(${pKeys}),`;
+  }
+
   const hydrationEnqueuerPhp = buildHydrationEnqueuerPhp(
     config,
     assets,
@@ -926,7 +1047,8 @@ ${fieldsPhpLines.join('\n')}
     i18nKeysPhp,
     headlessScript,
     currentUserHydrationField,
-    defaultLoginField
+    defaultLoginField,
+    providersPhp
   );
 
   const restEndpointsPhp = buildRestEndpointsPhp(
@@ -948,7 +1070,7 @@ ${fieldsPhpLines.join('\n')}
 
   const formsPhp = buildFormsPhp(config);
 
-  const _php = `<?php
+  let _php = `<?php
 /**
  * ${config.name} — generated by ForgeWP
  *
@@ -1139,6 +1261,41 @@ function forgewp_resolve_page_link($slug, $fallback = '') {
 }
 
 /**
+ * Resolves "the front page" for the CURRENT language — used anywhere a
+ * value needs to be read from the front page's own post meta while NOT
+ * necessarily viewing the front page itself (e.g. a front-page-sourced icon
+ * or meta value referenced from another template). get_option('page_on_front')
+ * alone is not reliable for this: it's a single, raw post ID, and whether
+ * Polylang transparently translates it per-request depends on how the
+ * site's per-language homepages were set up — this resolves it explicitly
+ * instead of assuming, the same way forgewp_resolve_route_page_id() does
+ * for named routes.
+ *
+ * If you're already IN a front-page request (is_front_page() is true), use
+ * get_queried_object_id() instead — that's WordPress's own resolution of
+ * what's actually being displayed right now, and doesn't need this at all.
+ */
+function forgewp_resolve_front_page_id() {
+    $anchor_id = (int) get_option('page_on_front');
+    if (!$anchor_id) {
+        return 0;
+    }
+
+    $target_id = $anchor_id;
+    if (function_exists('pll_get_post')) {
+        $current_lang = function_exists('pll_current_language') ? pll_current_language() : '';
+        if (!empty($current_lang)) {
+            $translated_id = pll_get_post($anchor_id, $current_lang);
+            if ($translated_id) {
+                $target_id = $translated_id;
+            }
+        }
+    }
+
+    return $target_id;
+}
+
+/**
  * PHP counterpart of src/lib/section-padding.ts's sectionPaddingY(). render.php
  * has no JS runtime to fall back on, so cross-file dual-host layout helpers like
  * this one need a first-class PHP twin rather than being silently neutralized.
@@ -1266,7 +1423,24 @@ function forgewp_get_menu_id_for_lang($location, $lang = '') {
     return null;
 }
 `;
+
   // Append auto-generated Theme Options admin settings page
   const settingsPagePhp = buildSettingsPagePhp(wpOptions, config);
-  return settingsPagePhp ? _php + settingsPagePhp : _php;
+  if (settingsPagePhp) {
+    _php += '\n\n' + settingsPagePhp;
+  }
+
+  // Append opt-in WooCommerce Products Data Seeder
+  const seedProductsPhp = buildSeedProductsPhp(config, themeRoot);
+  if (seedProductsPhp) {
+    _php += '\n\n' + seedProductsPhp;
+  }
+
+  // Append opt-in Mock Content (Posts/Pages/CPTs) Data Seeder
+  const seedMockDataPhp = buildSeedMockDataPhp(config, themeRoot);
+  if (seedMockDataPhp) {
+    _php += '\n\n' + seedMockDataPhp;
+  }
+
+  return _php;
 }

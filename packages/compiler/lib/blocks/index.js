@@ -1146,6 +1146,45 @@ $grid_class  = ${JSON.stringify(gridClass ? `forgewp-block-shell__grid ${gridCla
                     continue;
                   }
 
+                  // Dual-shape image/media fallback chain — the idiom used wherever
+                  // an "image" control attribute might be an object ({url, alt, id},
+                  // the shape the media picker actually saves) OR a plain string (a
+                  // baked default authored directly in block.json, e.g.
+                  // ContactHero/AboutHero's cardImage/image1/image2):
+                  //   const cardImage = (cardImageProp && (cardImageProp as any).url)
+                  //     || cardImageProp || cardImageMeta || '';
+                  // In JS, `(x as any).url` on a plain string just evaluates to
+                  // `undefined` — harmless. The naive PHP transpilation of `.url`
+                  // is unconditional array-index syntax (`$x['url']`), and PHP 8
+                  // throws a fatal TypeError indexing a string with a non-numeric
+                  // key ("Cannot access offset of type string on string") — turning
+                  // an untouched compile-time default into a site-breaking crash
+                  // the moment this block is actually inserted (WordPress applies
+                  // block.json's own default into $attributes even when nothing
+                  // was customized). Recognizing the idiom and guarding it with
+                  // is_array() preserves the same string-or-object either way.
+                  // Note: by the time this loop sees varValue, TypeScript `as`
+                  // casts have already been stripped upstream (stripAsCasts),
+                  // so `(cardImageProp as any).url` has already become plain
+                  // `(cardImageProp).url` here — the `as any` never survives
+                  // to this point, so the regex must not require it.
+                  const imageDualShapeMatch = varValue.match(
+                    /^\(\s*([A-Za-z_$][\w$]*)\s*&&\s*\(\s*\1\s*\)\.url\s*\)\s*\|\|\s*\1\s*\|\|\s*([A-Za-z_$][\w$]*)\s*\|\|\s*'([^']*)'$/,
+                  );
+                  if (imageDualShapeMatch && names.length === 1 && !reserved.includes(names[0])) {
+                    const propArg = imageDualShapeMatch[1];
+                    const metaArg = imageDualShapeMatch[2];
+                    const fallbackLiteral = imageDualShapeMatch[3];
+                    const attrKey = propArg.endsWith('Prop') ? propArg.slice(0, -4) : propArg;
+                    if (attrKeys.includes(attrKey)) {
+                      const attrRef = `($attributes[${phpStringLiteral(attrKey)}] ?? null)`;
+                      const metaRef = localVars.has(metaArg) ? `$${metaArg}` : `($attributes[${phpStringLiteral(metaArg)}] ?? null)`;
+                      localVars.add(names[0]);
+                      phpVarDefinitions += `$${names[0]} = (is_array(${attrRef}) ? (${attrRef}['url'] ?? '') : (${attrRef} ?? '')) ?: (${metaRef} ?: ${phpStringLiteral(fallbackLiteral)});\n`;
+                      continue;
+                    }
+                  }
+
                   // Array/repeater dual-host fallback chain — the idiom every
                   // repeater-backed section uses (AboutTeam's `members`, AboutValues'
                   // `rows`, AboutStats' `rows`, …):

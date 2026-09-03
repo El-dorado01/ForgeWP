@@ -1,0 +1,50 @@
+import { defineWpUsers } from '@forgewp/react';
+
+export const users = defineWpUsers([
+  {
+    "id": 1,
+    "username": "admin",
+    "email": "admin@forgewp.local",
+    "displayName": "Concrete Designer",
+    "roles": [
+      "administrator"
+    ],
+    "avatarUrl": "https://picsum.photos/seed/avatar1/150/150",
+    "emailVerified": true
+  },
+  {
+    "id": 2,
+    "username": "subscriber",
+    "email": "user@forgewp.local",
+    "displayName": "Sub Concrete",
+    "roles": [
+      "subscriber"
+    ],
+    "avatarUrl": "https://picsum.photos/seed/avatar2/150/150",
+    "emailVerified": true
+  },
+  {
+    "id": 3,
+    "username": "editor",
+    "email": "editor@forgewp.local",
+    "displayName": "Concrete Editor",
+    "roles": [
+      "editor"
+    ],
+    "avatarUrl": "https://picsum.photos/seed/avatar3/150/150",
+    "emailVerified": true
+  },
+  {
+    "id": 4,
+    "username": "customer",
+    "email": "customer@forgewp.local",
+    "displayName": "Concrete Customer",
+    "roles": [
+      "customer"
+    ],
+    "avatarUrl": "https://picsum.photos/seed/avatar4/150/150",
+    "emailVerified": true
+  }
+]);
+
+export default users;

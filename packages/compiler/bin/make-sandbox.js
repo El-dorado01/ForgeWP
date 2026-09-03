@@ -6,6 +6,7 @@ import pc from "picocolors";
 import { spawnSync } from "node:child_process";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
+import { addComponent } from "../lib/add-component.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -119,6 +120,13 @@ if (type === "ecommerce") {
 }
 
 function seedEcommerceData() {
+  const productsTsPath = path.join(wpDir, "products.ts");
+  if (existsSync(productsTsPath)) {
+    console.warn(pc.yellow(`\n⚠️  E-Commerce mock data already exists in cms/products.ts.`));
+    console.log(`   You can open the file directly to view or edit existing mock products.\n`);
+    return;
+  }
+
   const productsPath = path.join(wpDir, "products.json");
   let productsData = {
     "product": [],
@@ -364,9 +372,13 @@ if (type === "auth") {
   const usersPath = path.join(wpDir, "users.json");
   const rolesPath = path.join(wpDir, "roles.json");
   const sessionsPath = path.join(wpDir, "sessions.json");
+  const usersTsPath = path.join(wpDir, "users.ts");
+  const rolesTsPath = path.join(wpDir, "roles.ts");
+  const hasUsers = existsSync(usersPath) || existsSync(usersTsPath);
+  const hasRoles = existsSync(rolesPath) || existsSync(rolesTsPath);
 
-  // 1. Seed JSON files
-  if (!existsSync(usersPath) || !existsSync(rolesPath) || !existsSync(sessionsPath)) {
+  // 1. Seed JSON files (skip when the typed .ts source already exists)
+  if (!hasUsers || !hasRoles || !existsSync(sessionsPath)) {
     const seededUsers = [
       {
         "id": 1,
@@ -416,8 +428,8 @@ if (type === "auth") {
 
     const seededSessions = [];
 
-    if (!existsSync(usersPath)) writeFileSync(usersPath, JSON.stringify(seededUsers, null, 2), "utf8");
-    if (!existsSync(rolesPath)) writeFileSync(rolesPath, JSON.stringify(seededRoles, null, 2), "utf8");
+    if (!hasUsers) writeFileSync(usersPath, JSON.stringify(seededUsers, null, 2), "utf8");
+    if (!hasRoles) writeFileSync(rolesPath, JSON.stringify(seededRoles, null, 2), "utf8");
     if (!existsSync(sessionsPath)) writeFileSync(sessionsPath, JSON.stringify(seededSessions, null, 2), "utf8");
 
     console.log(pc.green(`  ✅ Seeded authentication mock data files in cms/`));
@@ -437,6 +449,45 @@ if (type === "auth") {
     writeFileSync(dest, readFileSync(src, 'utf8'), 'utf8');
     console.log(pc.green(`   ✅ Created file: ${path.relative(projectRoot, dest)}`));
   };
+
+  // 2. Provision UI primitives from canonical auth templates
+  const uiSrcDir = path.join(templatesDir, 'ui');
+  const uiDestDir = path.join(projectRoot, 'src', 'components', 'ui');
+  if (existsSync(uiSrcDir)) {
+    const uiFiles = ['button.tsx', 'card.tsx', 'field.tsx', 'input.tsx', 'label.tsx', 'separator.tsx'];
+    for (const uiFile of uiFiles) {
+      const srcFile = path.join(uiSrcDir, uiFile);
+      if (existsSync(srcFile)) {
+        copyIfNotExist(srcFile, path.join(uiDestDir, uiFile));
+      }
+    }
+  }
+
+  // Fallback: If any required UI component is missing, pull via shadcn add
+  let projectStyle = "shadcn";
+  try {
+    const wpConfigPath = path.join(projectRoot, "wp.config.ts");
+    if (existsSync(wpConfigPath)) {
+      const content = readFileSync(wpConfigPath, "utf8");
+      const styleMatch = content.match(/style:\s*['"](forgewp|shadcn)['"]/);
+      if (styleMatch && styleMatch[1]) {
+        projectStyle = styleMatch[1];
+      }
+    }
+  } catch (e) {}
+
+  const requiredUi = ["card", "input", "button", "field"];
+  for (const uiComp of requiredUi) {
+    const compFile = path.join(uiDestDir, `${uiComp}.tsx`);
+    if (!existsSync(compFile)) {
+      try {
+        console.log(pc.cyan(`  📦 Pulling required "${uiComp}" UI component via shadcn...`));
+        await addComponent(uiComp, { style: projectStyle });
+      } catch (err) {
+        console.warn(pc.yellow(`  ⚠  Could not auto-add "${uiComp}": ${err.message}`));
+      }
+    }
+  }
 
   const componentsSrcDir = path.join(templatesDir, 'components');
   const componentsDestDir = path.join(projectRoot, 'src', 'components');
@@ -463,7 +514,7 @@ if (type === "auth") {
   if (existsSync(layoutPath)) {
     let layoutContent = readFileSync(layoutPath, 'utf8');
     if (!layoutContent.includes('WpAuthProvider')) {
-      layoutContent = 'import { WpAuthProvider } from "../.forgewp/wordpress";\n' + layoutContent;
+      layoutContent = 'import { WpAuthProvider } from "@forgewp/auth";\n' + layoutContent;
       // Robustly wrap JSX children with WpAuthProvider
       layoutContent = layoutContent.replace(/(>\s*)\{\s*children\s*\}(\s*<)/, '$1<WpAuthProvider>{children}</WpAuthProvider>$2');
       writeFileSync(layoutPath, layoutContent, 'utf8');
@@ -476,14 +527,14 @@ if (type === "auth") {
   if (existsSync(routesPath)) {
     let routesContent = readFileSync(routesPath, 'utf8');
     if (!routesContent.includes('/forgot-password')) {
-      const importBlock = `import LoginPage from "./pages/LoginPage";\nimport SignUpPage from "./pages/SignUpPage";\nimport VerifyEmailPage from "./pages/VerifyEmailPage";\nimport ForgotPasswordPage from "./pages/ForgotPasswordPage";\nimport ResetPasswordPage from "./pages/ResetPasswordPage";\n`;
+      const importBlock = `import * as LoginPage from "./pages/LoginPage";\nimport * as SignUpPage from "./pages/SignUpPage";\nimport * as VerifyEmailPage from "./pages/VerifyEmailPage";\nimport * as ForgotPasswordPage from "./pages/ForgotPasswordPage";\nimport * as ResetPasswordPage from "./pages/ResetPasswordPage";\n`;
       routesContent = importBlock + routesContent;
 
-      const routesBlock = `      <Route path="/login" component={LoginPage} />\n      <Route path="/signup" component={SignUpPage} />\n      <Route path="/verify-email" component={VerifyEmailPage} />\n      <Route path="/forgot-password" component={ForgotPasswordPage} />\n      <Route path="/reset-password" component={ResetPasswordPage} />\n`;
+      const routesBlock = `      <Route path="/login" component={withLayout(LoginPage)} />\n      <Route path="/signup" component={withLayout(SignUpPage)} />\n      <Route path="/verify-email" component={withLayout(VerifyEmailPage)} />\n      <Route path="/forgot-password" component={withLayout(ForgotPasswordPage)} />\n      <Route path="/reset-password" component={withLayout(ResetPasswordPage)} />\n`;
       if (routesContent.includes('<Route path="/query-sandbox"')) {
         routesContent = routesContent.replace('<Route path="/query-sandbox"', routesBlock + '      <Route path="/query-sandbox"');
-      } else if (routesContent.includes('<Route path="/" component={HomePage} />')) {
-        routesContent = routesContent.replace('<Route path="/" component={HomePage} />', '<Route path="/" component={HomePage} />\n' + routesBlock);
+      } else if (routesContent.includes('<Route path="/" component={withLayout(HomePage)} />') || routesContent.includes('<Route path="/" component={HomePage} />')) {
+        routesContent = routesContent.replace(/<Route path="\/" component=\{.*?\} \/>/, (match) => `${match}\n${routesBlock}`);
       } else {
         routesContent = routesContent.replace(/<Switch>/i, `<Switch>\n${routesBlock}`);
       }

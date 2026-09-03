@@ -3,12 +3,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig, type PluginOption } from 'vite';
+import { defineConfig, type PluginOption, type UserConfig } from 'vite';
 import {
   loadConfig,
   loadFrameworkAdapter,
   validateCriticalFiles,
   forgewpPageConfigPlugin,
+  forgewpVirtualPlugin,
 } from '@forgewp/compiler';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -128,7 +129,7 @@ function forgewpValidationPlugin(): PluginOption {
   };
 }
 
-export default defineConfig(async () => {
+export default defineConfig(async (): Promise<UserConfig> => {
   const config = await loadConfig(__dirname);
   const adapterName = config.frameworkAdapter || 'react';
   const adapter = await loadFrameworkAdapter(adapterName);
@@ -152,6 +153,7 @@ export default defineConfig(async () => {
       forgewpPageConfigPlugin(),
       react(),
       tailwindcss(),
+      forgewpVirtualPlugin({ projectRoot: __dirname }),
       forgewpValidationPlugin(),
     ] as PluginOption[],
     resolve: {

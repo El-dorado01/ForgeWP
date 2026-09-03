@@ -1,4 +1,4 @@
-import { WpHead, WpRepeater, WpIcon } from "../.forgewp/wordpress";
+import { WpHead, WpRepeater, WpIcon } from "@forgewp/react";
 import { ChevronLeft } from "lucide-react";
 
 interface MockRepeaterRow {

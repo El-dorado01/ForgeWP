@@ -1,3 +1,4 @@
+import React from "react";
 import { useWpMenu } from "../hooks";
 import type { WpMenuItem, WpMenuLocation } from "../types";
 
@@ -11,10 +12,13 @@ export interface WpMenuProps {
   location?: WpMenuLocation;
   className?: string;
   linkClassName?: string;
+  submenuClassName?: string;
+  /** Custom render function per menu item (for mega menus / rich dropdowns) */
+  renderItem?: (item: WpMenuItem, index: number) => React.ReactNode;
 }
 
 /**
- * WpMenu — Renders a flat list of navigation links.
+ * WpMenu — Renders a navigation menu with optional hierarchical submenus.
  *
  * This component is framework-level infrastructure — it contains no
  * styling assumptions beyond className passthrough.
@@ -27,17 +31,49 @@ export function WpMenu({
   location = "primary",
   className = "",
   linkClassName = "",
+  submenuClassName = "",
+  renderItem,
 }: WpMenuProps) {
   const { items: dynamicItems } = useWpMenu(location);
   const items = manualItems || dynamicItems;
 
   return (
     <nav className={className}>
-      {items.map((item, idx) => (
-        <a key={idx} href={item.url} className={linkClassName}>
-          {item.title}
-        </a>
-      ))}
+      {items.map((item, idx) => {
+        if (renderItem) {
+          return <React.Fragment key={item.id ?? idx}>{renderItem(item, idx)}</React.Fragment>;
+        }
+
+        const hasChildren = item.children && item.children.length > 0;
+        return (
+          <div key={item.id ?? idx} className={item.classes?.join(" ") || undefined}>
+            <a
+              href={item.url}
+              className={linkClassName}
+              target={item.target || undefined}
+              rel={item.target === "_blank" ? "noopener noreferrer" : undefined}
+            >
+              {item.title}
+            </a>
+            {hasChildren && (
+              <div className={submenuClassName}>
+                {item.children!.map((child, cIdx) => (
+                  <a
+                    key={child.id ?? cIdx}
+                    href={child.url}
+                    className={linkClassName}
+                    target={child.target || undefined}
+                    rel={child.target === "_blank" ? "noopener noreferrer" : undefined}
+                  >
+                    {child.title}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </nav>
   );
 }
+

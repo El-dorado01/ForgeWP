@@ -1,4 +1,4 @@
-export { isComponentInteractive } from "./is-interactive.js";
+export { isComponentInteractive, isExportInteractive, getInteractiveExportNames } from "./is-interactive.js";
 export { getComponentRootClassName } from "./root-class-extractor.js";
 export { scanForHydrationIslands, scanForHydrationIslandsWithProps, findComponentPath } from "./islands-scanner.js";
 export { getHydrationRollupInputs } from "./rollup-inputs.js";
@@ -7,3 +7,6 @@ export { scanForFormSchemas } from "./form-schemas.js";
 export { runStaticLintChecks } from "./static-lint.js";
 export { resolveImportPath, doesComponentUseAuthHooks } from "./utils.js";
 export { transformThemeFile } from "./transform.js";
+export { resolveIslandComponent } from "./resolve-island-component.js";
+export { resolveIslandChunk } from "./resolve-island-chunk.js";
+export { scanAppProviders, fileImportsProvider } from "./scan-app-providers.js";

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWpQuery, useWpCustomField, useWpI18n, WpLink, decodeHtmlEntities } from '../.forgewp/wordpress';
+import { useWpQuery, useWpCustomField, useWpI18n, WpLink, decodeHtmlEntities } from '@forgewp/react';
 import { Award, Star, MapPin, ExternalLink } from 'lucide-react';
 
 interface ListicleRankedHotelsProps {

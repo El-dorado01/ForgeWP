@@ -1,4 +1,4 @@
-import { useContext, useCallback, ComponentType, useState, useRef, useEffect, createContext } from 'react';
+import { useContext, useCallback, useMemo, ComponentType, useState, useRef, useEffect, createContext } from 'react';
 import { WpPostContext } from './context';
 import type { WpPost, WpQueryArgs, WpQueryResults, WpMenuItem } from './types';
 
@@ -402,6 +402,29 @@ export function useWpThemeUri(): string {
   return '';
 }
 
+export function resolveWpAsset(path: string): string {
+  if (!path) return '';
+  if (
+    path.startsWith('http://') ||
+    path.startsWith('https://') ||
+    path.startsWith('//') ||
+    path.startsWith('data:') ||
+    path.startsWith('blob:')
+  ) {
+    return path;
+  }
+  if (typeof window !== 'undefined') {
+    const themeUri =
+      (window as any).forgeWpHydration?.themeUri ||
+      (window as any).forgeWpThemeUri ||
+      (window as any).forgewpData?.themeUri;
+    if (themeUri) {
+      return themeUri.replace(/\/+$/, '') + '/' + path.replace(/^(\/|\.\/)+/, '');
+    }
+  }
+  return path;
+}
+
 export function useWpPageLink(name: string, fallback: string): string {
   if (typeof window !== 'undefined') {
     const win = window as any;
@@ -412,17 +435,41 @@ export function useWpPageLink(name: string, fallback: string): string {
   return fallback;
 }
 
+function normalizeMenuUrl(url: string): string {
+  if (!url) return '';
+  if (typeof window !== 'undefined' && (url.startsWith('http://') || url.startsWith('https://'))) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.origin === window.location.origin) {
+        const cleanPath = (parsed.pathname || '/').replace(/\/+$/, '') || '/';
+        return cleanPath + parsed.search + parsed.hash;
+      }
+    } catch {}
+  }
+  if (url.startsWith('/') && url.length > 1) {
+    return url.replace(/\/+$/, '');
+  }
+  return url;
+}
+
+function normalizeMenuItems(items: WpMenuItem[]): WpMenuItem[] {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({
+    ...item,
+    url: normalizeMenuUrl(item.url),
+    children: item.children ? normalizeMenuItems(item.children) : undefined,
+  }));
+}
+
 export function useWpMenu(location: string = 'primary'): { items: WpMenuItem[]; loading: boolean } {
   if (typeof window === 'undefined') {
     return { items: [], loading: true };
   }
 
   const win = window as any;
-  const items = win.forgeWpHydration?.menus?.[location] ||
-    win._forgeWpMockMenus?.[location] || [
-      { title: 'Home', url: '/' },
-      { title: 'Blog', url: '/post' },
-    ];
+  const rawItems = win.forgeWpHydration?.menus?.[location] ||
+    win._forgeWpMockMenus?.[location] || [];
+  const items = useMemo(() => normalizeMenuItems(rawItems), [rawItems]);
 
   return { items, loading: false };
 }
@@ -1289,6 +1336,43 @@ export function useIsEditorPreview(): boolean {
   return isEditorPreview();
 }
 
+/**
+ * True when running in decoupled local React SPA dev mode (Vite dev server)
+ * where the storefront is decoupled from a live WordPress PHP backend.
+ */
+export function isDecoupled(): boolean {
+  if (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime) {
+    return false;
+  }
+  const isDev =
+    typeof import.meta !== 'undefined' &&
+    // @ts-ignore
+    import.meta.env?.DEV === true;
+
+  return isDev || (typeof window !== 'undefined' && !(window as any).forgeWpHydration);
+}
+
+/**
+ * React hook wrapper for {@link isDecoupled}.
+ */
+export function useIsDecoupled(): boolean {
+  return isDecoupled();
+}
+
+/**
+ * True when running in a live WordPress site (hydrating inside an exported WordPress theme).
+ */
+export function isWordPress(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).forgeWpHydration;
+}
+
+/**
+ * React hook wrapper for {@link isWordPress}.
+ */
+export function useIsWordPress(): boolean {
+  return isWordPress();
+}
+
 export const WpBlockContext = typeof window !== 'undefined'
   ? ((window as any)._forgeWpBlockContext || ((window as any)._forgeWpBlockContext = createContext<any>(null)))
   : createContext<any>(null);
@@ -1350,5 +1434,185 @@ export function useWpMeta<T>(key: string, defaultValue: T): T {
   }
   return defaultValue;
 }
+
+export function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  if (typeof window === 'undefined') {
+    return str
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'");
+  }
+  const txt = document.createElement('textarea');
+  txt.innerHTML = str;
+  return txt.value;
+}
+
+export function useWpPagePath(name: string, fallback: string): string {
+  const href = useWpPageLink(name, fallback);
+  return useMemo(() => {
+    try {
+      return new URL(href, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').pathname;
+    } catch (e) {
+      return href;
+    }
+  }, [href]);
+}
+
+export function useWpSearchParams(): URLSearchParams {
+  const [search, setSearch] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return window.location.search || '';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const update = () => setSearch(window.location.search || '');
+    window.addEventListener('popstate', update);
+    return () => window.removeEventListener('popstate', update);
+  }, []);
+
+  return useMemo(() => new URLSearchParams(search), [search]);
+}
+
+export function useWpLocation(): [string, (to: string, options?: { replace?: boolean }) => void] {
+  const [pathname, setPathname] = useState<string>(() => {
+    if (typeof window === 'undefined') return '/';
+    return window.location.pathname || '/';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const update = () => setPathname(window.location.pathname || '/');
+    window.addEventListener('popstate', update);
+    return () => window.removeEventListener('popstate', update);
+  }, []);
+
+  const navigate = useCallback((to: string, options?: { replace?: boolean }) => {
+    if (typeof window === 'undefined') return;
+    if (options?.replace) {
+      window.history.replaceState(null, '', to);
+    } else {
+      window.history.pushState(null, '', to);
+    }
+    setPathname(window.location.pathname || '/');
+  }, []);
+
+  return [pathname, navigate];
+}
+
+export function useWpSearch(): string {
+  const [search, setSearch] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return window.location.search || '';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const update = () => setSearch(window.location.search || '');
+    window.addEventListener('popstate', update);
+    return () => window.removeEventListener('popstate', update);
+  }, []);
+
+  return search;
+}
+
+export interface WpTerm {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  count: number;
+  meta: Record<string, any>;
+}
+
+export function useWpTaxonomyList(taxonomy: string, defaultValue = ''): string {
+  const post = useContext(WpPostContext);
+  const terms = (post as any)?._terms?.[taxonomy];
+  if (Array.isArray(terms) && terms.length > 0) {
+    return terms.map((t: any) => t.name).join(', ');
+  }
+  return defaultValue || `[taxonomy: ${taxonomy}]`;
+}
+
+export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolean; error: string | null } {
+  const terms = useMemo<WpTerm[]>(() => {
+    if (typeof window !== 'undefined' && (window as any)._forgeWpMockPosts) {
+      const raw = (window as any)._forgeWpMockPosts[`_taxonomy_${taxonomy}`] || [];
+      return raw.map((t: any) => ({
+        id: t.id ?? 0,
+        name: t.name ?? '',
+        slug: t.slug ?? '',
+        description: t.description ?? '',
+        count: t.count ?? 0,
+        meta: t.meta ?? {},
+      }));
+    }
+    return [];
+  }, [taxonomy]);
+
+  return { terms, loading: false, error: null };
+}
+
+export function useWpI18n() {
+  const getTranslatedText = useCallback((text: string) => {
+    if (typeof window === 'undefined') return text;
+    const currentLang = (window as any).forgeWpLocale || (window as any).forgeWpTranslations?.currentLanguage || 'de';
+    const dict = (window as any).forgeWpTranslations?.translations || (window as any)._forgeWpMockTranslations;
+
+    if (dict) {
+      if (dict[currentLang] && typeof dict[currentLang][text] !== 'undefined') {
+        return dict[currentLang][text];
+      }
+      if (typeof dict[text] !== 'undefined') {
+        return dict[text];
+      }
+    }
+    return text;
+  }, []);
+
+  return {
+    __: getTranslatedText,
+  };
+}
+
+export function useWpLanguage() {
+  const currentLanguage = typeof window !== 'undefined'
+    ? ((window as any).forgeWpLocale || (window as any).forgeWpTranslations?.currentLanguage || 'de')
+    : 'de';
+
+  const urls: Record<string, string> = typeof window !== 'undefined' && (window as any).forgeWpTranslations?.urls
+    ? (window as any).forgeWpTranslations.urls
+    : { de: '/', en: '/en/' };
+
+  const homeUrls: Record<string, string> = typeof window !== 'undefined' && (window as any).forgeWpTranslations?.homeUrls
+    ? (window as any).forgeWpTranslations.homeUrls
+    : { de: '/', en: '/en/' };
+
+  const homeUrl = homeUrls[currentLanguage] || '/';
+  const languages = useMemo(() => Object.keys(urls), [urls]);
+
+  const switchLanguage = useCallback((lang: string) => {
+    if (typeof window !== 'undefined') {
+      const search = window.location.search;
+      const base = urls[lang] || (lang === 'de' ? '/' : `/${lang}/`);
+      const separator = base.includes('?') ? '&' : '?';
+      window.location.href = search ? (base + separator + search.substring(1)) : base;
+    }
+  }, [urls]);
+
+  return {
+    currentLanguage,
+    languages,
+    urls,
+    homeUrls,
+    homeUrl,
+    switchLanguage,
+  };
+}
+
 
 

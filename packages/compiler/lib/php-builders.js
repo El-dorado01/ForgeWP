@@ -203,7 +203,11 @@ export function generateDynamicAcfFieldPhp(key, field, templateSlug = '') {
   return fallbackPhp;
 }
 
-export function buildHeaderPhp(config) {
+export function buildHeaderPhp(config, options = {}) {
+  const preloadHtml = Array.isArray(options.preloadTags) && options.preloadTags.length > 0
+    ? '  ' + options.preloadTags.join('\n  ') + '\n'
+    : '';
+
   return `<?php
 /**
  * Theme header
@@ -215,7 +219,7 @@ export function buildHeaderPhp(config) {
 <head>
   <meta charset="<?php bloginfo('charset'); ?>">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <?php
+${preloadHtml}  <?php
   // Yield metadata control to active SEO plugins to prevent duplication.
   // forgewp_seo_plugin_active() (functions.php) is the single source of
   // truth for this check — every place ForgeWP yields to a standard SEO
@@ -286,7 +290,17 @@ get_header();
 
 $forgewp_use_builder = false;
 if (is_front_page()) {
-    $front_id = (int) get_option('page_on_front');
+    // get_queried_object_id() — NOT get_option('page_on_front') — because
+    // that option is a single, raw post ID with no guarantee of being
+    // language-aware: on a Polylang multilingual site, the German and
+    // English homepages are separate posts, each with their own page
+    // template setting, and get_queried_object_id() is WordPress's own
+    // resolution of whichever one is actually being displayed for this
+    // request. Reading page_on_front directly here previously meant a
+    // template switched to "ForgeWP Builder" on one language's homepage
+    // was silently ignored while viewing any other language — it fell
+    // through to the static baked-in markup below instead.
+    $front_id = get_queried_object_id();
     if ($front_id > 0) {
         $tpl = get_page_template_slug($front_id);
         if ($tpl === 'template-forgewp-builder.php') {
@@ -485,6 +499,40 @@ if (file_exists($page_file)) {
     }
 }
 
+get_footer();
+`;
+}
+
+export function buildPlaceholderPagePhp(config = {}) {
+  const td = (config.textDomain || 'forgewp').replace(/'/g, "\\'");
+  return `<?php
+/**
+ * Template Name: Coming Next
+ * Description: Fallback for React routes that exist in local routing/menus but have no dedicated page file yet.
+ *
+ * @package ${td}
+ */
+
+get_header();
+
+$forgewp_page_desc = get_post_meta(get_the_ID(), '_forgewp_page_description', true);
+if (empty($forgewp_page_desc)) {
+    $forgewp_page_desc = get_the_content();
+}
+if (empty($forgewp_page_desc)) {
+    $forgewp_page_desc = __('This page is scaffolded and will be built in the next phase of the storefront.', '${td}');
+}
+?>
+<div class="container-wide py-20 md:py-28 text-center max-w-xl mx-auto">
+    <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-3"><?php esc_html_e('Coming next', '${td}'); ?></p>
+    <h1 class="font-heading text-3xl md:text-4xl font-medium tracking-tight"><?php echo esc_html(get_the_title()); ?></h1>
+    <p class="mt-4 text-muted-foreground leading-relaxed"><?php echo esc_html($forgewp_page_desc); ?></p>
+    <div class="mt-8 flex flex-wrap justify-center gap-3">
+        <a class="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium" href="<?php echo esc_url(home_url('/')); ?>"><?php esc_html_e('Home', '${td}'); ?></a>
+        <a class="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium" href="<?php echo esc_url(home_url('/shop')); ?>"><?php esc_html_e('Shop', '${td}'); ?></a>
+    </div>
+</div>
+<?php
 get_footer();
 `;
 }

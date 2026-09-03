@@ -21,24 +21,53 @@ ${pagesPhpArray}
     );
 
     foreach ($pages as $p) {
-        $existing_page = get_page_by_path($p['slug']);
+        $slug_path = trim($p['slug'], '/');
+        $parent_id = 0;
+        $post_name = $slug_path;
+        if (strpos($slug_path, '/') !== false) {
+            $parts = explode('/', $slug_path);
+            $post_name = array_pop($parts);
+            $parent_path = implode('/', $parts);
+            $parent_page = get_page_by_path($parent_path);
+            if ($parent_page) {
+                $parent_id = $parent_page->ID;
+            }
+        }
+
+        $existing_page = get_page_by_path($slug_path);
         $page_id = 0;
         if (!$existing_page) {
-            if (!$has_run) {
-                $page_id = wp_insert_post(array(
-                    'post_title'    => $p['title'],
-                    'post_name'     => $p['slug'],
-                    'post_status'   => 'publish',
-                    'post_type'     => 'page',
-                ));
-                if (!is_wp_error($page_id) && $page_id > 0) {
-                    update_post_meta($page_id, '_wp_page_template', $p['template']);
+            $page_args = array(
+                'post_title'    => $p['title'],
+                'post_name'     => $post_name,
+                'post_parent'   => $parent_id,
+                'post_status'   => 'publish',
+                'post_type'     => 'page',
+            );
+            if (!empty($p['description'])) {
+                $page_args['post_content'] = $p['description'];
+            }
+            $page_id = wp_insert_post($page_args);
+            if (!is_wp_error($page_id) && $page_id > 0) {
+                update_post_meta($page_id, '_wp_page_template', $p['template']);
+                if (!empty($p['description'])) {
+                    update_post_meta($page_id, '_forgewp_page_description', $p['description']);
                 }
             }
         } else {
             $page_id = $existing_page->ID;
-            if (!$has_run) {
+            $current_tpl = get_post_meta($page_id, '_wp_page_template', true);
+            if ($current_tpl === 'page-placeholder.php' || empty($current_tpl) || (!$has_run && $current_tpl !== $p['template'])) {
                 update_post_meta($page_id, '_wp_page_template', $p['template']);
+            }
+            if (!empty($p['title']) && ($existing_page->post_title !== $p['title'] && ($current_tpl === 'page-placeholder.php' || !$has_run))) {
+                wp_update_post(array(
+                    'ID'         => $page_id,
+                    'post_title' => $p['title'],
+                ));
+            }
+            if (!empty($p['description'])) {
+                update_post_meta($page_id, '_forgewp_page_description', $p['description']);
             }
         }
 
@@ -130,61 +159,115 @@ ${pagesPhpArray}
         }
     }
 
-    if (!$has_run) {
-        $menu_structure = array(
+    $menu_structure = array(
 ${menuItemsPhpArray}
-        );
+    );
 
-        foreach ($menu_structure as $location => $items) {
-            $menu_name = ucfirst($location) . ' Navigation';
-            $menu_exists = wp_get_nav_menu_object($menu_name);
-            
-            if (!$menu_exists) {
-                $menu_id = wp_create_nav_menu($menu_name);
-                if (!is_wp_error($menu_id)) {
-                    $locations = get_theme_mod('nav_menu_locations');
-                    if (!is_array($locations)) {
-                        $locations = array();
-                    }
-                    $locations[$location] = $menu_id;
-                    set_theme_mod('nav_menu_locations', $locations);
-                    
-                    foreach ($items as $item) {
-                        $item_title = $item['title'];
-                        $item_url = $item['url'];
-                        
-                        $object_id = 0;
-                        $object_type = 'custom';
-                        $target_url = $item_url;
-                        
-                        if (strpos($item_url, '/') === 0) {
-                            $slug = trim($item_url, '/');
-                            if ($slug === '') {
-                                $target_url = home_url('/');
-                            } else {
-                                $page = get_page_by_path($slug);
-                                if ($page) {
-                                    $object_id = $page->ID;
-                                    $object_type = 'page';
-                                    $target_url = get_permalink($page->ID);
-                                } else {
-                                    $target_url = home_url($item_url);
-                                }
-                            }
+    if (!function_exists('forgewp_seed_menu_items')) {
+        function forgewp_seed_menu_items($menu_id, $items, $parent_id = 0): void {
+            if (!is_array($items)) return;
+            foreach ($items as $item) {
+                $item_title = $item['title'] ?? '';
+                $item_url = $item['url'] ?? '';
+                
+                $object_id = 0;
+                $object_type = 'custom';
+                $target_url = $item_url;
+                
+                if (strpos($item_url, '/') === 0) {
+                    $slug = trim($item_url, '/');
+                    if ($slug === '') {
+                        $target_url = home_url('/');
+                    } else {
+                        $page = get_page_by_path($slug);
+                        if ($page) {
+                            $object_id = $page->ID;
+                            $object_type = 'page';
+                            $target_url = get_permalink($page->ID);
+                        } else {
+                            $target_url = home_url($item_url);
                         }
-                        
-                        wp_update_nav_menu_item($menu_id, 0, array(
-                            'menu-item-title'     => $item_title,
-                            'menu-item-url'       => $target_url,
-                            'menu-item-object-id' => $object_id,
-                            'menu-item-object'    => $object_type === 'page' ? 'page' : '',
-                            'menu-item-type'      => $object_type === 'page' ? 'post_type' : 'custom',
-                            'menu-item-status'    => 'publish',
-                        ));
+                    }
+                }
+                
+                $menu_item_args = array(
+                    'menu-item-title'     => $item_title,
+                    'menu-item-url'       => $target_url,
+                    'menu-item-object-id' => $object_id,
+                    'menu-item-object'    => $object_type === 'page' ? 'page' : '',
+                    'menu-item-type'      => $object_type === 'page' ? 'post_type' : 'custom',
+                    'menu-item-status'    => 'publish',
+                    'menu-item-parent-id' => (int)$parent_id,
+                );
+                if (!empty($item['classes'])) {
+                    $menu_item_args['menu-item-classes'] = is_array($item['classes']) ? implode(' ', $item['classes']) : $item['classes'];
+                }
+                if (!empty($item['description'])) {
+                    $menu_item_args['menu-item-description'] = $item['description'];
+                }
+                if (!empty($item['target'])) {
+                    $menu_item_args['menu-item-target'] = $item['target'];
+                }
+                if (!empty($item['attrTitle'])) {
+                    $menu_item_args['menu-item-attr-title'] = $item['attrTitle'];
+                }
+                
+                $item_id = wp_update_nav_menu_item($menu_id, 0, $menu_item_args);
+                
+                if (!is_wp_error($item_id) && $item_id > 0) {
+                    if (!empty($item['badge'])) {
+                        update_post_meta($item_id, '_forgewp_menu_badge', sanitize_text_field($item['badge']));
+                    }
+                    if (!empty($item['image'])) {
+                        update_post_meta($item_id, '_forgewp_menu_image', esc_url_raw($item['image']));
+                    }
+                    if (!empty($item['icon'])) {
+                        update_post_meta($item_id, '_forgewp_menu_icon', sanitize_text_field($item['icon']));
+                    }
+                    if (!empty($item['children']) && is_array($item['children'])) {
+                        forgewp_seed_menu_items($menu_id, $item['children'], $item_id);
                     }
                 }
             }
         }
+    }
+
+    $locations = get_theme_mod('nav_menu_locations');
+    if (!is_array($locations)) {
+        $locations = array();
+    }
+
+    foreach ($menu_structure as $location => $items) {
+        $menu_name = ucfirst($location) . ' Navigation';
+        $menu_exists = false;
+        
+        if (!empty($locations[$location])) {
+            $menu_obj = wp_get_nav_menu_object($locations[$location]);
+            if ($menu_obj) {
+                $menu_exists = true;
+            }
+        }
+        
+        if (!$menu_exists) {
+            $menu_obj = wp_get_nav_menu_object($menu_name);
+            if ($menu_obj) {
+                $menu_exists = true;
+                $locations[$location] = $menu_obj->term_id;
+                set_theme_mod('nav_menu_locations', $locations);
+            }
+        }
+        
+        if (!$menu_exists) {
+            $menu_id = wp_create_nav_menu($menu_name);
+            if (!is_wp_error($menu_id) && $menu_id > 0) {
+                $locations[$location] = $menu_id;
+                set_theme_mod('nav_menu_locations', $locations);
+                forgewp_seed_menu_items($menu_id, $items, 0);
+            }
+        }
+    }
+
+    if (!$has_run) {
         update_option($activated_option, 'yes');
     }
 }
@@ -549,6 +632,82 @@ function forgewp_disable_editor_autoresize($init_array) {
     return $init_array;
 }
 add_filter('tiny_mce_before_init', 'forgewp_disable_editor_autoresize');
+
+/**
+ * Ensure dedicated page-[slug].php and single-[post_type].php templates load if they exist in the theme,
+ * overriding stale 'page-placeholder.php' assignments or WooCommerce default fallback hooks.
+ * Also resolves SPA sub-routes (e.g. /account/*) so direct visits never 404.
+ */
+function forgewp_route_template_include(string $template): string {
+    if (is_singular()) {
+        $post_type = get_post_type();
+        if ($post_type) {
+            $single_template = get_template_directory() . '/single-' . $post_type . '.php';
+            if (file_exists($single_template)) {
+                return $single_template;
+            }
+        }
+    }
+    if (is_page()) {
+        $post = get_queried_object();
+        if ($post instanceof WP_Post) {
+            $slug_template = get_template_directory() . '/page-' . $post->post_name . '.php';
+            if (file_exists($slug_template)) {
+                $current_meta = get_post_meta($post->ID, '_wp_page_template', true);
+                if (empty($current_meta) || $current_meta === 'page-placeholder.php' || $current_meta === 'default') {
+                    return $slug_template;
+                }
+            }
+        }
+    }
+
+    // SPA sub-route and 404 fallback resolution
+    $req_uri = $_SERVER['REQUEST_URI'] ?? '';
+    $parsed_path = trim((string)parse_url($req_uri, PHP_URL_PATH), '/');
+
+    // Strip WordPress install subfolder if present
+    $site_path = trim((string)parse_url(home_url(), PHP_URL_PATH), '/');
+    if ($site_path !== '' && strpos($parsed_path, $site_path) === 0) {
+        $parsed_path = trim(substr($parsed_path, strlen($site_path)), '/');
+    }
+
+    if ($parsed_path !== '') {
+        $dir = get_template_directory();
+
+        // 1. Direct flat template match (e.g. account/orders -> page-account-orders.php)
+        $flat_slug = str_replace('/', '-', $parsed_path);
+        $flat_tpl = "{$dir}/page-{$flat_slug}.php";
+        if (file_exists($flat_tpl)) {
+            global $wp_query;
+            if ($wp_query && $wp_query->is_404) {
+                $wp_query->is_404 = false;
+                $wp_query->is_page = true;
+                status_header(200);
+            }
+            return $flat_tpl;
+        }
+
+        // 2. Parent section template match (e.g. account/orders/123 -> page-account.php)
+        $parts = explode('/', $parsed_path);
+        while (count($parts) > 1) {
+            array_pop($parts);
+            $parent_slug = implode('-', $parts);
+            $parent_tpl = "{$dir}/page-{$parent_slug}.php";
+            if (file_exists($parent_tpl)) {
+                global $wp_query;
+                if ($wp_query && $wp_query->is_404) {
+                    $wp_query->is_404 = false;
+                    $wp_query->is_page = true;
+                    status_header(200);
+                }
+                return $parent_tpl;
+            }
+        }
+    }
+
+    return $template;
+}
+add_filter('template_include', 'forgewp_route_template_include', 99);
 `;
 
   return `

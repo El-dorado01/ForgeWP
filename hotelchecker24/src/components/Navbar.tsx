@@ -1,6 +1,6 @@
 import React from 'react';
 import { Menu, X } from 'lucide-react';
-import { WpMenu, useWpThemeUri, useWpI18n, useWpLanguage, useWpPageLink, WpLink } from '../.forgewp/wordpress';
+import { WpMenu, useWpThemeUri, useWpI18n, useWpLanguage, useWpPageLink, WpLink } from '@forgewp/react';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useRoute } from 'wouter';
+import { useRoute } from '@forgewp/react';
 
 import { HotelListicles } from '../../components/HotelListicles';
 import {
@@ -18,7 +18,7 @@ import {
   useWpOption,
   defineEditable,
   text,
-} from '../../.forgewp/wordpress';
+} from '@forgewp/react';
 import {
   ChevronRight,
   MapPin,

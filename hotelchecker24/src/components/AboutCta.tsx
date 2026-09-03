@@ -1,5 +1,5 @@
 import { MapPin } from 'lucide-react';
-import { useWpPageLink, WpLink, useWpMeta } from '../.forgewp/wordpress';
+import { useWpPageLink, WpLink, useWpMeta } from '@forgewp/react';
 import { pickEditable, WpEditable } from '@forgewp/react';
 import { editable as berUnsPageEditable, defaults } from '../../cms/editables/ber-uns-page';
 

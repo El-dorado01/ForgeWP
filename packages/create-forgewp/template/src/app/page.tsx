@@ -1,4 +1,4 @@
-import { WpHead } from "../.forgewp/wordpress";
+import { WpHead } from "@forgewp/react";
 import { BookOpen, Github, ChevronRight, Database, Code2 } from "lucide-react";
 
 export default function HomePage() {

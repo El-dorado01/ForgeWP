@@ -1,11 +1,13 @@
 {
   "_comment": "⚡ ForgeWP Navigation Menus — Edit this file to add/remove links in local dev.",
   "primary": [
-    { "title": "Hotelvergleiche", "url": "/hotelvergleiche" },
-    { "title": "Hotels", "url": "/hotels" },
-    { "title": "Über uns", "url": "/about" }
+    { "title": "Home", "url": "/" },
+    { "title": "About", "url": "/about" },
+    { "title": "Blog", "url": "/blog" },
+    { "title": "Contact", "url": "/contact" }
   ],
-  "utility": [
-    { "title": "Kontakt", "url": "/contact" }
+  "footer": [
+    { "title": "Privacy Policy", "url": "/privacy" },
+    { "title": "Terms of Service", "url": "/terms" }
   ]
 }

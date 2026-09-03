@@ -6,16 +6,19 @@
  * with the equivalent WordPress PHP function call.
  */
 import React from 'react';
-import { Link as WouterLink, useLocation as useWouterLocation, useSearch as useWouterSearch } from 'wouter';
 
 // @ts-ignore
-import mockData from '../../cms/mock-data.json';
+import rawMockData from '../../cms/mock-data';
 // @ts-ignore
-import menusData from '../../cms/menus.json';
+import rawMenusData from '../../cms/menus';
 // @ts-ignore
 import wpConfig from '../../wp.config';
 // @ts-ignore
-import translationsData from '../../cms/translations.json';
+import rawTranslationsData from '../../cms/translations';
+
+const mockData = (rawMockData && (rawMockData.default || rawMockData.mockData)) || rawMockData || {};
+const menusData = (rawMenusData && (rawMenusData.default || rawMenusData.menus)) || rawMenusData || {};
+const translationsData = (rawTranslationsData && (rawTranslationsData.default || rawTranslationsData.translations)) || rawTranslationsData || {};
 
 import {
   WpQueryLoop as _WpQueryLoop,
@@ -72,9 +75,22 @@ import {
   optionPostPicker,
   WpFormFields,
   submitWpForm,
+  isDecoupled,
+  useIsDecoupled,
+  isWordPress,
+  useIsWordPress,
+  WpLink,
+  Link,
+  Router,
+  Route,
+  Switch,
+  useLocation,
+  useSearch,
+  useParams,
+  useRoute,
 } from '@forgewp/react';
 
-export { WpPostContext, defineEditable, getEditableDefaults, buildPageEditable, pickEditable, mergeEditable, text, richText, image, boolean, repeater, color, url, select, number, icon, isEditorPreview, useIsEditorPreview, WpRepeater, WpIcon, defineWpOptions, optionText, optionUrl, optionEmail, optionTextarea, optionToggle, optionNumber, optionPostPicker, WpFormFields, submitWpForm };
+export { WpPostContext, defineEditable, getEditableDefaults, buildPageEditable, pickEditable, mergeEditable, text, richText, image, boolean, repeater, color, url, select, number, icon, isEditorPreview, useIsEditorPreview, isDecoupled, useIsDecoupled, isWordPress, useIsWordPress, WpRepeater, WpIcon, defineWpOptions, optionText, optionUrl, optionEmail, optionTextarea, optionToggle, optionNumber, optionPostPicker, WpFormFields, submitWpForm, WpLink, Link, Router, Route, Switch, useLocation, useSearch, useParams, useRoute, useLocation as useWpLocation, useSearch as useWpSearch };
 
 import type {
   WpQueryLoopProps,
@@ -1053,11 +1069,12 @@ export function useWpMenu(location: string = 'primary'): { items: WpMenuItem[]; 
 
   // Node SSR (Compile-time)
   if (typeof window === "undefined" || (window as any)._forgeWpCompileTime) {
-    return { items: [], loading: true };
+    const items = (menusData as any)?.[location] || [];
+    return { items, loading: false };
   }
 
   // Browser production hydration client
-  const items = (window as any).forgeWpHydration?.menus?.[location] || [];
+  const items = (window as any).forgeWpHydration?.menus?.[location] || (menusData as any)?.[location] || [];
   return { items, loading: false };
 }
 
@@ -1173,40 +1190,7 @@ export function WpImage(props: WpImageProps) {
   return <_WpImage {...props} />;
 }
 
-// ── Routing Wrappers for Dev SPA vs Production Multi-Page WordPress ───────────
 
-export function WpLink({ href, className, children, ...props }: any) {
-  if (IS_DECOUPLED) {
-    return (
-      <WouterLink href={href} className={className} {...props}>
-        {children}
-      </WouterLink>
-    );
-  }
-  if (isEditorPreview()) {
-    // Inside the Gutenberg block editor canvas, a real navigation would take
-    // the admin away from wp-admin entirely (and can 404 if the resolved
-    // href doesn't correspond to a real page yet) — intercept the click so
-    // any WpEditable content nested inside can still be clicked for inline
-    // editing without the link itself firing a real page navigation.
-    return (
-      <a
-        href={href}
-        className={className}
-        onClick={(e: any) => e.preventDefault()}
-        {...props}
-      >
-        {children}
-      </a>
-    );
-  }
-  return (
-    <a href={href} className={className} {...props}>
-      {children}
-    </a>
-  );
-}
-export { WpLink as Link };
 
 export function useWpI18n() {
   const getTranslatedText = (text: string) => {
@@ -1276,7 +1260,7 @@ function handleLocationUpdate() {
   locationListeners.forEach((listener) => listener(payload));
 }
 
-function subscribeToLocation(listener: (payload: { pathname: string; search: string }) => void) {
+export function subscribeToLocation(listener: (payload: { pathname: string; search: string }) => void) {
   locationListeners.add(listener);
   if (typeof window !== 'undefined' && !popstateBound) {
     window.addEventListener('popstate', handleLocationUpdate);
@@ -1291,7 +1275,7 @@ function subscribeToLocation(listener: (payload: { pathname: string; search: str
   };
 }
 
-function navigateTo(to: string) {
+export function navigateTo(to: string) {
   if (typeof window === 'undefined') return;
   try {
     const targetUrl = new URL(to, window.location.href);
@@ -1331,46 +1315,10 @@ export function useWpPrefetch() {
   return prefetch;
 }
 
-export function useWpLocation() {
-  const prefetch = useWpPrefetch();
-  if (IS_DECOUPLED) {
-    const [wLoc, wNavigate] = useWouterLocation();
-    return [wLoc, wNavigate, prefetch] as const;
-  }
-  const [loc, setLoc] = React.useState(typeof window !== "undefined" ? window.location.pathname : "/");
 
-  React.useEffect(() => {
-    return subscribeToLocation((payload) => {
-      setLoc(payload.pathname);
-    });
-  }, []);
-
-  const navigate = React.useCallback((to: string) => {
-    navigateTo(to);
-  }, []);
-
-  return [loc, navigate, prefetch] as const;
-}
-export { useWpLocation as useLocation };
-
-export function useWpSearch() {
-  if (IS_DECOUPLED) {
-    return useWouterSearch();
-  }
-  const [search, setSearch] = React.useState(typeof window !== "undefined" ? window.location.search : "");
-
-  React.useEffect(() => {
-    return subscribeToLocation((payload) => {
-      setSearch(payload.search);
-    });
-  }, []);
-
-  return search;
-}
-export { useWpSearch as useSearch };
 
 export function useWpSearchParams(): URLSearchParams {
-  const search = useWpSearch();
+  const search = useSearch();
   return React.useMemo(() => new URLSearchParams(search), [search]);
 }
 

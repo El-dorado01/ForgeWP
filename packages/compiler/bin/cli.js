@@ -20,6 +20,9 @@ const subcommands = {
   "make:sandbox": path.join(__dirname, "make-sandbox.js"),
   "sync:routes": path.join(__dirname, "sync-routes.js"),
   "sync:hooks": path.join(__dirname, "sync-hooks.js"),
+  seed: path.join(__dirname, "seed.js"),
+  "seed:products": path.join(__dirname, "seed.js"),
+  "seed:mock-data": path.join(__dirname, "seed.js"),
   "i18n:extract": path.join(__dirname, "i18n-extract.js"),
   "i18n:translate": path.join(__dirname, "i18n-translate.js"),
   export: path.join(__dirname, "export.js"),
@@ -113,7 +116,8 @@ function printHelp() {
     ${pc.cyan("make:sandbox <type>")}         Scaffold sandbox mock databases (e.g. ecommerce, auth)
     ${pc.cyan("sync:routes")}             Synchronize sitemap menus with routes and scaffold pages
     ${pc.cyan("sync:hooks")}              Propagate wordpress.tsx hooks to all workspace projects
-    ${pc.cyan("i18n:extract")}            Extract translation strings to translations.json
+    ${pc.cyan("seed")}                    Synchronize cms/products.ts and cms/mock-data.ts into WordPress
+    ${pc.cyan("i18n:extract")}            Extract translation strings to cms/translations.ts (or .json)
     ${pc.cyan("i18n:translate")}          Translate missing strings via the configured engine
     ${pc.cyan("export")}                  Package your theme into an installable WP zip
     ${pc.cyan("doctor")}                  Perform diagnostic check on project health
