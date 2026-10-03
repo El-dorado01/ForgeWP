@@ -44,11 +44,16 @@ export function analyzeHydrationIslands(themeRoot, mapping) {
  * @param {{ heavyCount: number, results: any[] }} analysis
  */
 export function printDiagnosticsReport(analysis) {
-  console.log(`\n🩺 ${pc.bold(pc.bgCyan(pc.black("  FORGEWP HYDRATION DIAGNOSTICS  ")))}`);
-  
+  if (process.env.FORGEWP_VERBOSE !== '1') return;
+  console.log(
+    `\n🩺 ${pc.bold(pc.bgCyan(pc.black('  FORGEWP HYDRATION DIAGNOSTICS  ')))}`,
+  );
+
   if (analysis.results.length === 0) {
-    console.log(`  ${pc.dim("No active hydration islands detected in this project.")}`);
-    console.log("─".repeat(60) + "\n");
+    console.log(
+      `  ${pc.dim('No active hydration islands detected in this project.')}`,
+    );
+    console.log('─'.repeat(60) + '\n');
     return;
   }
 
@@ -57,23 +62,37 @@ export function printDiagnosticsReport(analysis) {
     const formattedSize = `${item.sizeKb.toFixed(1)} kB`;
 
     if (item.isHeavy) {
-      console.log(`  ⚠️  ${pc.yellow(pc.bold(paddedName))} ${pc.red(pc.bold(formattedSize))} ${pc.bgRed(pc.black(" HEAVY "))}`);
-      console.log(`     ${pc.dim("👉 Chunk Path:")} dist/${item.chunkPath}`);
-      console.log(`     ${pc.dim("👉 Recommendations:")}`);
-      console.log(`        1. Split static markup sections out of the component into static wrappers.`);
-      console.log(`        2. Avoid heavy external packages inside the island (or lazy load them inside React).`);
-      console.log(`        3. Switch to a non-blocking trigger strategy (e.g. trigger="interaction" or trigger="idle").`);
+      console.log(
+        `  ⚠️  ${pc.yellow(pc.bold(paddedName))} ${pc.red(pc.bold(formattedSize))} ${pc.bgRed(pc.black(' HEAVY '))}`,
+      );
+      console.log(`     ${pc.dim('👉 Chunk Path:')} dist/${item.chunkPath}`);
+      console.log(`     ${pc.dim('👉 Recommendations:')}`);
+      console.log(
+        `        1. Split static markup sections out of the component into static wrappers.`,
+      );
+      console.log(
+        `        2. Avoid heavy external packages inside the island (or lazy load them inside React).`,
+      );
+      console.log(
+        `        3. Switch to a non-blocking trigger strategy (e.g. trigger="interaction" or trigger="idle").`,
+      );
     } else {
       console.log(`  ✅ ${pc.green(paddedName)} ${pc.green(formattedSize)}`);
     }
   }
 
-  console.log("─".repeat(60));
+  console.log('─'.repeat(60));
   if (analysis.heavyCount > 0) {
-    console.log(`  ${pc.red(pc.bold("WARNING:"))} Found ${analysis.heavyCount} heavy interactive hydration island(s).`);
-    console.log(`  💡 Keep JS bundles light. Modern Web Vitals rewards minimal runtime overhead!\n`);
+    console.log(
+      `  ${pc.red(pc.bold('WARNING:'))} Found ${analysis.heavyCount} heavy interactive hydration island(s).`,
+    );
+    console.log(
+      `  💡 Keep JS bundles light. Modern Web Vitals rewards minimal runtime overhead!\n`,
+    );
   } else {
-    console.log(`  ${pc.green(pc.bold("SYSTEM OPTIMIZED:"))} All interactive hydration islands are within healthy thresholds (<100 kB).\n`);
+    console.log(
+      `  ${pc.green(pc.bold('SYSTEM OPTIMIZED:'))} All interactive hydration islands are within healthy thresholds (<100 kB).\n`,
+    );
   }
 }
 
@@ -85,7 +104,12 @@ export function printDiagnosticsReport(analysis) {
  * @param {any} config
  * @returns {string} Path to the generated report
  */
-export function generateVisualReport(themeRoot, analysis, islandsWithProps, config) {
+export function generateVisualReport(
+  themeRoot,
+  analysis,
+  islandsWithProps,
+  config,
+) {
   const islands = islandsWithProps.map((item) => {
     const analysisMatch = analysis.results.find((a) => a.name === item.name);
     return {
@@ -100,13 +124,13 @@ export function generateVisualReport(themeRoot, analysis, islandsWithProps, conf
   // Calculate dynamic performance score
   let score = 100;
   let totalJsKb = 0;
-  
+
   for (const island of islands) {
     totalJsKb += island.sizeKb;
     if (island.isHeavy) {
       score -= 15;
     }
-    if (island.trigger === "load") {
+    if (island.trigger === 'load') {
       score -= 10;
     }
     if (island.smartDiscovered) {
@@ -116,25 +140,25 @@ export function generateVisualReport(themeRoot, analysis, islandsWithProps, conf
 
   const violations = analysis.violations || [];
   for (const v of violations) {
-    if (v.type === "metadata") score -= 5;
-    else if (v.type === "loop") score -= 15;
-    else if (v.type === "url") score -= 3;
+    if (v.type === 'metadata') score -= 5;
+    else if (v.type === 'loop') score -= 15;
+    else if (v.type === 'url') score -= 3;
   }
 
   score -= Math.floor(totalJsKb / 10);
   score = Math.max(10, Math.min(100, score));
 
-  let grade = "F";
-  if (score >= 90) grade = "A";
-  else if (score >= 80) grade = "B";
-  else if (score >= 70) grade = "C";
-  else if (score >= 60) grade = "D";
+  let grade = 'F';
+  if (score >= 90) grade = 'A';
+  else if (score >= 80) grade = 'B';
+  else if (score >= 70) grade = 'C';
+  else if (score >= 60) grade = 'D';
 
   const payload = {
     config: {
-      name: config.name || "Unknown Theme",
-      slug: config.slug || "unknown",
-      version: config.version || "1.0.0",
+      name: config.name || 'Unknown Theme',
+      slug: config.slug || 'unknown',
+      version: config.version || '1.0.0',
     },
     score,
     grade,
@@ -142,15 +166,17 @@ export function generateVisualReport(themeRoot, analysis, islandsWithProps, conf
     violations,
   };
 
-  const outDir = path.join(themeRoot, ".forgewp", "analyzer");
+  const outDir = path.join(themeRoot, '.forgewp', 'analyzer');
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir, { recursive: true });
   }
 
-  const htmlContent = ANALYZER_TEMPLATE.replace("__DATA_PLACEHOLDER__", () => JSON.stringify(payload));
+  const htmlContent = ANALYZER_TEMPLATE.replace('__DATA_PLACEHOLDER__', () =>
+    JSON.stringify(payload),
+  );
 
-  const reportPath = path.join(outDir, "index.html");
-  fs.writeFileSync(reportPath, htmlContent, "utf8");
+  const reportPath = path.join(outDir, 'index.html');
+  fs.writeFileSync(reportPath, htmlContent, 'utf8');
 
   return reportPath;
 }
@@ -795,4 +821,3 @@ const ANALYZER_TEMPLATE = `<!DOCTYPE html>
   </script>
 </body>
 </html>`;
-

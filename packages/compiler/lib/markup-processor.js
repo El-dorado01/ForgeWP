@@ -26,12 +26,12 @@ export function processMarkup(html, textDomain = 'theme', richTextKeys = null) {
   // Map React root link (href="/") to dynamic localized WordPress home URL
   processed = processed.replace(
     /href=(["'])\/\1/g,
-    'href="<?php echo esc_url( function_exists( \'pll_home_url\' ) ? pll_home_url( function_exists( \'pll_current_language\' ) ? pll_current_language() : \'\' ) : home_url( \'/\' ) ); ?>"',
+    "href=\"<?php echo esc_url( function_exists( 'pll_home_url' ) ? pll_home_url( function_exists( 'pll_current_language' ) ? pll_current_language() : '' ) : home_url( '/' ) ); ?>\"",
   );
 
   processed = processed.replace(
     /__FORGEWP_THE_TITLE__/g,
-    '<?php echo html_entity_decode( get_the_title(), ENT_QUOTES | ENT_HTML5, \'UTF-8\' ); ?>',
+    "<?php echo html_entity_decode( get_the_title(), ENT_QUOTES | ENT_HTML5, 'UTF-8' ); ?>",
   );
 
   processed = processed.replace(
@@ -115,13 +115,17 @@ export function processMarkup(html, textDomain = 'theme', richTextKeys = null) {
       const provider = getAttr('provider') || 'lucide';
       const className = getAttr('class') || getAttr('className') || '';
 
-      const fieldMatch = nameAttr.match(/__FORGEWP_REPEATER_FIELD_([a-zA-Z0-9_-]+)__/);
+      const fieldMatch = nameAttr.match(
+        /__FORGEWP_REPEATER_FIELD_([a-zA-Z0-9_-]+)__/,
+      );
       if (fieldMatch) {
         const fieldName = fieldMatch[1];
         return `<?php forgewp_render_theme_icon($row['${fieldName}'], '${className}', '${provider}'); ?>`;
       }
 
-      const metaMatch = nameAttr.match(/__(?:FORGEWP|forgewp)_META_([a-zA-Z0-9_-]+)(?:_POST_(front|[0-9]+))?_DEFAULT_(.*?)__/i);
+      const metaMatch = nameAttr.match(
+        /__(?:FORGEWP|forgewp)_META_([a-zA-Z0-9_-]+)(?:_POST_(front|[0-9]+))?_DEFAULT_(.*?)__/i,
+      );
       if (metaMatch) {
         const key = metaMatch[1];
         const postId = metaMatch[2];
@@ -137,9 +141,14 @@ export function processMarkup(html, textDomain = 'theme', richTextKeys = null) {
               .replace(/&amp;/g, '&')
               .replace(/'/g, "\\'");
             return `' . __('${cleanText}', '${textDomain}') . '`;
-          }
+          },
         );
-        const phpPostId = (postId && postId.toLowerCase() === 'front') ? 'forgewp_resolve_front_page_id()' : (postId ? postId : 'null');
+        const phpPostId =
+          postId && postId.toLowerCase() === 'front'
+            ? 'forgewp_resolve_front_page_id()'
+            : postId
+              ? postId
+              : 'null';
         return `<?php forgewp_render_theme_icon(forgewp_get_meta_value('${key}', '${cleanDecoded}', false, ${phpPostId}), '${className}', '${provider}'); ?>`;
       }
 
@@ -153,7 +162,7 @@ export function processMarkup(html, textDomain = 'theme', richTextKeys = null) {
       }
 
       return `<?php forgewp_render_theme_icon('${nameAttr}', '${className}', '${provider}'); ?>`;
-    }
+    },
   );
   processed = processed.replace(/<\/forgewp-icon-placeholder>/g, '');
 
@@ -177,13 +186,21 @@ export function processMarkup(html, textDomain = 'theme', richTextKeys = null) {
             .replace(/&amp;/g, '&')
             .replace(/'/g, "\\'");
           return `' . __('${cleanText}', '${textDomain}') . '`;
-        }
+        },
       );
-      const isRichText = (richTextKeys instanceof Set ? richTextKeys.has(key) : false) ||
-        decoded.includes('<p>') || decoded.includes('</p>') || decoded.includes('<br');
-      const phpPostId = (postId && postId.toLowerCase() === 'front') ? 'forgewp_resolve_front_page_id()' : (postId ? postId : 'null');
+      const isRichText =
+        (richTextKeys instanceof Set ? richTextKeys.has(key) : false) ||
+        decoded.includes('<p>') ||
+        decoded.includes('</p>') ||
+        decoded.includes('<br');
+      const phpPostId =
+        postId && postId.toLowerCase() === 'front'
+          ? 'forgewp_resolve_front_page_id()'
+          : postId
+            ? postId
+            : 'null';
       return `<?php echo forgewp_get_meta_value( '${key}', '${cleanDecoded}', ${isRichText ? 'true' : 'false'}, ${phpPostId} ); ?>`;
-    }
+    },
   );
 
   // ── Dynamic Custom Menus ──
@@ -235,15 +252,20 @@ export function processMarkup(html, textDomain = 'theme', richTextKeys = null) {
         return m ? m[1] || m[2] || m[3] || '' : '';
       };
 
-      const className    = getAttr('class') || getAttr('className') || '';
-      const linkClass    = getAttr('linkClassName') || getAttr('linkclassname') || '';
-      const showFlags    = getAttr('showFlags') === '1';
-      const showNames    = getAttr('showNames') === '1';
-      const showCodes    = getAttr('showCodes') !== '0'; // default true
+      const className = getAttr('class') || getAttr('className') || '';
+      const linkClass =
+        getAttr('linkClassName') || getAttr('linkclassname') || '';
+      const showFlags = getAttr('showFlags') === '1';
+      const showNames = getAttr('showNames') === '1';
+      const showCodes = getAttr('showCodes') !== '0'; // default true
 
-      const flagsPart  = showFlags ? "echo '<img src=\"' . esc_url($pll_l['flag']) . '\" alt=\"' . esc_attr($pll_l['name']) . '\" />';" : '';
-      const codesPart  = showCodes ? "echo esc_html(strtoupper($pll_l['slug']));" : '';
-      const namesPart  = showNames ? "echo ' ' . esc_html($pll_l['name']);" : '';
+      const flagsPart = showFlags
+        ? "echo '<img src=\"' . esc_url($pll_l['flag']) . '\" alt=\"' . esc_attr($pll_l['name']) . '\" />';"
+        : '';
+      const codesPart = showCodes
+        ? "echo esc_html(strtoupper($pll_l['slug']));"
+        : '';
+      const namesPart = showNames ? "echo ' ' . esc_html($pll_l['name']);" : '';
 
       return `<?php
 if (function_exists('pll_the_languages')) {
@@ -325,12 +347,15 @@ if (function_exists('pll_the_languages')) {
         getAttr('postsPerPage') || getAttr('postsperpage') || '10';
       const categoryName =
         getAttr('categoryName') || getAttr('categoryname') || '';
+      const postId = getAttr('postId') || getAttr('postid') || '';
       const orderby = getAttr('orderby') || '';
       const order = getAttr('order') || '';
       const metaKey = getAttr('metaKey') || getAttr('metakey') || '';
       const metaValue = getAttr('metaValue') || getAttr('metavalue') || '';
-      const metaCompare = getAttr('metaCompare') || getAttr('metacompare') || '=';
-      const taxTaxonomy = getAttr('taxTaxonomy') || getAttr('taxtaxonomy') || '';
+      const metaCompare =
+        getAttr('metaCompare') || getAttr('metacompare') || '=';
+      const taxTaxonomy =
+        getAttr('taxTaxonomy') || getAttr('taxtaxonomy') || '';
       const taxTerms = getAttr('taxTerms') || getAttr('taxterms') || '';
       const postIn = getAttr('postIn') || getAttr('postin') || '';
 
@@ -353,7 +378,7 @@ if (function_exists('pll_the_languages')) {
       }
 
       let phpArgs = `      'post_type' => '${postType}',\n      'posts_per_page' => ${postsPerPage},`;
-      
+
       if (orderby !== '') {
         phpArgs += `\n      'orderby' => '${orderby}',`;
       }
@@ -363,7 +388,10 @@ if (function_exists('pll_the_languages')) {
       if (categoryName !== '') {
         phpArgs += `\n      'category_name' => '${categoryName}',`;
       }
-      
+      if (/^\d+$/.test(postId)) {
+        phpArgs += `\n      'p' => ${postId},`;
+      }
+
       if (metaKey !== '') {
         let valExpr = `'${metaValue}'`;
         if (metaValue === 'CURRENT_POST_ID') {
@@ -371,7 +399,7 @@ if (function_exists('pll_the_languages')) {
         } else if (metaValue === ',CURRENT_POST_ID,') {
           valExpr = "',' . get_the_ID() . ','";
         }
-        
+
         phpArgs += `\n      'meta_query' => array(
           array(
               'key' => '${metaKey}',
@@ -380,7 +408,7 @@ if (function_exists('pll_the_languages')) {
           )
       ),`;
       }
-      
+
       if (taxTaxonomy !== '') {
         phpArgs += `\n      'tax_query' => array(
           array(
@@ -437,7 +465,8 @@ ${phpArgs}
 
       // Build PHP attribute array for wp_get_attachment_image
       const phpAttrs = [];
-      if (className) phpAttrs.push(`'class' => '${className.replace(/'/g, "\\'")}'`);
+      if (className)
+        phpAttrs.push(`'class' => '${className.replace(/'/g, "\\'")}'`);
       if (alt) phpAttrs.push(`'alt' => '${alt.replace(/'/g, "\\'")}'`);
       if (sizes) phpAttrs.push(`'sizes' => '${sizes.replace(/'/g, "\\'")}'`);
       if (priority) {
@@ -463,9 +492,14 @@ ${phpArgs}
         if (decoding) htmlAttrs.push(`decoding="${decoding}"`);
       }
       if (sizes) htmlAttrs.push(`sizes="${sizes}"`);
-      const extraHtmlStr = htmlAttrs.length > 0 ? ' ' + htmlAttrs.join(' ') : '';
+      const extraHtmlStr =
+        htmlAttrs.length > 0 ? ' ' + htmlAttrs.join(' ') : '';
       const isNumericSrc = id || (/^\d+$/.test(src) ? src : null);
-      const isFeaturedImg = field === 'featuredImage' || field === 'featured_image' || src === 'featuredImage' || src === 'featured_image';
+      const isFeaturedImg =
+        field === 'featuredImage' ||
+        field === 'featured_image' ||
+        src === 'featuredImage' ||
+        src === 'featured_image';
 
       if (isNumericSrc) {
         return `<?php echo wp_get_attachment_image( ${isNumericSrc}, '${size}', false, ${phpAttrStr} ); ?>`;
@@ -494,13 +528,14 @@ ${phpArgs}
   );
   processed = processed.replace(/<\/forgewp-image>/g, '');
 
-  // ── Universal Media Assets (video, audio, source, img) ──
-  const MEDIA_EXTS = /\.(png|jpe?g|webp|svg|gif|mp4|webm|ogg|mp3|wav|woff2?|ttf|eot)$/i;
+  // ── Universal Media Assets (video, audio, source, img, preload link) ──
+  const MEDIA_EXTS =
+    /\.(png|jpe?g|webp|svg|gif|avif|mp4|webm|ogg|mp3|wav|woff2?|ttf|eot)$/i;
   processed = processed.replace(
-    /<(video|audio|source|img)\b([^>]*)\/?>/gi,
+    /<(video|audio|source|img|link)\b([^>]*)\/?>/gi,
     (tagMatch, tagName, attrsStr) => {
       let updatedAttrs = attrsStr.replace(
-        /\b(src|poster)=(?:"([^"]*)"|'([^']*)')/gi,
+        /\b(src|poster|href)=(?:"([^"]*)"|'([^']*)')/gi,
         (attrMatch, attrName, doubleVal, singleVal) => {
           const val = doubleVal !== undefined ? doubleVal : singleVal;
           if (
@@ -516,10 +551,10 @@ ${phpArgs}
           }
           const cleanPath = val.replace(/^(\/|\.\/|@\/)+/, '');
           return `${attrName}="<?php echo esc_url( get_theme_file_uri( '${cleanPath}' ) ); ?>"`;
-        }
+        },
       );
       return `<${tagName}${updatedAttrs}>`;
-    }
+    },
   );
 
   // ── Declarative WpRepeater Loops ──
@@ -530,7 +565,7 @@ ${phpArgs}
         .split(',')
         .map((f) => `'${f.trim()}'`)
         .join(', ');
-      
+
       return `<?php
   $repeater_key = '${name}';
   $sub_fields = array(${subfieldsArrayStr});
@@ -540,14 +575,12 @@ ${phpArgs}
   }
   foreach ($repeater_rows as $row) {
   ?>`;
-    }
+    },
   );
   processed = processed.replace(/<\/forgewp-repeater-start>/g, '');
 
   processed = processed.replace(/<forgewp-repeater-end\s*\/?>/g, '');
   processed = processed.replace(/<\/forgewp-repeater-end>/g, '<?php } ?>');
-
-
 
   // ── Authentication & Capability Gates ──
   processed = processed.replace(
@@ -586,10 +619,9 @@ ${phpArgs}
   );
   processed = processed.replace(/<\/forgewp-capability-gate-end>/g, '');
 
-
   processed = processed.replace(
     /__FORGEWP_REPEATER_FIELD_([a-zA-Z0-9_-]+)__/g,
-    (match, fieldName) => `<?php echo esc_html($row['${fieldName}']); ?>`
+    (match, fieldName) => `<?php echo esc_html($row['${fieldName}']); ?>`,
   );
 
   // ── Page Links Support ──
@@ -616,7 +648,10 @@ ${phpArgs}
   // ── Auto-hide social media container if no social links exist ──
   let searchIndex = 0;
   while (true) {
-    const matchStart = processed.indexOf('data-forgewp-hide-empty-socials', searchIndex);
+    const matchStart = processed.indexOf(
+      'data-forgewp-hide-empty-socials',
+      searchIndex,
+    );
     if (matchStart === -1) {
       break;
     }
@@ -634,20 +669,34 @@ ${phpArgs}
     const matchEnd = findMatchingClosingDiv(processed, contentStartIndex);
     if (matchEnd !== -1) {
       const fullBlock = processed.substring(divStart, matchEnd);
-      const optionMatches = Array.from(fullBlock.matchAll(/__FORGEWP_OPTION_(social_[a-zA-Z0-9_-]+?)(?:_DEFAULT_(.*?))?__/g));
+      const optionMatches = Array.from(
+        fullBlock.matchAll(
+          /__FORGEWP_OPTION_(social_[a-zA-Z0-9_-]+?)(?:_DEFAULT_(.*?))?__/g,
+        ),
+      );
       const optionMap = new Map();
       for (const m of optionMatches) {
         const name = m[1];
         const defaultVal = m[2] ? decodeURIComponent(m[2]) : '';
         optionMap.set(name, defaultVal);
       }
-      const cleanBlock = fullBlock.replace(/\s*data-forgewp-hide-empty-socials="[^"]*"/gi, '').replace(/\s*data-forgewp-hide-empty-socials/gi, '');
+      const cleanBlock = fullBlock
+        .replace(/\s*data-forgewp-hide-empty-socials="[^"]*"/gi, '')
+        .replace(/\s*data-forgewp-hide-empty-socials/gi, '');
       let replacement = cleanBlock;
       if (optionMap.size > 0) {
-        const conditions = Array.from(optionMap.entries()).map(([name, defaultVal]) => `! empty( get_option( '${name}', '${defaultVal.replace(/'/g, "\\'")}' ) )`).join(' || ');
+        const conditions = Array.from(optionMap.entries())
+          .map(
+            ([name, defaultVal]) =>
+              `! empty( get_option( '${name}', '${defaultVal.replace(/'/g, "\\'")}' ) )`,
+          )
+          .join(' || ');
         replacement = `<?php if ( ${conditions} ) : ?>${cleanBlock}<?php endif; ?>`;
       }
-      processed = processed.substring(0, divStart) + replacement + processed.substring(matchEnd);
+      processed =
+        processed.substring(0, divStart) +
+        replacement +
+        processed.substring(matchEnd);
       searchIndex = divStart + replacement.length;
     } else {
       searchIndex = matchStart + 31;
@@ -660,11 +709,14 @@ ${phpArgs}
     /<a\b([^>]*?href=["']__FORGEWP_OPTION_((?:(?!_DEFAULT_)[a-zA-Z0-9_-])+)__["'][^>]*?)>([\s\S]*?)<\/a>/gi,
     (match, attributes, name, content) => {
       if (name.startsWith('social_')) {
-        const cleanAttrs = attributes.replace(`__FORGEWP_OPTION_${name}__`, `<?php echo esc_url( get_option( '${name}' ) ); ?>`);
+        const cleanAttrs = attributes.replace(
+          `__FORGEWP_OPTION_${name}__`,
+          `<?php echo esc_url( get_option( '${name}' ) ); ?>`,
+        );
         return `<?php if ( ! empty( get_option( '${name}' ) ) ) : ?><a${cleanAttrs}>${content}</a><?php endif; ?>`;
       }
       return match;
-    }
+    },
   );
 
   processed = processed.replace(
@@ -672,11 +724,14 @@ ${phpArgs}
     (match, attributes, name, defaultVal, content) => {
       if (name.startsWith('social_')) {
         const decoded = decodeURIComponent(defaultVal);
-        const cleanAttrs = attributes.replace(`__FORGEWP_OPTION_${name}_DEFAULT_${defaultVal}__`, `<?php echo esc_url( get_option( '${name}', '${decoded.replace(/'/g, "\\'")}' ) ); ?>`);
+        const cleanAttrs = attributes.replace(
+          `__FORGEWP_OPTION_${name}_DEFAULT_${defaultVal}__`,
+          `<?php echo esc_url( get_option( '${name}', '${decoded.replace(/'/g, "\\'")}' ) ); ?>`,
+        );
         return `<?php if ( ! empty( get_option( '${name}', '${decoded.replace(/'/g, "\\'")}' ) ) ) : ?><a${cleanAttrs}>${content}</a><?php endif; ?>`;
       }
       return match;
-    }
+    },
   );
 
   // ── Options & Customizer Theme Mods Support ──
@@ -693,17 +748,14 @@ ${phpArgs}
       // Resolve any nested __FORGEWP_I18N_text__ tokens inside the default value
       const cleanDecoded = decoded
         .replace(/'/g, "\\'") // escape single quotes first
-        .replace(
-          /__FORGEWP_I18N_([^_](?:[^_]|_(?!_))*?)__/gi,
-          (m, text) => {
-            const cleanText = text
-              .replace(/&#39;/g, "'")
-              .replace(/&quot;/g, '"')
-              .replace(/&amp;/g, '&')
-              .replace(/'/g, "\\'");
-            return `' . __('${cleanText}', '${textDomain}') . '`;
-          }
-        );
+        .replace(/__FORGEWP_I18N_([^_](?:[^_]|_(?!_))*?)__/gi, (m, text) => {
+          const cleanText = text
+            .replace(/&#39;/g, "'")
+            .replace(/&quot;/g, '"')
+            .replace(/&amp;/g, '&')
+            .replace(/'/g, "\\'");
+          return `' . __('${cleanText}', '${textDomain}') . '`;
+        });
       return `<?php echo esc_html( get_option( '${name}', '${cleanDecoded}' ) ); ?>`;
     },
   );
@@ -734,7 +786,7 @@ ${phpArgs}
 
   processed = processed.replace(
     /__FORGEWP_THEME_URI__/g,
-    "<?php echo esc_url( get_template_directory_uri() ); ?>",
+    '<?php echo esc_url( get_template_directory_uri() ); ?>',
   );
 
   // ── WooCommerce Product Loop Blocks ──
@@ -785,15 +837,15 @@ ${phpArgs}
   // ── WooCommerce Dynamic Hook Replacements ──
   processed = processed.replace(
     /__FORGEWP_PRODUCT_PRICE__/g,
-    '<?php global $product; echo wp_kses_post( $product->get_price_html() ); ?>'
+    '<?php global $product; echo wp_kses_post( $product->get_price_html() ); ?>',
   );
   processed = processed.replace(
     /__FORGEWP_PRODUCT_SKU__/g,
-    '<?php global $product; echo esc_html( $product->get_sku() ); ?>'
+    '<?php global $product; echo esc_html( $product->get_sku() ); ?>',
   );
   processed = processed.replace(
     /__FORGEWP_PRODUCT_RATING__/g,
-    '<?php global $product; echo wp_kses_post( wc_get_rating_html( $product->get_average_rating() ) ); ?>'
+    '<?php global $product; echo wp_kses_post( wc_get_rating_html( $product->get_average_rating() ) ); ?>',
   );
 
   // ── Translate Compile-Time encodeURIComponent Wrapper to rawurlencode in PHP ──
@@ -818,7 +870,7 @@ ${phpArgs}
       }
       const phpExpr = tokens.join(' . ');
       return `<?php echo rawurlencode(${phpExpr}); ?>`;
-    }
+    },
   );
 
   return processed;

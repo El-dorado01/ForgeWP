@@ -16,6 +16,7 @@ import {
   fileImportsProvider,
 } from './hydration/scan-app-providers.js';
 import { visibleFirstPaintProps } from './hydration/enter-hidden-initial.js';
+import { layoutOwnsDocument, resolveFrontPageLayout } from './route-layout.js';
 import { loadMenusData } from './functions/load-menus.js';
 import { loadMockData } from './functions/seed-mock-data.js';
 import { loadProductsData } from './functions/seed-products.js';
@@ -24,6 +25,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 register(pathToFileURL(path.join(__dirname, 'asset-loader.js')).href);
 
 const themeRoot = process.argv[2];
+const VERBOSE = process.env.FORGEWP_VERBOSE === '1';
 
 if (!themeRoot) {
   console.error('Usage: render-theme.mts <theme-root>');
@@ -187,73 +189,129 @@ function hasRenderableChildren(props: any, childArgs: any[]): boolean {
   });
 }
 
+function componentIslandName(type: any): string | null {
+  if (!type) return null;
+  if (typeof type === 'function') return type.displayName || type.name || null;
+  if (typeof type === 'object' && typeof type.render === 'function') {
+    return (
+      type.displayName || type.render.displayName || type.render.name || null
+    );
+  }
+  return null;
+}
+
+function paintVisibleProps(props: any) {
+  // Skip enter-hidden animation styles on static HTML so first paint is
+  // visible. Handles both `initial={{ opacity: 0 }}` and `initial="hidden"`
+  // + variants. Do not toggle useReducedMotion — that strips CSS hover
+  // structures from any theme that branches on that hook.
+  if (!props || typeof props !== 'object') return props;
+  return visibleFirstPaintProps(props);
+}
+
+function islandWrapperProps(
+  name: string,
+  props: any,
+  childArgs: any[],
+): Record<string, any> {
+  const kebab =
+    autoIslandKebabByPascal.get(name) ||
+    name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+  const rootClassName = autoIslandRootClassByPascal.get(name);
+  const childStyle =
+    props && typeof props.style === 'object' && props.style !== null
+      ? props.style
+      : {};
+  const wrapperProps: Record<string, any> = {
+    'data-forgewp-auto-island': kebab,
+    style: {
+      display: (childStyle && childStyle.display) || 'contents',
+      ...childStyle,
+    },
+  };
+  if (rootClassName) wrapperProps.className = rootClassName;
+  // Forward the JSX call-site's actual props so the client hydrator mounts
+  // the real component with them. Functions and elements are not init data.
+  let serializedProps = '{}';
+  if (props && typeof props === 'object') {
+    const serializable: Record<string, any> = {};
+    for (const [k, v] of Object.entries(props)) {
+      if (k === 'children') continue;
+      if (typeof v === 'function') continue;
+      if (v === undefined) continue;
+      if (React.isValidElement(v)) continue;
+      serializable[k] = v;
+    }
+    try {
+      serializedProps = JSON.stringify(serializable);
+    } catch {
+      serializedProps = '{}';
+    }
+  }
+  wrapperProps['data-forgewp-auto-island-props'] = serializedProps;
+  if (hasRenderableChildren(props, childArgs)) {
+    wrapperProps['data-forgewp-slot-children'] = 'true';
+  }
+  if (autoIslandNeedsProviders.has(name)) {
+    wrapperProps['data-forgewp-needs-providers'] = 'true';
+  }
+  return wrapperProps;
+}
+
 const origCreate = React.createElement;
 React.createElement = function patchedCreateElement(
   type: any,
   props: any,
   ...children: any[]
 ) {
-  // Skip enter-hidden animation styles on static HTML so first paint is
-  // visible. Handles both `initial={{ opacity: 0 }}` and `initial="hidden"`
-  // + variants. Do not toggle useReducedMotion — that strips CSS hover
-  // structures from any theme that branches on that hook.
-  if (props) {
-    props = visibleFirstPaintProps(props);
-  }
-  if (autoIslandNames.size > 0) {
-    const name =
-      typeof type === 'function' ? type.displayName || type.name : null;
-    if (name && autoIslandNames.has(name)) {
-      const kebab =
-        autoIslandKebabByPascal.get(name) ||
-        name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-      const rootClassName = autoIslandRootClassByPascal.get(name);
-      const inner = origCreate.call(this, type, props, ...children);
-      const childStyle =
-        props && typeof props.style === 'object' && props.style !== null
-          ? props.style
-          : {};
-      const wrapperProps: Record<string, any> = {
-        'data-forgewp-auto-island': kebab,
-        style: {
-          display: (childStyle && childStyle.display) || 'contents',
-          ...childStyle,
-        },
-      };
-      if (rootClassName) {
-        wrapperProps.className = rootClassName;
-      }
-      // Forward the JSX call-site's actual props (e.g. searchPlaceholder) so
-      // the client-side hydrator can mount the real component with them —
-      // without this, the wrapper always hydrated with no props at all,
-      // silently reverting to the component's own internal defaults.
-      let serializedProps = '{}';
-      if (props && typeof props === 'object') {
-        const serializable: Record<string, any> = {};
-        for (const [k, v] of Object.entries(props)) {
-          if (typeof v === 'function') continue; // e.g. setAttributes, onChange
-          if (v === undefined) continue;
-          if (React.isValidElement(v)) continue; // nested elements, not init data
-          serializable[k] = v;
-        }
-        try {
-          serializedProps = JSON.stringify(serializable);
-        } catch {
-          serializedProps = '{}';
-        }
-      }
-      wrapperProps['data-forgewp-auto-island-props'] = serializedProps;
-      if (hasRenderableChildren(props, children)) {
-        wrapperProps['data-forgewp-slot-children'] = 'true';
-      }
-      if (name && autoIslandNeedsProviders.has(name)) {
-        wrapperProps['data-forgewp-needs-providers'] = 'true';
-      }
-      return origCreate.call(this, 'div', wrapperProps, inner);
-    }
+  props = paintVisibleProps(props);
+  const name = componentIslandName(type);
+  if (name && autoIslandNames.has(name)) {
+    const inner = origCreate.call(this, type, props, ...children);
+    return origCreate.call(
+      this,
+      'div',
+      islandWrapperProps(name, props, children),
+      inner,
+    );
   }
   return origCreate.call(this, type, props, ...children);
 };
+
+// Theme TSX is compiled either to React.createElement (the SSR loader) or to
+// react/jsx-runtime (tsx + the theme's "jsx": "react-jsx"). Both have to
+// mark islands, or a component is interactive in React and static in WordPress.
+function patchJsxRuntime(runtime: any) {
+  if (!runtime || runtime.__forgewpIslandPatched) return;
+  const origJsx = runtime.jsx;
+  const origJsxs = runtime.jsxs;
+  const origJsxDEV = runtime.jsxDEV;
+  const wrap =
+    (orig: any) =>
+    (type: any, props: any, key: any, ...rest: any[]) => {
+      const nextProps = paintVisibleProps(props);
+      const name = componentIslandName(type);
+      if (!name || !autoIslandNames.has(name) || typeof orig !== 'function') {
+        return orig(type, nextProps, key, ...rest);
+      }
+      const inner = orig(type, nextProps, undefined, ...rest);
+      const wrapperProps = islandWrapperProps(name, nextProps, []);
+      wrapperProps.children = inner;
+      const create = typeof origJsx === 'function' ? origJsx : orig;
+      return create('div', wrapperProps, key);
+    };
+  if (typeof origJsx === 'function') runtime.jsx = wrap(origJsx);
+  if (typeof origJsxs === 'function') runtime.jsxs = wrap(origJsxs);
+  if (typeof origJsxDEV === 'function') runtime.jsxDEV = wrap(origJsxDEV);
+  runtime.__forgewpIslandPatched = true;
+}
+
+try {
+  patchJsxRuntime(require('react/jsx-runtime'));
+} catch {}
+try {
+  patchJsxRuntime(require('react/jsx-dev-runtime'));
+} catch {}
 
 const appUrl = pathToFileURL(
   path.join(themeRoot, 'src', 'app', 'page.tsx'),
@@ -368,6 +426,7 @@ function renderPage(
   PageComponent: any,
   filePath?: string,
   LayoutComponent: any = RootLayout,
+  options: { ownsShell?: boolean } = {},
 ): string {
   try {
     let pageEl = React.createElement(PageComponent);
@@ -386,9 +445,12 @@ function renderPage(
       }
       pageEl = React.createElement('div', wrapperProps, pageEl);
     }
+    const boundaryProps: Record<string, any> | null = options.ownsShell
+      ? { 'data-forgewp-owns-shell': 'true' }
+      : null;
     const pageBoundary = React.createElement(
       'forgewp-content-boundary',
-      null,
+      boundaryProps,
       pageEl,
     );
     return renderToStaticMarkup(
@@ -754,9 +816,10 @@ if (hasLayoutsArchitecture) {
         headerHtml = slotMatch[1];
         footerHtml = slotMatch[2];
         if (headerHtml.trim() || footerHtml.trim()) {
-          console.warn(
-            `[ForgeWP Compiler] Extracted header and footer shells from layout.`,
-          );
+          if (VERBOSE)
+            console.warn(
+              `[ForgeWP Compiler] Extracted header and footer shells from layout.`,
+            );
         }
       }
     }
@@ -889,11 +952,32 @@ if (hasLayoutsArchitecture) {
 }
 
 // ── Render pages ──────────────────────────────────────────────────────────────
+const appPagePath = path.join(themeRoot, 'src', 'app', 'page.tsx');
+const appPageSource = existsSync(appPagePath)
+  ? readFileSync(appPagePath, 'utf8')
+  : '';
+const routesPath = path.join(themeRoot, 'src', 'app', 'routes.tsx');
+const routesSource = existsSync(routesPath)
+  ? readFileSync(routesPath, 'utf8')
+  : '';
+const defaultLayout = await resolveLayoutComponent('default');
+// Same decision local React makes in withLayout: a blank (or false) layout
+// means this page rendered its own shell. Keep that tree intact so its
+// state, refs, and animations run on WordPress. Do not guess from a
+// component name.
+const frontPageOwnsShell = layoutOwnsDocument(
+  resolveFrontPageLayout({
+    pageSource: appPageSource,
+    routesSource,
+  }),
+);
 const appHtml = renderPage(
   App,
-  path.join(themeRoot, 'src', 'app', 'page.tsx'),
-  await resolveLayoutComponent('default'),
+  appPagePath,
+  frontPageOwnsShell ? React.Fragment : defaultLayout,
+  { ownsShell: frontPageOwnsShell },
 );
+
 let layoutExtraHeadTags = '';
 const cleanAppHtml = appHtml.replace(
   /<forgewp-head\b[^>]*>(.*?)<\/forgewp-head>/gs,
@@ -911,7 +995,10 @@ mkdirSync(outDir, { recursive: true });
 if (existsSync(outDir)) {
   const existingFiles = readdirSync(outDir);
   for (const f of existingFiles) {
-    if (f.startsWith('template-') && f.endsWith('.html')) {
+    if (
+      (f.startsWith('template-') || f.startsWith('single-')) &&
+      f.endsWith('.html')
+    ) {
       try {
         unlinkSync(path.join(outDir, f));
       } catch {}
@@ -937,9 +1024,11 @@ if (existsSync(appDir)) {
 
       if (isWpTemplate) {
         const filePath = path.join(appDir, file);
-        console.warn(
-          `[ForgeWP Compiler] Attempting to compile template: ${file}`,
-        );
+        if (VERBOSE) {
+          console.warn(
+            `[ForgeWP Compiler] Attempting to compile template: ${file}`,
+          );
+        }
         try {
           const module = await import(pathToFileURL(filePath).href);
           const TemplateComponent = module.default;
@@ -1021,9 +1110,11 @@ writeFileSync(path.join(outDir, 'head.html'), finalHeadHtml, 'utf8');
 
 // ── Compile Custom Page Templates ──────────────────────────────────────────────
 const pagesDir = path.join(themeRoot, 'src', 'app', 'pages');
-console.warn(
-  'CHECKING PAGES DIR: ' + pagesDir + ' EXISTS: ' + existsSync(pagesDir),
-);
+if (VERBOSE) {
+  console.warn(
+    'CHECKING PAGES DIR: ' + pagesDir + ' EXISTS: ' + existsSync(pagesDir),
+  );
+}
 if (existsSync(pagesDir)) {
   const { readdirSync } = require('node:fs');
   const pages = readdirSync(pagesDir).filter(
@@ -1032,7 +1123,9 @@ if (existsSync(pagesDir)) {
 
   for (const pageFile of pages) {
     const pagePath = path.join(pagesDir, pageFile);
-    console.warn(`Attempting to compile template: ${pageFile}`);
+    if (VERBOSE) {
+      console.warn(`Attempting to compile template: ${pageFile}`);
+    }
     try {
       const module = await import(pathToFileURL(pagePath).href);
       const CustomPage = module.default || Object.values(module)[0];
@@ -1156,7 +1249,9 @@ if (existsSync(pagesDir)) {
           finalHtml,
           'utf8',
         );
-        console.warn(`WROTE template-${slug}.html to ${outDir}`);
+        if (VERBOSE) {
+          console.warn(`WROTE template-${slug}.html to ${outDir}`);
+        }
 
         const customSeo = extractSeoPropsFromSource(pagePath);
         let customHeadHtml = buildHeadHtml(layoutSeo, customSeo);
@@ -1168,7 +1263,9 @@ if (existsSync(pagesDir)) {
           customHeadHtml,
           'utf8',
         );
-        console.warn(`WROTE template-${slug}-head.html to ${outDir}`);
+        if (VERBOSE) {
+          console.warn(`WROTE template-${slug}-head.html to ${outDir}`);
+        }
 
         if (isPostTypeSingle) {
           writeFileSync(
@@ -1293,9 +1390,11 @@ if (existsSync(routesFile)) {
 
           const finalHtml = cleanCustomHtml + stateScript;
           writeFileSync(outTemplateFile, finalHtml, 'utf8');
-          console.warn(
-            `WROTE template-${templateSlug}.html from routes.tsx to ${outDir}`,
-          );
+          if (VERBOSE) {
+            console.warn(
+              `WROTE template-${templateSlug}.html from routes.tsx to ${outDir}`,
+            );
+          }
 
           let customHeadHtml = buildHeadHtml(layoutSeo, {});
           if (customExtraHeadTags) {

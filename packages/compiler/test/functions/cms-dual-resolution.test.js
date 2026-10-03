@@ -76,6 +76,31 @@ export default mockData;
     expect(php).toContain("'menu_icon'   => 'dashicons-portfolio'");
   });
 
+  it('supports custom post type rewrite slugs and archive settings', () => {
+    const php = buildFunctionsPhp(
+      {
+        textDomain: 'test_theme',
+        version: '1.0.0',
+        postTypes: {
+          hospitality_event: {
+            hasArchive: false,
+            rewrite: { slug: 'events', withFront: false },
+          },
+        },
+      },
+      { cssFile: 'assets/main.css' },
+      [],
+      tmpDir,
+    );
+
+    expect(php).toContain("'has_archive' => false");
+    expect(php).toContain(
+      "'rewrite'     => array('slug' => 'events', 'with_front' => false)",
+    );
+    expect(php).toContain('flush_rewrite_rules(false)');
+    expect(php).toContain("add_action('init', 'forgewp_flush_test_theme_cpt_rewrite_rules', 99)");
+  });
+
   it('loads translations from cms/translations.ts via defineTranslations()', () => {
     fs.writeFileSync(
       path.join(tmpDir, 'cms', 'translations.ts'),

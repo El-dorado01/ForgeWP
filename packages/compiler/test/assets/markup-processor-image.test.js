@@ -35,6 +35,18 @@ describe('Markup Processor — WpImage Transpilation', () => {
     expect(output).toContain('height="50"');
   });
 
+  it('rewrites local img and preload-link urls to the theme file, and leaves routes alone', () => {
+    const output = processMarkup(
+      '<img src="/Logo_DICON-removebg-preview.png" alt="DICON"><link rel="preload" href="/Logo_DICON-removebg-preview.png" as="image"><a href="/events">Events</a><link rel="stylesheet" href="/assets/app.css">',
+    );
+
+    expect(output).toContain("get_theme_file_uri( 'Logo_DICON-removebg-preview.png' )");
+    expect(output.match(/get_theme_file_uri\( 'Logo_DICON-removebg-preview.png' \)/g)).toHaveLength(2);
+    expect(output).toContain('href="/events"');
+    expect(output).toContain('href="/assets/app.css"');
+    expect(output).not.toContain('src="/Logo_DICON-removebg-preview.png"');
+  });
+
   it('transpiles external URLs with decoding="async"', () => {
     const input = '<forgewp-image data-src="https://images.unsplash.com/photo-test" data-class-name="external-photo" data-alt="External Photo" data-width="800" data-height="600"></forgewp-image>';
     const output = processMarkup(input);

@@ -12,7 +12,12 @@ import fs, {
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
-import { scanForEditableSchemas, scanForHydrationIslandsWithProps, resolveIslandChunk, scanAppProviders } from './hydration/index.js';
+import {
+  scanForEditableSchemas,
+  scanForHydrationIslandsWithProps,
+  resolveIslandChunk,
+  scanAppProviders,
+} from './hydration/index.js';
 import { loadFrameworkAdapter } from './framework-adapter.js';
 import {
   analyzeHydrationIslands,
@@ -32,17 +37,26 @@ import {
   buildPagePhp,
   buildPlaceholderPagePhp,
   buildBuilderPagePhp,
+  LINK_RESET_CSS,
 } from './php-builders.js';
 import { collectFallbackPageRoutes } from './collect-static-routes.js';
 import { buildFunctionsPhp } from './functions/index.js';
 import { loadMenusData } from './functions/load-menus.js';
-import { loadTranslationsData, translationsSourcePath } from './functions/load-translations.js';
+import {
+  loadTranslationsData,
+  translationsSourcePath,
+} from './functions/load-translations.js';
 import { lintFormsUsage } from './functions/forms.js';
 import { buildSettingsPagePhp } from './functions/settings-page.js';
 import { compileBlocks, warmupIconCache } from './blocks/index.js';
 import { findHtmlTagEnd } from './blocks/shared-utils.js';
-import { buildEditorIconRegistry, FORGEWP_DEFAULT_ICON_SLUGS } from './icon-registry.js';
+import {
+  buildEditorIconRegistry,
+  FORGEWP_DEFAULT_ICON_SLUGS,
+} from './icon-registry.js';
 import { scanAssetGraph, generatePreloadTags } from './assets/index.js';
+import { rewriteThemePublicAssetUrls } from './assets/public-url.js';
+import { extractTemplateContent } from './extract-template-content.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -91,7 +105,10 @@ export async function generateTheme({
   await warmupIconCache(themeRoot);
 
   const schemas = scanForEditableSchemas(themeRoot);
-  console.log(`[ForgeWP Compiler] Discovered colocated editable schemas for templates: ${Object.keys(schemas).join(', ') || '<none>'}`);
+  if (process.env.FORGEWP_VERBOSE === '1')
+    console.log(
+      `[ForgeWP Compiler] Discovered colocated editable schemas for templates: ${Object.keys(schemas).join(', ') || '<none>'}`,
+    );
 
   // Real richText-ness per field key, from the actual editable schema type —
   // used by processMarkup instead of guessing from the key name (a field
@@ -136,21 +153,29 @@ export async function generateTheme({
   if (existsSync(hooksPath)) {
     console.warn(
       '\x1b[33m%s\x1b[0m',
-      '⚠️  [ForgeWP Deprecation Warning]: "compiler-hooks.js" is deprecated. Please migrate custom PHP logic to "src/server/*.php" files.'
+      '⚠️  [ForgeWP Deprecation Warning]: "compiler-hooks.js" is deprecated. Please migrate custom PHP logic to "src/server/*.php" files.',
     );
     try {
       const fileUrl = pathToFileURL(hooksPath).href;
       projectHooks = await import(fileUrl);
     } catch (e) {
-      console.warn('[ForgeWP Compiler] Failed to import project compiler hooks:', e.message);
+      console.warn(
+        '[ForgeWP Compiler] Failed to import project compiler hooks:',
+        e.message,
+      );
     }
   }
 
   // Prefer cms/menus.ts (defineWpMenus); fall back to legacy cms/menus.json.
   const menus = loadMenusData(themeRoot);
-  const loadedMenuLocations = Object.keys(menus).filter((k) => !k.startsWith('_'));
+  const loadedMenuLocations = Object.keys(menus).filter(
+    (k) => !k.startsWith('_'),
+  );
   if (loadedMenuLocations.length > 0) {
-    console.log(`[ForgeWP Compiler] Nav menu locations: ${loadedMenuLocations.join(', ')}`);
+    if (process.env.FORGEWP_VERBOSE === '1')
+      console.log(
+        `[ForgeWP Compiler] Nav menu locations: ${loadedMenuLocations.join(', ')}`,
+      );
   }
 
   // Merge static menu definitions from defineTheme/wp.config.ts config.menus
@@ -258,9 +283,10 @@ export async function generateTheme({
     pagesToAutoCreate.push(page);
   }
   if (fallbackPages.length > 0) {
-    console.log(
-      `[ForgeWP Compiler] Coming-next pages for unmatched routes: ${fallbackPages.map((p) => '/' + p.slug).join(', ')}`,
-    );
+    if (process.env.FORGEWP_VERBOSE === '1')
+      console.log(
+        `[ForgeWP Compiler] Coming-next pages for unmatched routes: ${fallbackPages.map((p) => '/' + p.slug).join(', ')}`,
+      );
   }
 
   const adapter = await loadFrameworkAdapter(config.frameworkAdapter);
@@ -280,7 +306,7 @@ export async function generateTheme({
 
   // Collect Smart Discovery islands (auto-detected interactive components with no explicit <Hydrate> wrapper)
   const detailedIslands = scanForHydrationIslandsWithProps(themeRoot);
-  const autoIslands = detailedIslands.filter(i => i.smartDiscovered);
+  const autoIslands = detailedIslands.filter((i) => i.smartDiscovered);
 
   /**
    * Post-process SSR HTML to convert data-forgewp-auto-island divs (injected by the
@@ -307,7 +333,9 @@ export async function generateTheme({
     // <?php ?> spans and quoted strings to find the tag's true end.
     // The SSR emits: <div data-forgewp-auto-island="hero-section" style="display:contents" data-forgewp-auto-island-props="{&quot;searchPlaceholder&quot;:&quot;...&quot;}">...</div>
     // We need:      <div data-forgewp-hydrate="hero-section" data-forgewp-trigger="visible" data-forgewp-props="{&quot;searchPlaceholder&quot;:&quot;...&quot;}" style="display:contents">...</div>
-    const autoIslandMap = new Map(autoIslands.map(i => [i.name, i.trigger || 'visible']));
+    const autoIslandMap = new Map(
+      autoIslands.map((i) => [i.name, i.trigger || 'visible']),
+    );
     const marker = 'data-forgewp-auto-island="';
     let result = '';
     let cursor = 0;
@@ -329,7 +357,9 @@ export async function generateTheme({
       const attrsStr = html.slice(tagStart + 4, tagEnd); // strip leading "<div" and trailing ">"
       const kebabMatch = attrsStr.match(/data-forgewp-auto-island="([^"]+)"/);
       const kebab = kebabMatch ? kebabMatch[1] : '';
-      const propsMatch = attrsStr.match(/data-forgewp-auto-island-props="([^"]*)"/);
+      const propsMatch = attrsStr.match(
+        /data-forgewp-auto-island-props="([^"]*)"/,
+      );
       const propsValue = propsMatch ? propsMatch[1] : '{}';
       const trigger = autoIslandMap.get(kebab) || 'visible';
       const restAttrs = attrsStr
@@ -342,11 +372,11 @@ export async function generateTheme({
     return result;
   }
 
-
   const assetsOut = path.join(outDir, 'assets');
   const distAssets = path.join(themeRoot, 'dist', 'assets');
   mkdirSync(assetsOut, { recursive: true });
   cpSync(distAssets, assetsOut, { recursive: true });
+  rewriteThemePublicAssetUrls(themeRoot, assetsOut);
 
   // Copy all other files/folders from dist to outDir (excluding .vite, index.html, and assets)
   const distDir = path.join(themeRoot, 'dist');
@@ -373,13 +403,16 @@ export async function generateTheme({
 
   const replaceAssetPlaceholders = (markup) => {
     if (!markup) return '';
-    return markup.replace(/__FORGEWP_ASSET__([a-zA-Z0-9_\-\.\/]+)/g, (match, srcPath) => {
-      const manifestEntry = viteManifest[srcPath];
-      if (manifestEntry && manifestEntry.file) {
-        return `<?php echo esc_url( get_template_directory_uri() ); ?>/${manifestEntry.file}`;
-      }
-      return `<?php echo esc_url( get_template_directory_uri() ); ?>/${srcPath}`;
-    });
+    return markup.replace(
+      /__FORGEWP_ASSET__([a-zA-Z0-9_\-\.\/]+)/g,
+      (match, srcPath) => {
+        const manifestEntry = viteManifest[srcPath];
+        if (manifestEntry && manifestEntry.file) {
+          return `<?php echo esc_url( get_template_directory_uri() ); ?>/${manifestEntry.file}`;
+        }
+        return `<?php echo esc_url( get_template_directory_uri() ); ?>/${srcPath}`;
+      },
+    );
   };
 
   let hydrationManifestJson = '{}';
@@ -427,7 +460,18 @@ export async function generateTheme({
     const hydratorScript = `(function () {
   const config = window.forgeWpHydration || { themeUri: "", manifest: {} };
   if (!config.providers) config.providers = ${providerIdsJson};
-  const islands = document.querySelectorAll("[data-forgewp-hydrate]");
+  const allIslands = document.querySelectorAll("[data-forgewp-hydrate]");
+  // An outer island re-renders its own children. Hydrating a nested marker
+  // as well would mount that child twice and drop state the parent owns
+  // (a scroll observer, shared motion props, a ref). The outermost marker wins.
+  const islands = Array.prototype.filter.call(allIslands, function (el) {
+    let parent = el.parentElement;
+    while (parent) {
+      if (parent.hasAttribute && parent.hasAttribute("data-forgewp-hydrate")) return false;
+      parent = parent.parentElement;
+    }
+    return true;
+  });
 
   function firstObservableBox(el) {
     if (!el || el.nodeType !== 1) return null;
@@ -670,13 +714,13 @@ export async function generateTheme({
                 });
               }
             }
-            let tree = React.createElement(Component, nextProps);
+            let nextTree = React.createElement(Component, nextProps);
             for (let i = providerComponents.length - 1; i >= 0; i--) {
-              tree = React.createElement(providerComponents[i], null, tree);
+              nextTree = React.createElement(providerComponents[i], null, nextTree);
             }
             try {
               const root = ReactDOM.createRoot(el);
-              root.render(tree);
+              root.render(nextTree);
             } catch (err) {
               el.innerHTML = backup;
               console.error("[ForgeWP Hydrator] Render failed for " + islandName + ", restored SSR HTML:", err);
@@ -849,67 +893,109 @@ export async function generateTheme({
   }
 
   // Fix nav links and split markup
-  const processedApp = injectAutoHydrationMarkers(processMarkup(appHtml, config.textDomain, getRichTextKeysForSlug('front-page')));
-  const processedHeader = injectAutoHydrationMarkers(processMarkup(headerHtml, config.textDomain, richTextFieldKeys));
-  const processedFooter = injectAutoHydrationMarkers(processMarkup(footerHtml, config.textDomain, richTextFieldKeys));
+  const processedApp = injectAutoHydrationMarkers(
+    processMarkup(
+      appHtml,
+      config.textDomain,
+      getRichTextKeysForSlug('front-page'),
+    ),
+  );
+  const processedHeader = injectAutoHydrationMarkers(
+    processMarkup(headerHtml, config.textDomain, richTextFieldKeys),
+  );
+  const processedFooter = injectAutoHydrationMarkers(
+    processMarkup(footerHtml, config.textDomain, richTextFieldKeys),
+  );
 
-  function extractCleanContent(markup, header, footer) {
-    if (!markup) return '';
-    const boundaryMatch = markup.match(/<forgewp-content-boundary\b[^>]*>([\s\S]*?)<\/forgewp-content-boundary>/i);
-    let res = boundaryMatch ? boundaryMatch[1] : markup;
+  // Extract content (App markup minus Header/Footer, unless the page owns its shell)
+  let contentHtml = extractTemplateContent(
+    processedApp,
+    processedHeader,
+    processedFooter,
+  );
+  contentHtml = contentHtml.replace(
+    /<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g,
+    '',
+  );
+  contentHtml = contentHtml.replace(
+    /<\/?forgewp-content-boundary\b[^>]*>/gi,
+    '',
+  );
 
-    // If the boundary wraps layout shells (header/main/footer), extract inner <main> content
-    if (res.includes('<header') || res.includes('<footer') || res.includes('<main')) {
-      const mainMatch = res.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i);
-      if (mainMatch) {
-        return mainMatch[1];
-      }
-    }
-
-    if (header) {
-      const replaced = res.replace(header, '');
-      res = replaced !== res ? replaced : res.replace(/<header\b[^>]*>([\s\S]*?)<\/header>/i, '');
-    }
-    if (footer) {
-      const replaced = res.replace(footer, '');
-      res = replaced !== res ? replaced : res.replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i, '');
-    }
-    return res;
-  }
-
-  // Extract content (App markup minus Header/Footer)
-  let contentHtml = extractCleanContent(processedApp, processedHeader, processedFooter);
-  contentHtml = contentHtml.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
-  contentHtml = contentHtml.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
-
-  let cleanHeader = processedHeader.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
-  let cleanFooter = processedFooter.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
+  let cleanHeader = processedHeader.replace(
+    /<\/?forgewp-content-boundary\b[^>]*>/gi,
+    '',
+  );
+  let cleanFooter = processedFooter.replace(
+    /<\/?forgewp-content-boundary\b[^>]*>/gi,
+    '',
+  );
 
   // Process single post template if exists
   let processedSingle = '';
   if (singleHtml) {
-    processedSingle = injectAutoHydrationMarkers(processMarkup(singleHtml, config.textDomain, richTextFieldKeys));
-    processedSingle = extractCleanContent(processedSingle, processedHeader, processedFooter);
-    processedSingle = processedSingle.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
-    processedSingle = processedSingle.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
+    processedSingle = injectAutoHydrationMarkers(
+      processMarkup(singleHtml, config.textDomain, richTextFieldKeys),
+    );
+    processedSingle = extractTemplateContent(
+      processedSingle,
+      processedHeader,
+      processedFooter,
+    );
+    processedSingle = processedSingle.replace(
+      /<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g,
+      '',
+    );
+    processedSingle = processedSingle.replace(
+      /<\/?forgewp-content-boundary\b[^>]*>/gi,
+      '',
+    );
   }
 
   // Process 404 template if exists
   let processedNotFound = '';
   if (notFoundHtml) {
-    processedNotFound = injectAutoHydrationMarkers(processMarkup(notFoundHtml, config.textDomain, richTextFieldKeys));
-    processedNotFound = extractCleanContent(processedNotFound, processedHeader, processedFooter);
-    processedNotFound = processedNotFound.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
-    processedNotFound = processedNotFound.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
+    processedNotFound = injectAutoHydrationMarkers(
+      processMarkup(notFoundHtml, config.textDomain, richTextFieldKeys),
+    );
+    processedNotFound = extractTemplateContent(
+      processedNotFound,
+      processedHeader,
+      processedFooter,
+    );
+    processedNotFound = processedNotFound.replace(
+      /<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g,
+      '',
+    );
+    processedNotFound = processedNotFound.replace(
+      /<\/?forgewp-content-boundary\b[^>]*>/gi,
+      '',
+    );
   }
 
   const staticDir = path.join(outDir, 'forgewp-static');
   mkdirSync(staticDir, { recursive: true });
-  writeFileSync(path.join(staticDir, 'content.html'), replaceAssetPlaceholders(contentHtml), 'utf8');
-  writeFileSync(path.join(staticDir, 'header.html'), replaceAssetPlaceholders(cleanHeader), 'utf8');
-  writeFileSync(path.join(staticDir, 'footer.html'), replaceAssetPlaceholders(cleanFooter), 'utf8');
+  writeFileSync(
+    path.join(staticDir, 'content.html'),
+    replaceAssetPlaceholders(contentHtml),
+    'utf8',
+  );
+  writeFileSync(
+    path.join(staticDir, 'header.html'),
+    replaceAssetPlaceholders(cleanHeader),
+    'utf8',
+  );
+  writeFileSync(
+    path.join(staticDir, 'footer.html'),
+    replaceAssetPlaceholders(cleanFooter),
+    'utf8',
+  );
   if (headHtml) {
-    writeFileSync(path.join(staticDir, 'head.html'), replaceAssetPlaceholders(headHtml), 'utf8');
+    writeFileSync(
+      path.join(staticDir, 'head.html'),
+      replaceAssetPlaceholders(headHtml),
+      'utf8',
+    );
   }
   if (singleHeadHtml) {
     writeFileSync(
@@ -919,19 +1005,39 @@ export async function generateTheme({
     );
   }
   if (processedSingle) {
-    writeFileSync(path.join(staticDir, 'single.html'), replaceAssetPlaceholders(processedSingle), 'utf8');
+    writeFileSync(
+      path.join(staticDir, 'single.html'),
+      replaceAssetPlaceholders(processedSingle),
+      'utf8',
+    );
   }
   if (processedNotFound) {
-    writeFileSync(path.join(staticDir, '404.html'), replaceAssetPlaceholders(processedNotFound), 'utf8');
+    writeFileSync(
+      path.join(staticDir, '404.html'),
+      replaceAssetPlaceholders(processedNotFound),
+      'utf8',
+    );
   }
 
   // Archive page (category / tag / date archives)
   let processedArchive = '';
   if (archiveHtml) {
-    processedArchive = injectAutoHydrationMarkers(processMarkup(archiveHtml, config.textDomain, richTextFieldKeys));
-    processedArchive = extractCleanContent(processedArchive, processedHeader, processedFooter);
-    processedArchive = processedArchive.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
-    processedArchive = processedArchive.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
+    processedArchive = injectAutoHydrationMarkers(
+      processMarkup(archiveHtml, config.textDomain, richTextFieldKeys),
+    );
+    processedArchive = extractTemplateContent(
+      processedArchive,
+      processedHeader,
+      processedFooter,
+    );
+    processedArchive = processedArchive.replace(
+      /<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g,
+      '',
+    );
+    processedArchive = processedArchive.replace(
+      /<\/?forgewp-content-boundary\b[^>]*>/gi,
+      '',
+    );
     writeFileSync(
       path.join(staticDir, 'archive.html'),
       replaceAssetPlaceholders(processedArchive),
@@ -1082,10 +1188,14 @@ const useWpMenu = (location) => ({ items: [], loading: false });
 const useWpPrefetch = () => (to) => {};
 const useWpLanguage = () => ({
     currentLanguage: ${JSON.stringify(
-      config.i18n?.defaultLocale || (Array.isArray(config.i18n?.locales) && config.i18n.locales[0]) || 'en',
+      config.i18n?.defaultLocale ||
+        (Array.isArray(config.i18n?.locales) && config.i18n.locales[0]) ||
+        'en',
     )},
     languages: ${JSON.stringify(
-      Array.isArray(config.i18n?.locales) && config.i18n.locales.length > 0 ? config.i18n.locales : ['en'],
+      Array.isArray(config.i18n?.locales) && config.i18n.locales.length > 0
+        ? config.i18n.locales
+        : ['en'],
     )},
     homeUrl: '/',
     urls: {},
@@ -1707,20 +1817,51 @@ if (window.forgeWpBlocks) {
   }
 
   const queries = scanForQueries(themeRoot);
-  console.log(`[ForgeWP Compiler] Scanned and compiled ${queries.length} REST endpoints: ${queries.map(q => q.queryId).join(', ') || '<none>'}`);
+  if (process.env.FORGEWP_VERBOSE === '1')
+    console.log(
+      `[ForgeWP Compiler] Scanned and compiled ${queries.length} REST endpoints: ${queries.map((q) => q.queryId).join(', ') || '<none>'}`,
+    );
 
   const WP_CORE_OPTIONS = new Set([
-    'siteurl', 'blogname', 'blogdescription', 'admin_email', 'blogpublic',
-    'default_role', 'timezone_string', 'date_format', 'time_format',
-    'start_of_week', 'permalink_structure', 'upload_path', 'upload_url_path',
-    'posts_per_page', 'posts_per_rss', 'comments_notify', 'moderation_notify',
-    'comment_moderation', 'require_name_email', 'thread_comments',
-    'thread_comments_depth', 'page_comments', 'default_comments_page',
-    'comment_order', 'comments_per_page', 'default_ping_status',
-    'default_comment_status', 'show_on_front', 'page_on_front',
-    'page_for_posts', 'rss_use_excerpt', 'mailserver_url', 'mailserver_login',
-    'mailserver_pass', 'mailserver_port', 'active_plugins', 'template',
-    'stylesheet', 'woocommerce_shop_page_id',
+    'siteurl',
+    'blogname',
+    'blogdescription',
+    'admin_email',
+    'blogpublic',
+    'default_role',
+    'timezone_string',
+    'date_format',
+    'time_format',
+    'start_of_week',
+    'permalink_structure',
+    'upload_path',
+    'upload_url_path',
+    'posts_per_page',
+    'posts_per_rss',
+    'comments_notify',
+    'moderation_notify',
+    'comment_moderation',
+    'require_name_email',
+    'thread_comments',
+    'thread_comments_depth',
+    'page_comments',
+    'default_comments_page',
+    'comment_order',
+    'comments_per_page',
+    'default_ping_status',
+    'default_comment_status',
+    'show_on_front',
+    'page_on_front',
+    'page_for_posts',
+    'rss_use_excerpt',
+    'mailserver_url',
+    'mailserver_login',
+    'mailserver_pass',
+    'mailserver_port',
+    'active_plugins',
+    'template',
+    'stylesheet',
+    'woocommerce_shop_page_id',
   ]);
 
   const wpOptions = [];
@@ -1728,37 +1869,53 @@ if (window.forgeWpBlocks) {
     for (const [name, field] of Object.entries(config.options)) {
       if (WP_CORE_OPTIONS.has(name)) continue;
 
-      const label = field.label || name
-        .replace(/[_-]+/g, ' ')
-        .replace(/\b\w/g, c => c.toUpperCase());
+      const label =
+        field.label ||
+        name.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
       wpOptions.push({
         name,
         label,
         defaultValue: field.default || '',
-        postType: field._type === 'postPicker' ? (field.postType || 'post') : null,
+        postType:
+          field._type === 'postPicker' ? field.postType || 'post' : null,
       });
     }
   }
 
   if (wpOptions.length > 0) {
-    console.log(`[ForgeWP Compiler] Detected ${wpOptions.length} site option(s) via config.options: ${wpOptions.map(o => o.name).join(', ')}`);
+    if (process.env.FORGEWP_VERBOSE === '1')
+      console.log(
+        `[ForgeWP Compiler] Detected ${wpOptions.length} site option(s) via config.options: ${wpOptions.map((o) => o.name).join(', ')}`,
+      );
   }
 
   // The Theme Options post-picker field (optionPostPicker) uses Select2 for its AJAX
   // search dropdown. WordPress core does NOT ship a public 'select2' script/style handle,
   // so we vendor our own copy into the exported theme rather than relying on one.
-  if (wpOptions.some(o => o.postType)) {
+  if (wpOptions.some((o) => o.postType)) {
     try {
       const vendorRequire = createRequire(import.meta.url);
-      const select2JsPath = vendorRequire.resolve('select2/dist/js/select2.min.js');
-      const select2CssPath = vendorRequire.resolve('select2/dist/css/select2.min.css');
+      const select2JsPath = vendorRequire.resolve(
+        'select2/dist/js/select2.min.js',
+      );
+      const select2CssPath = vendorRequire.resolve(
+        'select2/dist/css/select2.min.css',
+      );
       const select2VendorOut = path.join(assetsOut, 'vendor', 'select2');
       mkdirSync(select2VendorOut, { recursive: true });
-      copyFileSync(select2JsPath, path.join(select2VendorOut, 'select2.min.js'));
-      copyFileSync(select2CssPath, path.join(select2VendorOut, 'select2.min.css'));
+      copyFileSync(
+        select2JsPath,
+        path.join(select2VendorOut, 'select2.min.js'),
+      );
+      copyFileSync(
+        select2CssPath,
+        path.join(select2VendorOut, 'select2.min.css'),
+      );
     } catch (err) {
-      console.warn(`[ForgeWP Compiler] Failed to vendor select2 assets for the Theme Options post-picker: ${err.message}`);
+      console.warn(
+        `[ForgeWP Compiler] Failed to vendor select2 assets for the Theme Options post-picker: ${err.message}`,
+      );
     }
   }
 
@@ -1778,25 +1935,35 @@ if (window.forgeWpBlocks) {
       wpOptions,
     );
   } catch (error) {
-    console.error("CRITICAL ERROR in buildFunctionsPhp:", error.stack);
+    console.error('CRITICAL ERROR in buildFunctionsPhp:', error.stack);
     throw error;
   }
 
   try {
     lintFormsUsage(themeRoot, config);
   } catch (error) {
-    console.warn(`[ForgeWP Compiler] Forms usage lint failed to run: ${error.message}`);
+    console.warn(
+      `[ForgeWP Compiler] Forms usage lint failed to run: ${error.message}`,
+    );
   }
 
   if (projectHooks && typeof projectHooks.processFunctionsPhp === 'function') {
-    functionsPhpContent = projectHooks.processFunctionsPhp(functionsPhpContent, config);
+    functionsPhpContent = projectHooks.processFunctionsPhp(
+      functionsPhpContent,
+      config,
+    );
   }
 
   // Execute plugin functions.php transformation hooks
   if (config.plugins && Array.isArray(config.plugins)) {
     for (const plugin of config.plugins) {
       if (typeof plugin.transformFunctionsPhp === 'function') {
-        functionsPhpContent = plugin.transformFunctionsPhp(functionsPhpContent, config, themeRoot, { fs, path });
+        functionsPhpContent = plugin.transformFunctionsPhp(
+          functionsPhpContent,
+          config,
+          themeRoot,
+          { fs, path },
+        );
       }
     }
   }
@@ -1808,7 +1975,8 @@ if (window.forgeWpBlocks) {
       .filter((file) => file.endsWith('.php'))
       .sort();
     if (phpFiles.length > 0) {
-      let serverPhpContent = '\n\n/**\n * ── PHP Server Escape Hatch (src/server/) ──\n */';
+      let serverPhpContent =
+        '\n\n/**\n * ── PHP Server Escape Hatch (src/server/) ──\n */';
       for (const file of phpFiles) {
         const filePath = path.join(serverDir, file);
         let content = readFileSync(filePath, 'utf8');
@@ -1855,7 +2023,14 @@ if (window.forgeWpBlocks) {
   writeFileSync(path.join(outDir, 'index.php'), buildIndexPhp(), 'utf8');
   writeFileSync(path.join(outDir, 'single.php'), buildSinglePhp(), 'utf8');
   writeFileSync(path.join(outDir, '404.php'), build404Php(), 'utf8');
-  writeFileSync(path.join(outDir, 'front-page.php'), buildIndexPhp(), 'utf8');
+  const frontPageOwnsShell =
+    typeof appHtml === 'string' &&
+    appHtml.includes('data-forgewp-owns-shell="true"');
+  writeFileSync(
+    path.join(outDir, 'front-page.php'),
+    buildIndexPhp({ ownsShell: frontPageOwnsShell }),
+    'utf8',
+  );
   writeFileSync(path.join(outDir, 'archive.php'), buildArchivePhp(), 'utf8');
   writeFileSync(path.join(outDir, 'page.php'), buildPagePhp(), 'utf8');
   writeFileSync(
@@ -1876,26 +2051,48 @@ if (window.forgeWpBlocks) {
       const name = file.replace('.html', '');
       const isHierarchyTemplate =
         (name.startsWith('single-') ||
-         name.startsWith('archive-') ||
-         name.startsWith('taxonomy-') ||
-         name === 'taxonomy') &&
+          name.startsWith('archive-') ||
+          name.startsWith('taxonomy-') ||
+          name === 'taxonomy') &&
         file.endsWith('.html') &&
         !file.includes('-head');
-      
+
       if (isHierarchyTemplate) {
         const rawHtml = readFileSync(path.join(forgewpDir, file), 'utf8');
-        let processedHtml = injectAutoHydrationMarkers(processMarkup(rawHtml, config.textDomain, getRichTextKeysForSlug(`${name}-page`)));
-        processedHtml = extractCleanContent(processedHtml, processedHeader, processedFooter);
-        processedHtml = processedHtml.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
-        processedHtml = processedHtml.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
+        let processedHtml = injectAutoHydrationMarkers(
+          processMarkup(
+            rawHtml,
+            config.textDomain,
+            getRichTextKeysForSlug(`${name}-page`),
+          ),
+        );
+        processedHtml = extractTemplateContent(
+          processedHtml,
+          processedHeader,
+          processedFooter,
+        );
+        processedHtml = processedHtml.replace(
+          /<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g,
+          '',
+        );
+        processedHtml = processedHtml.replace(
+          /<\/?forgewp-content-boundary\b[^>]*>/gi,
+          '',
+        );
 
-        writeFileSync(path.join(staticDir, file), replaceAssetPlaceholders(processedHtml), 'utf8');
+        writeFileSync(
+          path.join(staticDir, file),
+          replaceAssetPlaceholders(processedHtml),
+          'utf8',
+        );
 
         const headFile = file.replace('.html', '-head.html');
         if (existsSync(path.join(forgewpDir, headFile))) {
           writeFileSync(
             path.join(staticDir, headFile),
-            replaceAssetPlaceholders(readFileSync(path.join(forgewpDir, headFile), 'utf8')),
+            replaceAssetPlaceholders(
+              readFileSync(path.join(forgewpDir, headFile), 'utf8'),
+            ),
             'utf8',
           );
         }
@@ -1933,7 +2130,9 @@ ${phpLoop}
 get_footer();
 `;
         writeFileSync(path.join(outDir, `${name}.php`), phpContent, 'utf8');
-        console.warn(`[ForgeWP Compiler] Wrote dynamic WP template ${name}.php`);
+        console.warn(
+          `[ForgeWP Compiler] Wrote dynamic WP template ${name}.php`,
+        );
       }
     }
   }
@@ -1993,7 +2192,9 @@ get_footer();
         }
 
         if (rawHtml.includes('forgewp-capability-gate-start')) {
-          const match = rawHtml.match(/forgewp-capability-gate-start\s+allowed="([^"]*)"/);
+          const match = rawHtml.match(
+            /forgewp-capability-gate-start\s+allowed="([^"]*)"/,
+          );
           authManifest.authGates.push({
             page: slug.replace('template-', ''),
             type: 'capability',
@@ -2023,7 +2224,9 @@ get_footer();
             let redirectSetup = '';
             if (redirect) {
               if (redirect.startsWith('__FORGEWP_PAGELINK_')) {
-                const match = redirect.match(/__FORGEWP_PAGELINK_([a-zA-Z0-9_-]+)_DEFAULT_(.*?)__/);
+                const match = redirect.match(
+                  /__FORGEWP_PAGELINK_([a-zA-Z0-9_-]+)_DEFAULT_(.*?)__/,
+                );
                 if (match) {
                   const name = match[1];
                   const decoded = decodeURIComponent(match[2]);
@@ -2034,7 +2237,9 @@ get_footer();
     }`;
                   redirectUrlExpr = '$redirect_url';
                 } else {
-                  const matchPlain = redirect.match(/__FORGEWP_PAGELINK_([a-zA-Z0-9_-]+)__/);
+                  const matchPlain = redirect.match(
+                    /__FORGEWP_PAGELINK_([a-zA-Z0-9_-]+)__/,
+                  );
                   if (matchPlain) {
                     const name = matchPlain[1];
                     redirectSetup = `    $redirect_url = home_url('/');
@@ -2087,15 +2292,23 @@ if ( ! current_user_can( '${allowed}' ) ) {
 }`;
             }
           }
-          cleanedRawHtml = rawHtml.replace(/<forgewp-require-auth\s*([^>]*)\/?>/gi, '');
-          cleanedRawHtml = cleanedRawHtml.replace(/<\/forgewp-require-auth>/gi, '');
+          cleanedRawHtml = rawHtml.replace(
+            /<forgewp-require-auth\s*([^>]*)\/?>/gi,
+            '',
+          );
+          cleanedRawHtml = cleanedRawHtml.replace(
+            /<\/forgewp-require-auth>/gi,
+            '',
+          );
         }
 
         let pageConfigHeader = true;
         let pageConfigFooter = true;
         let pageConfigLayout = 'default';
 
-        const configMatch = rawHtml.match(/<forgewp-page-config\s*([^>]*)\/?>/i);
+        const configMatch = rawHtml.match(
+          /<forgewp-page-config\s*([^>]*)\/?>/i,
+        );
         if (configMatch) {
           const attribs = configMatch[1];
           const headerAttr = attribs.match(/header="([^"]*)"/i);
@@ -2119,26 +2332,64 @@ if ( ! current_user_can( '${allowed}' ) ) {
               pageConfigFooter = false;
             }
           }
-          cleanedRawHtml = cleanedRawHtml.replace(/<forgewp-page-config\s*([^>]*)\/?>/gi, '');
-          cleanedRawHtml = cleanedRawHtml.replace(/<\/forgewp-page-config>/gi, '');
+          cleanedRawHtml = cleanedRawHtml.replace(
+            /<forgewp-page-config\s*([^>]*)\/?>/gi,
+            '',
+          );
+          cleanedRawHtml = cleanedRawHtml.replace(
+            /<\/forgewp-page-config>/gi,
+            '',
+          );
         }
 
-        let processedHtml = injectAutoHydrationMarkers(processMarkup(cleanedRawHtml, config.textDomain, getRichTextKeysForSlug(slug.replace('template-', ''))));
-        processedHtml = extractCleanContent(processedHtml, processedHeader, processedFooter);
-        processedHtml = processedHtml.replace(/<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g, '');
-        processedHtml = processedHtml.replace(/<\/?forgewp-content-boundary\b[^>]*>/gi, '');
+        let processedHtml = injectAutoHydrationMarkers(
+          processMarkup(
+            cleanedRawHtml,
+            config.textDomain,
+            getRichTextKeysForSlug(slug.replace('template-', '')),
+          ),
+        );
+        const layoutIsBlank =
+          pageConfigLayout === 'blank' || pageConfigLayout === 'false';
+        processedHtml = extractTemplateContent(
+          processedHtml,
+          processedHeader,
+          processedFooter,
+          { ownsShell: layoutIsBlank },
+        );
+        processedHtml = processedHtml.replace(
+          /<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g,
+          '',
+        );
+        processedHtml = processedHtml.replace(
+          /<\/?forgewp-content-boundary\b[^>]*>/gi,
+          '',
+        );
 
-        if (projectHooks && typeof projectHooks.processTemplateMarkup === 'function') {
-          processedHtml = projectHooks.processTemplateMarkup(slug, processedHtml, config);
+        if (
+          projectHooks &&
+          typeof projectHooks.processTemplateMarkup === 'function'
+        ) {
+          processedHtml = projectHooks.processTemplateMarkup(
+            slug,
+            processedHtml,
+            config,
+          );
         }
 
-        writeFileSync(path.join(staticDir, file), replaceAssetPlaceholders(processedHtml), 'utf8');
+        writeFileSync(
+          path.join(staticDir, file),
+          replaceAssetPlaceholders(processedHtml),
+          'utf8',
+        );
 
         const headFile = file.replace('.html', '-head.html');
         if (existsSync(path.join(forgewpDir, headFile))) {
           writeFileSync(
             path.join(staticDir, headFile),
-            replaceAssetPlaceholders(readFileSync(path.join(forgewpDir, headFile), 'utf8')),
+            replaceAssetPlaceholders(
+              readFileSync(path.join(forgewpDir, headFile), 'utf8'),
+            ),
             'utf8',
           );
         }
@@ -2171,10 +2422,7 @@ if ( ! current_user_can( '${allowed}' ) ) {
   ?>
   <?php wp_head(); ?>
   <style>
-    a { text-decoration: none; }
-    a:hover { text-decoration: none; }
-    .underline { text-decoration: underline !important; }
-    .hover\\:underline:hover { text-decoration: underline !important; }
+${LINK_RESET_CSS}
   </style>
 </head>
 <body <?php body_class(); ?>>
@@ -2256,12 +2504,19 @@ ${footerCall}
       };
 
       // Smartly extract background and text colors from palette to style the WP editor canvas
-      if (config.settings.color.palette && Array.isArray(config.settings.color.palette)) {
+      if (
+        config.settings.color.palette &&
+        Array.isArray(config.settings.color.palette)
+      ) {
         if (!themeJson.styles) themeJson.styles = {};
         if (!themeJson.styles.color) themeJson.styles.color = {};
 
-        const bgPreset = config.settings.color.palette.find(p => p && p.slug === 'background');
-        const textPreset = config.settings.color.palette.find(p => p && (p.slug === 'text' || p.slug === 'primary'));
+        const bgPreset = config.settings.color.palette.find(
+          (p) => p && p.slug === 'background',
+        );
+        const textPreset = config.settings.color.palette.find(
+          (p) => p && (p.slug === 'text' || p.slug === 'primary'),
+        );
 
         if (bgPreset && !themeJson.styles.color.background) {
           themeJson.styles.color.background = bgPreset.color;
@@ -2314,10 +2569,10 @@ function extractUseWpQueryArgs(fileContent) {
     let endIdx = startIdx;
     let inString = false;
     let stringChar = null;
-    
+
     for (let i = startIdx; i < fileContent.length; i++) {
       const char = fileContent[i];
-      
+
       if (inString) {
         if (char === stringChar && fileContent[i - 1] !== '\\') {
           inString = false;
@@ -2329,7 +2584,7 @@ function extractUseWpQueryArgs(fileContent) {
         stringChar = char;
         continue;
       }
-      
+
       if (char === '(') parenCount++;
       if (char === ')') {
         parenCount--;
@@ -2339,7 +2594,7 @@ function extractUseWpQueryArgs(fileContent) {
         }
       }
     }
-    
+
     if (endIdx > startIdx) {
       const argText = fileContent.slice(startIdx, endIdx).trim();
       queries.push(argText);
@@ -2354,17 +2609,29 @@ function safeEvalObject(objText) {
     return null;
   }
   try {
-    const sandbox = new Proxy({}, {
-      has() { return true; },
-      get(target, prop) {
-        if (prop === 'Symbol(Symbol.toPrimitive)') return undefined;
-        return `__DYNAMIC_${String(prop)}__`;
-      }
-    });
-    const fn = new Function('sandbox', `with(sandbox) { return (${objText}); }`);
+    const sandbox = new Proxy(
+      {},
+      {
+        has() {
+          return true;
+        },
+        get(target, prop) {
+          if (prop === 'Symbol(Symbol.toPrimitive)') return undefined;
+          return `__DYNAMIC_${String(prop)}__`;
+        },
+      },
+    );
+    const fn = new Function(
+      'sandbox',
+      `with(sandbox) { return (${objText}); }`,
+    );
     return fn(sandbox);
   } catch (e) {
-    console.warn('[ForgeWP Query Parser] safeEvalObject failed for:', objText, e.message);
+    console.warn(
+      '[ForgeWP Query Parser] safeEvalObject failed for:',
+      objText,
+      e.message,
+    );
     return null;
   }
 }
@@ -2396,7 +2663,9 @@ function scanForQueries(themeRoot) {
               if (!parsed.queryId) {
                 const baseName = path.basename(file, path.extname(file));
                 const postTypePart = String(parsed.postType).toLowerCase();
-                const cleanBase = baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                const cleanBase = baseName
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, '-');
                 parsed.queryId = cleanBase + '-' + postTypePart;
               }
               queries.push(parsed);
@@ -2412,7 +2681,10 @@ function scanForQueries(themeRoot) {
   const uniqueQueries = [];
   const seenIds = new Set();
   for (const q of queries) {
-    const cleanId = q.queryId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const cleanId = q.queryId
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
     if (!seenIds.has(cleanId)) {
       seenIds.add(cleanId);
       uniqueQueries.push(q);
@@ -2428,17 +2700,45 @@ function scanForWpOptions(themeRoot) {
   // WordPress core options that are already managed in wp-admin Settings pages —
   // exclude them from the auto-generated Theme Options page.
   const WP_CORE_OPTIONS = new Set([
-    'siteurl', 'blogname', 'blogdescription', 'admin_email', 'blogpublic',
-    'default_role', 'timezone_string', 'date_format', 'time_format',
-    'start_of_week', 'permalink_structure', 'upload_path', 'upload_url_path',
-    'posts_per_page', 'posts_per_rss', 'comments_notify', 'moderation_notify',
-    'comment_moderation', 'require_name_email', 'thread_comments',
-    'thread_comments_depth', 'page_comments', 'default_comments_page',
-    'comment_order', 'comments_per_page', 'default_ping_status',
-    'default_comment_status', 'show_on_front', 'page_on_front',
-    'page_for_posts', 'rss_use_excerpt', 'mailserver_url', 'mailserver_login',
-    'mailserver_pass', 'mailserver_port', 'active_plugins', 'template',
-    'stylesheet', 'woocommerce_shop_page_id',
+    'siteurl',
+    'blogname',
+    'blogdescription',
+    'admin_email',
+    'blogpublic',
+    'default_role',
+    'timezone_string',
+    'date_format',
+    'time_format',
+    'start_of_week',
+    'permalink_structure',
+    'upload_path',
+    'upload_url_path',
+    'posts_per_page',
+    'posts_per_rss',
+    'comments_notify',
+    'moderation_notify',
+    'comment_moderation',
+    'require_name_email',
+    'thread_comments',
+    'thread_comments_depth',
+    'page_comments',
+    'default_comments_page',
+    'comment_order',
+    'comments_per_page',
+    'default_ping_status',
+    'default_comment_status',
+    'show_on_front',
+    'page_on_front',
+    'page_for_posts',
+    'rss_use_excerpt',
+    'mailserver_url',
+    'mailserver_login',
+    'mailserver_pass',
+    'mailserver_port',
+    'active_plugins',
+    'template',
+    'stylesheet',
+    'woocommerce_shop_page_id',
   ]);
 
   const optionsMap = new Map(); // name -> { name, label, defaultValue, postType? }
@@ -2452,15 +2752,18 @@ function scanForWpOptions(themeRoot) {
         for (const [name, field] of Object.entries(schema)) {
           if (WP_CORE_OPTIONS.has(name)) continue;
 
-          const label = field.label || name
-            .replace(/[_-]+/g, ' ')
-            .replace(/\b\w/g, c => c.toUpperCase());
+          const label =
+            field.label ||
+            name
+              .replace(/[_-]+/g, ' ')
+              .replace(/\b\w/g, (c) => c.toUpperCase());
 
           optionsMap.set(name, {
             name,
             label,
             defaultValue: field.default || '',
-            postType: field._type === 'postPicker' ? (field.postType || 'post') : null,
+            postType:
+              field._type === 'postPicker' ? field.postType || 'post' : null,
           });
         }
       }
@@ -2530,7 +2833,7 @@ function evalDefineWpOptions(objText) {
       'optionToggle',
       'optionNumber',
       'optionPostPicker',
-      `return (${objText});`
+      `return (${objText});`,
     );
     return fn(
       sandbox.optionText,
@@ -2539,12 +2842,13 @@ function evalDefineWpOptions(objText) {
       sandbox.optionTextarea,
       sandbox.optionToggle,
       sandbox.optionNumber,
-      sandbox.optionPostPicker
+      sandbox.optionPostPicker,
     );
   } catch (e) {
-    console.warn('[ForgeWP Options Parser] evalDefineWpOptions failed:', e.message);
+    console.warn(
+      '[ForgeWP Options Parser] evalDefineWpOptions failed:',
+      e.message,
+    );
     return null;
   }
 }
-
-

@@ -30,6 +30,7 @@ import {
 export async function exportTheme(options) {
   const themeRoot = path.resolve(options.themeRoot);
   const strict = !!options.strict;
+  const verbose = process.env.FORGEWP_VERBOSE === '1';
 
   // Run Preflight Safeguards and Self-Healing checks
   validateCriticalFiles(themeRoot);
@@ -42,7 +43,11 @@ export async function exportTheme(options) {
 
   // Pre-scaffold block wrappers so Vite receives them in Rollup inputs.
   // Defer editable-issue flush to compileBlocks (generateTheme) so --strict applies once.
-  scanAndGenerateBlocks(themeRoot, { strict: false, resetIssues: true, flush: false });
+  scanAndGenerateBlocks(themeRoot, {
+    strict: false,
+    resetIssues: true,
+    flush: false,
+  });
 
   const config = await loadConfig(themeRoot);
 
@@ -64,7 +69,9 @@ export async function exportTheme(options) {
             : level === 'green'
               ? pc.green
               : pc.white;
-    console.log(fn(`  ${message}`));
+    if (!options.onProgress) {
+      console.log(fn(`  ${message}`));
+    }
   }
 
   console.log(pc.cyan(`\n  ForgeWP export — ${config.name}\n`));
@@ -77,9 +84,15 @@ export async function exportTheme(options) {
   );
   const assets = options.skipBuild
     ? (await import('./build-assets.js')).readBuildManifest(themeRoot)
-    : buildAssets(themeRoot, { packageManager: options.packageManager });
+    : buildAssets(themeRoot, {
+        packageManager: options.packageManager,
+        verbose,
+      });
 
-  report('render', `Rendering ${config.frameworkAdapter || 'React'} app to static HTML…`);
+  report(
+    'render',
+    `Rendering ${config.frameworkAdapter || 'React'} app to static HTML…`,
+  );
   const markup = await renderStaticMarkup(themeRoot, config.frameworkAdapter);
 
   const outDir = path.join(themeRoot, '.forgewp', 'out', config.slug);
@@ -118,7 +131,9 @@ export async function exportTheme(options) {
   }
 
   // Web Font Orchestration (self-host WOFF2 with local @font-face)
-  const fontResults = await orchestrateFonts(themeRoot, config, assetGraph, { outDir });
+  const fontResults = await orchestrateFonts(themeRoot, config, assetGraph, {
+    outDir,
+  });
   if (fontResults.strategy === 'self-host' && fontResults.downloadedCount > 0) {
     report(
       'fonts-done',

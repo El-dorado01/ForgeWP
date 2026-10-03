@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import path from "node:path";
-import { cwd } from "node:process";
-import pc from "picocolors";
-import { exportTheme } from "../lib/export-theme.js";
+import path from 'node:path';
+import { cwd } from 'node:process';
+import pc from 'picocolors';
+import { exportTheme } from '../lib/export-theme.js';
 
 function printHelp() {
   console.log(`
@@ -38,32 +38,32 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
 
-    if (arg === "-h" || arg === "--help") {
+    if (arg === '-h' || arg === '--help') {
       options.help = true;
       continue;
     }
 
-    if (arg === "--skip-build") {
+    if (arg === '--skip-build') {
       options.skipBuild = true;
       continue;
     }
 
-    if (arg === "--no-zip") {
+    if (arg === '--no-zip') {
       options.zip = false;
       continue;
     }
 
-    if (arg === "--validate") {
+    if (arg === '--validate') {
       options.validate = true;
       continue;
     }
 
-    if (arg === "--strict") {
+    if (arg === '--strict') {
       options.strict = true;
       continue;
     }
 
-    if (arg.startsWith("-")) {
+    if (arg.startsWith('-')) {
       console.error(pc.red(`Unknown option: ${arg}`));
       process.exit(1);
     }
@@ -82,6 +82,42 @@ async function main() {
     return;
   }
 
+  const interactive = Boolean(process.stdout.isTTY);
+  const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+  let spinnerIndex = 0;
+  let spinnerTimer;
+  let activeStep = null;
+
+  const drawActiveStep = () => {
+    if (!activeStep || !interactive) return;
+    process.stdout.write(
+      `\r\x1b[2K  ${pc.cyan(spinnerFrames[spinnerIndex])} ${activeStep.message}`,
+    );
+    spinnerIndex = (spinnerIndex + 1) % spinnerFrames.length;
+  };
+
+  const startStep = (evt) => {
+    if (activeStep) finishStep();
+    activeStep = evt;
+    spinnerIndex = 0;
+    if (interactive) {
+      drawActiveStep();
+      spinnerTimer = setInterval(drawActiveStep, 90);
+    } else {
+      console.log(`  ${pc.cyan('⠋')} ${evt.message}`);
+    }
+  };
+
+  function finishStep(message = activeStep?.message) {
+    if (!activeStep) return;
+    if (spinnerTimer) clearInterval(spinnerTimer);
+    spinnerTimer = undefined;
+    if (interactive)
+      process.stdout.write(`\r\x1b[2K  ${pc.green('✓')} ${message}\n`);
+    else console.log(`  ${pc.green('✓')} ${message}`);
+    activeStep = null;
+  }
+
   try {
     const result = await exportTheme({
       themeRoot: options.themeRoot,
@@ -90,21 +126,32 @@ async function main() {
       validate: options.validate,
       strict: options.strict,
       onProgress: (evt) => {
-        // Minimal CLI progress line (stage label)
-        console.log(pc.dim(`  [${evt.stage}] ${evt.message}`));
+        if (evt.stage === 'fonts-done') return;
+        if (evt.stage.endsWith('-done')) finishStep(evt.message);
+        else startStep(evt);
       },
     });
 
-    console.log(pc.green("\n  Export complete\n"));
-    console.log(`  ${pc.dim("Theme folder")}  ${result.outDir}`);
-    if (result.zipPath) {
-      console.log(`  ${pc.dim("ZIP")}           ${result.zipPath}`);
-    }
+    finishStep();
     console.log(
-      `\n  ${pc.dim("Install:")} Upload the ZIP to Appearance → Themes → Add New\n`,
+      pc.green(
+        `  ✓ Exported ${result.config.name} → ${result.zipPath || result.outDir}`,
+      ),
     );
   } catch (error) {
-    console.error(pc.red(`\n  Export failed: ${error instanceof Error ? error.message : error}\n`));
+    if (activeStep) {
+      if (spinnerTimer) clearInterval(spinnerTimer);
+      if (interactive)
+        process.stdout.write(
+          `\r\x1b[2K  ${pc.red('✖')} ${activeStep.message}\n`,
+        );
+      activeStep = null;
+    }
+    console.error(
+      pc.red(
+        `\n  Export failed: ${error instanceof Error ? error.message : error}\n`,
+      ),
+    );
     process.exit(1);
   }
 }

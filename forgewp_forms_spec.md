@@ -14,19 +14,21 @@ Forms in ForgeWP are **plain React**. The framework does NOT ship form component
 
 The framework adds exactly three things:
 
-| Addition | Kind | Purpose |
-|---|---|---|
-| `forms` key in `wp.config.ts` | config | Declares each form: dev-owned fields, delivery, client-field settings. Source of truth for the generated backend. |
-| `submitWpForm(name, data)` | one runtime **function** (not a hook) | POSTs to the generated REST endpoint. Composes with any form library. |
-| `<WpFormFields form render>` | one component | Renders **client-owned** fields (defined by the site editor in wp-admin) inside dev-supplied markup via a render prop. Only needed when a form opts into client-managed fields. |
+| Addition                      | Kind                                  | Purpose                                                                                                                                                                         |
+| ----------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `forms` key in `wp.config.ts` | config                                | Declares each form: dev-owned fields, delivery, client-field settings. Source of truth for the generated backend.                                                               |
+| `submitWpForm(name, data)`    | one runtime **function** (not a hook) | POSTs to the generated REST endpoint. Composes with any form library.                                                                                                           |
+| `<WpFormFields form render>`  | one component                         | Renders **client-owned** fields (defined by the site editor in wp-admin) inside dev-supplied markup via a render prop. Only needed when a form opts into client-managed fields. |
 
 **Field ownership is explicit and exclusive.** Every field is either:
+
 - **dev-owned** — plain JSX in the dev's component; guaranteed present and stable; the backend may rely on it (e.g. `email` for Reply-To). The client cannot alter it.
 - **client-owned** — defined in wp-admin (add/drop/reorder/relabel/require-toggle/options-edit), rendered through the `<WpFormFields>` slot so it always appears in dev-styled markup.
 
 A form may be 100% dev-owned, 100% client-owned, or mixed. `<WpShortcode>` remains the untouched escape hatch for clients who insist on managing forms in a plugin — and is now a first-class per-form config choice: `forms.{name}.mode: 'shortcode'` (§2.1.1) tells the compiler to generate nothing at all for that form, mixed freely with `'native'` forms in the same theme.
 
 ### Non-goals (v1)
+
 - No file uploads, no multi-step, no payment fields.
 - No reCAPTCHA/Turnstile (v2 opt-in; v1 ships honeypot + time-trap + rate-limit).
 - No PHP-side SSR of client-owned fields (v1 renders them in the island; v2 note in §10).
@@ -58,6 +60,17 @@ export interface ForgeWPFormClientFieldsConfig {
   seed: Array<ForgeWPFormField & { name: string }>;
 }
 
+export interface ForgeWPFormConfirmationConfig {
+  /** Must be true to send a submitter confirmation; omitted/false sends none. */
+  enabled: boolean;
+  /** Developer-owned field declared with type: 'email'. */
+  emailField: string;
+  /** Plain-text subject; {field} tags must reference developer-owned fields. */
+  subject: string;
+  /** Plain-text body; {field} tags must reference developer-owned fields. */
+  body: string;
+}
+
 export interface ForgeWPFormConfig {
   /** Defaults to 'native'. See §2.1.1 for 'shortcode' mode. */
   mode?: 'native' | 'shortcode';
@@ -74,6 +87,10 @@ export interface ForgeWPFormConfig {
   clientFields?: ForgeWPFormClientFieldsConfig;
   /** Store each submission in the forgewp_submission CPT (client inbox). Default true. */
   storeSubmissions?: boolean;
+  /** Optional separate submitter receipt email. Disabled unless enabled. */
+  confirmation?: ForgeWPFormConfirmationConfig;
+  /** Permanently delete stored submissions after this many days. Omit to retain indefinitely. */
+  retentionDays?: number;
 }
 
 // on ForgeWPThemeConfig:
@@ -98,7 +115,12 @@ A `mode: 'shortcode'` form is invisible to `buildFormsPhp` — no REST endpoint,
 ```tsx
 import { WpShortcode, useWpMeta } from '../.forgewp/wordpress';
 
-<WpShortcode code={useWpMeta('newsletter_shortcode', '[wpforms id="12" title="Newsletter Signup"]')} />
+<WpShortcode
+  code={useWpMeta(
+    'newsletter_shortcode',
+    '[wpforms id="12" title="Newsletter Signup"]',
+  )}
+/>;
 ```
 
 Using `useWpMeta` (with a `pickEditable`-mapped meta key) rather than a bare string literal makes the shortcode itself client-editable in wp-admin, matching the original brainstorm's Mode 2. This costs zero new runtime API — `useWpMeta`/`pickEditable`/`WpShortcode` already exist for exactly this. `forms.{name}.shortcode` in config is a **default/documentation value only**; it is not read at runtime — the dev's own `useWpMeta(...)` default is the actual live default. `lintFormsUsage` (§7) warns if a shortcode-mode form has no matching `<WpShortcode>` usage anywhere in `src/`, and if `submitWpForm`/`<WpFormFields>` are mistakenly used against one.
@@ -112,21 +134,27 @@ Mixed configs are fully supported — some forms `native`, others `shortcode`, i
 forms: {
   contact: {
     mailTo: 'admin',
-    subject: 'Neue Kontaktanfrage — {subject}',
+    subject: 'New contact inquiry — {subject}',
     fields: {
-      name:  { type: 'text',  label: 'Ihr Name', required: true },
-      email: { type: 'email', label: 'E-Mail-Adresse', required: true },
+      name:  { type: 'text',  label: 'Your name', required: true },
+      email: { type: 'email', label: 'Email address', required: true },
     },
     clientFields: {
       enabled: true,
       seed: [
-        { name: 'subject', label: 'Betreff', type: 'select', required: true,
-          options: ['Hotelanfrage / Empfehlung', 'Kooperationsanfrage',
-                    'Redaktionelle Anfrage', 'Technischer Support', 'Sonstiges'] },
-        { name: 'message', label: 'Ihre Nachricht', type: 'textarea', required: true },
+        { name: 'subject', label: 'Subject', type: 'select', required: true,
+          options: ['Hotel inquiry / referral', 'Partnership inquiry',
+                    'Editorial inquiry', 'Technical support', 'Other'] },
+        { name: 'message', label: 'Your message', type: 'textarea', required: true },
       ],
     },
     storeSubmissions: true,
+    confirmation: {
+      enabled: true,
+      emailField: 'email',
+      subject: 'We received your inquiry',
+      body: 'Hello {name},\n\nWe received your inquiry and will get back to you soon.',
+    },
   },
 },
 ```
@@ -157,6 +185,7 @@ export async function submitWpForm(
 ```
 
 Behavior:
+
 - **Production detection** mirrors `useWpOption` (see `getForgeWpSiteSettings()` at `packages/react/src/hooks.ts:180`): production iff `window.forgeWpHydration?.restUrl` exists.
 - **Production:** `fetch(`${restUrl}/forms/${name}/submit`, { method: 'POST', body })`.
   - Accepts `FormData` directly (recommended pattern — client-added fields flow through with zero dev code) or a plain object (JSON body, `Content-Type: application/json`).
@@ -173,7 +202,14 @@ Behavior:
 export interface WpFormFieldDescriptor {
   name: string;
   label: string;
-  type: 'text' | 'email' | 'tel' | 'number' | 'textarea' | 'select' | 'checkbox';
+  type:
+    | 'text'
+    | 'email'
+    | 'tel'
+    | 'number'
+    | 'textarea'
+    | 'select'
+    | 'checkbox';
   required: boolean;
   options?: string[];
 }
@@ -185,9 +221,10 @@ export interface WpFormFieldsProps {
 ```
 
 Behavior:
+
 - **Field source, dev:** `window._forgeWpMockForms?.[form]?.fields` — injected by the compiler's Vite dev plugin from `wp.config.ts` (`clientFields.seed`), the same mechanism that provides `window._forgeWpMockSiteSettings` today. Fallback: render nothing + one console warning.
 - **Field source, production:** `window.forgeWpHydration.forms[form].fields` (localized server-side from the stored option — §4.5).
-- **Hydration-mismatch guard (required):** the compile-time SSR pass bakes the *seed* fields into static HTML, but the live option may differ. To avoid React hydration mismatches, use the standard two-pass pattern: first client render returns the seed (matching SSR), then after mount (`useEffect`) re-render from `forgeWpHydration.forms`. Brief content swap is acceptable in v1; eliminated in v2 (§10).
+- **Hydration-mismatch guard (required):** the compile-time SSR pass bakes the _seed_ fields into static HTML, but the live option may differ. To avoid React hydration mismatches, use the standard two-pass pattern: first client render returns the seed (matching SSR), then after mount (`useEffect`) re-render from `forgeWpHydration.forms`. Brief content swap is acceptable in v1; eliminated in v2 (§10).
 - Renders `render(field)` for each field **in the stored order**, wrapped in a `<React.Fragment key={field.name}>`.
 - Automatically appends the honeypot input (`_forgewp_hp`, visually hidden inline style, `tabIndex={-1}`, `autoComplete="off"`, `aria-hidden`).
 - Contains no markup of its own besides the honeypot — Principle 8 (dev owns 100% of visible HTML).
@@ -223,28 +260,37 @@ add_action('rest_api_init', function () {
 5. **Build the allowlist:** dev-owned fields (baked from config as a PHP literal array with type/required/maxLength/options) **+** current client-owned fields from `get_option('forgewp_form_fields_contact')` (§4.3), decoded and validated in shape. **Only allowlisted keys are read from the request; everything else is ignored.**
 6. **Validate + sanitize per type:**
    - required & empty → collect into `$errors[$name]`
-   - `email` → `sanitize_email` + `is_email` check
-   - `textarea` → `sanitize_textarea_field`, cap at `maxLength` (default 5000)
-   - `select` → value must be in the field's `options` array (client fields: options from the stored option)
-   - `checkbox` → coerce to `'1'`/`''`
-   - everything else → `sanitize_text_field`, cap at `maxLength` (default 200)
-   - **Header-injection guard:** strip `\r`/`\n` from every value before any use in mail headers or subject.
-   - Any `$errors` → `400 { ok:false, errors, message }`.
-7. **Store** (if `storeSubmissions`): `wp_insert_post` into `forgewp_submission` (post_title = form name + date; sanitized values as post meta `field_{name}`, plus `_form_name`, `_submitted_at`, `_ip_hash` = `md5` of IP — no raw IP at rest).
+
+- `email` → `sanitize_email` followed by `is_email`; invalid non-empty results return a field-level validation error
+- `textarea` → `sanitize_textarea_field`, cap at `maxLength` (default 5000)
+- `select` → value must be in the field's `options` array (client fields: options from the stored option)
+- `checkbox` → coerce to `'1'`/`''`
+- everything else → `sanitize_text_field`, cap at `maxLength` (default 200)
+- **Header-injection guard:** strip `\r`/`\n` from every value before any use in mail headers or subject.
+- Any `$errors` → `400 { ok:false, errors, message }`.
+
+7. **Store** (if `storeSubmissions`): `wp_insert_post` into `forgewp_submission` (post*title = form name + date; sanitized values as post meta `field*{name}`, plus `\_form_name`, `\_submitted_at`, `\_ip_hash`=`md5` of IP — no raw IP at rest).
 8. **Mail:** `wp_mail($to, $subject, $body, $headers)`
    - `$to` resolved from `mailTo` (`admin` → `get_option('admin_email')`; `option:key` → `get_option('key')`; else literal).
    - `$subject` = config subject with `{field}` interpolation (post-sanitization values).
    - `$body` = plain text, one `Label: value` line per field in order.
    - `$headers` = `Reply-To: {email field value}` when the form has an `email`-type dev-owned field.
-   - Mail failure with storage ON → still `200 ok` (submission is safe in the CPT). Mail failure with storage OFF → `500 { ok:false }`.
-9. Return `200 { ok: true, message: __('...', textDomain) }`.
+
+- When `confirmation.enabled`, independently send a plain-text receipt through `wp_mail()` to the configured developer-owned `emailField`. Subject/body merge tags may reference only developer-owned fields. This is disabled by default and does not replace the admin notification.
+- Confirmation failure is logged but does not fail an otherwise successful submission. The visitor-facing success text is the same whether the admin notification succeeds or a stored submission is the fallback.
+
+- Mail failure with storage ON → `200 { ok:true, message:'Your submission was received.' }`; log the failed notification so the visitor is not prompted to resubmit stored personal data. Successful mail uses the same public success message so the endpoint does not disclose notification-mail status.
+- Mail failure with storage OFF → `500 { ok:false }`.
+- Mail success with storage failure → retain the successful mail result and log the failed storage attempt.
+
+9. Return a success response only when at least one configured delivery path succeeded (stored submission or admin email).
 
 All user-facing strings use `__('…', '${config.textDomain}')` and get added to the i18n key collection like other generated strings.
 
 ### 4.3 Client-fields storage + admin UI
 
 - Option per form: `forgewp_form_fields_{name}` = JSON array of `{name,label,type,required,options}`. Registered/seeded on `after_switch_theme` from the config seed **only if the option does not exist** (never clobber client edits on redeploy).
-- Admin UI: a **"Forms" submenu** added beside the generated Theme Options page — extend the pattern in `packages/compiler/lib/functions/settings-page.js` (`buildSettingsPagePhp`), including its nonce handling (`wp_create_nonce`, see settings-page.js:73). Per form: a table repeater (label, type select, required checkbox, options textarea for selects, remove button, drag-or-arrow reorder) driven by ~80 lines of inline vanilla JS that serializes to a hidden JSON input on submit. Server side: capability `manage_options`, nonce check, strict shape validation (types whitelist, `name` slugified from label on create and immutable after, collision check against dev-owned names) before `update_option`.
+- Admin UI: a **"Forms" submenu** added beside the generated Theme Options page. Each form is a panel with a collapsible read-only developer-field summary and a responsive client-field card list (label, type, required, placeholder, options, reorder/remove controls). Server side: the configured `formsAdminCapability` (default `manage_options`) is checked for both the Forms screen and submission CPT, plus a nonce and strict field-shape validation before `update_option`. Machine names are generated once and remain stable after saving.
 - New fields added by the client get auto-generated `name` slugs — clients never type machine names.
 
 ### 4.4 Why the endpoint is anonymous (no hard nonce requirement)
@@ -267,6 +313,14 @@ Extend the `window.forgeWpHydration` inline script (built at hydration-enqueuer.
 
 `forgewp_submission`: `public => false`, `show_ui => true`, `show_in_menu => true`, label "Form Submissions", `supports => ['title']`, `capabilities` mapped so it is read-only in the list (creation only via the endpoint; `'map_meta_cap' => true` with `create_posts => 'do_not_allow'`). Add a `meta_box` (or simple `the_content` filter on the edit screen) printing the `field_*` meta as a definition list — the "client inbox".
 
+### 4.7 CSV export, WordPress privacy, and retention
+
+When at least one native form stores submissions, the generated Submissions screen includes a capability-protected **Export CSV** action with nonce verification, optional form/date filters, and explicit field selection. No field columns are checked by default. The handler validates each selected `form|field` pair against the active schema, scopes values to their owning form, streams UTF-8 CSV, neutralizes spreadsheet formula-leading values, and never exports IP hashes. Export logs record the user, form filter, and row count without submission contents.
+
+WordPress personal-data exporter/eraser callbacks are registered when stored forms expose a developer-owned email field or client-managed fields. They match valid email values only in fields declared as `type: 'email'`; a form without an email field has no identifier for these callbacks. Erasure permanently deletes matching submission posts and their metadata.
+
+`retentionDays` is optional per stored form and must be a positive integer. When set, a daily WP-Cron task permanently deletes that form's submissions older than the configured age using WordPress local time. Omitting the setting retains submissions indefinitely. Forms with `storeSubmissions: false` cannot set retention. This version has no legal-hold exemption; do not enable deletion for records subject to a hold. Verify role access, CSV contents/downloads, privacy requests, and WP-Cron scheduling on the target WordPress host before launch.
+
 ---
 
 ## 5. Dev-mode simulation (compiler Vite plugin)
@@ -274,7 +328,13 @@ Extend the `window.forgeWpHydration` inline script (built at hydration-enqueuer.
 Follow the `_forgeWpMockSiteSettings` mechanism (whichever plugin injects it — likely `packages/compiler/lib/page-config-plugin.js` or the dev-server entry): inject
 
 ```js
-window._forgeWpMockForms = { contact: { fields: [ /* clientFields.seed */ ] } };
+window._forgeWpMockForms = {
+  contact: {
+    fields: [
+      /* clientFields.seed */
+    ],
+  },
+};
 ```
 
 from `wp.config.ts` at dev-server start, hot-reloading on config change. This is what `<WpFormFields>` renders offline (Principle 7 — full simulation without WordPress) and what `submitWpForm` logs against.
@@ -290,7 +350,7 @@ from `wp.config.ts` at dev-server start, hot-reloading on config change. This is
 - [ ] Rate limit per IP; honeypot + time-trap fail **silently** with `200 ok`.
 - [ ] Nonce enforced for logged-in users; anonymous rationale documented (§4.4).
 - [ ] No raw IP stored (hash only); no values ever printed unescaped in the admin inbox (`esc_html` on output).
-- [ ] Admin field editor: `manage_options` + nonce + strict shape validation; field `name` immutable after creation.
+- [ ] Admin field editor: configured capability (default `manage_options`) + nonce + strict shape validation; field `name` immutable after creation; manually verify default/custom-capability roles in WordPress staging.
 - [ ] Endpoint responses never leak whether mail succeeded to a bot (silent-drop paths identical to success).
 
 ---
@@ -298,6 +358,7 @@ from `wp.config.ts` at dev-server start, hot-reloading on config change. This is
 ## 7. Compiler diagnostics (Principle 10)
 
 Add to `forgewp analyze` / build-time validation:
+
 - `forms.{name}` key invalid slug → error.
 - `clientFields.seed` name colliding with a dev-owned field name → error.
 - `mode: 'native'` (or default) missing `mailTo` or `fields` → error. `mode: 'shortcode'` missing `shortcode` → error.
@@ -314,7 +375,9 @@ Add to `forgewp analyze` / build-time validation:
    - Delete the CF7 `FormData` wiring and endpoint fetch (lines 61–74) → `const result = await submitWpForm('contact', new FormData(e.currentTarget));` then set status from `result.ok` / `result.message`.
    - Replace the hardcoded subject `<select>` (lines 166–186) and message `<textarea>` block (lines 188–201) with one `<WpFormFields form="contact" render={...} />` using the existing input classNames; keep name/email as-is (dev-owned).
    - Keep the URL-prefill effect; apply prefill via `defaultValue` inside the render prop keyed on `field.name === 'subject'` (switch those two fields from controlled to uncontrolled — FormData submission needs no controlled state).
-   - Remove the hidden `{__('Anfrage zu Hotel:')}` div hack if the i18n scanner picks the string up from the effect; verify with the i18n key output before deleting.
+
+- Remove the hidden `{__('Hotel inquiry for:')}` div hack if the i18n scanner picks the string up from the effect; verify with the i18n key output before deleting.
+
 3. `src/components/ContactFormSection.tsx`: drop `form_shortcode` meta, the shortcode `<input>`, `<WpShortcode>` usage, and the `ContactFormPrefill` import (review that component — likely obsolete); render `<ContactForm formTitle={…} formDescription={…} />`. Keep title/description editables and the block settings panel.
 4. `cms/editables/kontakt-page.ts`: remove the `form_shortcode` field.
 5. `src/app/globals.css`: delete the `.wpcf7-*` block (~lines 512–662).
@@ -340,11 +403,11 @@ Add to `forgewp analyze` / build-time validation:
 **v1 (this spec):** everything above.
 
 **v2 (explicitly deferred):**
+
 - **PHP SSR of client fields** — transpile the `<WpFormFields>` render prop to a PHP `foreach` over the stored option so first paint matches live fields (removes the two-pass swap). The php-transpiler already inlines local components; this extends it to one render-prop pattern.
 - reCAPTCHA/Turnstile as `forms.{name}.captcha` config.
 - File-upload field type (needs mime/size policy + attachment handling).
 - Per-language client-field sets under Polylang (v1: one shared set; labels are client-entered so multilingual sites should keep label-bearing fields dev-owned with `__()` until this lands).
-- Submissions CSV export + bulk delete; retention policy setting.
 - `<WpShortcode>` dev placeholder upgrade: render a generic mock form instead of the grey box.
 
 ---

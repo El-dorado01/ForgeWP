@@ -6,10 +6,12 @@ import { transformThemeFile } from './hydration/index.js';
 
 function polyfillImportMetaGlob(code, filePath) {
   if (!code.includes('import.meta.glob')) return code;
-  let hasReplaced = false;
+  // The options object must not use [\s\S]* — a trailing comma after
+  // `{ eager: true },` is normal, and a greedy scan then eats the rest
+  // of the module until some later `}` `)` (the first <Route />).
   const replaced = code.replace(
-    /import\.meta\.glob(?:\s*<[^()]*>)?\s*\(\s*['"]([^'"]+)['"](?:\s*,\s*\{[\s\S]*?\}\s*)?\s*\)/g,
-    (match, globPattern) => {
+    /import\.meta\.glob(?:\s*<[^()]*>)?\s*\(\s*(['"])([^'"]+)\1(?:\s*,\s*\{(?:[^{}]|\{[^{}]*\})*\})?\s*,?\s*\)/g,
+    (match, _quote, globPattern) => {
       try {
         const fileDir = path.dirname(filePath);
         const cleanGlob = globPattern.replace(/^\.\//, '');
@@ -24,19 +26,17 @@ function polyfillImportMetaGlob(code, filePath) {
                 path
                   .relative(fileDir, path.join(globDir, f))
                   .replace(/\\/g, '/');
-              const absTarget = path.join(globDir, f).replace(/\\/g, '/');
-              return `"${relKey}": __forgewp_require("${absTarget}")`;
+              const href = pathToFileURL(path.join(globDir, f)).href;
+              // Dynamic import, not require(): the SSR loader only
+              // transpiles TypeScript on the ESM load hook.
+              return `"${relKey}": await import(${JSON.stringify(href)})`;
             });
-          hasReplaced = true;
           return `{ ${entries.join(', ')} }`;
         }
       } catch (e) {}
       return '({})';
     },
   );
-  if (hasReplaced) {
-    return `import { createRequire as __forgewp_createRequire } from 'node:module';\nconst __forgewp_require = __forgewp_createRequire(import.meta.url);\n${replaced}`;
-  }
   return replaced;
 }
 
@@ -86,7 +86,9 @@ export function synthesizeNamedExportsFromDefault(source) {
     }
   }
 
-  const identDefault = source.match(/export\s+default\s+([A-Za-z_$][\w$]*)\s*;/);
+  const identDefault = source.match(
+    /export\s+default\s+([A-Za-z_$][\w$]*)\s*;/,
+  );
   if (identDefault) names.add(identDefault[1]);
 
   const fnDefault = source.match(
@@ -94,10 +96,14 @@ export function synthesizeNamedExportsFromDefault(source) {
   );
   if (fnDefault) names.add(fnDefault[1]);
 
-  const classDefault = source.match(/export\s+default\s+class\s+([A-Za-z_$][\w$]*)/);
+  const classDefault = source.match(
+    /export\s+default\s+class\s+([A-Za-z_$][\w$]*)/,
+  );
   if (classDefault) names.add(classDefault[1]);
 
-  const missing = [...names].filter((name) => !hasExplicitNamedExport(source, name));
+  const missing = [...names].filter(
+    (name) => !hasExplicitNamedExport(source, name),
+  );
   if (missing.length === 0) return null;
 
   return `${source}\n${missing.map((n) => `export { ${n} };`).join('\n')}\n`;
@@ -184,7 +190,7 @@ export async function resolve(specifier, context, defaultResolve) {
     }
   }
 
-  // 2. Resolve relative imports without extensions (e.g. '../.forgewp/wordpress')
+  // 2. Resolve relative imports without extensions.
   if (specifier.startsWith('.') && context.parentURL) {
     try {
       const parentPath = fileURLToPath(context.parentURL);

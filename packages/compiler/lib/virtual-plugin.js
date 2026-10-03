@@ -17,9 +17,6 @@ export function forgewpVirtualPlugin(options = {}) {
   const VIRTUAL_RUNTIME_ID = 'virtual:forgewp-runtime';
   const RESOLVED_RUNTIME_ID = '\0' + VIRTUAL_RUNTIME_ID;
 
-  const VIRTUAL_LEGACY_WP_ID = 'virtual:forgewp-legacy-wordpress';
-  const RESOLVED_LEGACY_WP_ID = '\0' + VIRTUAL_LEGACY_WP_ID;
-
   function hasPackage(pkgName) {
     const pkgPath = path.join(projectRoot, 'package.json');
     if (fs.existsSync(pkgPath)) {
@@ -28,7 +25,7 @@ export function forgewpVirtualPlugin(options = {}) {
         return Boolean(
           (pkg.dependencies && pkg.dependencies[pkgName]) ||
           (pkg.devDependencies && pkg.devDependencies[pkgName]) ||
-          (pkg.peerDependencies && pkg.peerDependencies[pkgName])
+          (pkg.peerDependencies && pkg.peerDependencies[pkgName]),
         );
       } catch (e) {}
     }
@@ -41,14 +38,6 @@ export function forgewpVirtualPlugin(options = {}) {
     resolveId(id) {
       if (id === VIRTUAL_RUNTIME_ID) {
         return RESOLVED_RUNTIME_ID;
-      }
-      if (
-        id === '@/wordpress' ||
-        id === 'src/.forgewp/wordpress' ||
-        id.endsWith('.forgewp/wordpress') ||
-        id.endsWith('.forgewp/wordpress.tsx')
-      ) {
-        return RESOLVED_LEGACY_WP_ID;
       }
       return null;
     },
@@ -87,8 +76,14 @@ export function forgewpVirtualPlugin(options = {}) {
         if (fs.existsSync(mockDataTs) || fs.existsSync(mockDataJson)) {
           const isTs = fs.existsSync(mockDataTs);
           const importPath = isTs ? '/cms/mock-data.ts' : '/cms/mock-data.json';
-          imports.push(isTs ? `import * as rawMockData from '${importPath}';` : `import rawMockData from '${importPath}';`);
-          unwrapLogic.push(`const mockData = (rawMockData && (rawMockData.default || rawMockData.mockData)) || rawMockData || {};`);
+          imports.push(
+            isTs
+              ? `import * as rawMockData from '${importPath}';`
+              : `import rawMockData from '${importPath}';`,
+          );
+          unwrapLogic.push(
+            `const mockData = (rawMockData && (rawMockData.default || rawMockData.mockData)) || rawMockData || {};`,
+          );
         } else {
           unwrapLogic.push(`const mockData = {};`);
         }
@@ -99,8 +94,14 @@ export function forgewpVirtualPlugin(options = {}) {
         if (fs.existsSync(menusTs) || fs.existsSync(menusJson)) {
           const isTs = fs.existsSync(menusTs);
           const importPath = isTs ? '/cms/menus.ts' : '/cms/menus.json';
-          imports.push(isTs ? `import * as rawMenusData from '${importPath}';` : `import rawMenusData from '${importPath}';`);
-          unwrapLogic.push(`const menusData = (rawMenusData && (rawMenusData.default || rawMenusData.menus)) || rawMenusData || {};`);
+          imports.push(
+            isTs
+              ? `import * as rawMenusData from '${importPath}';`
+              : `import rawMenusData from '${importPath}';`,
+          );
+          unwrapLogic.push(
+            `const menusData = (rawMenusData && (rawMenusData.default || rawMenusData.menus)) || rawMenusData || {};`,
+          );
         } else {
           unwrapLogic.push(`const menusData = {};`);
         }
@@ -110,9 +111,17 @@ export function forgewpVirtualPlugin(options = {}) {
         const transJson = path.join(cmsDir, 'translations.json');
         if (fs.existsSync(transTs) || fs.existsSync(transJson)) {
           const isTs = fs.existsSync(transTs);
-          const importPath = isTs ? '/cms/translations.ts' : '/cms/translations.json';
-          imports.push(isTs ? `import * as rawTranslationsData from '${importPath}';` : `import rawTranslationsData from '${importPath}';`);
-          unwrapLogic.push(`const translationsData = (rawTranslationsData && (rawTranslationsData.default || rawTranslationsData.translations)) || rawTranslationsData || {};`);
+          const importPath = isTs
+            ? '/cms/translations.ts'
+            : '/cms/translations.json';
+          imports.push(
+            isTs
+              ? `import * as rawTranslationsData from '${importPath}';`
+              : `import rawTranslationsData from '${importPath}';`,
+          );
+          unwrapLogic.push(
+            `const translationsData = (rawTranslationsData && (rawTranslationsData.default || rawTranslationsData.translations)) || rawTranslationsData || {};`,
+          );
         } else {
           unwrapLogic.push(`const translationsData = {};`);
         }
@@ -124,10 +133,18 @@ export function forgewpVirtualPlugin(options = {}) {
           if (fs.existsSync(prodTs) || fs.existsSync(prodJson)) {
             const isTs = fs.existsSync(prodTs);
             const importPath = isTs ? '/cms/products.ts' : '/cms/products.json';
-            imports.push(isTs ? `import * as rawProductsData from '${importPath}';` : `import rawProductsData from '${importPath}';`);
+            imports.push(
+              isTs
+                ? `import * as rawProductsData from '${importPath}';`
+                : `import rawProductsData from '${importPath}';`,
+            );
             unwrapLogic.push(`const rawProdAny = rawProductsData;`);
-            unwrapLogic.push(`const normalizedProducts = (rawProdAny && (rawProdAny.default || rawProdAny.products || rawProdAny.product)) || rawProdAny || [];`);
-            unwrapLogic.push(`const productsMap = Array.isArray(normalizedProducts) ? { product: normalizedProducts } : normalizedProducts;`);
+            unwrapLogic.push(
+              `const normalizedProducts = (rawProdAny && (rawProdAny.default || rawProdAny.products || rawProdAny.product)) || rawProdAny || [];`,
+            );
+            unwrapLogic.push(
+              `const productsMap = Array.isArray(normalizedProducts) ? { product: normalizedProducts } : normalizedProducts;`,
+            );
           } else {
             unwrapLogic.push(`const productsMap = {};`);
           }
@@ -142,8 +159,14 @@ export function forgewpVirtualPlugin(options = {}) {
           if (fs.existsSync(usersTs) || fs.existsSync(usersJson)) {
             const isTs = fs.existsSync(usersTs);
             const importPath = isTs ? '/cms/users.ts' : '/cms/users.json';
-            imports.push(isTs ? `import * as rawUsersData from '${importPath}';` : `import rawUsersData from '${importPath}';`);
-            unwrapLogic.push(`const usersData = (rawUsersData && (rawUsersData.default || rawUsersData.users)) || rawUsersData;`);
+            imports.push(
+              isTs
+                ? `import * as rawUsersData from '${importPath}';`
+                : `import rawUsersData from '${importPath}';`,
+            );
+            unwrapLogic.push(
+              `const usersData = (rawUsersData && (rawUsersData.default || rawUsersData.users)) || rawUsersData;`,
+            );
           } else {
             unwrapLogic.push(`const usersData = [];`);
           }
@@ -153,8 +176,14 @@ export function forgewpVirtualPlugin(options = {}) {
           if (fs.existsSync(rolesTs) || fs.existsSync(rolesJson)) {
             const isTs = fs.existsSync(rolesTs);
             const importPath = isTs ? '/cms/roles.ts' : '/cms/roles.json';
-            imports.push(isTs ? `import * as rawRolesData from '${importPath}';` : `import rawRolesData from '${importPath}';`);
-            unwrapLogic.push(`const rolesData = (rawRolesData && (rawRolesData.default || rawRolesData.roles)) || rawRolesData;`);
+            imports.push(
+              isTs
+                ? `import * as rawRolesData from '${importPath}';`
+                : `import rawRolesData from '${importPath}';`,
+            );
+            unwrapLogic.push(
+              `const rolesData = (rawRolesData && (rawRolesData.default || rawRolesData.roles)) || rawRolesData;`,
+            );
           } else {
             unwrapLogic.push(`const rolesData = {};`);
           }
@@ -172,11 +201,19 @@ export function forgewpVirtualPlugin(options = {}) {
         const siteOptionsTs = path.join(cmsDir, 'site-options.ts');
         const siteSettingsJson = path.join(cmsDir, 'site-settings.json');
         if (fs.existsSync(siteOptionsTs)) {
-          imports.push(`import * as rawOptionsData from '/cms/site-options.ts';`);
-          unwrapLogic.push(`const optionsData = (rawOptionsData && (rawOptionsData.default || rawOptionsData.siteOptions || rawOptionsData.options)) || rawOptionsData || {};`);
+          imports.push(
+            `import * as rawOptionsData from '/cms/site-options.ts';`,
+          );
+          unwrapLogic.push(
+            `const optionsData = (rawOptionsData && (rawOptionsData.default || rawOptionsData.siteOptions || rawOptionsData.options)) || rawOptionsData || {};`,
+          );
         } else if (fs.existsSync(siteSettingsJson)) {
-          imports.push(`import rawSiteSettings from '/cms/site-settings.json';`);
-          unwrapLogic.push(`const optionsData = (rawSiteSettings && rawSiteSettings.options) || {};`);
+          imports.push(
+            `import rawSiteSettings from '/cms/site-settings.json';`,
+          );
+          unwrapLogic.push(
+            `const optionsData = (rawSiteSettings && rawSiteSettings.options) || {};`,
+          );
         } else {
           unwrapLogic.push(`const optionsData = {};`);
         }
@@ -184,9 +221,13 @@ export function forgewpVirtualPlugin(options = {}) {
         const themeModsTs = path.join(cmsDir, 'theme-mods.ts');
         if (fs.existsSync(themeModsTs)) {
           imports.push(`import * as rawModsData from '/cms/theme-mods.ts';`);
-          unwrapLogic.push(`const modsData = (rawModsData && (rawModsData.default || rawModsData.themeMods)) || rawModsData || {};`);
+          unwrapLogic.push(
+            `const modsData = (rawModsData && (rawModsData.default || rawModsData.themeMods)) || rawModsData || {};`,
+          );
         } else if (fs.existsSync(siteSettingsJson)) {
-          unwrapLogic.push(`const modsData = (typeof rawSiteSettings !== 'undefined' && rawSiteSettings.theme_mods) || {};`);
+          unwrapLogic.push(
+            `const modsData = (typeof rawSiteSettings !== 'undefined' && rawSiteSettings.theme_mods) || {};`,
+          );
         } else {
           unwrapLogic.push(`const modsData = {};`);
         }
@@ -216,26 +257,6 @@ export default {
   translationsData,
 };
 `;
-      }
-
-      if (id === RESOLVED_LEGACY_WP_ID) {
-        const hasWooCommerce = hasPackage('@forgewp/woocommerce');
-        const hasAuth = hasPackage('@forgewp/auth');
-
-        const reExports = [
-          `import 'virtual:forgewp-runtime';`,
-          `export * from '@forgewp/react';`,
-        ];
-
-        if (hasWooCommerce) {
-          reExports.push(`export * from '@forgewp/woocommerce';`);
-        }
-        if (hasAuth) {
-          reExports.push(`export * from '@forgewp/auth';`);
-          reExports.push(`export { WpLoginForm, WpRegisterForm } from '@forgewp/auth';`);
-        }
-
-        return reExports.join('\n');
       }
 
       return null;

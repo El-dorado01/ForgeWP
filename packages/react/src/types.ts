@@ -26,6 +26,7 @@ export interface StaticImageData {
 
 export interface WpPost {
   id: number;
+  slug?: string;
   title: string;
   excerpt: string;
   content: string;
@@ -53,7 +54,7 @@ export interface WpMenuItem {
   children?: WpMenuItem[];
 }
 
-export type WpMenuLocation = "primary" | "footer" | "sidebar" | string;
+export type WpMenuLocation = 'primary' | 'footer' | 'sidebar' | string;
 
 export type WpMenuData = Record<WpMenuLocation, WpMenuItem[]>;
 
@@ -72,16 +73,41 @@ export interface WpMetaQuery {
   /** The value to compare against */
   value?: string | number | boolean;
   /** Comparison operator: '=' | '!=' | '>' | '>=' | '<' | '<=' | 'LIKE' | 'EXISTS' | 'NOT EXISTS' */
-  compare?: '=' | '!=' | '>' | '>=' | '<' | '<=' | 'LIKE' | 'EXISTS' | 'NOT EXISTS';
+  compare?:
+    | '='
+    | '!='
+    | '>'
+    | '>='
+    | '<'
+    | '<='
+    | 'LIKE'
+    | 'EXISTS'
+    | 'NOT EXISTS';
+  /** WordPress comparison type. Numeric values default to `NUMERIC`. */
+  type?:
+    | 'CHAR'
+    | 'NUMERIC'
+    | 'DECIMAL'
+    | 'DATE'
+    | 'DATETIME'
+    | 'TIME'
+    | 'BINARY'
+    | 'SIGNED'
+    | 'UNSIGNED'
+    | 'BOOLEAN';
 }
 
 export interface WpQueryArgs {
+  /**
+   * Stable ID for a compiler-generated REST query endpoint. Required in production
+   * when using `metaQuery` or `taxQuery`.
+   */
   queryId?: string;
   postType?: string;
   postsPerPage?: number;
   categoryName?: string;
-  s?: string;           // Full-text search query
-  paged?: number;       // Page number (1-based)
+  s?: string; // Full-text search query
+  paged?: number; // Page number (1-based)
   orderby?: string;
   order?: 'ASC' | 'DESC';
   /** Fetch a single post by ID — mirrors WP_Query's own `p` argument. When set, all other filter/pagination args are ignored and `posts` resolves to that one post (or empty if not found). */
@@ -141,5 +167,3 @@ declare global {
     ReactDOM?: any;
   }
 }
-
-

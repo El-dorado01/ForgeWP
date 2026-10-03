@@ -142,27 +142,11 @@ export function applyProjectConfig(targetDir, config) {
   if (existsSync(tsConfigPath)) {
     const tsconfig = readJson(tsConfigPath);
     if (tsconfig.compilerOptions?.paths) {
-      if (isWorkspace) {
-        tsconfig.compilerOptions.paths['@forgewp/react'] = ['../../react/src/index.ts'];
-        tsconfig.compilerOptions.paths['@forgewp/compiler'] = ['../../compiler/lib/index.d.ts'];
-        tsconfig.compilerOptions.paths['@forgewp/compiler/*'] = ['../../compiler/*'];
-        if (hasAuth) {
-          tsconfig.compilerOptions.paths['@forgewp/auth'] = ['../../auth/src/index.ts'];
-        } else {
-          delete tsconfig.compilerOptions.paths['@forgewp/auth'];
-        }
-        if (hasEcommerce) {
-          tsconfig.compilerOptions.paths['@forgewp/woocommerce'] = ['../../woocommerce/src/index.ts'];
-        } else {
-          delete tsconfig.compilerOptions.paths['@forgewp/woocommerce'];
-        }
-      } else {
-        delete tsconfig.compilerOptions.paths['@forgewp/react'];
-        delete tsconfig.compilerOptions.paths['@forgewp/compiler'];
-        delete tsconfig.compilerOptions.paths['@forgewp/compiler/*'];
-        delete tsconfig.compilerOptions.paths['@forgewp/auth'];
-        delete tsconfig.compilerOptions.paths['@forgewp/woocommerce'];
-      }
+      delete tsconfig.compilerOptions.paths['@forgewp/react'];
+      delete tsconfig.compilerOptions.paths['@forgewp/compiler'];
+      delete tsconfig.compilerOptions.paths['@forgewp/compiler/*'];
+      delete tsconfig.compilerOptions.paths['@forgewp/auth'];
+      delete tsconfig.compilerOptions.paths['@forgewp/woocommerce'];
       writeJson(tsConfigPath, tsconfig);
     }
   }

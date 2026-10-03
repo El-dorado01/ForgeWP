@@ -31,7 +31,7 @@ export default function SignupFormWrapper({ ...props }: React.ComponentProps<typ
   const [submitting, setSubmitting] = React.useState(false);
 
   const loginUrl = useWpPageLink('login-page', '/login');
-  const dashboardUrl = useWpPageLink('dashboard-page', '/dashboard');
+  const dashboardUrl = useWpPageLink('account-page', '/account');
   const verifyEmailUrl = useWpPageLink('verify-email-page', '/verify-email');
   
   const [errors, setErrors] = React.useState<{

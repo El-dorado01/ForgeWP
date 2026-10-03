@@ -39,7 +39,12 @@ export default defineBlock({
     expect(out.name).toBe('trust-strip');
     expect(out.title).toBe('Trust Strip');
     expect(out.keywords).toEqual(['stats', 'trust']);
-    expect(out.attributes.stat1Value).toEqual({ type: 'string', default: '500+', control: 'text', label: 'Stat 1' });
+    expect(out.attributes.stat1Value).toEqual({
+      type: 'string',
+      default: '500+',
+      control: 'text',
+      label: 'Stat 1',
+    });
     expect(out.attributes.count.default).toBe(-2.5);
     expect(out.attributes.enabled.default).toBe(true);
     expect(out.edit).toBeNull();
@@ -61,9 +66,18 @@ export default defineBlock({
   edit: () => null,
 });`;
     const out = parseDefineBlock(code, 'about-split-section');
-    expect(out.innerBlocks.allowedBlocks).toEqual(['about-mission', 'about-values']);
-    expect(out.innerBlocks.template).toEqual([['about-mission'], ['about-values']]);
-    expect(out.shell).toEqual({ className: 'max-w-7xl', gridClassName: 'grid gap-12' });
+    expect(out.innerBlocks.allowedBlocks).toEqual([
+      'about-mission',
+      'about-values',
+    ]);
+    expect(out.innerBlocks.template).toEqual([
+      ['about-mission'],
+      ['about-values'],
+    ]);
+    expect(out.shell).toEqual({
+      className: 'max-w-7xl',
+      gridClassName: 'grid gap-12',
+    });
     expect(out.edit).toBeNull();
   });
 });
@@ -80,10 +94,18 @@ export const editable = defineEditable({
   rows: repeater({ mode: 'dynamic', fields: { title: text() } }),
 });`;
     const out = parseDefineEditable(code);
-    expect(out.heading).toEqual({ type: 'text', label: 'Heading', default: 'Hi' });
+    expect(out.heading).toEqual({
+      type: 'text',
+      label: 'Heading',
+      default: 'Hi',
+    });
     expect(out.body).toEqual({ type: 'richText', default: '<p>x</p>' });
     expect(out.logo).toEqual({ type: 'image' });
-    expect(out.badge).toEqual({ type: 'icon', provider: 'lucide', options: ['award', 'shield', 'globe'] });
+    expect(out.badge).toEqual({
+      type: 'icon',
+      provider: 'lucide',
+      options: ['award', 'shield', 'globe'],
+    });
     expect(out.rows.fields.title).toEqual({ type: 'text' });
   });
 });
@@ -138,17 +160,58 @@ export default editable;`,
 
       const objOut = parsePickEditableExpression(
         `pickEditable(frontPageEditable, { title: 'hero_title' })`,
-        consumer, consumerPath, tmp,
+        consumer,
+        consumerPath,
+        tmp,
       );
       expect(objOut).toBeTruthy();
       expect(objOut.title).toEqual({ type: 'text', default: 'T' });
 
       const arrOut = parsePickEditableExpression(
         `pickEditable(frontPageEditable, ['hero_subtitle'])`,
-        consumer, consumerPath, tmp,
+        consumer,
+        consumerPath,
+        tmp,
       );
       expect(arrOut).toBeTruthy();
       expect(arrOut.hero_subtitle).toEqual({ type: 'text', default: 'S' });
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('resolves a composed page schema made from pageEditableSections', () => {
+    const tmp = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'forgewp-composed-page-'),
+    );
+    try {
+      fs.mkdirSync(path.join(tmp, 'sections'));
+      fs.writeFileSync(
+        path.join(tmp, 'sections', 'hero.ts'),
+        `export const editable = defineEditable({
+  title: text({ default: 'T' }),
+  subtitle: richText({ default: 'S' }),
+});`,
+      );
+      fs.writeFileSync(
+        path.join(tmp, 'front-page.ts'),
+        `export const pageEditableSections = [
+  { section: 'hero', prefix: 'hero_' },
+];
+export const editable = buildPageEditable([]);`,
+      );
+
+      const consumer = `import { editable as frontPageEditable } from './front-page';\n`;
+      const consumerPath = path.join(tmp, 'HeroSection.tsx');
+      const out = parsePickEditableExpression(
+        `pickEditable(frontPageEditable, { title: 'hero_title' })`,
+        consumer,
+        consumerPath,
+        tmp,
+      );
+
+      expect(out).toBeTruthy();
+      expect(out.title).toEqual({ type: 'text', default: 'T' });
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }

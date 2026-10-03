@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { buildThemeSetupPhp } from './theme-setup.js';
 import { buildRoutingPhp } from './routing.js';
@@ -24,8 +25,7 @@ export function buildFunctionsPhp(
   wpOptions = [],
 ) {
   let hasAuth = Boolean(
-    config.auth ||
-    (config.features && config.features.auth)
+    config.auth || (config.features && config.features.auth),
   );
 
   const rootsToInspect = [themeRoot, process.cwd()].filter(Boolean);
@@ -47,26 +47,43 @@ export function buildFunctionsPhp(
   }
 
   const defaultLoginField = config.auth?.loginField || 'usernameAndEmail';
-  const defaultRegistrationEnabled = config.auth?.features?.registration !== false ? '1' : '0';
-  const defaultEmailVerificationEnabled = config.auth?.features?.emailVerification === true ? '1' : '0';
-  const defaultBlockLoginUntilVerified = config.auth?.features?.blockLoginUntilVerified === true ? '1' : '0';
-  const defaultAutoLoginAfterSignup = config.auth?.features?.autoLoginAfterSignup !== false ? '1' : '0';
+  const defaultRegistrationEnabled =
+    config.auth?.features?.registration !== false ? '1' : '0';
+  const defaultEmailVerificationEnabled =
+    config.auth?.features?.emailVerification === true ? '1' : '0';
+  const defaultBlockLoginUntilVerified =
+    config.auth?.features?.blockLoginUntilVerified === true ? '1' : '0';
+  const defaultAutoLoginAfterSignup =
+    config.auth?.features?.autoLoginAfterSignup !== false ? '1' : '0';
   const defaultDefaultRole = config.auth?.defaultRole || 'subscriber';
-  const defaultVerificationEmailSubject = config.auth?.emails?.verification?.subject || 'Please Verify Your Email';
-  const defaultVerificationEmailBody = config.auth?.emails?.verification?.body || 'Please click the link below to verify your email address:\n\n{verification_url}';
-  const defaultPasswordResetEmailSubject = config.auth?.emails?.passwordReset?.subject || 'Password Reset Request';
-  const defaultPasswordResetEmailBody = config.auth?.emails?.passwordReset?.body || 'Click this link to reset your password:\n\n{reset_url}';
+  const defaultVerificationEmailSubject =
+    config.auth?.emails?.verification?.subject || 'Please Verify Your Email';
+  const defaultVerificationEmailBody =
+    config.auth?.emails?.verification?.body ||
+    'Please click the link below to verify your email address:\n\n{verification_url}';
+  const defaultPasswordResetEmailSubject =
+    config.auth?.emails?.passwordReset?.subject || 'Password Reset Request';
+  const defaultPasswordResetEmailBody =
+    config.auth?.emails?.passwordReset?.body ||
+    'Click this link to reset your password:\n\n{reset_url}';
 
-  const reservedUsernames = config.auth?.reservedUsernames || ['admin', 'system', 'root'];
-  const reservedUsernamesPhp = reservedUsernames.map(u => `'${u.toLowerCase().replace(/'/g, "\\'")}'`).join(', ');
+  const reservedUsernames = config.auth?.reservedUsernames || [
+    'admin',
+    'system',
+    'root',
+  ];
+  const reservedUsernamesPhp = reservedUsernames
+    .map((u) => `'${u.toLowerCase().replace(/'/g, "\\'")}'`)
+    .join(', ');
 
   let currentUserHydrationField = '';
   if (hasAuth) {
-    currentUserHydrationField = "\n                'currentUser' => forgewp_get_current_user_hydration_payload(),";
+    currentUserHydrationField =
+      "\n                'currentUser' => forgewp_get_current_user_hydration_payload(),";
   }
 
   const css = assets.cssFile.replace(/^assets\//, '');
-  
+
   // Schema-graph integration is gated on actual plugin presence at runtime
   // (defined('WPSEO_VERSION') / class_exists('RankMath')), not a separate
   // wp.config.ts flag — a manual opt-in flag can silently drift out of sync
@@ -124,12 +141,20 @@ add_filter('rank_math/json_ld', function($data, $jsonld) {
 `;
 
   // Discover social media options dynamically from config.options
-  let socialKeys = ['facebook', 'instagram', 'twitter', 'youtube', 'tiktok', 'linkedin', 'pinterest']; // default fallbacks
+  let socialKeys = [
+    'facebook',
+    'instagram',
+    'twitter',
+    'youtube',
+    'tiktok',
+    'linkedin',
+    'pinterest',
+  ]; // default fallbacks
   if (config.options && typeof config.options === 'object') {
     const optionsKeys = Object.keys(config.options);
     const discoveredSocials = optionsKeys
-      .filter(k => k.startsWith('social_'))
-      .map(k => k.replace(/^social_/, ''));
+      .filter((k) => k.startsWith('social_'))
+      .map((k) => k.replace(/^social_/, ''));
     if (discoveredSocials.length > 0) {
       socialKeys = Array.from(new Set([...socialKeys, ...discoveredSocials]));
     }
@@ -138,7 +163,10 @@ add_filter('rank_math/json_ld', function($data, $jsonld) {
   let socialSettingsPhp = '';
   for (const key of socialKeys) {
     const optionName = `social_${key}`;
-    const capitalizedLabel = key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    const capitalizedLabel = key
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
     socialSettingsPhp += `
     // ${optionName}
     $wp_customize->add_setting(
@@ -174,7 +202,10 @@ add_filter('rank_math/json_ld', function($data, $jsonld) {
         repeater: 'string',
       };
       metaKeyTypes[key] = typeMap[field.type] || 'string';
-      if (field.skipRegisterMeta === true || field.customType === 'relationship') {
+      if (
+        field.skipRegisterMeta === true ||
+        field.customType === 'relationship'
+      ) {
         metaKeysToSkip.add(key);
       }
     }
@@ -194,23 +225,26 @@ add_filter('rank_math/json_ld', function($data, $jsonld) {
   const polylangMetaStrings = [];
   for (const [templateSlug, schema] of Object.entries(schemas)) {
     for (const [key, field] of Object.entries(schema)) {
-      if ((field.type === 'text' || field.type === 'richText') && field.default) {
+      if (
+        (field.type === 'text' || field.type === 'richText') &&
+        field.default
+      ) {
         polylangMetaStrings.push(field.default);
       }
     }
   }
 
-  const uniquePolylangStrings = Array.from(new Set([
-    ...i18nKeys,
-    ...polylangMetaStrings
-  ]));
+  const uniquePolylangStrings = Array.from(
+    new Set([...i18nKeys, ...polylangMetaStrings]),
+  );
 
   const i18nKeysPhp = uniquePolylangStrings
     .map((k) => `        '${k.replace(/'/g, "\\'")}',`)
     .join('\n');
-  const wpBlockStylesLine = config.presets?.wordpressCoreStyles === false
-    ? ''
-    : "    add_theme_support('wp-block-styles');\n";
+  const wpBlockStylesLine =
+    config.presets?.wordpressCoreStyles === false
+      ? ''
+      : "    add_theme_support('wp-block-styles');\n";
 
   let cptRegistration = '';
   try {
@@ -230,8 +264,14 @@ add_filter('rank_math/json_ld', function($data, $jsonld) {
       );
       for (const f of jsonFiles) {
         try {
-          const fileContent = JSON.parse(readFileSync(path.join(cmsDir, f), 'utf8'));
-          if (fileContent && typeof fileContent === 'object' && !Array.isArray(fileContent)) {
+          const fileContent = JSON.parse(
+            readFileSync(path.join(cmsDir, f), 'utf8'),
+          );
+          if (
+            fileContent &&
+            typeof fileContent === 'object' &&
+            !Array.isArray(fileContent)
+          ) {
             mockData = { ...mockData, ...fileContent };
           }
         } catch {}
@@ -258,11 +298,11 @@ add_filter('rank_math/json_ld', function($data, $jsonld) {
         const taxonomiesSet = new Set();
         const postTypeTaxonomies = {};
         const postTypeNativeTaxonomies = {};
-        
+
         for (const pt of postTypes) {
           if (pt.length > 20) {
             throw new Error(
-              `Custom Post Type "${pt}" inferred from local mock data exceeds the WordPress limit of 20 characters. Please shorten the key.`
+              `Custom Post Type "${pt}" inferred from local mock data exceeds the WordPress limit of 20 characters. Please shorten the key.`,
             );
           }
           postTypeTaxonomies[pt] = new Set();
@@ -312,9 +352,17 @@ add_filter('rank_math/json_ld', function($data, $jsonld) {
           let pluralLast = lastWord;
 
           if (lastLower.endsWith('y') && !/[aeiou]y$/i.test(lastLower)) {
-            pluralLast = lastWord.slice(0, -1) + (lastWord.charAt(lastWord.length - 1) === 'Y' ? 'IES' : 'ies');
+            pluralLast =
+              lastWord.slice(0, -1) +
+              (lastWord.charAt(lastWord.length - 1) === 'Y' ? 'IES' : 'ies');
           } else if (/(?:s|x|z|ch|sh|ss)$/i.test(lastLower)) {
-            pluralLast = lastWord + (lastWord.charAt(lastWord.length - 1) === lastWord.charAt(lastWord.length - 1).toUpperCase() && lastWord.length > 1 ? 'ES' : 'es');
+            pluralLast =
+              lastWord +
+              (lastWord.charAt(lastWord.length - 1) ===
+                lastWord.charAt(lastWord.length - 1).toUpperCase() &&
+              lastWord.length > 1
+                ? 'ES'
+                : 'es');
           } else if (/(?:fe)$/i.test(lastLower)) {
             pluralLast = lastWord.slice(0, -2) + 'ves';
           } else if (/(?:[^f]f)$/i.test(lastLower)) {
@@ -333,19 +381,36 @@ add_filter('rank_math/json_ld', function($data, $jsonld) {
  */
 function forgewp_register_custom_post_types() {
 ${postTypes
-  .map(
-    (pt) => {
-      const ptConfig = config.postTypes?.[pt];
-      const singular = ptConfig?.labels?.singular || formatSingularLabel(pt);
-      const plural = ptConfig?.labels?.plural || pluralizeLabel(singular);
-      const icon = ptConfig?.icon || 'dashicons-admin-post';
+  .map((pt) => {
+    const ptConfig = config.postTypes?.[pt];
+    const singular = ptConfig?.labels?.singular || formatSingularLabel(pt);
+    const plural = ptConfig?.labels?.plural || pluralizeLabel(singular);
+    const icon = ptConfig?.icon || 'dashicons-admin-post';
+    const hasArchive = ptConfig?.hasArchive === false ? 'false' : 'true';
+    const rewriteSlug =
+      ptConfig?.rewrite && typeof ptConfig.rewrite === 'object'
+        ? String(ptConfig.rewrite.slug || pt)
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+        : pt;
+    const rewrite =
+      ptConfig?.rewrite === false
+        ? 'false'
+        : ptConfig?.rewrite && typeof ptConfig.rewrite === 'object'
+          ? `array('slug' => '${rewriteSlug}', 'with_front' => ${ptConfig.rewrite.withFront === false ? 'false' : 'true'})`
+          : 'true';
 
-      const nativeTaxes = Array.from(postTypeNativeTaxonomies[pt] || []);
-      const taxonomiesLine = nativeTaxes.length > 0 
+    const nativeTaxes = Array.from(postTypeNativeTaxonomies[pt] || []);
+    const taxonomiesLine =
+      nativeTaxes.length > 0
         ? `\n        'taxonomies'  => array('${nativeTaxes.join("', '")}'),`
         : '';
-      const nativeTaxesCalls = nativeTaxes.map(tax => `\n    register_taxonomy_for_object_type('${tax}', '${pt}');`).join('');
-      return `    if ( ! post_type_exists('${pt}') ) {
+    const nativeTaxesCalls = nativeTaxes
+      .map(
+        (tax) => `\n    register_taxonomy_for_object_type('${tax}', '${pt}');`,
+      )
+      .join('');
+    return `    if ( ! post_type_exists('${pt}') ) {
         register_post_type('${pt}', array(
             'labels'      => array(
                 'name'               => __('${plural}', '${config.textDomain}'),
@@ -362,23 +427,28 @@ ${postTypes
                 'not_found'          => __('No ${plural} found.', '${config.textDomain}'),
             ),
             'public'      => true,
-            'has_archive' => true,
+            'has_archive' => ${hasArchive},
+            'rewrite'     => ${rewrite},
             'show_in_rest'=> true,${taxonomiesLine}
             'supports'    => array('title', 'editor', 'thumbnail', 'custom-fields', 'excerpt'),
             'menu_icon'   => '${icon}',
         ));${nativeTaxesCalls}
     }`;
-    }
-  )
+  })
   .join('\n')}
 
 ${registeredTaxonomies
   .map((tax) => {
-    const associatedPostTypes = postTypes.filter((pt) => postTypeTaxonomies[pt].has(tax));
+    const associatedPostTypes = postTypes.filter((pt) =>
+      postTypeTaxonomies[pt].has(tax),
+    );
     const taxConfig = config.taxonomies?.[tax];
     const singular = taxConfig?.labels?.singular || formatSingularLabel(tax);
     const plural = taxConfig?.labels?.plural || pluralizeLabel(singular);
-    const hierarchical = taxConfig?.hierarchical !== undefined ? Boolean(taxConfig.hierarchical) : true;
+    const hierarchical =
+      taxConfig?.hierarchical !== undefined
+        ? Boolean(taxConfig.hierarchical)
+        : true;
     return `    if ( ! taxonomy_exists('${tax}') ) {
         register_taxonomy('${tax}', array('${associatedPostTypes.join("', '")}'), array(
             'labels'            => array(
@@ -410,13 +480,14 @@ ${(() => {
   const translatablePtKeys = Object.entries(config.postTypes || {})
     .filter(([_, ptc]) => ptc.translatable)
     .map(([key]) => key);
-  let php = translatablePtKeys.length > 0
-    ? `\n// Automatically register custom post types for Polylang translation support
+  let php =
+    translatablePtKeys.length > 0
+      ? `\n// Automatically register custom post types for Polylang translation support
 add_filter('pll_get_post_types', function($post_types, $is_settings) {
 ${translatablePtKeys.map((pt) => `    $post_types['${pt}'] = '${pt}';`).join('\n')}
     return $post_types;
 }, 10, 2);`
-    : '';
+      : '';
 
   if (translatablePtKeys.length > 0) {
     php += `\n\n// Add REST API language filtering support for custom post types under Polylang
@@ -442,7 +513,9 @@ ${registeredTaxonomies.map((tax) => `    $taxonomies['${tax}'] = '${tax}';`).joi
     return $taxonomies;
 }, 10, 2);`;
 
-    const taxArrayStr = registeredTaxonomies.map(tax => `'${tax}'`).join(', ');
+    const taxArrayStr = registeredTaxonomies
+      .map((tax) => `'${tax}'`)
+      .join(', ');
     php += `\n\n// Automatically expose custom taxonomy metadata in WordPress REST API
 add_action('rest_api_init', function() {
     $taxonomies = array(${taxArrayStr});
@@ -475,8 +548,10 @@ add_action('rest_api_init', function() {
   }
 
   if (translatablePtKeys.length > 0 || registeredTaxonomies.length > 0) {
-    const ptArrayStr = translatablePtKeys.map(pt => `'${pt}'`).join(', ');
-    const taxArrayStr = registeredTaxonomies.map(tax => `'${tax}'`).join(', ');
+    const ptArrayStr = translatablePtKeys.map((pt) => `'${pt}'`).join(', ');
+    const taxArrayStr = registeredTaxonomies
+      .map((tax) => `'${tax}'`)
+      .join(', ');
     php += `\n\n// Automatically enable Polylang translation support for custom post types and taxonomies in WP Admin settings
 add_action('admin_init', function() {
     $options = get_option('polylang');
@@ -583,7 +658,8 @@ add_filter('wp_resource_hints', 'forgewp_google_fonts_resource_hints', 10, 2);
         if (!seenCategories.has(slug)) {
           seenCategories.add(slug);
           const rawName = slug.replace('forgewp-', '');
-          const title = 'ForgeWP ' + rawName.charAt(0).toUpperCase() + rawName.slice(1);
+          const title =
+            'ForgeWP ' + rawName.charAt(0).toUpperCase() + rawName.slice(1);
           customCategories.push({ slug, title });
         }
       }
@@ -592,7 +668,10 @@ add_filter('wp_resource_hints', 'forgewp_google_fonts_resource_hints', 10, 2);
     let categoriesHook = '';
     if (customCategories.length > 0) {
       const categoriesPhpArray = customCategories
-        .map((c) => `        array('slug' => '${c.slug}', 'title' => '${c.title}')`)
+        .map(
+          (c) =>
+            `        array('slug' => '${c.slug}', 'title' => '${c.title}')`,
+        )
         .join(',\n');
 
       categoriesHook = `
@@ -614,7 +693,11 @@ add_filter('block_categories_all', 'forgewp_register_custom_block_categories', 1
     // dualHostMeta: block attribute key → ACF/post meta key (from pickEditable maps)
     const dualHostByBlock = {};
     for (const b of blockSlugs) {
-      if (b.dualHostMeta && typeof b.dualHostMeta === 'object' && Object.keys(b.dualHostMeta).length) {
+      if (
+        b.dualHostMeta &&
+        typeof b.dualHostMeta === 'object' &&
+        Object.keys(b.dualHostMeta).length
+      ) {
         dualHostByBlock[b.name] = b.dualHostMeta;
       }
     }
@@ -827,7 +910,9 @@ ${menuLocations.map((loc) => `        '${loc}' => __('${loc.charAt(0).toUpperCas
         `            'template'    => '${p.template.replace(/'/g, "\\'")}',`,
       ];
       if (p.description) {
-        lines.push(`            'description' => '${p.description.replace(/'/g, "\\'")}',`);
+        lines.push(
+          `            'description' => '${p.description.replace(/'/g, "\\'")}',`,
+        );
       }
       return `        array(\n${lines.join('\n')}\n        )`;
     })
@@ -837,34 +922,53 @@ ${menuLocations.map((loc) => `        '${loc}' => __('${loc.charAt(0).toUpperCas
     const pad = ' '.repeat(indent);
     const title = (item.title || '').replace(/'/g, "\\'");
     const url = (item.url || '').replace(/'/g, "\\'");
-    const lines = [
-      `${pad}'title' => '${title}'`,
-      `${pad}'url'   => '${url}'`,
-    ];
+    const lines = [`${pad}'title' => '${title}'`, `${pad}'url'   => '${url}'`];
     if (item.target) {
-      lines.push(`${pad}'target' => '${String(item.target).replace(/'/g, "\\'")}'`);
+      lines.push(
+        `${pad}'target' => '${String(item.target).replace(/'/g, "\\'")}'`,
+      );
     }
     if (item.description) {
-      lines.push(`${pad}'description' => '${String(item.description).replace(/'/g, "\\'")}'`);
+      lines.push(
+        `${pad}'description' => '${String(item.description).replace(/'/g, "\\'")}'`,
+      );
     }
     if (item.attrTitle) {
-      lines.push(`${pad}'attrTitle' => '${String(item.attrTitle).replace(/'/g, "\\'")}'`);
+      lines.push(
+        `${pad}'attrTitle' => '${String(item.attrTitle).replace(/'/g, "\\'")}'`,
+      );
     }
-    if (item.classes && Array.isArray(item.classes) && item.classes.length > 0) {
-      const classStrs = item.classes.map((c) => `'${String(c).replace(/'/g, "\\'")}'`).join(', ');
+    if (
+      item.classes &&
+      Array.isArray(item.classes) &&
+      item.classes.length > 0
+    ) {
+      const classStrs = item.classes
+        .map((c) => `'${String(c).replace(/'/g, "\\'")}'`)
+        .join(', ');
       lines.push(`${pad}'classes' => array(${classStrs})`);
     }
     if (item.badge) {
-      lines.push(`${pad}'badge' => '${String(item.badge).replace(/'/g, "\\'")}'`);
+      lines.push(
+        `${pad}'badge' => '${String(item.badge).replace(/'/g, "\\'")}'`,
+      );
     }
     if (item.image) {
-      lines.push(`${pad}'image' => '${String(item.image).replace(/'/g, "\\'")}'`);
+      lines.push(
+        `${pad}'image' => '${String(item.image).replace(/'/g, "\\'")}'`,
+      );
     }
     if (item.icon) {
       lines.push(`${pad}'icon' => '${String(item.icon).replace(/'/g, "\\'")}'`);
     }
-    if (item.children && Array.isArray(item.children) && item.children.length > 0) {
-      const childrenPhp = item.children.map((c) => serializeMenuItemToPhp(c, indent + 4)).join(',\n');
+    if (
+      item.children &&
+      Array.isArray(item.children) &&
+      item.children.length > 0
+    ) {
+      const childrenPhp = item.children
+        .map((c) => serializeMenuItemToPhp(c, indent + 4))
+        .join(',\n');
       lines.push(`${pad}'children' => array(\n${childrenPhp}\n${pad})`);
     }
     return `${' '.repeat(indent - 4)}array(\n${lines.join(',\n')}\n${' '.repeat(indent - 4)})`;
@@ -892,7 +996,9 @@ ${menuLocations.map((loc) => `        '${loc}' => __('${loc.charAt(0).toUpperCas
         } else {
           defaultValStr = String(field.default);
         }
-        const escapedVal = defaultValStr.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const escapedVal = defaultValStr
+          .replace(/\\/g, '\\\\')
+          .replace(/'/g, "\\'");
         fieldsPhpLines.push(`            '${key}' => '${escapedVal}',`);
       }
     }
@@ -924,7 +1030,10 @@ ${fieldsPhpLines.join('\n')}
       try {
         siteSettingsJson = JSON.parse(readFileSync(siteSettingsPath, 'utf8'));
       } catch (e) {
-        console.warn('Failed to parse site-settings.json for hydration:', e.message);
+        console.warn(
+          'Failed to parse site-settings.json for hydration:',
+          e.message,
+        );
       }
     }
 
@@ -944,7 +1053,10 @@ ${fieldsPhpLines.join('\n')}
         let phpDefault = 'false';
         if (typeof defaultVal === 'string') {
           phpDefault = `'${defaultVal.replace(/'/g, "\\'")}'`;
-        } else if (typeof defaultVal === 'number' || typeof defaultVal === 'boolean') {
+        } else if (
+          typeof defaultVal === 'number' ||
+          typeof defaultVal === 'boolean'
+        ) {
           phpDefault = String(defaultVal);
         } else if (typeof defaultVal === 'object' && defaultVal !== null) {
           phpDefault = 'array()';
@@ -1008,7 +1120,7 @@ ${fieldsPhpLines.join('\n')}
     defaultEmailVerificationEnabled,
     defaultRegistrationEnabled,
     defaultBlockLoginUntilVerified,
-    menus
+    menus,
   );
 
   const routingPhp = buildRoutingPhp(
@@ -1017,7 +1129,7 @@ ${fieldsPhpLines.join('\n')}
     schemaDefaultsPhp,
     menuItemsPhpArray,
     socialSettingsPhp,
-    postTypes
+    postTypes,
   );
 
   let mainJs = '';
@@ -1048,7 +1160,7 @@ ${fieldsPhpLines.join('\n')}
     headlessScript,
     currentUserHydrationField,
     defaultLoginField,
-    providersPhp
+    providersPhp,
   );
 
   const restEndpointsPhp = buildRestEndpointsPhp(
@@ -1065,10 +1177,44 @@ ${fieldsPhpLines.join('\n')}
     defaultBlockLoginUntilVerified,
     defaultAutoLoginAfterSignup,
     defaultDefaultRole,
-    reservedUsernamesPhp
+    reservedUsernamesPhp,
   );
 
   const formsPhp = buildFormsPhp(config);
+
+  const cptRewriteConfig = postTypes
+    .filter((postType) => {
+      const postTypeConfig = config.postTypes?.[postType];
+      return (
+        postTypeConfig?.rewrite !== undefined ||
+        postTypeConfig?.hasArchive !== undefined
+      );
+    })
+    .map((postType) => ({
+      postType,
+      rewrite: config.postTypes[postType].rewrite ?? true,
+      hasArchive: config.postTypes[postType].hasArchive ?? true,
+    }));
+  const cptRewriteFlushPhp = cptRewriteConfig.length
+    ? (() => {
+        const signature = createHash('sha256')
+          .update(JSON.stringify(cptRewriteConfig))
+          .digest('hex');
+        const optionName = `forgewp_${String(config.textDomain || 'theme').replace(/[^a-zA-Z0-9_]/g, '_')}_cpt_rewrite_signature`;
+        const functionName = `forgewp_flush_${String(config.textDomain || 'theme').replace(/[^a-zA-Z0-9_]/g, '_')}_cpt_rewrite_rules`;
+        return `
+function ${functionName}() {
+    $signature = '${signature}';
+    if (get_option('${optionName}') === $signature) {
+        return;
+    }
+    flush_rewrite_rules(false);
+    update_option('${optionName}', $signature, false);
+}
+add_action('init', '${functionName}', 99);
+`;
+      })()
+    : '';
 
   let _php = `<?php
 /**
@@ -1094,6 +1240,8 @@ ${preconnectFilter}
 ${blocksRegistration}
 
 ${cptRegistration}
+
+${cptRewriteFlushPhp}
 
 ${restEndpointsPhp}
 

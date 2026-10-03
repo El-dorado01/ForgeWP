@@ -6,7 +6,11 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { buildFormsPhp, validateFormsConfig, lintFormsUsage } from '../../lib/functions/forms.js';
+import {
+  buildFormsPhp,
+  validateFormsConfig,
+  lintFormsUsage,
+} from '../../lib/functions/forms.js';
 import { buildFunctionsPhp } from '../../lib/functions/index.js';
 
 const ASSETS = { cssFile: 'assets/app.css', jsFile: 'assets/main.js' };
@@ -28,8 +32,19 @@ const SAMPLE_CONFIG = {
       clientFields: {
         enabled: true,
         seed: [
-          { name: 'subject', label: 'Subject', type: 'select', required: true, options: ['A', 'B'] },
-          { name: 'message', label: 'Message', type: 'textarea', required: true },
+          {
+            name: 'subject',
+            label: 'Subject',
+            type: 'select',
+            required: true,
+            options: ['A', 'B'],
+          },
+          {
+            name: 'message',
+            label: 'Message',
+            type: 'textarea',
+            required: true,
+          },
         ],
       },
       storeSubmissions: true,
@@ -48,8 +63,32 @@ describe('buildFormsPhp — no forms config', () => {
 
   it('produces byte-identical buildFunctionsPhp output for a theme with no forms key, regardless of forms.js changes', () => {
     const config = { ...SAMPLE_CONFIG, forms: undefined };
-    const a = buildFunctionsPhp(config, ASSETS, [], process.cwd(), [], {}, { mapping: {}, mainJsFile: 'assets/main.js' }, [], {}, [], []);
-    const b = buildFunctionsPhp(config, ASSETS, [], process.cwd(), [], {}, { mapping: {}, mainJsFile: 'assets/main.js' }, [], {}, [], []);
+    const a = buildFunctionsPhp(
+      config,
+      ASSETS,
+      [],
+      process.cwd(),
+      [],
+      {},
+      { mapping: {}, mainJsFile: 'assets/main.js' },
+      [],
+      {},
+      [],
+      [],
+    );
+    const b = buildFunctionsPhp(
+      config,
+      ASSETS,
+      [],
+      process.cwd(),
+      [],
+      {},
+      { mapping: {}, mainJsFile: 'assets/main.js' },
+      [],
+      {},
+      [],
+      [],
+    );
     expect(a).toBe(b);
     expect(a).not.toContain('forgewp_handle_form');
     expect(a).not.toContain('forgewp_submission');
@@ -62,8 +101,12 @@ describe('buildFormsPhp — representative config', () => {
   const php = buildFormsPhp(SAMPLE_CONFIG);
 
   it('registers the REST endpoint for the form', () => {
-    expect(php).toContain("register_rest_route('forgewp/v1', '/forms/contact/submit'");
-    expect(php).toContain("'callback'            => 'forgewp_handle_form_contact'");
+    expect(php).toContain(
+      "register_rest_route('forgewp/v1', '/forms/contact/submit'",
+    );
+    expect(php).toContain(
+      "'callback'            => 'forgewp_handle_form_contact'",
+    );
     expect(php).toContain("'permission_callback' => '__return_true'");
   });
 
@@ -71,6 +114,32 @@ describe('buildFormsPhp — representative config', () => {
     expect(php).toContain('forgewp_forms_rate_limit_ok()');
     expect(php).toContain("$params['_forgewp_hp']");
     expect(php).toContain('_forgewp_elapsed');
+  });
+
+  it('renders responsive accessible field cards instead of the fixed-width table', () => {
+    expect(php).toContain('class="forgewp-forms-rows" role="list"');
+    expect(php).toContain("el('fieldset', { 'class': 'forgewp-forms-row'");
+    expect(php).toContain('grid-template-columns:minmax(0, 1fr)');
+    expect(php).not.toContain('min-width:900px');
+    expect(php).toContain("'aria-label': 'Move field up'");
+    expect(php).toContain(
+      'This field key conflicts with a developer-owned or duplicate field',
+    );
+  });
+
+  it('separates read-only developer fields from editable client fields and shows storage status', () => {
+    expect(php).toContain('class="forgewp-form-panel"');
+    expect(php).toContain('Developer-owned fields');
+    expect(php).toContain('Client-managed fields');
+    expect(php).toContain('read-only');
+    expect(php).toContain('Submissions saved in WordPress');
+    expect(php).toContain('Field key: ');
+  });
+
+  it('keeps generated field keys stable after a successful save and announces status', () => {
+    expect(php).toContain('dataByLang[currentLang] = savedFields;');
+    expect(php).toContain('renderLang(currentLang);');
+    expect(php).toContain("noticeEl.setAttribute('aria-live'");
   });
 
   it('bakes dev-owned fields and the client-field seed into the handler', () => {
@@ -81,27 +150,55 @@ describe('buildFormsPhp — representative config', () => {
   });
 
   it('merges dev + client fields before validating', () => {
-    expect(php).toContain('array_merge($dev_fields, is_array($client_fields) ? $client_fields : array())');
+    expect(php).toContain(
+      'array_merge($dev_fields, is_array($client_fields) ? $client_fields : array())',
+    );
   });
 
   it('registers the forgewp_submission CPT when storeSubmissions is true', () => {
     expect(php).toContain("register_post_type('forgewp_submission'");
     expect(php).toContain("'create_posts' => 'do_not_allow'");
+    expect(php).toContain("'capability_type' => 'forgewp_submission'");
+    expect(php).toContain("'edit_posts' => 'manage_options'");
+  });
+
+  it('uses one configured capability for both forms administration and stored submissions', () => {
+    const configured = buildFormsPhp({
+      ...SAMPLE_CONFIG,
+      formsAdminCapability: 'edit_pages',
+    });
+
+    expect(configured).toContain("'edit_posts' => 'edit_pages'");
+    expect(configured).toContain("'read_post' => 'edit_pages'");
+    expect(configured).toContain("'edit_pages',\n            'forgewp-forms'");
+    expect(configured).toContain("current_user_can('edit_pages')");
+    expect(configured).not.toContain("current_user_can('manage_options')");
+  });
+
+  it('rejects invalid formsAdminCapability values', () => {
+    expect(() =>
+      buildFormsPhp({
+        ...SAMPLE_CONFIG,
+        formsAdminCapability: 'manage options',
+      }),
+    ).toThrow(/Invalid formsAdminCapability/);
   });
 
   it('omits the CPT registration when storeSubmissions is false for every form', () => {
     const config = {
       textDomain: 'x',
-      forms: { contact: { ...SAMPLE_CONFIG.forms.contact, storeSubmissions: false } },
+      forms: {
+        contact: { ...SAMPLE_CONFIG.forms.contact, storeSubmissions: false },
+      },
     };
     const out = buildFormsPhp(config);
     expect(out).not.toContain("register_post_type('forgewp_submission'");
   });
 
   it('adds a "Form" column to the submissions list so multiple forms stay distinguishable', () => {
-    expect(php).toContain("manage_forgewp_submission_posts_columns");
+    expect(php).toContain('manage_forgewp_submission_posts_columns');
     expect(php).toContain("$new_columns['forgewp_form']");
-    expect(php).toContain("manage_forgewp_submission_posts_custom_column");
+    expect(php).toContain('manage_forgewp_submission_posts_custom_column');
   });
 
   it('only shows the filter-by-form dropdown when a theme has more than one submission-storing form', () => {
@@ -109,7 +206,11 @@ describe('buildFormsPhp — representative config', () => {
       textDomain: 'x',
       forms: {
         contact: SAMPLE_CONFIG.forms.contact,
-        newsletter: { mailTo: 'admin', fields: { email: { type: 'email', required: true } }, storeSubmissions: true },
+        newsletter: {
+          mailTo: 'admin',
+          fields: { email: { type: 'email', required: true } },
+          storeSubmissions: true,
+        },
       },
     };
     const out = buildFormsPhp(twoForms);
@@ -122,7 +223,11 @@ describe('buildFormsPhp — representative config', () => {
       textDomain: 'x',
       forms: {
         contact: SAMPLE_CONFIG.forms.contact,
-        ephemeral: { mailTo: 'admin', fields: { email: { type: 'email', required: true } }, storeSubmissions: false },
+        ephemeral: {
+          mailTo: 'admin',
+          fields: { email: { type: 'email', required: true } },
+          storeSubmissions: false,
+        },
       },
     };
     const out = buildFormsPhp(mixed);
@@ -131,22 +236,32 @@ describe('buildFormsPhp — representative config', () => {
   });
 
   it('seeds client fields on after_switch_theme and self-heals on init (redeploying an already-active theme never fires after_switch_theme)', () => {
-    expect(php).toContain("add_action('after_switch_theme', 'forgewp_seed_form_fields_contact')");
-    expect(php).toContain("add_action('init', 'forgewp_seed_form_fields_contact')");
-    expect(php).toContain("if (get_option($option_name, null) === null)");
+    expect(php).toContain(
+      "add_action('after_switch_theme', 'forgewp_seed_form_fields_contact')",
+    );
+    expect(php).toContain(
+      "add_action('init', 'forgewp_seed_form_fields_contact')",
+    );
+    expect(php).toContain('if (get_option($option_name, null) === null)');
   });
 
   it('generates the admin Forms page for forms with clientFields enabled', () => {
-    expect(php).toContain("add_menu_page(");
+    expect(php).toContain('add_menu_page(');
     expect(php).toContain('forgewp_forms_admin_save_handler');
-    expect(php).toContain("check_ajax_referer('forgewp_forms_admin_save', 'nonce')");
+    expect(php).toContain(
+      "check_ajax_referer('forgewp_forms_admin_save', 'nonce')",
+    );
   });
 
   it('admin page data-initial goes through forgewp_forms_get_client_fields (falls back to seed), never a raw get_option default', () => {
     const dataInitialMatch = php.match(/data-initial="([^"]*)"/);
     expect(dataInitialMatch).not.toBeNull();
-    expect(dataInitialMatch[1]).toContain("forgewp_forms_get_client_fields( 'contact'");
-    expect(dataInitialMatch[1]).not.toMatch(/get_option\(\s*'forgewp_form_fields_contact'\s*,\s*array\(\)\s*\)/);
+    expect(dataInitialMatch[1]).toContain(
+      "forgewp_forms_get_client_fields( 'contact'",
+    );
+    expect(dataInitialMatch[1]).not.toMatch(
+      /get_option\(\s*'forgewp_form_fields_contact'\s*,\s*array\(\)\s*\)/,
+    );
   });
 
   it('rejects admin-saved fields that collide with dev-owned field names', () => {
@@ -156,7 +271,9 @@ describe('buildFormsPhp — representative config', () => {
 
   it('reports skipped (colliding) field names back to the caller instead of silently dropping them', () => {
     expect(php).toContain('$skipped_names');
-    expect(php).toContain("wp_send_json_success(array(\n            'fields'  => $clean,\n            'skipped' => array_values(array_unique($skipped_names)),\n        ));");
+    expect(php).toContain(
+      "wp_send_json_success(array(\n            'fields'  => $clean,\n            'skipped' => array_values(array_unique($skipped_names)),\n        ));",
+    );
   });
 
   it('client save-notice JS surfaces skipped field names to the admin', () => {
@@ -167,7 +284,9 @@ describe('buildFormsPhp — representative config', () => {
     expect(php).toContain('function forgewp_forms_hydration_payload()');
     expect(php).toContain("forgewp_forms_get_client_fields('contact'");
     // mailTo must never appear in the hydration payload function body.
-    const payloadFnStart = php.indexOf('function forgewp_forms_hydration_payload()');
+    const payloadFnStart = php.indexOf(
+      'function forgewp_forms_hydration_payload()',
+    );
     const payloadFnBody = php.slice(payloadFnStart);
     expect(payloadFnBody).not.toContain('admin_email');
   });
@@ -177,7 +296,40 @@ describe('buildFormsPhp — representative config', () => {
   });
 
   it('adds Reply-To from the dev-owned email field', () => {
-    expect(php).toContain("$headers[] = 'Reply-To: ' . forgewp_forms_strip_header_injection($values['email'])");
+    expect(php).toContain(
+      "$headers[] = 'Reply-To: ' . forgewp_forms_strip_header_injection($values['email'])",
+    );
+  });
+
+  it('validates sanitized non-empty email fields with WordPress is_email()', () => {
+    expect(php).toContain(
+      "$type === 'email' && $clean !== '' && !is_email($clean)",
+    );
+    expect(php).toContain(
+      "__('Please enter a valid email address.', 'forgewp')",
+    );
+  });
+
+  it('does not claim notification email was sent when storage succeeded but wp_mail failed', () => {
+    expect(php).toContain('if (!$mail_sent && $stored)');
+    expect(php).toContain("'message' => __('Your submission was received.'");
+    expect(php).toContain(
+      'Submission was stored but its notification email failed',
+    );
+  });
+
+  it('uses the same public success message for successful mail and stored fallback', () => {
+    expect(
+      php.match(/'message'\s*=>\s*__\('Your submission was received\.'/g),
+    ).toHaveLength(2);
+    expect(php).not.toContain('Thank you — your message has been sent.');
+  });
+
+  it('logs when mail succeeds but configured submission storage fails', () => {
+    expect(php).toContain('if ($mail_sent && !$stored)');
+    expect(php).toContain(
+      'Notification email was sent but the submission could not be stored',
+    );
   });
 });
 
@@ -190,7 +342,12 @@ describe('buildFormsPhp — mailTo resolution', () => {
   it('resolves "option:xyz" to get_option(xyz)', () => {
     const config = {
       textDomain: 'x',
-      forms: { contact: { ...SAMPLE_CONFIG.forms.contact, mailTo: 'option:contact_email' } },
+      forms: {
+        contact: {
+          ...SAMPLE_CONFIG.forms.contact,
+          mailTo: 'option:contact_email',
+        },
+      },
     };
     const php = buildFormsPhp(config);
     expect(php).toContain("$to = get_option('contact_email');");
@@ -199,16 +356,286 @@ describe('buildFormsPhp — mailTo resolution', () => {
   it('treats any other string as a literal email address', () => {
     const config = {
       textDomain: 'x',
-      forms: { contact: { ...SAMPLE_CONFIG.forms.contact, mailTo: 'literal@example.com' } },
+      forms: {
+        contact: {
+          ...SAMPLE_CONFIG.forms.contact,
+          mailTo: 'literal@example.com',
+        },
+      },
     };
     const php = buildFormsPhp(config);
     expect(php).toContain("$to = 'literal@example.com';");
   });
 });
 
+describe('submitter confirmation', () => {
+  const confirmationConfig = {
+    ...SAMPLE_CONFIG,
+    forms: {
+      contact: {
+        ...SAMPLE_CONFIG.forms.contact,
+        confirmation: {
+          enabled: true,
+          emailField: 'email',
+          subject: 'We received your message, {name}',
+          body: 'Hello {name}, your submission was received.',
+        },
+      },
+    },
+  };
+
+  it('is absent unless explicitly enabled', () => {
+    const php = buildFormsPhp(SAMPLE_CONFIG);
+    expect(php).not.toContain('$confirmation_to');
+  });
+
+  it('sends a plain-text receipt only to the declared validated email field', () => {
+    const php = buildFormsPhp(confirmationConfig);
+    expect(php).toContain("$confirmation_to = $values['email'];");
+    expect(php).toContain('if (is_email($confirmation_to))');
+    expect(php).toContain(
+      '$confirmation_subject = forgewp_forms_strip_header_injection(',
+    );
+    expect(php).toContain(
+      "$confirmation_body = 'Hello ' . (isset($values['name'])",
+    );
+    expect(php).toContain(
+      'wp_mail($confirmation_to, $confirmation_subject, $confirmation_body, array())',
+    );
+    expect(php).toContain('Submitter confirmation email failed');
+  });
+
+  it('requires the confirmation recipient to be a developer-owned email field', () => {
+    expect(() =>
+      validateFormsConfig({
+        contact: {
+          mailTo: 'admin',
+          fields: { email: { type: 'text' } },
+          confirmation: {
+            enabled: true,
+            emailField: 'email',
+            subject: 'Received',
+            body: 'Thanks',
+          },
+        },
+      }),
+    ).toThrow(/developer-owned field declared with type: 'email'/);
+  });
+
+  it('rejects confirmation merge tags outside the developer-owned field allowlist', () => {
+    expect(() =>
+      validateFormsConfig({
+        contact: {
+          mailTo: 'admin',
+          fields: { email: { type: 'email' } },
+          confirmation: {
+            enabled: true,
+            emailField: 'email',
+            subject: 'Received {unknown}',
+            body: 'Thanks',
+          },
+        },
+      }),
+    ).toThrow(/confirmation references undeclared developer-owned field/);
+  });
+});
+
+describe('submitter confirmation', () => {
+  const confirmationConfig = {
+    ...SAMPLE_CONFIG,
+    forms: {
+      contact: {
+        ...SAMPLE_CONFIG.forms.contact,
+        confirmation: {
+          enabled: true,
+          emailField: 'email',
+          subject: 'We received your message, {name}',
+          body: 'Hello {name}, your submission was received.',
+        },
+      },
+    },
+  };
+
+  it('is disabled unless explicitly enabled', () => {
+    expect(buildFormsPhp(SAMPLE_CONFIG)).not.toContain('$confirmation_to');
+  });
+
+  it('sends a plain-text receipt only to the declared validated email field', () => {
+    const php = buildFormsPhp(confirmationConfig);
+    expect(php).toContain("$confirmation_to = $values['email'];");
+    expect(php).toContain('if (is_email($confirmation_to))');
+    expect(php).toContain(
+      '$confirmation_subject = forgewp_forms_strip_header_injection(',
+    );
+    expect(php).toContain(
+      "$confirmation_body = 'Hello ' . (isset($values['name'])",
+    );
+    expect(php).toContain(
+      'wp_mail($confirmation_to, $confirmation_subject, $confirmation_body, array())',
+    );
+    expect(php).toContain('Submitter confirmation email failed');
+    expect(php).toContain(
+      '$mail_sent = wp_mail($to, $subject, $body, $headers)',
+    );
+  });
+
+  it('requires the confirmation recipient to be a developer-owned email field', () => {
+    expect(() =>
+      validateFormsConfig({
+        contact: {
+          mailTo: 'admin',
+          fields: { email: { type: 'text' } },
+          confirmation: {
+            enabled: true,
+            emailField: 'email',
+            subject: 'Received',
+            body: 'Thanks',
+          },
+        },
+      }),
+    ).toThrow(/developer-owned field declared with type: 'email'/);
+  });
+
+  it('rejects merge tags outside the developer-owned field allowlist', () => {
+    expect(() =>
+      validateFormsConfig({
+        contact: {
+          mailTo: 'admin',
+          fields: { email: { type: 'email' } },
+          confirmation: {
+            enabled: true,
+            emailField: 'email',
+            subject: 'Received {unknown}',
+            body: 'Thanks',
+          },
+        },
+      }),
+    ).toThrow(/confirmation references undeclared developer-owned field/);
+  });
+
+  it('requires retentionDays to be a positive integer on a stored form', () => {
+    expect(() =>
+      validateFormsConfig({
+        contact: {
+          mailTo: 'admin',
+          fields: { email: { type: 'email' } },
+          retentionDays: 0,
+        },
+      }),
+    ).toThrow(/retentionDays must be a positive integer/);
+    expect(() =>
+      validateFormsConfig({
+        contact: {
+          mailTo: 'admin',
+          fields: { email: { type: 'email' } },
+          storeSubmissions: false,
+          retentionDays: 30,
+        },
+      }),
+    ).toThrow(/retentionDays requires storeSubmissions/);
+  });
+});
+
+describe('stored submission tools', () => {
+  it('generates authorized CSV export and WordPress privacy hooks only when submissions are stored', () => {
+    const php = buildFormsPhp(SAMPLE_CONFIG);
+    expect(php).toContain('forgewp_forms_render_export_page');
+    expect(php).toContain('forgewp_forms_export_csv');
+    expect(php).toContain("current_user_can('manage_options')");
+    expect(php).toContain('admin_post_forgewp_forms_export_csv');
+    expect(php).toContain("check_admin_referer('forgewp_forms_export_csv')");
+    expect(php).toContain('Content-Type: text/csv; charset=utf-8');
+    expect(php).toContain('forgewp_forms_csv_safe_value');
+    expect(php).toContain('name="forgewp_fields[]"');
+    expect(php).toContain(
+      'data-export-form="<?php echo esc_attr($form_name); ?>"',
+    );
+    expect(php).toContain('function updateExportFieldGroups()');
+    expect(php).toContain('checkbox.checked = false');
+    expect(php).not.toContain('name="forgewp_fields[]" checked');
+    expect(php).toContain('$requested_fields');
+    expect(php).toContain('!isset($labels[$field_form][$field_name])');
+    expect(php).toContain(
+      "$selected_form !== 'all' && $selected_form !== $field_form",
+    );
+    expect(php).toContain('if (empty($columns))');
+    expect(php).toContain("$column['form'] === $form_name");
+    expect(php).toContain(
+      "in_array($first, array('=', '+', '-', '@', chr(9), chr(13)), true)",
+    );
+    expect(php).toContain('wp_privacy_personal_data_exporters');
+    expect(php).toContain('wp_privacy_personal_data_erasers');
+    expect(php).toContain('forgewp_forms_privacy_email_fields');
+    expect(php).toContain("$field['type'] === 'email'");
+    expect(php).toContain('forgewp_forms_get_client_fields($form_name, $seed');
+    expect(php).toContain("'_privacy_email_hash'");
+    expect(php).toContain(
+      "hash_hmac('sha256', $normalized_email, wp_salt('auth'))",
+    );
+    expect(php).toContain("update_post_meta($post_id, '_form_lang'");
+    expect(php).toContain("__('Language'");
+    expect(php).toContain("get_post_meta($submission->ID, '_form_lang', true)");
+    expect(php).toContain("'field_' . $field_name");
+
+    const noStorage = buildFormsPhp({
+      ...SAMPLE_CONFIG,
+      forms: {
+        contact: {
+          ...SAMPLE_CONFIG.forms.contact,
+          storeSubmissions: false,
+        },
+      },
+    });
+    expect(noStorage).not.toContain('forgewp_forms_render_export_page');
+    expect(noStorage).not.toContain('wp_privacy_personal_data_exporters');
+
+    const noEmailField = buildFormsPhp({
+      ...SAMPLE_CONFIG,
+      forms: {
+        contact: {
+          mailTo: 'admin',
+          fields: { message: { type: 'textarea', required: true } },
+          storeSubmissions: true,
+        },
+      },
+    });
+    expect(noEmailField).toContain('forgewp_forms_privacy_submission_ids');
+    expect(noEmailField).toContain("'_privacy_email_hash'");
+  });
+
+  it('does not schedule retention cleanup unless a stored form opts in', () => {
+    const defaultPhp = buildFormsPhp(SAMPLE_CONFIG);
+    expect(defaultPhp).not.toContain(
+      'function forgewp_forms_retention_cleanup',
+    );
+    expect(defaultPhp).not.toContain('wp_schedule_event(');
+    expect(defaultPhp).toContain('wp_clear_scheduled_hook');
+
+    const retained = buildFormsPhp({
+      ...SAMPLE_CONFIG,
+      forms: {
+        contact: {
+          ...SAMPLE_CONFIG.forms.contact,
+          retentionDays: 90,
+        },
+      },
+    });
+    expect(retained).toContain("'contact' => 90");
+    expect(retained).toContain(
+      "wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily'",
+    );
+    expect(retained).toContain(
+      "array('key' => '_form_name', 'value' => $form_name",
+    );
+    expect(retained).toContain('wp_delete_post($submission_id, true)');
+  });
+});
+
 describe('validateFormsConfig', () => {
   it('throws on an invalid form name', () => {
-    expect(() => validateFormsConfig({ 'Not Valid!': { mailTo: 'admin', fields: {} } })).toThrow(/Invalid form name/);
+    expect(() =>
+      validateFormsConfig({ 'Not Valid!': { mailTo: 'admin', fields: {} } }),
+    ).toThrow(/Invalid form name/);
   });
 
   it('throws when a client seed field collides with a dev-owned field name', () => {
@@ -217,7 +644,10 @@ describe('validateFormsConfig', () => {
         contact: {
           mailTo: 'admin',
           fields: { email: { type: 'email' } },
-          clientFields: { enabled: true, seed: [{ name: 'email', label: 'Email', type: 'text' }] },
+          clientFields: {
+            enabled: true,
+            seed: [{ name: 'email', label: 'Email', type: 'text' }],
+          },
         },
       }),
     ).toThrow(/collides with a dev-owned field/);
@@ -255,7 +685,13 @@ describe('lintFormsUsage', () => {
   it('warns on <WpFormFields> used against a form without clientFields.enabled', () => {
     tmpDir = mkdtempSync(path.join(tmpdir(), 'forgewp-forms-lint-'));
     const config = {
-      forms: { contact: { mailTo: 'admin', fields: {}, clientFields: { enabled: false, seed: [] } } },
+      forms: {
+        contact: {
+          mailTo: 'admin',
+          fields: {},
+          clientFields: { enabled: false, seed: [] },
+        },
+      },
     };
     writeSourceFile(
       'src/components/Bad.tsx',
@@ -281,7 +717,9 @@ describe('lintFormsUsage', () => {
   });
 
   it('returns an empty array when the theme has no src directory', () => {
-    const emptyTmp = mkdtempSync(path.join(tmpdir(), 'forgewp-forms-lint-empty-'));
+    const emptyTmp = mkdtempSync(
+      path.join(tmpdir(), 'forgewp-forms-lint-empty-'),
+    );
     expect(lintFormsUsage(emptyTmp, SAMPLE_CONFIG)).toEqual([]);
     rmSync(emptyTmp, { recursive: true, force: true });
   });
@@ -299,8 +737,14 @@ describe('lintFormsUsage', () => {
       `,
     );
     const warnings = lintFormsUsage(tmpDir, SAMPLE_CONFIG);
-    expect(warnings.some((w) => w.includes('name="nmae"') && w.includes('forms.contact.fields'))).toBe(true);
-    expect(warnings.some((w) => w.includes('name="unexpected_extra_field"'))).toBe(true);
+    expect(
+      warnings.some(
+        (w) => w.includes('name="nmae"') && w.includes('forms.contact.fields'),
+      ),
+    ).toBe(true);
+    expect(
+      warnings.some((w) => w.includes('name="unexpected_extra_field"')),
+    ).toBe(true);
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -316,9 +760,19 @@ describe('lintFormsUsage', () => {
       `,
     );
     const warnings = lintFormsUsage(tmpDir, SAMPLE_CONFIG);
-    expect(warnings.some((w) => w.includes('forms.contact.fields.email') && w.includes('is required'))).toBe(true);
+    expect(
+      warnings.some(
+        (w) =>
+          w.includes('forms.contact.fields.email') && w.includes('is required'),
+      ),
+    ).toBe(true);
     // "name" WAS rendered — must not also be flagged as missing.
-    expect(warnings.some((w) => w.includes('forms.contact.fields.name') && w.includes('is required'))).toBe(false);
+    expect(
+      warnings.some(
+        (w) =>
+          w.includes('forms.contact.fields.name') && w.includes('is required'),
+      ),
+    ).toBe(false);
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -366,13 +820,19 @@ describe('shortcode mode — validateFormsConfig', () => {
 
   it('does not require mailTo/fields when mode is "shortcode"', () => {
     expect(() =>
-      validateFormsConfig({ contact: { mode: 'shortcode', shortcode: '[contact-form-7 id="58"]' } }),
+      validateFormsConfig({
+        contact: { mode: 'shortcode', shortcode: '[contact-form-7 id="58"]' },
+      }),
     ).not.toThrow();
   });
 
   it('still requires mailTo and fields for native-mode forms (default mode)', () => {
-    expect(() => validateFormsConfig({ contact: { fields: { name: { type: 'text' } } } })).toThrow(/missing `mailTo`/);
-    expect(() => validateFormsConfig({ contact: { mailTo: 'admin' } })).toThrow(/missing `fields`/);
+    expect(() =>
+      validateFormsConfig({ contact: { fields: { name: { type: 'text' } } } }),
+    ).toThrow(/missing `mailTo`/);
+    expect(() => validateFormsConfig({ contact: { mailTo: 'admin' } })).toThrow(
+      /missing `fields`/,
+    );
   });
 });
 
@@ -380,7 +840,10 @@ describe('shortcode mode — buildFormsPhp', () => {
   const SHORTCODE_ONLY_CONFIG = {
     textDomain: 'testtheme',
     forms: {
-      contact: { mode: 'shortcode', shortcode: '[contact-form-7 id="58" title="Contact Form"]' },
+      contact: {
+        mode: 'shortcode',
+        shortcode: '[contact-form-7 id="58" title="Contact Form"]',
+      },
     },
   };
 
@@ -398,11 +861,11 @@ describe('shortcode mode — buildFormsPhp', () => {
     };
     const php = buildFormsPhp(mixed);
 
-    expect(php).toContain("forms/contact/submit");
-    expect(php).not.toContain("forms/newsletter/submit");
+    expect(php).toContain('forms/contact/submit');
+    expect(php).not.toContain('forms/newsletter/submit');
     expect(php).not.toContain('forgewp_handle_form_newsletter');
     expect(php).not.toContain('wpforms');
-    expect(php).not.toContain("<h2>newsletter</h2>");
+    expect(php).not.toContain('<h2>newsletter</h2>');
   });
 });
 
@@ -416,20 +879,32 @@ describe('shortcode mode — lintFormsUsage', () => {
   }
 
   const SHORTCODE_CONFIG = {
-    forms: { contact: { mode: 'shortcode', shortcode: '[contact-form-7 id="58"]' } },
+    forms: {
+      contact: { mode: 'shortcode', shortcode: '[contact-form-7 id="58"]' },
+    },
   };
 
   it('warns when submitWpForm() targets a shortcode-mode form', () => {
     tmpDir = mkdtempSync(path.join(tmpdir(), 'forgewp-forms-lint-'));
-    writeSourceFile('src/components/Bad.tsx', `submitWpForm('contact', new FormData());`);
+    writeSourceFile(
+      'src/components/Bad.tsx',
+      `submitWpForm('contact', new FormData());`,
+    );
     const warnings = lintFormsUsage(tmpDir, SHORTCODE_CONFIG);
-    expect(warnings.some((w) => w.includes("mode: 'shortcode'") && w.includes('submitWpForm'))).toBe(true);
+    expect(
+      warnings.some(
+        (w) => w.includes("mode: 'shortcode'") && w.includes('submitWpForm'),
+      ),
+    ).toBe(true);
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('warns when <WpFormFields> targets a shortcode-mode form', () => {
     tmpDir = mkdtempSync(path.join(tmpdir(), 'forgewp-forms-lint-'));
-    writeSourceFile('src/components/Bad.tsx', `<WpFormFields form="contact" render={(f) => null} />`);
+    writeSourceFile(
+      'src/components/Bad.tsx',
+      `<WpFormFields form="contact" render={(f) => null} />`,
+    );
     const warnings = lintFormsUsage(tmpDir, SHORTCODE_CONFIG);
     expect(warnings.some((w) => w.includes('client-field concept'))).toBe(true);
     rmSync(tmpDir, { recursive: true, force: true });
@@ -437,9 +912,14 @@ describe('shortcode mode — lintFormsUsage', () => {
 
   it('warns when a shortcode-mode form has no <WpShortcode> usage anywhere', () => {
     tmpDir = mkdtempSync(path.join(tmpdir(), 'forgewp-forms-lint-'));
-    writeSourceFile('src/components/Unrelated.tsx', `export function Unrelated() { return <div />; }`);
+    writeSourceFile(
+      'src/components/Unrelated.tsx',
+      `export function Unrelated() { return <div />; }`,
+    );
     const warnings = lintFormsUsage(tmpDir, SHORTCODE_CONFIG);
-    expect(warnings.some((w) => w.includes('declared but not rendered'))).toBe(true);
+    expect(warnings.some((w) => w.includes('declared but not rendered'))).toBe(
+      true,
+    );
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -462,7 +942,13 @@ describe('placeholder support', () => {
       forms: {
         contact: {
           mailTo: 'admin',
-          fields: { name: { type: 'text', required: true, placeholder: 'e.g. Jane Doe' } },
+          fields: {
+            name: {
+              type: 'text',
+              required: true,
+              placeholder: 'e.g. Jane Doe',
+            },
+          },
         },
       },
     };
@@ -487,8 +973,22 @@ describe('multilingual client fields', () => {
         clientFields: {
           enabled: true,
           seed: {
-            en: [{ name: 'subject', label: 'Subject', type: 'text', required: true }],
-            de: [{ name: 'subject', label: 'Betreff', type: 'text', required: true }],
+            en: [
+              {
+                name: 'subject',
+                label: 'Subject',
+                type: 'text',
+                required: true,
+              },
+            ],
+            de: [
+              {
+                name: 'subject',
+                label: 'Betreff',
+                type: 'text',
+                required: true,
+              },
+            ],
           },
         },
         storeSubmissions: true,
@@ -506,15 +1006,21 @@ describe('multilingual client fields', () => {
 
   it('resolves language server-side via forgewp_forms_resolve_lang, honoring an explicit submitted lang first', () => {
     const php = buildFormsPhp(MULTI_CONFIG);
-    expect(php).toContain('function forgewp_forms_resolve_lang($requested_lang = null)');
-    expect(php).toContain("if (!empty($requested_lang))");
+    expect(php).toContain(
+      'function forgewp_forms_resolve_lang($requested_lang = null)',
+    );
+    expect(php).toContain('if (!empty($requested_lang))');
     expect(php).toContain('pll_current_language');
   });
 
   it('extracts the submitted lang param in the REST handler and passes it through', () => {
     const php = buildFormsPhp(MULTI_CONFIG);
-    expect(php).toContain("$submitted_lang = isset($params['lang']) ? sanitize_key($params['lang']) : null;");
-    expect(php).toContain("forgewp_forms_get_client_fields('contact', $seed_fields, $submitted_lang)");
+    expect(php).toContain(
+      "$submitted_lang = isset($params['lang']) ? sanitize_key($params['lang']) : null;",
+    );
+    expect(php).toContain(
+      "forgewp_forms_get_client_fields('contact', $seed_fields, $submitted_lang)",
+    );
   });
 
   // Regression test for the confirmed validation-bypass finding (edge-case-audit.md §2.1):
@@ -526,15 +1032,21 @@ describe('multilingual client fields', () => {
     const fnStart = php.indexOf('function forgewp_forms_get_client_fields(');
     expect(fnStart).toBeGreaterThan(-1);
     const fnBody = php.slice(fnStart, fnStart + 2200);
-    expect(fnBody).not.toContain('return isset($seed[$resolved_lang]) ? $seed[$resolved_lang] : array();');
+    expect(fnBody).not.toContain(
+      'return isset($seed[$resolved_lang]) ? $seed[$resolved_lang] : array();',
+    );
     expect(fnBody).toContain("$fallback_lang = 'en';"); // MULTI_CONFIG's i18n.defaultLocale
-    expect(fnBody).toContain('if ($fallback_lang !== \'\' && isset($seed[$fallback_lang]))');
+    expect(fnBody).toContain(
+      "if ($fallback_lang !== '' && isset($seed[$fallback_lang]))",
+    );
     expect(fnBody).toContain('return reset($seed);');
   });
 
   it('resolves the current page language in the hydration payload', () => {
     const php = buildFormsPhp(MULTI_CONFIG);
-    expect(php).toContain('$forgewp_forms_current_lang = forgewp_forms_resolve_lang();');
+    expect(php).toContain(
+      '$forgewp_forms_current_lang = forgewp_forms_resolve_lang();',
+    );
     expect(php).toContain('$forgewp_forms_current_lang));');
   });
 
@@ -559,7 +1071,14 @@ describe('multilingual client fields', () => {
           ...MULTI_CONFIG.forms.contact,
           clientFields: {
             enabled: true,
-            seed: [{ name: 'subject', label: 'Subject', type: 'text', required: true }],
+            seed: [
+              {
+                name: 'subject',
+                label: 'Subject',
+                type: 'text',
+                required: true,
+              },
+            ],
           },
         },
       },

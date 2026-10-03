@@ -203,6 +203,19 @@ export function generateDynamicAcfFieldPhp(key, field, templateSlug = '') {
   return fallbackPhp;
 }
 
+/**
+ * Unlayered link reset printed after wp_head().
+ *
+ * Tailwind utilities live in `@layer`, so an unlayered `text-decoration`
+ * shorthand here beats `.decoration-*` and forces the line color back to
+ * currentColor. Set only the line so decoration color, style, thickness,
+ * and offset from the page survive on every project.
+ */
+export const LINK_RESET_CSS = `    a { text-decoration-line: none; }
+    a:hover { text-decoration-line: none; }
+    .underline { text-decoration-line: underline !important; }
+    .hover\\:underline:hover { text-decoration-line: underline !important; }`;
+
 export function buildHeaderPhp(config, options = {}) {
   const preloadHtml = Array.isArray(options.preloadTags) && options.preloadTags.length > 0
     ? '  ' + options.preloadTags.join('\n  ') + '\n'
@@ -238,10 +251,7 @@ ${preloadHtml}  <?php
   <?php wp_head(); ?>
   <style>
     /* Reset WP link underlines to match React/Tailwind expected styling */
-    a { text-decoration: none; }
-    a:hover { text-decoration: none; }
-    .underline { text-decoration: underline !important; }
-    .hover\\:underline:hover { text-decoration: underline !important; }
+${LINK_RESET_CSS}
   </style>
 </head>
 <body <?php body_class(); ?>>
@@ -273,7 +283,113 @@ wp_footer();
 `;
 }
 
-export function buildIndexPhp() {
+function shellOwnedFrontPagePhp() {
+  return `<?php
+/**
+ * Front page whose route renders with a blank layout.
+ *
+ * The page component already includes its own shell, and that shell shares
+ * client state with the page (scroll, motion, refs). Including the default
+ * layout header/footer here would paint a second shell and leave the real
+ * one static. The Builder template still uses the layout chrome, because
+ * that canvas is block markup rather than the page component.
+ *
+ * @package forgewp
+ */
+
+$forgewp_use_builder = false;
+if (is_front_page()) {
+    // get_queried_object_id() — NOT get_option('page_on_front') — because
+    // that option is a single, raw post ID with no guarantee of being
+    // language-aware: on a Polylang multilingual site, the German and
+    // English homepages are separate posts, each with their own page
+    // template setting, and get_queried_object_id() is WordPress's own
+    // resolution of whichever one is actually being displayed for this
+    // request. Reading page_on_front directly here previously meant a
+    // template switched to "ForgeWP Builder" on one language's homepage
+    // was silently ignored while viewing any other language — it fell
+    // through to the static baked-in markup below instead.
+    $front_id = get_queried_object_id();
+    if ($front_id > 0) {
+        $tpl = get_page_template_slug($front_id);
+        if ($tpl === 'template-forgewp-builder.php') {
+            $forgewp_use_builder = true;
+        }
+    }
+}
+
+if ($forgewp_use_builder && have_posts()) {
+    get_header();
+    while (have_posts()) {
+        the_post();
+        $forgewp_hide_title = function_exists('forgewp_should_hide_page_title')
+            ? forgewp_should_hide_page_title(get_the_ID())
+            : true;
+        echo '<main class="forgewp-builder-canvas">';
+        if (!$forgewp_hide_title) {
+            echo '<div class="forgewp-content-width">';
+            echo '<h1 class="text-4xl font-bold mb-6">' . get_the_title() . '</h1>';
+            echo '</div>';
+        }
+        the_content();
+        echo '</main>';
+    }
+    get_footer();
+} else {
+?>
+<!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+  <meta charset="<?php bloginfo('charset'); ?>">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <?php
+  if ( ! forgewp_seo_plugin_active() ) {
+      $target = forgewp_resolve_head_target();
+      if (file_exists($target)) {
+          ob_start();
+          include $target;
+          echo preg_replace('/<title>.*?<\\/title>/is', '', ob_get_clean());
+      }
+  }
+  ?>
+  <?php wp_head(); ?>
+  <style>
+${LINK_RESET_CSS}
+  </style>
+</head>
+<body <?php body_class(); ?>>
+<?php wp_body_open(); ?>
+<?php
+    $markup_file = get_template_directory() . '/forgewp-static/content.html';
+
+    if (is_front_page() && file_exists($markup_file)) {
+        include $markup_file;
+    } elseif (have_posts()) {
+        echo '<main class="px-6 py-12">';
+        while (have_posts()) {
+            the_post();
+            echo '<article class="mb-12">';
+            echo '<div class="forgewp-content-width">';
+            echo '<h1 class="text-3xl font-bold mb-4">' . get_the_title() . '</h1>';
+            echo '</div>';
+            echo '<div class="forgewp-content-width prose prose-zinc max-w-none">';
+            the_content();
+            echo '</div>';
+            echo '</article>';
+        }
+        echo '</main>';
+    }
+    wp_footer();
+?>
+</body>
+</html>
+<?php
+}
+`;
+}
+
+export function buildIndexPhp(options = {}) {
+  if (options.ownsShell) return shellOwnedFrontPagePhp();
   return `<?php
 /**
  * Main template / front page — baked static markup by default.

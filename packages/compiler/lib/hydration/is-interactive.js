@@ -1,6 +1,6 @@
-import { readFileSync, existsSync } from "node:fs";
-import path from "node:path";
-import { createRequire } from "node:module";
+import { readFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
 
 /**
  * originalAbsolutePath -> rewritten source text override, populated by
@@ -20,7 +20,7 @@ const contentOverrides = new Map();
 // on Windows) — key the override cache by a canonical forward-slash form so
 // a lookup from ANY caller reliably hits an override set by any OTHER caller.
 function normalizePath(filePath) {
-  return filePath.replace(/\\/g, "/");
+  return filePath.replace(/\\/g, '/');
 }
 
 export function setContentOverride(filePath, content) {
@@ -48,7 +48,7 @@ export function hasContentOverride(filePath) {
 export function readComponentSource(filePath) {
   const key = normalizePath(filePath);
   if (contentOverrides.has(key)) return contentOverrides.get(key);
-  return readFileSync(filePath, "utf8");
+  return readFileSync(filePath, 'utf8');
 }
 
 /**
@@ -61,18 +61,18 @@ export function readComponentSource(filePath) {
  * tracks brace depth so a `>` inside a `{...}` expression doesn't count.
  */
 function stripWpEditableBlocksNaive(content) {
-  let result = "";
+  let result = '';
   let pos = 0;
   while (true) {
-    const idx = content.indexOf("<WpEditable", pos);
+    const idx = content.indexOf('<WpEditable', pos);
     if (idx === -1) {
       result += content.slice(pos);
       break;
     }
-    const afterName = content[idx + "<WpEditable".length];
+    const afterName = content[idx + '<WpEditable'.length];
     if (afterName !== undefined && /[a-zA-Z0-9_]/.test(afterName)) {
-      result += content.slice(pos, idx + "<WpEditable".length);
-      pos = idx + "<WpEditable".length;
+      result += content.slice(pos, idx + '<WpEditable'.length);
+      pos = idx + '<WpEditable'.length;
       continue;
     }
     result += content.slice(pos, idx);
@@ -86,13 +86,13 @@ function stripWpEditableBlocksNaive(content) {
         if (c === inQuote) inQuote = null;
         continue;
       }
-      if (c === "'" || c === '"' || c === "`") {
+      if (c === "'" || c === '"' || c === '`') {
         inQuote = c;
-      } else if (c === "{") {
+      } else if (c === '{') {
         braceDepth++;
-      } else if (c === "}") {
+      } else if (c === '}') {
         if (braceDepth > 0) braceDepth--;
-      } else if (c === ">" && braceDepth === 0) {
+      } else if (c === '>' && braceDepth === 0) {
         tagEnd = i;
         break;
       }
@@ -101,12 +101,12 @@ function stripWpEditableBlocksNaive(content) {
       result += content.slice(idx);
       break;
     }
-    const isSelfClosing = content[tagEnd - 1] === "/";
+    const isSelfClosing = content[tagEnd - 1] === '/';
     if (isSelfClosing) {
       pos = tagEnd + 1;
     } else {
-      const closeIdx = content.indexOf("</WpEditable>", tagEnd + 1);
-      pos = closeIdx === -1 ? tagEnd + 1 : closeIdx + "</WpEditable>".length;
+      const closeIdx = content.indexOf('</WpEditable>', tagEnd + 1);
+      pos = closeIdx === -1 ? tagEnd + 1 : closeIdx + '</WpEditable>'.length;
     }
   }
   return result;
@@ -115,15 +115,17 @@ function stripWpEditableBlocksNaive(content) {
 const require = createRequire(import.meta.url);
 export let ts = null;
 try {
-  ts = require("typescript");
+  ts = require('typescript');
 } catch (e) {
   let currentDir = process.cwd();
   while (true) {
-    const tsPath = path.join(currentDir, "node_modules", "typescript");
+    const tsPath = path.join(currentDir, 'node_modules', 'typescript');
     if (existsSync(tsPath)) {
       try {
-        const rootRequire = createRequire(path.join(currentDir, "package.json"));
-        ts = rootRequire("typescript");
+        const rootRequire = createRequire(
+          path.join(currentDir, 'package.json'),
+        );
+        ts = rootRequire('typescript');
         break;
       } catch (e2) {}
     }
@@ -151,7 +153,7 @@ export function isAttributeOfWpEditable(attrNode, tsModule) {
   return (
     tagName &&
     tagName.kind === tsModule.SyntaxKind.Identifier &&
-    tagName.text === "WpEditable"
+    tagName.text === 'WpEditable'
   );
 }
 
@@ -165,14 +167,29 @@ export function isAttributeOfWpEditable(attrNode, tsModule) {
 // hooks/handlers) permanently stuck on its SSR-baked loading skeleton on the live
 // site, since it never gets a <Hydrate> boundary to mount and re-fetch client-side.
 export const SERVER_SAFE_HOOKS = [
-  "useWpTitle", "useWpExcerpt", "useWpContent",
-  "useWpFeaturedImage", "useWpAuthor", "useWpModifiedDate",
-  "useWpCustomField", "useWpI18n", "useWpThemeUri",
-  "useWpPageLink", "useWpOption", "useWpThemeMod",
-  "useWpMeta", "useWpLanguage", "useWpMenu",
-  "useReducedMotion", "useId", "useMemo", "useCallback",
-  "useTransition", "useDeferredValue", "useDebugValue",
-  "useInsertionEffect"
+  'useWpTitle',
+  'useWpExcerpt',
+  'useWpContent',
+  'useWpFeaturedImage',
+  'useWpAuthor',
+  'useWpModifiedDate',
+  'useWpCustomField',
+  'useWpI18n',
+  'useWpThemeUri',
+  'useWpPageLink',
+  'useWpOption',
+  'useWpThemeMod',
+  'useWpMeta',
+  'useWpLanguage',
+  'useWpMenu',
+  'useReducedMotion',
+  'useId',
+  'useMemo',
+  'useCallback',
+  'useTransition',
+  'useDeferredValue',
+  'useDebugValue',
+  'useInsertionEffect',
 ];
 
 /**
@@ -181,56 +198,56 @@ export const SERVER_SAFE_HOOKS = [
  * is automatically recognized by Smart Discovery as requiring client execution.
  */
 export const CLIENT_ANIMATION_PACKAGES = [
-  "framer-motion",
-  "motion",
-  "motion/react",
-  "@gsap/react",
-  "gsap",
-  "gsap/ScrollTrigger",
-  "gsap/ScrollSmoother",
-  "gsap/Flip",
-  "gsap/SplitText",
-  "@react-spring/web",
-  "@react-spring/core",
-  "react-spring",
-  "lenis",
-  "@studio-freight/lenis",
-  "lenis/react",
-  "lottie-react",
-  "@lottiefiles/dotlottie-react",
-  "@rive-app/react-canvas",
-  "rive-react",
-  "@react-three/fiber",
-  "@react-three/drei",
-  "three",
-  "@splinetool/react-spline",
-  "@splinetool/runtime",
-  "@formkit/auto-animate",
-  "swiper",
-  "swiper/react",
-  "embla-carousel-react",
-  "keen-slider/react",
-  "aos",
-  "locomotive-scroll",
-  "animejs",
-  "kute.js"
+  'framer-motion',
+  'motion',
+  'motion/react',
+  '@gsap/react',
+  'gsap',
+  'gsap/ScrollTrigger',
+  'gsap/ScrollSmoother',
+  'gsap/Flip',
+  'gsap/SplitText',
+  '@react-spring/web',
+  '@react-spring/core',
+  'react-spring',
+  'lenis',
+  '@studio-freight/lenis',
+  'lenis/react',
+  'lottie-react',
+  '@lottiefiles/dotlottie-react',
+  '@rive-app/react-canvas',
+  'rive-react',
+  '@react-three/fiber',
+  '@react-three/drei',
+  'three',
+  '@splinetool/react-spline',
+  '@splinetool/runtime',
+  '@formkit/auto-animate',
+  'swiper',
+  'swiper/react',
+  'embla-carousel-react',
+  'keen-slider/react',
+  'aos',
+  'locomotive-scroll',
+  'animejs',
+  'kute.js',
 ];
 
 export const CLIENT_ANIMATION_DIRECTIVES_REGEX =
   /^(whileInView|whileHover|whileTap|whileDrag|whileFocus|animate|exit|layoutId|drag|dragConstraints|scrollTrigger|data-aos|data-scroll|stagger|variants)/;
 
 export const CLIENT_ANIMATION_TAGS = new Set([
-  "AnimatePresence",
-  "LazyMotion",
-  "Canvas",
-  "Spline",
-  "Lottie",
-  "DotLottieReact",
-  "Rive",
-  "Swiper",
-  "SwiperSlide",
-  "ReactLenis",
-  "Lenis",
+  'AnimatePresence',
+  'LazyMotion',
+  'Canvas',
+  'Spline',
+  'Lottie',
+  'DotLottieReact',
+  'Rive',
+  'Swiper',
+  'SwiperSlide',
+  'ReactLenis',
+  'Lenis',
 ]);
 
 /**
@@ -269,15 +286,18 @@ export function createInteractivityChecker(sourceFile, tsModule) {
         } else if (
           expression.kind === ts.SyntaxKind.PropertyAccessExpression &&
           expression.expression.kind === ts.SyntaxKind.Identifier &&
-          expression.expression.text === "React"
+          expression.expression.text === 'React'
         ) {
           hookName = expression.name.text;
         }
         if (hookName !== null) {
-          if (hookName.startsWith("use")) {
+          if (hookName.startsWith('use')) {
             if (SERVER_SAFE_HOOKS.includes(hookName)) {
               // safe, fall through to scan children
-            } else if (!resolvingLocalHooks && localHookInteractivity.has(hookName)) {
+            } else if (
+              !resolvingLocalHooks &&
+              localHookInteractivity.has(hookName)
+            ) {
               if (localHookInteractivity.get(hookName)) {
                 interactive = true;
                 return;
@@ -314,7 +334,13 @@ export function createInteractivityChecker(sourceFile, tsModule) {
         const tagNameNode = node.tagName;
         if (tagNameNode.kind === ts.SyntaxKind.PropertyAccessExpression) {
           const expr = tagNameNode.expression;
-          if (expr && expr.kind === ts.SyntaxKind.Identifier && (expr.text === "motion" || expr.text === "m" || expr.text === "animated")) {
+          if (
+            expr &&
+            expr.kind === ts.SyntaxKind.Identifier &&
+            (expr.text === 'motion' ||
+              expr.text === 'm' ||
+              expr.text === 'animated')
+          ) {
             interactive = true;
             return;
           }
@@ -330,7 +356,15 @@ export function createInteractivityChecker(sourceFile, tsModule) {
       // 5. Check for browser globals: Identifier referencing window/document/etc.
       if (node.kind === ts.SyntaxKind.Identifier) {
         const name = node.text;
-        if (["window", "document", "localStorage", "sessionStorage", "navigator"].includes(name)) {
+        if (
+          [
+            'window',
+            'document',
+            'localStorage',
+            'sessionStorage',
+            'navigator',
+          ].includes(name)
+        ) {
           // Verify it's not a property name or within an import declaration
           let parent = node.parent;
           let isImportOrProperty = false;
@@ -340,7 +374,8 @@ export function createInteractivityChecker(sourceFile, tsModule) {
               parent.kind === ts.SyntaxKind.ImportSpecifier ||
               parent.kind === ts.SyntaxKind.PropertyDeclaration ||
               parent.kind === ts.SyntaxKind.PropertySignature ||
-              parent.kind === ts.SyntaxKind.PropertyAccessExpression && parent.name === node
+              (parent.kind === ts.SyntaxKind.PropertyAccessExpression &&
+                parent.name === node)
             ) {
               isImportOrProperty = true;
               break;
@@ -403,7 +438,8 @@ export function createInteractivityChecker(sourceFile, tsModule) {
     // stopPredicate lets it skip descending into nested JsxElement/
     // JsxSelfClosingElement/JsxFragment nodes while still applying the exact
     // same hook/handler/global rules to everything else).
-    isNodeInteractiveWithBoundary: (node, stopPredicate) => checkInteractivity(node, false, stopPredicate),
+    isNodeInteractiveWithBoundary: (node, stopPredicate) =>
+      checkInteractivity(node, false, stopPredicate),
     localHookInteractivity,
   };
 }
@@ -414,7 +450,7 @@ export function createInteractivityChecker(sourceFile, tsModule) {
  * not island candidates.
  */
 function isComponentExportName(name) {
-  return typeof name === "string" && name !== "default" && /^[A-Z]/.test(name);
+  return typeof name === 'string' && name !== 'default' && /^[A-Z]/.test(name);
 }
 
 /**
@@ -424,7 +460,7 @@ function isComponentExportName(name) {
  * destroys every nested island inside it. Providers are not UI islands.
  */
 export function isContextProviderExportName(name) {
-  return typeof name === "string" && /Provider$/.test(name);
+  return typeof name === 'string' && /Provider$/.test(name);
 }
 
 /**
@@ -442,12 +478,22 @@ export function isPureChildrenWrapper(node, tsModule) {
   let params = null;
   let body = null;
 
-  if (node.kind === ts.SyntaxKind.FunctionDeclaration || node.kind === ts.SyntaxKind.FunctionExpression || node.kind === ts.SyntaxKind.ArrowFunction) {
+  if (
+    node.kind === ts.SyntaxKind.FunctionDeclaration ||
+    node.kind === ts.SyntaxKind.FunctionExpression ||
+    node.kind === ts.SyntaxKind.ArrowFunction
+  ) {
     params = node.parameters;
     body = node.body;
-  } else if (node.kind === ts.SyntaxKind.VariableDeclaration && node.initializer) {
+  } else if (
+    node.kind === ts.SyntaxKind.VariableDeclaration &&
+    node.initializer
+  ) {
     const init = node.initializer;
-    if (init.kind === ts.SyntaxKind.FunctionExpression || init.kind === ts.SyntaxKind.ArrowFunction) {
+    if (
+      init.kind === ts.SyntaxKind.FunctionExpression ||
+      init.kind === ts.SyntaxKind.ArrowFunction
+    ) {
       params = init.parameters;
       body = init.body;
     }
@@ -458,16 +504,31 @@ export function isPureChildrenWrapper(node, tsModule) {
   // Check if first parameter is destructured with `children`
   const firstParam = params[0];
   let hasChildren = false;
-  if (firstParam.name && firstParam.name.kind === ts.SyntaxKind.ObjectBindingPattern) {
+  if (
+    firstParam.name &&
+    firstParam.name.kind === ts.SyntaxKind.ObjectBindingPattern
+  ) {
     hasChildren = firstParam.name.elements.some((el) => {
-      const name = el.propertyName ? el.propertyName.text : (el.name && el.name.text);
-      return name === "children";
+      const name = el.propertyName
+        ? el.propertyName.text
+        : el.name && el.name.text;
+      return name === 'children';
     });
-  } else if (firstParam.name && firstParam.name.kind === ts.SyntaxKind.Identifier && firstParam.name.text === "props") {
+  } else if (
+    firstParam.name &&
+    firstParam.name.kind === ts.SyntaxKind.Identifier &&
+    firstParam.name.text === 'props'
+  ) {
     let usesPropsChildren = false;
     function checkProps(n) {
       if (usesPropsChildren) return;
-      if (n.kind === ts.SyntaxKind.PropertyAccessExpression && n.expression && n.expression.text === "props" && n.name && n.name.text === "children") {
+      if (
+        n.kind === ts.SyntaxKind.PropertyAccessExpression &&
+        n.expression &&
+        n.expression.text === 'props' &&
+        n.name &&
+        n.name.text === 'children'
+      ) {
         usesPropsChildren = true;
         return;
       }
@@ -494,14 +555,23 @@ export function isPureChildrenWrapper(node, tsModule) {
       } else if (expr.kind === ts.SyntaxKind.PropertyAccessExpression) {
         hookName = expr.name ? expr.name.text : null;
       }
-      if (hookName && hookName.startsWith("use") && !SERVER_SAFE_HOOKS.includes(hookName) && hookName !== "useReducedMotion") {
+      if (
+        hookName &&
+        hookName.startsWith('use') &&
+        !SERVER_SAFE_HOOKS.includes(hookName) &&
+        hookName !== 'useReducedMotion'
+      ) {
         hasActiveBehavior = true;
         return;
       }
     }
 
     // Check for interactive event listeners (onClick, onMouseMove, onMouseEnter, etc.)
-    if (n.kind === ts.SyntaxKind.JsxAttribute && n.name && n.name.kind === ts.SyntaxKind.Identifier) {
+    if (
+      n.kind === ts.SyntaxKind.JsxAttribute &&
+      n.name &&
+      n.name.kind === ts.SyntaxKind.Identifier
+    ) {
       if (/^on[A-Z]/.test(n.name.text) && !isAttributeOfWpEditable(n, ts)) {
         hasActiveBehavior = true;
         return;
@@ -509,7 +579,16 @@ export function isPureChildrenWrapper(node, tsModule) {
     }
 
     // Check for browser globals
-    if (n.kind === ts.SyntaxKind.Identifier && ["window", "document", "localStorage", "sessionStorage", "navigator"].includes(n.text)) {
+    if (
+      n.kind === ts.SyntaxKind.Identifier &&
+      [
+        'window',
+        'document',
+        'localStorage',
+        'sessionStorage',
+        'navigator',
+      ].includes(n.text)
+    ) {
       let parent = n.parent;
       let isImportOrProp = false;
       while (parent) {
@@ -518,7 +597,8 @@ export function isPureChildrenWrapper(node, tsModule) {
           parent.kind === ts.SyntaxKind.ImportSpecifier ||
           parent.kind === ts.SyntaxKind.PropertyDeclaration ||
           parent.kind === ts.SyntaxKind.PropertySignature ||
-          (parent.kind === ts.SyntaxKind.PropertyAccessExpression && parent.name === n)
+          (parent.kind === ts.SyntaxKind.PropertyAccessExpression &&
+            parent.name === n)
         ) {
           isImportOrProp = true;
           break;
@@ -540,11 +620,17 @@ export function isPureChildrenWrapper(node, tsModule) {
 }
 
 function hasExportModifier(node, tsModule) {
-  return !!(node.modifiers && node.modifiers.some((m) => m.kind === tsModule.SyntaxKind.ExportKeyword));
+  return !!(
+    node.modifiers &&
+    node.modifiers.some((m) => m.kind === tsModule.SyntaxKind.ExportKeyword)
+  );
 }
 
 function hasDefaultModifier(node, tsModule) {
-  return !!(node.modifiers && node.modifiers.some((m) => m.kind === tsModule.SyntaxKind.DefaultKeyword));
+  return !!(
+    node.modifiers &&
+    node.modifiers.some((m) => m.kind === tsModule.SyntaxKind.DefaultKeyword)
+  );
 }
 
 /**
@@ -569,7 +655,11 @@ export function collectExportedComponentNodes(sourceFile, tsModule) {
   function collectLocals(node) {
     if (ts.isFunctionDeclaration(node) && node.name) {
       locals.set(node.name.text, node);
-    } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+    } else if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
       locals.set(node.name.text, node);
     }
     ts.forEachChild(node, collectLocals);
@@ -583,22 +673,29 @@ export function collectExportedComponentNodes(sourceFile, tsModule) {
   }
 
   for (const stmt of sourceFile.statements) {
-    if (ts.isFunctionDeclaration(stmt) && stmt.name && hasExportModifier(stmt, ts)) {
+    if (
+      ts.isFunctionDeclaration(stmt) &&
+      stmt.name &&
+      hasExportModifier(stmt, ts)
+    ) {
       add(stmt.name.text, stmt);
-      if (hasDefaultModifier(stmt, ts)) add("default", stmt);
+      if (hasDefaultModifier(stmt, ts)) add('default', stmt);
     } else if (ts.isFunctionDeclaration(stmt) && hasDefaultModifier(stmt, ts)) {
-      add(stmt.name ? stmt.name.text : "default", stmt);
-      add("default", stmt);
+      add(stmt.name ? stmt.name.text : 'default', stmt);
+      add('default', stmt);
     } else if (ts.isVariableStatement(stmt) && hasExportModifier(stmt, ts)) {
       for (const decl of stmt.declarationList.declarations) {
         if (ts.isIdentifier(decl.name)) add(decl.name.text, decl);
       }
     } else if (ts.isExportAssignment(stmt) && !stmt.isExportEquals) {
-      if (ts.isIdentifier(stmt.expression) && locals.has(stmt.expression.text)) {
+      if (
+        ts.isIdentifier(stmt.expression) &&
+        locals.has(stmt.expression.text)
+      ) {
         add(stmt.expression.text, locals.get(stmt.expression.text));
-        add("default", locals.get(stmt.expression.text));
+        add('default', locals.get(stmt.expression.text));
       } else {
-        add("default", stmt.expression);
+        add('default', stmt.expression);
       }
     } else if (
       ts.isExportDeclaration(stmt) &&
@@ -621,8 +718,8 @@ function findExportNode(sourceFile, exportName, tsModule) {
   const exports = collectExportedComponentNodes(sourceFile, tsModule);
   const named = exports.find((e) => e.name === exportName);
   if (named) return named.node;
-  if (exportName !== "default") {
-    const fallback = exports.find((e) => e.name === "default");
+  if (exportName !== 'default') {
+    const fallback = exports.find((e) => e.name === 'default');
     if (fallback) return fallback.node;
   }
   return null;
@@ -653,7 +750,7 @@ export function isExportInteractive(filePath, exportName) {
       content,
       ts.ScriptTarget.Latest,
       true,
-      ts.ScriptKind.TSX
+      ts.ScriptKind.TSX,
     );
 
     if (isContextProviderExportName(exportName)) return false;
@@ -666,7 +763,10 @@ export function isExportInteractive(filePath, exportName) {
     const { isNodeInteractive } = createInteractivityChecker(sourceFile, ts);
     return isNodeInteractive(target);
   } catch (err) {
-    console.error(`[AST Interactivity Scan] Error parsing export ${exportName} in ${filePath}:`, err);
+    console.error(
+      `[AST Interactivity Scan] Error parsing export ${exportName} in ${filePath}:`,
+      err,
+    );
     return false;
   }
 }
@@ -685,7 +785,7 @@ export function getInteractiveExportNames(filePath) {
     const content = readComponentSource(filePath);
     if (!ts) {
       return isComponentInteractive(filePath)
-        ? [path.basename(filePath).replace(/\.(tsx|ts|jsx|js)$/, "")]
+        ? [path.basename(filePath).replace(/\.(tsx|ts|jsx|js)$/, '')]
         : [];
     }
 
@@ -694,7 +794,7 @@ export function getInteractiveExportNames(filePath) {
       content,
       ts.ScriptTarget.Latest,
       true,
-      ts.ScriptKind.TSX
+      ts.ScriptKind.TSX,
     );
 
     const { isNodeInteractive } = createInteractivityChecker(sourceFile, ts);
@@ -709,9 +809,30 @@ export function getInteractiveExportNames(filePath) {
         names.push(entry.name);
       }
     }
+
+    // Default-exported layout components (for example SiteNavigation) are
+    // frequently used by name from page/layout files but are not returned by
+    // the named-export collector. Include their declared component name so
+    // extracted WordPress shells receive a client hydration entry too.
+    const defaultExportMatch = content.match(
+      /export\s+default\s+(?:async\s+)?(?:function|class)\s+([A-Z][A-Za-z0-9_$]*)/,
+    );
+    if (defaultExportMatch) {
+      const defaultName = defaultExportMatch[1];
+      if (
+        !seen.has(defaultName) &&
+        isComponentExportName(defaultName) &&
+        isComponentInteractive(filePath)
+      ) {
+        names.push(defaultName);
+      }
+    }
     return names;
   } catch (err) {
-    console.error(`[AST Interactivity Scan] Error listing interactive exports for ${filePath}:`, err);
+    console.error(
+      `[AST Interactivity Scan] Error listing interactive exports for ${filePath}:`,
+      err,
+    );
     return [];
   }
 }
@@ -738,15 +859,34 @@ export function isComponentInteractive(filePath) {
       // as the AST path's isAttributeOfWpEditable: WpEditable's onChange is
       // inert on the frontend and shouldn't by itself force a hydration bundle.
       const contentForHandlerCheck = stripWpEditableBlocksNaive(content);
-      const hasState = content.includes("useState") || content.includes("useEffect") || content.includes("useRef") || content.includes("useContext");
+      const hasState =
+        content.includes('useState') ||
+        content.includes('useEffect') ||
+        content.includes('useRef') ||
+        content.includes('useContext');
       const hasMotion =
-        CLIENT_ANIMATION_PACKAGES.some((pkg) => content.includes(`"${pkg}"`) || content.includes(`'${pkg}'`)) ||
-        /whileInView|whileHover|whileTap|whileDrag|whileFocus|layoutId|data-aos|data-scroll|\bmotion\.|\banimated\./.test(content);
-      const hasInlineHandlers = /on[A-Z][a-zA-Z]*\s*=\s*/.test(contentForHandlerCheck);
-      const hasBrowserGlobals = /\b(window|document|localStorage|sessionStorage|navigator)\b/.test(content);
+        CLIENT_ANIMATION_PACKAGES.some(
+          (pkg) => content.includes(`"${pkg}"`) || content.includes(`'${pkg}'`),
+        ) ||
+        /whileInView|whileHover|whileTap|whileDrag|whileFocus|layoutId|data-aos|data-scroll|\bmotion\.|\banimated\./.test(
+          content,
+        );
+      const hasInlineHandlers = /on[A-Z][a-zA-Z]*\s*=\s*/.test(
+        contentForHandlerCheck,
+      );
+      const hasBrowserGlobals =
+        /\b(window|document|localStorage|sessionStorage|navigator)\b/.test(
+          content,
+        );
       // See the serverSafeHooks note below — useWpQuery always needs client hydration.
-      const hasWpQuery = content.includes("useWpQuery");
-      return hasState || hasMotion || hasInlineHandlers || hasBrowserGlobals || hasWpQuery;
+      const hasWpQuery = content.includes('useWpQuery');
+      return (
+        hasState ||
+        hasMotion ||
+        hasInlineHandlers ||
+        hasBrowserGlobals ||
+        hasWpQuery
+      );
     }
 
     const sourceFile = ts.createSourceFile(
@@ -754,13 +894,16 @@ export function isComponentInteractive(filePath) {
       content,
       ts.ScriptTarget.Latest,
       true,
-      ts.ScriptKind.TSX
+      ts.ScriptKind.TSX,
     );
 
     const { isNodeInteractive } = createInteractivityChecker(sourceFile, ts);
     return isNodeInteractive(sourceFile);
   } catch (err) {
-    console.error(`[AST Interactivity Scan] Error parsing AST for ${filePath}:`, err);
+    console.error(
+      `[AST Interactivity Scan] Error parsing AST for ${filePath}:`,
+      err,
+    );
     return false;
   }
 }

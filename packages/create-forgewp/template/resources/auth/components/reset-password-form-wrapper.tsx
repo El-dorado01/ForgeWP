@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useWpAuth } from '@forgewp/auth';
+import { useWpAuth, useWpUser } from '@forgewp/auth';
 import { useWpPageLink, useLocation } from '@forgewp/react';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,8 +20,16 @@ import { AlertTriangleIcon, ArrowLeftIcon } from 'lucide-react';
 
 export default function ResetPasswordFormWrapper() {
   const { resetPassword, error, initializing } = useWpAuth();
+  const user = useWpUser();
   const [_, setLocation] = useLocation();
   const loginUrl = useWpPageLink('login-page', '/login');
+  const dashboardUrl = useWpPageLink('account-page', '/account');
+
+  React.useEffect(() => {
+    if (user) {
+      setLocation(dashboardUrl);
+    }
+  }, [user, setLocation, dashboardUrl]);
 
   const [key, setKey] = React.useState('');
   const [login, setLogin] = React.useState('');

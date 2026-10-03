@@ -27,6 +27,7 @@ export interface CustomPostTypeConfig {
   public?: boolean;
   hasArchive?: boolean;
   showInRest?: boolean;
+  rewrite?: false | { slug?: string; withFront?: boolean };
 }
 
 export interface CustomTaxonomyConfig {
@@ -60,11 +61,21 @@ export interface ForgeWpSeoSitemapsConfig {
 export interface ForgeWPPlugin {
   name: string;
   validateConfig?: (config: ForgeWPThemeConfig, themeRoot: string) => void;
-  transformFunctionsPhp?: (php: string, config: ForgeWPThemeConfig, themeRoot: string) => string;
+  transformFunctionsPhp?: (
+    php: string,
+    config: ForgeWPThemeConfig,
+    themeRoot: string,
+  ) => string;
 }
 
 export type ForgeWPFormFieldType =
-  | 'text' | 'email' | 'tel' | 'number' | 'textarea' | 'select' | 'checkbox';
+  | 'text'
+  | 'email'
+  | 'tel'
+  | 'number'
+  | 'textarea'
+  | 'select'
+  | 'checkbox';
 
 export interface ForgeWPFormField {
   type: ForgeWPFormFieldType;
@@ -88,6 +99,13 @@ export interface ForgeWPFormClientFieldsConfig {
    * so they can't go through the usual __()/translations.json pipeline.
    */
   seed: ForgeWPFormFieldSeed | Record<string, ForgeWPFormFieldSeed>;
+}
+
+export interface ForgeWPFormConfirmationConfig {
+  enabled: boolean;
+  emailField: string;
+  subject: string;
+  body: string;
 }
 
 export interface ForgeWPFormConfig {
@@ -115,14 +133,27 @@ export interface ForgeWPFormConfig {
   clientFields?: ForgeWPFormClientFieldsConfig;
   /** Store each submission in the forgewp_submission CPT (client inbox). Default true. */
   storeSubmissions?: boolean;
+  /** Optional plain-text submitter confirmation. Disabled unless enabled. */
+  confirmation?: ForgeWPFormConfirmationConfig;
+  /** Permanently delete stored submissions after this many days. No cleanup by default. */
+  retentionDays?: number;
 }
 
 export interface WpOptionField {
-  _type: 'text' | 'url' | 'email' | 'textarea' | 'toggle' | 'number' | 'postPicker';
+  _type:
+    | 'text'
+    | 'url'
+    | 'email'
+    | 'textarea'
+    | 'toggle'
+    | 'number'
+    | 'postPicker';
   label?: string;
   default?: string;
   postType?: string;
 }
+
+export type WpOptionsSchema = Record<string, WpOptionField>;
 
 export type ForgeWPSeedStrategy = boolean | 'once' | 'upsert' | 'force';
 
@@ -216,9 +247,13 @@ export interface ForgeWPThemeConfig {
   };
   plugins?: ForgeWPPlugin[];
   forms?: Record<string, ForgeWPFormConfig>;
+  /**
+   * Capability required to manage form fields and view stored submissions.
+   * Defaults to `manage_options`. Granting a lower capability also grants
+   * access to submitted form data.
+   */
+  formsAdminCapability?: string;
 }
-
-
 
 export interface ForgeWPBuildAssets {
   cssFile: string;
@@ -342,4 +377,3 @@ export function loadFrameworkAdapter(
 
 export function forgewpPageConfigPlugin(): any;
 export function forgewpVirtualPlugin(options?: { projectRoot?: string }): any;
-

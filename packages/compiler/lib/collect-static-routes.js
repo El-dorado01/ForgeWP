@@ -47,7 +47,7 @@ function consider(url, title, description, seen, out) {
   }
   const pathOnly = trimmed.split('?')[0].split('#')[0];
   const slug = pathOnly.replace(/^\//, '').replace(/\/$/, '');
-  if (!slug || slug.includes('/') || slug.includes(':') || slug.includes('*')) return;
+  if (!slug || slug.includes(':') || slug.includes('*')) return;
 
   const first = slug.split('/')[0];
   if (RESERVED_FIRST_SEGMENTS.has(first)) return;
@@ -84,7 +84,9 @@ export function collectFallbackPageRoutes({
   existingSlugs = [],
 } = {}) {
   const seen = new Set(
-    (existingSlugs || []).map((s) => String(s).replace(/^\/+|\/+$/g, '')).filter(Boolean),
+    (existingSlugs || [])
+      .map((s) => String(s).replace(/^\/+|\/+$/g, ''))
+      .filter(Boolean),
   );
   const out = [];
 
@@ -97,7 +99,9 @@ export function collectFallbackPageRoutes({
       const pathMatch = block.match(/path\s*=\s*['"]\/([^'"`]+)['"]/i);
       if (pathMatch) {
         const titleMatch = block.match(/\btitle\s*[:=]\s*['"`]([^'"`]+)['"`]/i);
-        const descMatch = block.match(/\bdescription\s*[:=]\s*['"`]([^'"`]+)['"`]/i);
+        const descMatch = block.match(
+          /\bdescription\s*[:=]\s*['"`]([^'"`]+)['"`]/i,
+        );
         const title = titleMatch ? titleMatch[1] : null;
         const desc = descMatch ? descMatch[1] : null;
         consider('/' + pathMatch[1], title, desc, seen, out);

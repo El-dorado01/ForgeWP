@@ -762,7 +762,7 @@ export default function AppRoutes() {
 }
 `;
 
-  const pageContent = `import { WpHead } from "../.forgewp/wordpress";
+  const pageContent = `import { WpHead } from "@forgewp/react";
 import { BookOpen, Github, ChevronRight, Database, Code2 } from "lucide-react";
 
 export default function HomePage() {
@@ -1279,7 +1279,7 @@ export function onMakeLoop(
     customFieldsMarkup = `{/* No custom fields registered in mock-data.json. Add fields by running forgewp make:post-type */}\n            <p className="text-xs text-zinc-500 font-mono italic">No custom fields configured for post type: ${postType}</p>`;
   }
 
-  const loopTemplate = `import { WpQueryLoop, useWpTitle, useWpFeaturedImage, useWpExcerpt, useWpPermalink, useWpCustomField } from "@/.forgewp/wordpress";
+  const loopTemplate = `import { WpQueryLoop, useWpTitle, useWpFeaturedImage, useWpExcerpt, useWpPermalink, useWpCustomField } from "@forgewp/react";
 
 /**
  * ⚡ ForgeWP Custom Post Type Loop — "${pascalCase}"
@@ -1449,7 +1449,9 @@ export function onMakePage(themeRoot, { pascalCase, pc }) {
     process.exit(1);
   }
 
-  const pageTemplate = `import { WpHead, useWpTitle, useWpExcerpt } from "../../.forgewp/wordpress";
+  const pageTemplate = `import { WpHead, useWpTitle, useWpExcerpt } from "@forgewp/react";
+
+export const pageConfig = { layout: "default" };
 
 /**
  * ⚡ ForgeWP Custom Page Template — "${pascalCase}"
@@ -1618,7 +1620,7 @@ ${fieldsConfigPhp}
     .join('\n');
 
   const componentTemplate = `import * as React from "react";
-import { submitWpForm } from "../../.forgewp/wordpress";
+import { submitWpForm } from "@forgewp/react";
 
 /**
  * ⚡ ForgeWP Form — "${componentName}"
@@ -1735,8 +1737,9 @@ export function onSyncRoutes(themeRoot, { routesToScaffold, isForce, pc }) {
  * This file compiles into a standalone WordPress Custom Page Template.
  * You can select it in the WordPress page editor dropdown as "Template: ${componentName}".
  */
-import { WpHead } from "../../.forgewp/wordpress";
-import { WpQueryLoop, useWpTitle, useWpExcerpt, useWpFeaturedImage } from "../../.forgewp/wordpress";
+import { WpHead, WpQueryLoop, useWpTitle, useWpExcerpt, useWpFeaturedImage } from "@forgewp/react";
+
+export const pageConfig = { layout: "default" };
 
 export function ${componentName}() {
   return (
@@ -1903,7 +1906,7 @@ import {
   useWpTitle, 
   useWpContent, 
   useWpFeaturedImage 
-} from "../../.forgewp/wordpress";
+} from "@forgewp/react";
 import { ArrowLeft } from "lucide-react";
 
 export function Single${pascalCpt}Page() {

@@ -51,7 +51,9 @@ export function generateAssetManifest(themeRoot, assetGraph, options = {}) {
   }
 
   // 1. Process Images
-  const allImages = assetGraph.getAllAssets().filter((a) => a.type === 'image' || a.type === 'svg');
+  const allImages = assetGraph
+    .getAllAssets()
+    .filter((a) => a.type === 'image' || a.type === 'svg');
   manifest.summary.totalImages = allImages.length;
 
   for (const node of allImages) {
@@ -112,7 +114,8 @@ export function generateAssetManifest(themeRoot, assetGraph, options = {}) {
       manifest.diagnostics.clsNotices.push({
         assetId: node.id,
         source: node.source,
-        message: 'Missing explicit width/height (Potential Cumulative Layout Shift risk)',
+        message:
+          'Missing explicit width/height (Potential Cumulative Layout Shift risk)',
       });
     }
 
@@ -120,7 +123,8 @@ export function generateAssetManifest(themeRoot, assetGraph, options = {}) {
       manifest.diagnostics.warnings.push({
         assetId: node.id,
         source: node.source,
-        message: 'External image without optimize="build" (served remotely via passthrough)',
+        message:
+          'External image without optimize="build" (served remotely via passthrough)',
       });
     }
 
@@ -133,9 +137,12 @@ export function generateAssetManifest(themeRoot, assetGraph, options = {}) {
     }
 
     // Check for raw <img> HTML element usage
-    const imgUsage = (node.usageLocations || []).find((l) => l.component === 'img');
+    const imgUsage = (node.usageLocations || []).find(
+      (l) => l.component === 'img',
+    );
     if (imgUsage) {
-      manifest.diagnostics.rawImgWarnings = manifest.diagnostics.rawImgWarnings || [];
+      manifest.diagnostics.rawImgWarnings =
+        manifest.diagnostics.rawImgWarnings || [];
       manifest.diagnostics.rawImgWarnings.push({
         assetId: node.id,
         source: node.source,
@@ -149,13 +156,22 @@ export function generateAssetManifest(themeRoot, assetGraph, options = {}) {
   // 2. Process Fonts & Unused Weight Detection
   const { usedWeights } = scanFontWeightUsage(themeRoot);
   const unusedFromRules = detectUnusedFontWeights(fontRules, usedWeights);
-  const fontConfig = options.config?.fonts?.google || options.config?.settings?.typography?.googleFonts || null;
-  const unusedFromConfig = fontConfig ? detectUnusedConfiguredWeights(fontConfig, usedWeights) : [];
+  const fontConfig =
+    options.config?.fonts?.google ||
+    options.config?.settings?.typography?.googleFonts ||
+    null;
+  const unusedFromConfig = fontConfig
+    ? detectUnusedConfiguredWeights(fontConfig, usedWeights)
+    : [];
 
   // Merge and deduplicate unused font warnings
   const combinedUnused = [...unusedFromRules];
   for (const u of unusedFromConfig) {
-    if (!combinedUnused.some((r) => r.family === u.family && Number(r.weight) === Number(u.weight))) {
+    if (
+      !combinedUnused.some(
+        (r) => r.family === u.family && Number(r.weight) === Number(u.weight),
+      )
+    ) {
       combinedUnused.push(u);
     }
   }
@@ -191,10 +207,17 @@ export function generateAssetManifest(themeRoot, assetGraph, options = {}) {
   }));
 
   // Compute overall savings
-  if (manifest.summary.originalSizeBytes > 0 && manifest.summary.optimizedSizeBytes < manifest.summary.originalSizeBytes) {
-    manifest.summary.savedBytes = manifest.summary.originalSizeBytes - manifest.summary.optimizedSizeBytes;
+  if (
+    manifest.summary.originalSizeBytes > 0 &&
+    manifest.summary.optimizedSizeBytes < manifest.summary.originalSizeBytes
+  ) {
+    manifest.summary.savedBytes =
+      manifest.summary.originalSizeBytes - manifest.summary.optimizedSizeBytes;
     manifest.summary.savedPercentage = Number(
-      ((manifest.summary.savedBytes / manifest.summary.originalSizeBytes) * 100).toFixed(1),
+      (
+        (manifest.summary.savedBytes / manifest.summary.originalSizeBytes) *
+        100
+      ).toFixed(1),
     );
   }
 
@@ -203,11 +226,19 @@ export function generateAssetManifest(themeRoot, assetGraph, options = {}) {
     if (!existsSync(outDir)) {
       mkdirSync(outDir, { recursive: true });
     }
-    writeFileSync(path.join(outDir, 'asset-manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
+    writeFileSync(
+      path.join(outDir, 'asset-manifest.json'),
+      JSON.stringify(manifest, null, 2),
+      'utf8',
+    );
 
     const forgewpDir = path.join(themeRoot, '.forgewp');
     if (existsSync(forgewpDir)) {
-      writeFileSync(path.join(forgewpDir, 'asset-manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
+      writeFileSync(
+        path.join(forgewpDir, 'asset-manifest.json'),
+        JSON.stringify(manifest, null, 2),
+        'utf8',
+      );
     }
   } catch {}
 
@@ -220,36 +251,48 @@ export function generateAssetManifest(themeRoot, assetGraph, options = {}) {
  * @param {Object} manifest
  */
 export function printAssetDiagnosticsReport(manifest) {
+  if (process.env.FORGEWP_VERBOSE !== '1') return;
   if (!manifest) return;
 
   console.log(pc.cyan('\n🩺   FORGEWP ASSET & PERFORMANCE DIAGNOSTICS'));
 
   // 1. Output Optimized Images
-  const imageEntries = Object.values(manifest.images || {}).filter((img) => img.variants && img.variants.length > 0);
+  const imageEntries = Object.values(manifest.images || {}).filter(
+    (img) => img.variants && img.variants.length > 0,
+  );
   for (const img of imageEntries.slice(0, 8)) {
     const name = path.basename(img.source);
     const dots = '.'.repeat(Math.max(2, 28 - name.length));
     const widths = img.variants.map((v) => `${v.width}w`).join(', ');
-    const savings = img.originalSizeBytes && img.optimizedSizeBytes
-      ? `[ -${(((img.originalSizeBytes - img.optimizedSizeBytes) / img.originalSizeBytes) * 100).toFixed(0)}% / ${img.optimizedSizeKb} KB ]`
-      : `[ ${widths} ]`;
+    const savings =
+      img.originalSizeBytes && img.optimizedSizeBytes
+        ? `[ -${(((img.originalSizeBytes - img.optimizedSizeBytes) / img.originalSizeBytes) * 100).toFixed(0)}% / ${img.optimizedSizeKb} KB ]`
+        : `[ ${widths} ]`;
 
-    console.log(`  ${pc.green('✅')} ${pc.white(name)}${pc.dim(dots)} WebP (${widths}) ${pc.dim(savings)}`);
+    console.log(
+      `  ${pc.green('✅')} ${pc.white(name)}${pc.dim(dots)} WebP (${widths}) ${pc.dim(savings)}`,
+    );
   }
 
   // 2. Output Fonts
   const fontCount = Object.keys(manifest.fonts || {}).length;
   if (fontCount > 0) {
-    const families = [...new Set(Object.values(manifest.fonts).map((f) => f.family))].join(', ');
+    const families = [
+      ...new Set(Object.values(manifest.fonts).map((f) => f.family)),
+    ].join(', ');
     const dots = '.'.repeat(Math.max(2, 28 - 'google-fonts'.length));
-    console.log(`  ${pc.green('✅')} ${pc.white('google-fonts')}${pc.dim(dots)} ${fontCount} WOFF2 file(s) self-hosted (${families})`);
+    console.log(
+      `  ${pc.green('✅')} ${pc.white('google-fonts')}${pc.dim(dots)} ${fontCount} WOFF2 file(s) self-hosted (${families})`,
+    );
   }
 
   // 3. Output Preload Signals
   for (const p of manifest.preloads || []) {
     const name = path.basename(p.source);
     const dots = '.'.repeat(Math.max(2, 28 - 'LCP Preload'.length));
-    console.log(`  ${pc.green('✅')} ${pc.white('LCP Preload')}${pc.dim(dots)} Injected <link rel="preload"> for ${name}`);
+    console.log(
+      `  ${pc.green('✅')} ${pc.white('LCP Preload')}${pc.dim(dots)} Injected <link rel="preload"> for ${name}`,
+    );
   }
 
   // 4. Output Unused Font Weight Warnings
@@ -266,12 +309,16 @@ export function printAssetDiagnosticsReport(manifest) {
   for (const cls of (manifest.diagnostics?.clsNotices || []).slice(0, 3)) {
     const name = path.basename(cls.source);
     const dots = '.'.repeat(Math.max(2, 28 - name.length));
-    console.log(`  ${pc.yellow('⚠️ ')} ${pc.white(name)}${pc.dim(dots)} Missing width/height in JSX (Inferred for CLS safety)`);
+    console.log(
+      `  ${pc.yellow('⚠️ ')} ${pc.white(name)}${pc.dim(dots)} Missing width/height in JSX (Inferred for CLS safety)`,
+    );
   }
 
   // 6. Output Raw <img> Tag Replacement Notices
   for (const imgW of (manifest.diagnostics?.rawImgWarnings || []).slice(0, 3)) {
-    const loc = imgW.file ? `${path.basename(imgW.file)}:${imgW.line}` : path.basename(imgW.source);
+    const loc = imgW.file
+      ? `${path.basename(imgW.file)}:${imgW.line}`
+      : path.basename(imgW.source);
     const dots = '.'.repeat(Math.max(2, 28 - 'Raw <img> Tag'.length));
     console.log(
       `  ${pc.yellow('⚠️ ')} ${pc.yellow('Raw <img> Tag')}${pc.dim(dots)} ${loc} (Replace <img> with <WpImage> for auto-WebP & preloads)`,
@@ -279,7 +326,9 @@ export function printAssetDiagnosticsReport(manifest) {
   }
 
   // 7. Summary Footer
-  console.log(pc.dim('────────────────────────────────────────────────────────────'));
+  console.log(
+    pc.dim('────────────────────────────────────────────────────────────'),
+  );
   const savedMb = (manifest.summary.savedBytes / (1024 * 1024)).toFixed(1);
   const totalImg = manifest.summary.totalImages;
   const optImg = manifest.summary.optimizedImages;

@@ -4,94 +4,151 @@ import path from 'node:path';
 function generatePhpArgs(queryObj) {
   const phpLines = [];
   phpLines.push(`$args = array(`);
-  
+
   if (queryObj.postType && typeof queryObj.postType === 'string') {
     phpLines.push(`        'post_type' => '${queryObj.postType}',`);
   } else {
     phpLines.push(`        'post_type' => 'post',`);
   }
-  
+
   if (queryObj.postsPerPage !== undefined) {
     const ppp = parseInt(queryObj.postsPerPage, 10);
     phpLines.push(`        'posts_per_page' => ${isNaN(ppp) ? 10 : ppp},`);
   } else {
     phpLines.push(`        'posts_per_page' => 10,`);
   }
-  
+
   if (queryObj.orderby) {
     phpLines.push(`        'orderby' => '${queryObj.orderby}',`);
   }
   if (queryObj.order) {
     phpLines.push(`        'order' => '${queryObj.order}',`);
   }
-  
+
   if (queryObj.categoryName) {
     if (String(queryObj.categoryName).startsWith('__DYNAMIC_')) {
-      const varName = String(queryObj.categoryName).replace(/^__DYNAMIC_/, '').replace(/__$/, '');
-      phpLines.push(`        'category_name' => $request->get_param('${varName}') ? sanitize_text_field($request->get_param('${varName}')) : '',`);
+      const varName = String(queryObj.categoryName)
+        .replace(/^__DYNAMIC_/, '')
+        .replace(/__$/, '');
+      phpLines.push(
+        `        'category_name' => $request->get_param('${varName}') ? sanitize_text_field($request->get_param('${varName}')) : '',`,
+      );
     } else {
       phpLines.push(`        'category_name' => '${queryObj.categoryName}',`);
     }
   }
-  
+
   phpLines.push(`        'paged' => $paged,`);
-  
-  if (queryObj.taxQuery && Array.isArray(queryObj.taxQuery) && queryObj.taxQuery.length > 0) {
+
+  if (
+    queryObj.taxQuery &&
+    Array.isArray(queryObj.taxQuery) &&
+    queryObj.taxQuery.length > 0
+  ) {
     phpLines.push(`        'tax_query' => array(`);
-    for (const taxQ of queryObj.taxQuery) {
+    for (const [index, taxQ] of queryObj.taxQuery.entries()) {
       phpLines.push(`            array(`);
       phpLines.push(`                'taxonomy' => '${taxQ.taxonomy}',`);
       phpLines.push(`                'field' => '${taxQ.field || 'slug'}',`);
-      
       const termsVal = taxQ.terms;
+      let staticTermsPhp;
       if (typeof termsVal === 'string' && termsVal.startsWith('__DYNAMIC_')) {
         const varName = termsVal.replace(/^__DYNAMIC_/, '').replace(/__$/, '');
-        phpLines.push(`                'terms' => $request->get_param('${varName}') ? sanitize_text_field($request->get_param('${varName}')) : '',`);
+        staticTermsPhp = `$request->get_param('${varName}') ? sanitize_text_field($request->get_param('${varName}')) : ''`;
       } else if (Array.isArray(termsVal)) {
-        const termsPhp = termsVal.map(t => typeof t === 'string' ? `'${t}'` : t).join(', ');
-        phpLines.push(`                'terms' => array(${termsPhp}),`);
-      } else if (typeof termsVal === 'string') {
-        phpLines.push(`                'terms' => '${termsVal}',`);
+        const termsPhp = termsVal
+          .map((t) =>
+            typeof t === 'string' ? `'${t.replace(/'/g, "\\'")}'` : t,
+          )
+          .join(', ');
+        staticTermsPhp = `array(${termsPhp})`;
       } else {
-        phpLines.push(`                'terms' => ${termsVal},`);
+        staticTermsPhp =
+          typeof termsVal === 'string'
+            ? `'${termsVal.replace(/'/g, "\\'")}'`
+            : String(termsVal);
       }
+      phpLines.push(`                'terms' => (function() use ($request) {
+                                        $raw_terms = $request->get_param('tax_${index}');
+                                        if ($raw_terms === null) return ${staticTermsPhp};
+                                        $decoded_terms = json_decode($raw_terms, true);
+                                        if (is_array($decoded_terms)) {
+                                                return array_map('sanitize_text_field', $decoded_terms);
+                                        }
+                                        return sanitize_text_field((string) $raw_terms);
+                                })(),`);
       phpLines.push(`            ),`);
     }
     phpLines.push(`        ),`);
   }
-  
-  if (queryObj.metaQuery && Array.isArray(queryObj.metaQuery) && queryObj.metaQuery.length > 0) {
+
+  if (
+    queryObj.metaQuery &&
+    Array.isArray(queryObj.metaQuery) &&
+    queryObj.metaQuery.length > 0
+  ) {
     phpLines.push(`        'meta_query' => array(`);
     if (queryObj.metaRelation) {
       phpLines.push(`            'relation' => '${queryObj.metaRelation}',`);
     }
-    for (const metaQ of queryObj.metaQuery) {
+    for (const [index, metaQ] of queryObj.metaQuery.entries()) {
       phpLines.push(`            array(`);
-      phpLines.push(`                'key' => '${metaQ.key}',`);
+      phpLines.push(
+        `                'key' => '${String(metaQ.key).replace(/'/g, "\\'")}',`,
+      );
       if (metaQ.compare) {
         phpLines.push(`                'compare' => '${metaQ.compare}',`);
       }
+      const metaType =
+        metaQ.type || (typeof metaQ.value === 'number' ? 'NUMERIC' : '');
+      if (metaType) {
+        phpLines.push(`                'type' => '${metaType}',`);
+      }
       if (metaQ.value !== undefined) {
         const val = metaQ.value;
+        let staticValuePhp;
         if (typeof val === 'string' && val.startsWith('__DYNAMIC_')) {
           const varName = val.replace(/^__DYNAMIC_/, '').replace(/__$/, '');
-          phpLines.push(`                'value' => $request->get_param('${varName}') ? sanitize_text_field($request->get_param('${varName}')) : '',`);
+          staticValuePhp = `$request->get_param('${varName}') ? sanitize_text_field($request->get_param('${varName}')) : ''`;
         } else if (typeof val === 'string') {
-          phpLines.push(`                'value' => '${val}',`);
+          staticValuePhp = `'${val.replace(/'/g, "\\'")}'`;
         } else {
-          phpLines.push(`                'value' => ${val},`);
+          staticValuePhp = String(val);
         }
+        phpLines.push(`                'value' => (function() use ($request) {
+                                        $raw_value = $request->get_param('meta_${index}');
+                                        if ($raw_value === null) return ${staticValuePhp};
+                                        $decoded_value = json_decode($raw_value, true);
+                                        return json_last_error() === JSON_ERROR_NONE
+                                                ? $decoded_value
+                                                : sanitize_text_field((string) $raw_value);
+                                })(),`);
       }
       phpLines.push(`            ),`);
     }
     phpLines.push(`        ),`);
   }
-  
+
   phpLines.push(`    );`);
   return phpLines.join('\n');
 }
 
-export function buildRestEndpointsPhp(config, queries, hasAuth, defaultPasswordResetEmailSubject, defaultPasswordResetEmailBody, defaultVerificationEmailSubject, defaultVerificationEmailBody, defaultLoginField, defaultEmailVerificationEnabled, defaultRegistrationEnabled, defaultBlockLoginUntilVerified, defaultAutoLoginAfterSignup, defaultDefaultRole, reservedUsernamesPhp) {
+export function buildRestEndpointsPhp(
+  config,
+  queries,
+  hasAuth,
+  defaultPasswordResetEmailSubject,
+  defaultPasswordResetEmailBody,
+  defaultVerificationEmailSubject,
+  defaultVerificationEmailBody,
+  defaultLoginField,
+  defaultEmailVerificationEnabled,
+  defaultRegistrationEnabled,
+  defaultBlockLoginUntilVerified,
+  defaultAutoLoginAfterSignup,
+  defaultDefaultRole,
+  reservedUsernamesPhp,
+) {
   let queryEndpointsPhp = '';
   if (queries && queries.length > 0) {
     queryEndpointsPhp += `\n\n/**\n * ── Compiled REST Query Endpoints (Milestone 2) ──\n */\n`;
@@ -170,7 +227,10 @@ if (!function_exists('forgewp_format_rest_post')) {
     queryEndpointsPhp += `
 add_action('rest_api_init', function() {`;
     for (const q of queries) {
-      const cleanId = q.queryId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const cleanId = q.queryId
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
       const querySlug = 'query-' + cleanId;
       const callbackName = 'forgewp_rest_query_' + cleanId.replace(/-/g, '_');
       queryEndpointsPhp += `
@@ -185,10 +245,13 @@ add_action('rest_api_init', function() {`;
 `;
 
     for (const q of queries) {
-      const cleanId = q.queryId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const cleanId = q.queryId
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
       const callbackName = 'forgewp_rest_query_' + cleanId.replace(/-/g, '_');
       const phpArgs = generatePhpArgs(q);
-      
+
       queryEndpointsPhp += `
 function ${callbackName}(WP_REST_Request $request) {
     $paged = $request->get_param('page') ? intval($request->get_param('page')) : 1;
@@ -2812,4 +2875,3 @@ ${queryEndpointsPhp}
 ${authControllersPhp}
 `;
 }
-

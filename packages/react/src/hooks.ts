@@ -1,6 +1,22 @@
-import { useContext, useCallback, useMemo, ComponentType, useState, useRef, useEffect, createContext } from 'react';
+import {
+  useContext,
+  useCallback,
+  useMemo,
+  ComponentType,
+  useState,
+  useRef,
+  useEffect,
+  createContext,
+} from 'react';
 import { WpPostContext } from './context';
 import type { WpPost, WpQueryArgs, WpQueryResults, WpMenuItem } from './types';
+
+function isForgeWpCompileTime(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    (window as any)._forgeWpCompileTime === true
+  );
+}
 
 /**
  * @forgewp/react — WordPress Data Hooks
@@ -20,11 +36,13 @@ import type { WpPost, WpQueryArgs, WpQueryResults, WpMenuItem } from './types';
 // ── Content ───────────────────────────────────────────────────────────────────
 
 export function useWpTitle(): string {
+  if (isForgeWpCompileTime()) return '__FORGEWP_THE_TITLE__';
   const post = useContext(WpPostContext);
   return post?.title ?? 'Sample WordPress Post Title';
 }
 
 export function useWpContent(): string {
+  if (isForgeWpCompileTime()) return '__FORGEWP_THE_CONTENT__';
   const post = useContext(WpPostContext);
   return (
     post?.content ??
@@ -33,6 +51,7 @@ export function useWpContent(): string {
 }
 
 export function useWpExcerpt(): string {
+  if (isForgeWpCompileTime()) return '__FORGEWP_THE_EXCERPT__';
   const post = useContext(WpPostContext);
   return (
     post?.excerpt ??
@@ -41,6 +60,7 @@ export function useWpExcerpt(): string {
 }
 
 export function useWpPermalink(): string {
+  if (isForgeWpCompileTime()) return '__FORGEWP_THE_PERMALINK__';
   const post = useContext(WpPostContext);
   if (!post) return '/post';
   if (post.permalink) return post.permalink;
@@ -52,6 +72,7 @@ export function useWpPermalink(): string {
 // ── Meta ──────────────────────────────────────────────────────────────────────
 
 export function useWpDate(): string {
+  if (isForgeWpCompileTime()) return '__FORGEWP_THE_DATE__';
   const post = useContext(WpPostContext);
   return (
     post?.date ??
@@ -64,6 +85,7 @@ export function useWpDate(): string {
 }
 
 export function useWpModifiedDate(): string {
+  if (isForgeWpCompileTime()) return '__FORGEWP_THE_MODIFIED_DATE__';
   const post = useContext(WpPostContext);
   return (
     post?.modified ??
@@ -77,11 +99,13 @@ export function useWpModifiedDate(): string {
 }
 
 export function useWpAuthor(): string {
+  if (isForgeWpCompileTime()) return '__FORGEWP_THE_AUTHOR__';
   const post = useContext(WpPostContext);
   return post?.author ?? 'Jane Doe';
 }
 
 export function useWpFeaturedImage(): string {
+  if (isForgeWpCompileTime()) return '__FORGEWP_THE_POST_THUMBNAIL_URL__';
   const post = useContext(WpPostContext);
   const featured = post?.featuredImage;
   if (!featured) return 'https://picsum.photos/seed/forgewp/1200/630';
@@ -92,6 +116,9 @@ export function useWpFeaturedImage(): string {
 // ── Custom Fields (ACF / Meta) ────────────────────────────────────────────────
 
 export function useWpCustomField(fieldName: string, defaultValue = ''): string {
+  if (isForgeWpCompileTime()) {
+    return `__FORGEWP_CUSTOM_FIELD__${fieldName}__`;
+  }
   const post = useContext(WpPostContext);
 
   if (
@@ -104,6 +131,9 @@ export function useWpCustomField(fieldName: string, defaultValue = ''): string {
 }
 
 export function useWpField(fieldName: string, defaultValue = ''): string {
+  if (isForgeWpCompileTime()) {
+    return `__FORGEWP_CUSTOM_FIELD__${fieldName}__`;
+  }
   const post = useContext(WpPostContext);
   if (
     post?.customFields &&
@@ -193,8 +223,13 @@ export interface WpOptionMeta {
 
 export function useWpOption(optionName: string, defaultValue = ''): string {
   const siteSettings = getForgeWpSiteSettings();
-  if (siteSettings?.options) {
-    return siteSettings.options[optionName] ?? defaultValue;
+  const option = siteSettings?.options?.[optionName];
+  if (option !== undefined && option !== null) {
+    const value =
+      typeof option === 'object' && '_type' in option ? option.default : option;
+    if (value !== undefined && value !== null) {
+      return String(value);
+    }
   }
   return defaultValue || `[option: ${optionName}]`;
 }
@@ -219,7 +254,9 @@ export interface WpFormResult {
 const forgeWpFormsLoadedAt = typeof window !== 'undefined' ? Date.now() : 0;
 
 function isProductionForms(): boolean {
-  return typeof window !== 'undefined' && !!(window as any).forgeWpHydration?.restUrl;
+  return (
+    typeof window !== 'undefined' && !!(window as any).forgeWpHydration?.restUrl
+  );
 }
 
 /**
@@ -285,14 +322,20 @@ export async function submitWpForm(
         headers,
       });
     } else {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
       if (win.forgeWpHydration.restNonce) {
         headers['X-WP-Nonce'] = win.forgeWpHydration.restNonce;
       }
       response = await fetch(`${restUrl}/forms/${name}/submit`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ ...data, _forgewp_elapsed: elapsed, ...(lang ? { lang } : {}) }),
+        body: JSON.stringify({
+          ...data,
+          _forgewp_elapsed: elapsed,
+          ...(lang ? { lang } : {}),
+        }),
       });
     }
 
@@ -315,7 +358,14 @@ export async function submitWpForm(
 
 export interface WpOptionField {
   /** The internal field type used by the compiler to render the correct admin UI widget. */
-  _type: 'text' | 'url' | 'email' | 'textarea' | 'toggle' | 'number' | 'postPicker';
+  _type:
+    | 'text'
+    | 'url'
+    | 'email'
+    | 'textarea'
+    | 'toggle'
+    | 'number'
+    | 'postPicker';
   /** Human-readable label shown in the Theme Options admin page. */
   label?: string;
   /** Default value used when the option has not been set. */
@@ -327,32 +377,48 @@ export interface WpOptionField {
 export type WpOptionsSchema = Record<string, WpOptionField>;
 
 /** Plain text input field. */
-export function optionText(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+export function optionText(
+  config: Omit<WpOptionField, '_type'> = {},
+): WpOptionField {
   return { ...config, _type: 'text' };
 }
 
 /** URL input field (sanitized with esc_url_raw server-side). */
-export function optionUrl(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+export function optionUrl(
+  config: Omit<WpOptionField, '_type'> = {},
+): WpOptionField {
   return { ...config, _type: 'url' };
 }
 
 /** Email input field. */
-export function optionEmail(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+export function optionEmail(
+  config: Omit<WpOptionField, '_type'> = {},
+): WpOptionField {
   return { ...config, _type: 'email' };
 }
 
 /** Multi-line textarea field. */
-export function optionTextarea(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+export function optionTextarea(
+  config: Omit<WpOptionField, '_type'> = {},
+): WpOptionField {
   return { ...config, _type: 'textarea' };
 }
 
 /** Checkbox / boolean toggle field. */
-export function optionToggle(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+export function optionToggle(
+  config: Omit<WpOptionField, '_type'> = {},
+): WpOptionField {
   return { ...config, _type: 'toggle' };
 }
 
 /** Numeric input field. */
-export function optionNumber(config: Omit<WpOptionField, '_type'> & { min?: number; max?: number; step?: number } = {}): WpOptionField {
+export function optionNumber(
+  config: Omit<WpOptionField, '_type'> & {
+    min?: number;
+    max?: number;
+    step?: number;
+  } = {},
+): WpOptionField {
   return { ...config, _type: 'number' };
 }
 
@@ -360,7 +426,9 @@ export function optionNumber(config: Omit<WpOptionField, '_type'> & { min?: numb
  * Searchable post picker field — renders a Select2 AJAX-powered dropdown
  * in the Theme Options admin page that searches posts of the given post type.
  */
-export function optionPostPicker(config: Omit<WpOptionField, '_type'> & { postType: string }): WpOptionField {
+export function optionPostPicker(
+  config: Omit<WpOptionField, '_type'> & { postType: string },
+): WpOptionField {
   return { ...config, _type: 'postPicker' };
 }
 
@@ -373,7 +441,7 @@ export function optionPostPicker(config: Omit<WpOptionField, '_type'> & { postTy
  *
  * @example
  * ```ts
- * import { defineWpOptions, optionPostPicker, optionText, optionUrl } from '../.forgewp/wordpress';
+ * import { defineWpOptions, optionPostPicker, optionText, optionUrl } from '@forgewp/react/config';
  *
  * export const siteOptions = defineWpOptions({
  *   hotel_of_the_month: optionPostPicker({ postType: 'hotel', label: 'Hotel of the Month', default: '6' }),
@@ -419,7 +487,9 @@ export function resolveWpAsset(path: string): string {
       (window as any).forgeWpThemeUri ||
       (window as any).forgewpData?.themeUri;
     if (themeUri) {
-      return themeUri.replace(/\/+$/, '') + '/' + path.replace(/^(\/|\.\/)+/, '');
+      return (
+        themeUri.replace(/\/+$/, '') + '/' + path.replace(/^(\/|\.\/)+/, '')
+      );
     }
   }
   return path;
@@ -437,7 +507,10 @@ export function useWpPageLink(name: string, fallback: string): string {
 
 function normalizeMenuUrl(url: string): string {
   if (!url) return '';
-  if (typeof window !== 'undefined' && (url.startsWith('http://') || url.startsWith('https://'))) {
+  if (
+    typeof window !== 'undefined' &&
+    (url.startsWith('http://') || url.startsWith('https://'))
+  ) {
     try {
       const parsed = new URL(url);
       if (parsed.origin === window.location.origin) {
@@ -452,23 +525,37 @@ function normalizeMenuUrl(url: string): string {
   return url;
 }
 
-function normalizeMenuItems(items: WpMenuItem[]): WpMenuItem[] {
+function normalizeMenuItemId(id: WpMenuItem['id']): WpMenuItem['id'] {
+  // WordPress menu ids arrive as JSON numbers. Components keep expanded
+  // rows in a string-keyed map and compare with ===. Coerce here so every
+  // project gets the same id type it would use as a React key.
+  if (id == null || id === '') return id;
+  return String(id);
+}
+
+export function normalizeMenuItems(items: WpMenuItem[]): WpMenuItem[] {
   if (!Array.isArray(items)) return [];
   return items.map((item) => ({
     ...item,
+    id: normalizeMenuItemId(item.id),
     url: normalizeMenuUrl(item.url),
     children: item.children ? normalizeMenuItems(item.children) : undefined,
   }));
 }
 
-export function useWpMenu(location: string = 'primary'): { items: WpMenuItem[]; loading: boolean } {
+export function useWpMenu(location: string = 'primary'): {
+  items: WpMenuItem[];
+  loading: boolean;
+} {
   if (typeof window === 'undefined') {
     return { items: [], loading: true };
   }
 
   const win = window as any;
-  const rawItems = win.forgeWpHydration?.menus?.[location] ||
-    win._forgeWpMockMenus?.[location] || [];
+  const rawItems =
+    win.forgeWpHydration?.menus?.[location] ||
+    win._forgeWpMockMenus?.[location] ||
+    [];
   const items = useMemo(() => normalizeMenuItems(rawItems), [rawItems]);
 
   return { items, loading: false };
@@ -494,13 +581,15 @@ function matchMetaCondition(
   const fieldVal = customFields[key];
 
   if (compare === 'LIKE') {
-    return String(fieldVal).toLowerCase().includes(String(value ?? '').toLowerCase());
+    return String(fieldVal)
+      .toLowerCase()
+      .includes(String(value ?? '').toLowerCase());
   }
 
   const a = isNaN(Number(fieldVal)) ? String(fieldVal) : Number(fieldVal);
   const b = isNaN(Number(value)) ? String(value ?? '') : Number(value ?? 0);
 
-  if (compare === '=') return a == b;  // loose equality to cover "45000" == 45000
+  if (compare === '=') return a == b; // loose equality to cover "45000" == 45000
   if (compare === '!=') return a != b;
   if (compare === '>') return a > b;
   if (compare === '>=') return a >= b;
@@ -566,7 +655,9 @@ function executeInMemoryQuery(
         );
       }
       // Fallback: scan customFields for any value matching the slug
-      return JSON.stringify(p.customFields || {}).toLowerCase().includes(catSlug);
+      return JSON.stringify(p.customFields || {})
+        .toLowerCase()
+        .includes(catSlug);
     });
   }
 
@@ -627,7 +718,10 @@ function executeInMemoryQuery(
   return { items, total };
 }
 
-const queryCache = new Map<string, { posts: any[]; total: number; hasMore: boolean }>();
+const queryCache = new Map<
+  string,
+  { posts: any[]; total: number; hasMore: boolean }
+>();
 
 const activeQueries = new Set<{
   args: WpQueryArgs;
@@ -636,11 +730,7 @@ const activeQueries = new Set<{
 }>();
 
 export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
-  const {
-    postType = 'post',
-    postsPerPage = 10,
-    paged = 1,
-  } = args;
+  const { postType = 'post', postsPerPage = 10, paged = 1 } = args;
 
   // Serialize args to detect query-level param changes and reset
   const queryKey = JSON.stringify({
@@ -671,7 +761,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
             queryCache.set(cacheKey, {
               posts: initialState.posts,
               hasMore: initialState.hasMore,
-              total: initialState.total || initialState.posts.length
+              total: initialState.total || initialState.posts.length,
             });
           }
         }
@@ -681,11 +771,15 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     }
   }
 
-  const [posts, setPosts] = useState<WpPost[]>(initialState ? initialState.posts : []);
+  const [posts, setPosts] = useState<WpPost[]>(
+    initialState ? initialState.posts : [],
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(paged);
-  const [totalPosts, setTotalPosts] = useState(initialState ? initialState.total : 0);
+  const [totalPosts, setTotalPosts] = useState(
+    initialState ? initialState.total : 0,
+  );
   const hydratedFromSsrRef = useRef(initialState ? true : false);
   // 'append' = loadMore behaviour; 'replace' = goToPage behaviour
   const pageModeRef = useRef<'append' | 'replace'>('replace');
@@ -702,7 +796,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
   }
 
   const totalPages = Math.max(1, Math.ceil(totalPosts / postsPerPage));
-  const hasMore = (currentPage * postsPerPage) < totalPosts;
+  const hasMore = currentPage * postsPerPage < totalPosts;
 
   const executeMockQuery = useCallback(
     (page: number) => {
@@ -739,7 +833,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
           queryCache.set(cacheKey, {
             posts: items,
             total,
-            hasMore: (page * postsPerPage) < total,
+            hasMore: page * postsPerPage < total,
           });
 
           setPosts((prev) => {
@@ -771,16 +865,19 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     executeMockQuery(currentPage);
   }, [executeMockQuery, currentPage]);
 
-  const querySelector = useCallback((params: URLSearchParams) => {
-    const target = { ...args };
-    if (params.has('q') || params.has('s')) {
-      target.s = params.get('q') || params.get('s') || '';
-    }
-    if (params.has('category')) {
-      target.categoryName = params.get('category') || '';
-    }
-    return target;
-  }, [args]);
+  const querySelector = useCallback(
+    (params: URLSearchParams) => {
+      const target = { ...args };
+      if (params.has('q') || params.has('s')) {
+        target.s = params.get('q') || params.get('s') || '';
+      }
+      if (params.has('category')) {
+        target.categoryName = params.get('category') || '';
+      }
+      return target;
+    },
+    [args],
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -793,16 +890,18 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
         try {
           const mockDb =
             typeof window !== 'undefined'
-              ? (window as any)._forgeWpMockPosts?.[targetArgs.postType || 'post'] || []
+              ? (window as any)._forgeWpMockPosts?.[
+                  targetArgs.postType || 'post'
+                ] || []
               : [];
           const { items, total } = executeInMemoryQuery(mockDb, targetArgs, 1);
           queryCache.set(cacheKey, {
             posts: items,
             total,
-            hasMore: (1 * (targetArgs.postsPerPage || 10)) < total,
+            hasMore: 1 * (targetArgs.postsPerPage || 10) < total,
           });
         } catch (e) {}
-      }
+      },
     };
     activeQueries.add(item);
     return () => {
@@ -816,13 +915,16 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     setCurrentPage((p) => p + 1);
   }, [loading, hasMore]);
 
-  const goToPage = useCallback((targetPage: number) => {
-    if (loading) return;
-    if (targetPage < 1 || targetPage > totalPages) return;
-    pageModeRef.current = 'replace';
-    setPosts([]);
-    setCurrentPage(targetPage);
-  }, [loading, totalPages]);
+  const goToPage = useCallback(
+    (targetPage: number) => {
+      if (loading) return;
+      if (targetPage < 1 || targetPage > totalPages) return;
+      pageModeRef.current = 'replace';
+      setPosts([]);
+      setCurrentPage(targetPage);
+    },
+    [loading, totalPages],
+  );
 
   const refetch = useCallback(async () => {
     pageModeRef.current = 'replace';
@@ -869,8 +971,6 @@ export function useWpPrefetch() {
 
 // ── Gutenberg Block Compiler Authoring ───────────────────────────────────────────
 
-
-
 export interface BlockAttributeDefinition {
   type: 'string' | 'number' | 'boolean' | 'object' | 'array';
   default?: any;
@@ -900,10 +1000,10 @@ export interface BlockShellConfig {
 }
 
 export interface BlockDefinition<TAttrs = Record<string, any>> {
-  name: string;      // e.g. "info-box" (namespace is auto-prefixed: "forgewp/info-box")
-  title: string;     // e.g. "ForgeWP Info Box"
+  name: string; // e.g. "info-box" (namespace is auto-prefixed: "forgewp/info-box")
+  title: string; // e.g. "ForgeWP Info Box"
   category?: string; // e.g. "common", "formatting", "layout", "design", "widgets"
-  icon?: string;     // Dashicon slug (e.g. "info", "admin-generic") or inline SVG
+  icon?: string; // Dashicon slug (e.g. "info", "admin-generic") or inline SVG
   description?: string;
   keywords?: string[];
   attributes?: Record<string, BlockAttributeDefinition>;
@@ -929,7 +1029,7 @@ export interface BlockDefinition<TAttrs = Record<string, any>> {
  */
 export function defineBlock<
   TAttrs = Record<string, any>,
-  TDef extends BlockDefinition<TAttrs> = BlockDefinition<TAttrs>
+  TDef extends BlockDefinition<TAttrs> = BlockDefinition<TAttrs>,
 >(def: TDef): TDef {
   return def;
 }
@@ -995,7 +1095,17 @@ export function defineTheme(config: ThemeSettings): ThemeSettings {
 // ── Structured Editable Content Architecture (Phase 1) ──────────────────────
 
 export interface FieldBase<T> {
-  type: 'text' | 'richText' | 'image' | 'repeater' | 'boolean' | 'color' | 'url' | 'select' | 'number' | 'icon';
+  type:
+    | 'text'
+    | 'richText'
+    | 'image'
+    | 'repeater'
+    | 'boolean'
+    | 'color'
+    | 'url'
+    | 'select'
+    | 'number'
+    | 'icon';
   label?: string;
   default?: T;
   description?: string;
@@ -1071,7 +1181,9 @@ export interface IconField extends FieldBase<string> {
 /** Fixed = locked row count (usually default.length). Dynamic = editors may add/remove/reorder within min/max. */
 export type RepeaterMode = 'fixed' | 'dynamic';
 
-export interface RepeaterField<T extends Record<string, any> = Record<string, any>> extends FieldBase<T[]> {
+export interface RepeaterField<
+  T extends Record<string, any> = Record<string, any>,
+> extends FieldBase<T[]> {
   type: 'repeater';
   fields: Record<keyof T, EditableField>;
   /**
@@ -1086,32 +1198,41 @@ export interface RepeaterField<T extends Record<string, any> = Record<string, an
   max?: number;
 }
 
-export type EditableField = 
-  | TextField 
-  | RichTextField 
-  | ImageField 
-  | BooleanField 
-  | RepeaterField 
-  | ColorField 
-  | UrlField 
-  | SelectField 
+export type EditableField =
+  | TextField
+  | RichTextField
+  | ImageField
+  | BooleanField
+  | RepeaterField
+  | ColorField
+  | UrlField
+  | SelectField
   | NumberField
   | IconField;
 
 export type EditableSchema = Record<string, EditableField>;
 
-export type InferFieldType<F> = 
-  F extends TextField ? string :
-  F extends RichTextField ? string :
-  F extends ColorField ? string :
-  F extends UrlField ? string :
-  F extends SelectField ? string :
-  F extends IconField ? string :
-  F extends NumberField ? number :
-  F extends BooleanField ? boolean :
-  F extends ImageField ? ImageFieldVal :
-  F extends RepeaterField<infer U> ? U[] :
-  any;
+export type InferFieldType<F> = F extends TextField
+  ? string
+  : F extends RichTextField
+    ? string
+    : F extends ColorField
+      ? string
+      : F extends UrlField
+        ? string
+        : F extends SelectField
+          ? string
+          : F extends IconField
+            ? string
+            : F extends NumberField
+              ? number
+              : F extends BooleanField
+                ? boolean
+                : F extends ImageField
+                  ? ImageFieldVal
+                  : F extends RepeaterField<infer U>
+                    ? U[]
+                    : any;
 
 export type InferAttributes<T extends EditableSchema> = {
   [K in keyof T]: InferFieldType<T[K]>;
@@ -1138,8 +1259,16 @@ export function getEditableDefaults<T extends EditableSchema>(
   schema: T,
 ): InferAttributes<T> {
   const out = {} as Record<string, unknown>;
-  for (const [key, field] of Object.entries(schema) as [string, EditableField][]) {
-    if (field && typeof field === 'object' && 'default' in field && field.default !== undefined) {
+  for (const [key, field] of Object.entries(schema) as [
+    string,
+    EditableField,
+  ][]) {
+    if (
+      field &&
+      typeof field === 'object' &&
+      'default' in field &&
+      field.default !== undefined
+    ) {
       out[key] = field.default;
       continue;
     }
@@ -1220,7 +1349,9 @@ export function buildPageEditable(
  */
 export function pickEditable<T extends EditableSchema>(
   schema: T,
-  map: Partial<Record<string, keyof T & string>> | readonly (keyof T & string)[],
+  map:
+    | Partial<Record<string, keyof T & string>>
+    | readonly (keyof T & string)[],
 ): EditableSchema {
   const out: EditableSchema = {};
   if (Array.isArray(map)) {
@@ -1281,7 +1412,9 @@ export function text(options: Omit<TextField, 'type'> = {}): TextField {
   return { type: 'text', ...options };
 }
 
-export function richText(options: Omit<RichTextField, 'type'> = {}): RichTextField {
+export function richText(
+  options: Omit<RichTextField, 'type'> = {},
+): RichTextField {
   return { type: 'richText', ...options };
 }
 
@@ -1289,7 +1422,9 @@ export function image(options: Omit<ImageField, 'type'> = {}): ImageField {
   return { type: 'image', ...options };
 }
 
-export function boolean(options: Omit<BooleanField, 'type'> = {}): BooleanField {
+export function boolean(
+  options: Omit<BooleanField, 'type'> = {},
+): BooleanField {
   return { type: 'boolean', ...options };
 }
 
@@ -1313,7 +1448,9 @@ export function icon(options: Omit<IconField, 'type'> = {}): IconField {
   return { type: 'icon', provider: 'lucide', ...options };
 }
 
-export function repeater<T extends Record<string, any>>(options: Omit<RepeaterField<T>, 'type'>): RepeaterField<T> {
+export function repeater<T extends Record<string, any>>(
+  options: Omit<RepeaterField<T>, 'type'>,
+): RepeaterField<T> {
   const mode = options.mode ?? 'dynamic';
   return { type: 'repeater', ...options, mode };
 }
@@ -1324,7 +1461,9 @@ export function repeater<T extends Record<string, any>>(options: Omit<RepeaterFi
  * Prefer this over reading the window flag directly.
  */
 export function isEditorPreview(): boolean {
-  return typeof window !== 'undefined' && !!(window as any).forgeWpIsEditorPreview;
+  return (
+    typeof window !== 'undefined' && !!(window as any).forgeWpIsEditorPreview
+  );
 }
 
 /**
@@ -1349,7 +1488,10 @@ export function isDecoupled(): boolean {
     // @ts-ignore
     import.meta.env?.DEV === true;
 
-  return isDev || (typeof window !== 'undefined' && !(window as any).forgeWpHydration);
+  return (
+    isDev ||
+    (typeof window !== 'undefined' && !(window as any).forgeWpHydration)
+  );
 }
 
 /**
@@ -1373,16 +1515,23 @@ export function useIsWordPress(): boolean {
   return isWordPress();
 }
 
-export const WpBlockContext = typeof window !== 'undefined'
-  ? ((window as any)._forgeWpBlockContext || ((window as any)._forgeWpBlockContext = createContext<any>(null)))
-  : createContext<any>(null);
+export const WpBlockContext =
+  typeof window !== 'undefined'
+    ? (window as any)._forgeWpBlockContext ||
+      ((window as any)._forgeWpBlockContext = createContext<any>(null))
+    : createContext<any>(null);
 
 /**
  * True when ACF/meta should fall through to schema defaults.
  * Matches PHP `forgewp_get_meta_value` empty handling (+ empty repeaters).
  */
 function isEmptyMetaValue(value: unknown): boolean {
-  if (value === null || value === undefined || value === false || value === '') {
+  if (
+    value === null ||
+    value === undefined ||
+    value === false ||
+    value === ''
+  ) {
     return true;
   }
   if (Array.isArray(value) && value.length === 0) {
@@ -1422,7 +1571,11 @@ export function resolveDualHost<T>(prop: T | undefined | null, meta: T): T {
  */
 export function useWpMeta<T>(key: string, defaultValue: T): T {
   const blockAttrs = useContext(WpBlockContext) as any;
-  if (blockAttrs && typeof blockAttrs[key] !== 'undefined' && !isEmptyMetaValue(blockAttrs[key])) {
+  if (
+    blockAttrs &&
+    typeof blockAttrs[key] !== 'undefined' &&
+    !isEmptyMetaValue(blockAttrs[key])
+  ) {
     return blockAttrs[key] as T;
   }
   const post = useContext(WpPostContext);
@@ -1455,7 +1608,12 @@ export function useWpPagePath(name: string, fallback: string): string {
   const href = useWpPageLink(name, fallback);
   return useMemo(() => {
     try {
-      return new URL(href, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').pathname;
+      return new URL(
+        href,
+        typeof window !== 'undefined'
+          ? window.location.origin
+          : 'http://localhost',
+      ).pathname;
     } catch (e) {
       return href;
     }
@@ -1478,7 +1636,10 @@ export function useWpSearchParams(): URLSearchParams {
   return useMemo(() => new URLSearchParams(search), [search]);
 }
 
-export function useWpLocation(): [string, (to: string, options?: { replace?: boolean }) => void] {
+export function useWpLocation(): [
+  string,
+  (to: string, options?: { replace?: boolean }) => void,
+] {
   const [pathname, setPathname] = useState<string>(() => {
     if (typeof window === 'undefined') return '/';
     return window.location.pathname || '/';
@@ -1491,15 +1652,18 @@ export function useWpLocation(): [string, (to: string, options?: { replace?: boo
     return () => window.removeEventListener('popstate', update);
   }, []);
 
-  const navigate = useCallback((to: string, options?: { replace?: boolean }) => {
-    if (typeof window === 'undefined') return;
-    if (options?.replace) {
-      window.history.replaceState(null, '', to);
-    } else {
-      window.history.pushState(null, '', to);
-    }
-    setPathname(window.location.pathname || '/');
-  }, []);
+  const navigate = useCallback(
+    (to: string, options?: { replace?: boolean }) => {
+      if (typeof window === 'undefined') return;
+      if (options?.replace) {
+        window.history.replaceState(null, '', to);
+      } else {
+        window.history.pushState(null, '', to);
+      }
+      setPathname(window.location.pathname || '/');
+    },
+    [],
+  );
 
   return [pathname, navigate];
 }
@@ -1538,10 +1702,15 @@ export function useWpTaxonomyList(taxonomy: string, defaultValue = ''): string {
   return defaultValue || `[taxonomy: ${taxonomy}]`;
 }
 
-export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolean; error: string | null } {
+export function useWpTerms(taxonomy: string): {
+  terms: WpTerm[];
+  loading: boolean;
+  error: string | null;
+} {
   const terms = useMemo<WpTerm[]>(() => {
     if (typeof window !== 'undefined' && (window as any)._forgeWpMockPosts) {
-      const raw = (window as any)._forgeWpMockPosts[`_taxonomy_${taxonomy}`] || [];
+      const raw =
+        (window as any)._forgeWpMockPosts[`_taxonomy_${taxonomy}`] || [];
       return raw.map((t: any) => ({
         id: t.id ?? 0,
         name: t.name ?? '',
@@ -1560,8 +1729,13 @@ export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolea
 export function useWpI18n() {
   const getTranslatedText = useCallback((text: string) => {
     if (typeof window === 'undefined') return text;
-    const currentLang = (window as any).forgeWpLocale || (window as any).forgeWpTranslations?.currentLanguage || 'de';
-    const dict = (window as any).forgeWpTranslations?.translations || (window as any)._forgeWpMockTranslations;
+    const currentLang =
+      (window as any).forgeWpLocale ||
+      (window as any).forgeWpTranslations?.currentLanguage ||
+      'de';
+    const dict =
+      (window as any).forgeWpTranslations?.translations ||
+      (window as any)._forgeWpMockTranslations;
 
     if (dict) {
       if (dict[currentLang] && typeof dict[currentLang][text] !== 'undefined') {
@@ -1580,29 +1754,40 @@ export function useWpI18n() {
 }
 
 export function useWpLanguage() {
-  const currentLanguage = typeof window !== 'undefined'
-    ? ((window as any).forgeWpLocale || (window as any).forgeWpTranslations?.currentLanguage || 'de')
-    : 'de';
+  const currentLanguage =
+    typeof window !== 'undefined'
+      ? (window as any).forgeWpLocale ||
+        (window as any).forgeWpTranslations?.currentLanguage ||
+        'de'
+      : 'de';
 
-  const urls: Record<string, string> = typeof window !== 'undefined' && (window as any).forgeWpTranslations?.urls
-    ? (window as any).forgeWpTranslations.urls
-    : { de: '/', en: '/en/' };
+  const urls: Record<string, string> =
+    typeof window !== 'undefined' && (window as any).forgeWpTranslations?.urls
+      ? (window as any).forgeWpTranslations.urls
+      : { de: '/', en: '/en/' };
 
-  const homeUrls: Record<string, string> = typeof window !== 'undefined' && (window as any).forgeWpTranslations?.homeUrls
-    ? (window as any).forgeWpTranslations.homeUrls
-    : { de: '/', en: '/en/' };
+  const homeUrls: Record<string, string> =
+    typeof window !== 'undefined' &&
+    (window as any).forgeWpTranslations?.homeUrls
+      ? (window as any).forgeWpTranslations.homeUrls
+      : { de: '/', en: '/en/' };
 
   const homeUrl = homeUrls[currentLanguage] || '/';
   const languages = useMemo(() => Object.keys(urls), [urls]);
 
-  const switchLanguage = useCallback((lang: string) => {
-    if (typeof window !== 'undefined') {
-      const search = window.location.search;
-      const base = urls[lang] || (lang === 'de' ? '/' : `/${lang}/`);
-      const separator = base.includes('?') ? '&' : '?';
-      window.location.href = search ? (base + separator + search.substring(1)) : base;
-    }
-  }, [urls]);
+  const switchLanguage = useCallback(
+    (lang: string) => {
+      if (typeof window !== 'undefined') {
+        const search = window.location.search;
+        const base = urls[lang] || (lang === 'de' ? '/' : `/${lang}/`);
+        const separator = base.includes('?') ? '&' : '?';
+        window.location.href = search
+          ? base + separator + search.substring(1)
+          : base;
+      }
+    },
+    [urls],
+  );
 
   return {
     currentLanguage,
@@ -1613,6 +1798,3 @@ export function useWpLanguage() {
     switchLanguage,
   };
 }
-
-
-

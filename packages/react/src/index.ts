@@ -15,50 +15,63 @@
  */
 
 // Components
-export { WpQueryLoop } from "./components/WpQueryLoop";
-export type { WpQueryLoopProps } from "./components/WpQueryLoop";
+export { WpQueryLoop } from './components/WpQueryLoop';
+export type { WpQueryLoopProps } from './components/WpQueryLoop';
 
-export { WpMenu } from "./components/WpMenu";
-export type { WpMenuProps } from "./components/WpMenu";
+export { WpMenu } from './components/WpMenu';
+export type { WpMenuProps } from './components/WpMenu';
 
-export { WpShortcode } from "./components/WpShortcode";
-export type { WpShortcodeProps } from "./components/WpShortcode";
+export { WpShortcode } from './components/WpShortcode';
+export type { WpShortcodeProps } from './components/WpShortcode';
 
-export { BlockArea } from "./components/BlockArea";
-export type { BlockAreaProps } from "./components/BlockArea";
+export { BlockArea } from './components/BlockArea';
+export type { BlockAreaProps } from './components/BlockArea';
 
-export { WpEditable } from "./components/WpEditable";
-export type { WpEditableProps } from "./components/WpEditable";
+export { WpEditable } from './components/WpEditable';
+export type { WpEditableProps } from './components/WpEditable';
 
-export { Hydrate } from "./components/Hydrate";
-export type { HydrateProps } from "./components/Hydrate";
+export { Hydrate } from './components/Hydrate';
+export type { HydrateProps } from './components/Hydrate';
 
-export { WpHead } from "./components/WpHead";
-export type { WpHeadProps } from "./components/WpHead";
+export { WpHead } from './components/WpHead';
+export type { WpHeadProps } from './components/WpHead';
 
-export { SEO } from "./components/SEO";
-export type { SEOProps } from "./components/SEO";
+export { SEO } from './components/SEO';
+export type { SEOProps } from './components/SEO';
 
-export { PresetsStyle } from "./components/PresetsStyle";
-export type { PresetsStyleProps } from "./components/PresetsStyle";
+export { PresetsStyle } from './components/PresetsStyle';
+export type { PresetsStyleProps } from './components/PresetsStyle';
 
-export { WpImage } from "./components/WpImage";
-export type { WpImageProps, StaticImageData } from "./components/WpImage";
+export { WpImage } from './components/WpImage';
+export type { WpImageProps, StaticImageData } from './components/WpImage';
 
-export { WpRepeater } from "./components/WpRepeater";
-export type { WpRepeaterProps } from "./components/WpRepeater";
+export { WpRepeater } from './components/WpRepeater';
+export type { WpRepeaterProps } from './components/WpRepeater';
 
-export { WpIcon } from "./components/WpIcon";
-export type { WpIconProps } from "./components/WpIcon";
+export { WpIcon } from './components/WpIcon';
+export type { WpIconProps } from './components/WpIcon';
 
-export { WpFormFields } from "./components/WpFormFields";
-export type { WpFormFieldsProps, WpFormFieldDescriptor } from "./components/WpFormFields";
+export { WpFormFields } from './components/WpFormFields';
+export type {
+  WpFormFieldsProps,
+  WpFormFieldDescriptor,
+} from './components/WpFormFields';
 
-export { WpLink, Link } from "./components/Link";
-export type { LinkProps } from "./components/Link";
+export { WpLink, Link } from './components/Link';
+export type { LinkProps } from './components/Link';
 
-export { Router, Route, Switch, useLocation, useSearch, useParams, useRoute, matchPath, normalizePath } from "./components/Router";
-export type { RouterProps, RouteProps, SwitchProps } from "./components/Router";
+export {
+  Router,
+  Route,
+  Switch,
+  useLocation,
+  useSearch,
+  useParams,
+  useRoute,
+  matchPath,
+  normalizePath,
+} from './components/Router';
+export type { RouterProps, RouteProps, SwitchProps } from './components/Router';
 
 // Hooks & Utilities
 export {
@@ -118,9 +131,9 @@ export {
   useWpTaxonomyList,
   useWpI18n,
   useWpLanguage,
-} from "./hooks";
+} from './hooks';
 
-export type { WpTerm } from "./hooks";
+export type { WpTerm } from './hooks';
 
 export type {
   BlockDefinition,
@@ -151,7 +164,7 @@ export type {
   WpOptionField,
   WpOptionsSchema,
   WpFormResult,
-} from "./hooks";
+} from './hooks';
 
 // Types
 export type {
@@ -164,8 +177,7 @@ export type {
   WpQueryResults,
   WpTaxQuery,
   WpMetaQuery,
-} from "./types";
-
+} from './types';
 
 // Config helpers & types
 export {
@@ -185,17 +197,17 @@ export {
   optionToggle,
   optionNumber,
   optionPostPicker,
-} from "./config";
+} from './config';
 export type {
   WpFormConfig,
+  WpFormConfirmationConfig,
   WpFormField,
   WpFormFieldType,
   PageConfig,
   WpPostBase,
   WpPostsConfig,
   WpUserSeed,
-} from "./config";
+} from './config';
 
 // Context (exposed for advanced integrations — use sparingly)
-export { WpPostContext } from "./context";
-
+export { WpPostContext } from './context';

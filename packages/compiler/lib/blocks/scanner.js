@@ -1,7 +1,14 @@
-import { existsSync, readdirSync, readFileSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import path from "node:path";
-import { readComponentSource } from "../hydration/is-interactive.js";
-import { tryParseSource, traverse, markLegacyFallback } from "./ast-parser.js";
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+} from 'node:fs';
+import path from 'node:path';
+import { readComponentSource } from '../hydration/is-interactive.js';
+import { tryParseSource, traverse, markLegacyFallback } from './ast-parser.js';
 
 /**
  * Statically evaluate a pure-data expression node (Phase 3): object/array
@@ -23,7 +30,8 @@ function evaluateStaticNode(node, bindings = {}, callables = {}) {
       return null;
     case 'Identifier':
       if (node.name === 'undefined') return undefined;
-      if (Object.prototype.hasOwnProperty.call(bindings, node.name)) return bindings[node.name];
+      if (Object.prototype.hasOwnProperty.call(bindings, node.name))
+        return bindings[node.name];
       throw new Error(`unresolvable identifier "${node.name}"`);
     case 'TemplateLiteral':
       if (node.expressions.length === 0) return node.quasis[0].value.cooked;
@@ -57,24 +65,39 @@ function evaluateStaticNode(node, bindings = {}, callables = {}) {
       const obj = {};
       for (const prop of node.properties) {
         if (prop.type === 'SpreadElement') {
-          Object.assign(obj, evaluateStaticNode(prop.argument, bindings, callables));
+          Object.assign(
+            obj,
+            evaluateStaticNode(prop.argument, bindings, callables),
+          );
           continue;
         }
-        if (prop.type !== 'ObjectProperty' || prop.computed) throw new Error(`object ${prop.type}`);
-        const key = prop.key.type === 'Identifier' ? prop.key.name
-          : (prop.key.type === 'StringLiteral' || prop.key.type === 'NumericLiteral') ? String(prop.key.value)
-          : null;
+        if (prop.type !== 'ObjectProperty' || prop.computed)
+          throw new Error(`object ${prop.type}`);
+        const key =
+          prop.key.type === 'Identifier'
+            ? prop.key.name
+            : prop.key.type === 'StringLiteral' ||
+                prop.key.type === 'NumericLiteral'
+              ? String(prop.key.value)
+              : null;
         if (key === null) throw new Error('non-static object key');
         obj[key] = evaluateStaticNode(prop.value, bindings, callables);
       }
       return obj;
     }
     case 'CallExpression': {
-      if (node.callee.type === 'Identifier' && Object.prototype.hasOwnProperty.call(callables, node.callee.name)) {
-        const args = node.arguments.map((a) => evaluateStaticNode(a, bindings, callables));
+      if (
+        node.callee.type === 'Identifier' &&
+        Object.prototype.hasOwnProperty.call(callables, node.callee.name)
+      ) {
+        const args = node.arguments.map((a) =>
+          evaluateStaticNode(a, bindings, callables),
+        );
         return callables[node.callee.name](...args);
       }
-      throw new Error(`call to ${node.callee.type === 'Identifier' ? node.callee.name : node.callee.type}`);
+      throw new Error(
+        `call to ${node.callee.type === 'Identifier' ? node.callee.name : node.callee.type}`,
+      );
     }
     default:
       throw new Error(node.type);
@@ -86,7 +109,8 @@ function evaluateStaticNode(node, bindings = {}, callables = {}) {
 function evaluateStaticLiteral(src) {
   const ast = tryParseSource(`(${src})`);
   const stmt = ast && ast.program.body[0];
-  if (!stmt || stmt.type !== 'ExpressionStatement') throw new Error('not an expression');
+  if (!stmt || stmt.type !== 'ExpressionStatement')
+    throw new Error('not an expression');
   return evaluateStaticNode(stmt.expression);
 }
 
@@ -98,7 +122,11 @@ function findCallExpression(code, name) {
   let found = null;
   traverse(ast, {
     CallExpression(p) {
-      if (!found && p.node.callee.type === 'Identifier' && p.node.callee.name === name) {
+      if (
+        !found &&
+        p.node.callee.type === 'Identifier' &&
+        p.node.callee.name === name
+      ) {
         found = p.node;
         p.stop();
       }
@@ -171,7 +199,10 @@ export function parseJsdocMetaLine(jsdoc, key) {
   }
   // Strip wrapping quotes on human titles: "Hero Section"
   if (
-    (key === 'title' || key === 'description' || key === 'category' || key === 'icon') &&
+    (key === 'title' ||
+      key === 'description' ||
+      key === 'category' ||
+      key === 'icon') &&
     ((val.startsWith("'") && val.endsWith("'")) ||
       (val.startsWith('"') && val.endsWith('"')))
   ) {
@@ -227,11 +258,23 @@ export function scanAndGenerateBlocks(themeRoot, options = {}) {
     for (const item of items) {
       const fullPath = path.join(dir, item.name);
       if (item.isDirectory()) {
-        if (['node_modules', '.forgewp', 'generated', 'dist', '.git', 'out'].includes(item.name)) {
+        if (
+          [
+            'node_modules',
+            '.forgewp',
+            'generated',
+            'dist',
+            '.git',
+            'out',
+          ].includes(item.name)
+        ) {
           continue;
         }
         collectFiles(fullPath);
-      } else if (item.isFile() && (item.name.endsWith('.tsx') || item.name.endsWith('.jsx'))) {
+      } else if (
+        item.isFile() &&
+        (item.name.endsWith('.tsx') || item.name.endsWith('.jsx'))
+      ) {
         files.push(fullPath);
       }
     }
@@ -266,7 +309,11 @@ export function scanAndGenerateBlocks(themeRoot, options = {}) {
 
         // Attributes: prefer page schema via JSDoc from/pick or pickEditable / defineEditable
         let attributes = {};
-        const pickedSchema = resolveComponentEditableSchema(content, file, themeRoot);
+        const pickedSchema = resolveComponentEditableSchema(
+          content,
+          file,
+          themeRoot,
+        );
         if (pickedSchema && Object.keys(pickedSchema).length > 0) {
           for (const [key, field] of Object.entries(pickedSchema)) {
             attributes[key] = mapEditableFieldToAttribute(field);
@@ -282,10 +329,21 @@ export function scanAndGenerateBlocks(themeRoot, options = {}) {
           .replace(/[^a-z0-9]+/g, '-');
 
         // Check if handcrafted block exists (escape hatch)
-        const handcraftedFile = path.join(handcraftedDir, `${compName}Block.tsx`);
+        const handcraftedFile = path.join(
+          handcraftedDir,
+          `${compName}Block.tsx`,
+        );
         const handcraftedFileAlt = path.join(handcraftedDir, `${compName}.tsx`);
-        const handcraftedFileFolder = path.join(handcraftedDir, compName, 'index.tsx');
-        if (existsSync(handcraftedFile) || existsSync(handcraftedFileAlt) || existsSync(handcraftedFileFolder)) {
+        const handcraftedFileFolder = path.join(
+          handcraftedDir,
+          compName,
+          'index.tsx',
+        );
+        if (
+          existsSync(handcraftedFile) ||
+          existsSync(handcraftedFileAlt) ||
+          existsSync(handcraftedFileFolder)
+        ) {
           continue;
         }
 
@@ -293,8 +351,11 @@ export function scanAndGenerateBlocks(themeRoot, options = {}) {
         const relativeImportPath = getRelativeImportPath(generatedDir, file);
 
         // Check if named or default export is used
-        const isDefaultExport = new RegExp(`export\\s+default\\s+(?:function|const)\\s+${compName}\\b`).test(content) ||
-                                new RegExp(`export\\s+default\\s+${compName}\\b`).test(content);
+        const isDefaultExport =
+          new RegExp(
+            `export\\s+default\\s+(?:function|const)\\s+${compName}\\b`,
+          ).test(content) ||
+          new RegExp(`export\\s+default\\s+${compName}\\b`).test(content);
         const importStatement = isDefaultExport
           ? `import ${compName} from "${relativeImportPath}";`
           : `import { ${compName} } from "${relativeImportPath}";`;
@@ -312,20 +373,25 @@ export function scanAndGenerateBlocks(themeRoot, options = {}) {
         const attrStrings = [];
         for (const [key, attr] of Object.entries(attributes)) {
           const parts = [`type: ${JSON.stringify(attr.type || 'string')}`];
-          if (attr.default !== undefined) parts.push(`default: ${JSON.stringify(attr.default)}`);
-          if (attr.control) parts.push(`control: ${JSON.stringify(attr.control)}`);
+          if (attr.default !== undefined)
+            parts.push(`default: ${JSON.stringify(attr.default)}`);
+          if (attr.control)
+            parts.push(`control: ${JSON.stringify(attr.control)}`);
           if (attr.label) parts.push(`label: ${JSON.stringify(attr.label)}`);
-          if (attr.options) parts.push(`options: ${JSON.stringify(attr.options)}`);
-          if (attr.provider) parts.push(`provider: ${JSON.stringify(attr.provider)}`);
+          if (attr.options)
+            parts.push(`options: ${JSON.stringify(attr.options)}`);
+          if (attr.provider)
+            parts.push(`provider: ${JSON.stringify(attr.provider)}`);
           if (attr.mode) parts.push(`mode: ${JSON.stringify(attr.mode)}`);
-          if (attr.min !== undefined) parts.push(`min: ${JSON.stringify(attr.min)}`);
-          if (attr.max !== undefined) parts.push(`max: ${JSON.stringify(attr.max)}`);
+          if (attr.min !== undefined)
+            parts.push(`min: ${JSON.stringify(attr.min)}`);
+          if (attr.max !== undefined)
+            parts.push(`max: ${JSON.stringify(attr.max)}`);
           if (attr.fields) parts.push(`fields: ${JSON.stringify(attr.fields)}`);
           attrStrings.push(`    ${key}: { ${parts.join(', ')} }`);
         }
-        const attributesCode = attrStrings.length > 0
-          ? `{\n${attrStrings.join(',\n')}\n  }`
-          : '{}';
+        const attributesCode =
+          attrStrings.length > 0 ? `{\n${attrStrings.join(',\n')}\n  }` : '{}';
 
         const wrapperCode = `// AUTO-GENERATED BY FORGEWP. DO NOT EDIT DIRECTLY.
 import { defineBlock } from "@forgewp/react";
@@ -347,7 +413,7 @@ export default defineBlock({
 
         const genFilePath = path.join(generatedDir, `${compName}Block.tsx`);
         mkdirSync(generatedDir, { recursive: true });
-        
+
         // Write only if content changed to prevent unnecessary hot-reloads
         let shouldWrite = true;
         if (existsSync(genFilePath)) {
@@ -359,11 +425,14 @@ export default defineBlock({
         if (shouldWrite) {
           writeFileSync(genFilePath, wrapperCode, 'utf8');
         }
-        
+
         activeGeneratedFiles.add(`${compName}Block.tsx`);
       }
     } catch (err) {
-      console.warn(`[JSDoc Block Scanner] Error scanning file ${file}:`, err.message);
+      console.warn(
+        `[JSDoc Block Scanner] Error scanning file ${file}:`,
+        err.message,
+      );
     }
   }
 
@@ -372,7 +441,9 @@ export default defineBlock({
     const existingGenerated = readdirSync(generatedDir);
     for (const file of existingGenerated) {
       if (file.endsWith('.tsx') && !activeGeneratedFiles.has(file)) {
-        console.log(`[ForgeWP Compiler] Cleaning up obsolete auto-generated block wrapper: src/blocks/generated/${file}`);
+        console.log(
+          `[ForgeWP Compiler] Cleaning up obsolete auto-generated block wrapper: src/blocks/generated/${file}`,
+        );
         try {
           rmSync(path.join(generatedDir, file));
         } catch {}
@@ -388,11 +459,22 @@ export default defineBlock({
  */
 function inferAttributes(content, compName) {
   const attrs = {};
-  const reserved = ['setAttributes', 'attributes', 'clientId', 'isSelected', 'name', 'context', 'className', 'attrs'];
+  const reserved = [
+    'setAttributes',
+    'attributes',
+    'clientId',
+    'isSelected',
+    'name',
+    'context',
+    'className',
+    'attrs',
+  ];
 
   // Pattern 1: search for interface/type named Props or ${compName}Props
   let body = null;
-  const typeRegex = new RegExp(`(?:interface|type)\\s+(?:Props|${compName}Props)\\s*=?\\s*\\{`);
+  const typeRegex = new RegExp(
+    `(?:interface|type)\\s+(?:Props|${compName}Props)\\s*=?\\s*\\{`,
+  );
   const match = content.match(typeRegex);
   if (match) {
     const startIndex = match.index + match[0].length;
@@ -427,7 +509,9 @@ function inferAttributes(content, compName) {
   }
 
   // Pattern 2: search for inline type signature e.g. function Hero({ heading, text }: { heading: string, text: string })
-  const inlineRegex = new RegExp(`function\\s+${compName}\\s*\\(\\s*\\{[\\s\\S]*?\\}\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*\\)`);
+  const inlineRegex = new RegExp(
+    `function\\s+${compName}\\s*\\(\\s*\\{[\\s\\S]*?\\}\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*\\)`,
+  );
   const inlineMatch = content.match(inlineRegex);
   if (inlineMatch) {
     let body = inlineMatch[1];
@@ -489,15 +573,25 @@ function parseDefineBlockAst(code) {
     }
     if (prop.type === 'ObjectMethod') {
       const key = prop.key.type === 'Identifier' ? prop.key.name : null;
-      if (key === 'edit' || key === 'save') { out[key] = null; continue; }
+      if (key === 'edit' || key === 'save') {
+        out[key] = null;
+        continue;
+      }
       throw new Error(`method ${key}`);
     }
-    if (prop.type !== 'ObjectProperty' || prop.computed) throw new Error(prop.type);
-    const key = prop.key.type === 'Identifier' ? prop.key.name : prop.key.type === 'StringLiteral' ? prop.key.value : null;
+    if (prop.type !== 'ObjectProperty' || prop.computed)
+      throw new Error(prop.type);
+    const key =
+      prop.key.type === 'Identifier'
+        ? prop.key.name
+        : prop.key.type === 'StringLiteral'
+          ? prop.key.value
+          : null;
     if (key === null) throw new Error('non-static key');
     if (
       (key === 'edit' || key === 'save') &&
-      (prop.value.type === 'ArrowFunctionExpression' || prop.value.type === 'FunctionExpression')
+      (prop.value.type === 'ArrowFunctionExpression' ||
+        prop.value.type === 'FunctionExpression')
     ) {
       out[key] = null;
       continue;
@@ -532,10 +626,15 @@ export function normalizeInnerBlocksConfig(ib) {
     ? ib.allowedBlocks.map(ns)
     : undefined;
   const template = Array.isArray(ib.template)
-    ? ib.template.map((row) => {
-        if (!Array.isArray(row) || !row[0]) return null;
-        return [ns(row[0]), row[1] && typeof row[1] === 'object' ? row[1] : {}];
-      }).filter(Boolean)
+    ? ib.template
+        .map((row) => {
+          if (!Array.isArray(row) || !row[0]) return null;
+          return [
+            ns(row[0]),
+            row[1] && typeof row[1] === 'object' ? row[1] : {},
+          ];
+        })
+        .filter(Boolean)
     : undefined;
   return {
     allowedBlocks,
@@ -563,8 +662,10 @@ export function extractFileConstBindings(sourceCode) {
   const ast = tryParseSource(sourceCode);
   if (ast) {
     for (let stmt of ast.program.body) {
-      if (stmt.type === 'ExportNamedDeclaration' && stmt.declaration) stmt = stmt.declaration;
-      if (stmt.type !== 'VariableDeclaration' || stmt.kind !== 'const') continue;
+      if (stmt.type === 'ExportNamedDeclaration' && stmt.declaration)
+        stmt = stmt.declaration;
+      if (stmt.type !== 'VariableDeclaration' || stmt.kind !== 'const')
+        continue;
       for (const d of stmt.declarations) {
         if (d.id.type !== 'Identifier' || !d.init) continue;
         if (/^[A-Z]/.test(d.id.name) && d.id.name.endsWith('Props')) continue;
@@ -579,7 +680,8 @@ export function extractFileConstBindings(sourceCode) {
   }
 
   // Match export const / const Name = ... at start of a statement
-  const declRx = /(?:^|\n)\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::\s*[^=]+)?=\s*/g;
+  const declRx =
+    /(?:^|\n)\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::\s*[^=]+)?=\s*/g;
   let m;
   while ((m = declRx.exec(sourceCode)) !== null) {
     const name = m[1];
@@ -670,7 +772,9 @@ export function extractFileConstBindings(sourceCode) {
     } else {
       // number / true / false / null
       const rest = sourceCode.slice(pos);
-      const lit = rest.match(/^(true|false|null|-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)/i);
+      const lit = rest.match(
+        /^(true|false|null|-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)/i,
+      );
       if (!lit) continue;
       end = pos + lit[0].length;
     }
@@ -736,7 +840,9 @@ export function applyEditablePickMap(schema, map, meta = {}) {
  * Multi-line continuation lines under pick: are also collected.
  */
 export function parseJsdocPickSpec(jsdoc) {
-  const lines = jsdoc.split(/\r?\n/).map((l) => l.replace(/^\s*\*\s?/, '').trim());
+  const lines = jsdoc
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^\s*\*\s?/, '').trim());
   let pickBlob = '';
   let capturing = false;
   for (const line of lines) {
@@ -747,7 +853,11 @@ export function parseJsdocPickSpec(jsdoc) {
       continue;
     }
     if (capturing) {
-      if (!line || /^(title|category|description|icon|from|name)\s*:/i.test(line) || line.startsWith('@')) {
+      if (
+        !line ||
+        /^(title|category|description|icon|from|name)\s*:/i.test(line) ||
+        line.startsWith('@')
+      ) {
         capturing = false;
         continue;
       }
@@ -757,10 +867,15 @@ export function parseJsdocPickSpec(jsdoc) {
   if (!pickBlob.trim()) return null;
 
   const map = {};
-  const parts = pickBlob.split(',').map((p) => p.trim()).filter(Boolean);
+  const parts = pickBlob
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
   for (const part of parts) {
     // schemaKey as attrKey | schemaKey→attrKey | schemaKey -> attrKey
-    const asMatch = part.match(/^([a-zA-Z0-9_]+)\s+(?:as|→|->)\s+([a-zA-Z0-9_]+)$/i);
+    const asMatch = part.match(
+      /^([a-zA-Z0-9_]+)\s+(?:as|→|->)\s+([a-zA-Z0-9_]+)$/i,
+    );
     if (asMatch) {
       map[asMatch[2]] = asMatch[1];
       continue;
@@ -824,13 +939,19 @@ export function resolveComponentEditableSchema(code, filePath, themeRoot) {
   if (!code) return null;
 
   // 1. mergeEditable(pick…, { blockOnly… }) — page content + block-only layout fields
-  if (code.includes('mergeEditable(') && /export\s+const\s+editable\s*=\s*mergeEditable\s*\(/.test(code)) {
+  if (
+    code.includes('mergeEditable(') &&
+    /export\s+const\s+editable\s*=\s*mergeEditable\s*\(/.test(code)
+  ) {
     const merged = parseMergeEditableCall(code, filePath, themeRoot);
     if (merged && Object.keys(merged).length) return merged;
   }
 
   // 2. Inline defineEditable
-  if (code.includes('defineEditable(') && /export\s+const\s+editable\s*=\s*defineEditable\s*\(/.test(code)) {
+  if (
+    code.includes('defineEditable(') &&
+    /export\s+const\s+editable\s*=\s*defineEditable\s*\(/.test(code)
+  ) {
     // Prefer the exported editable assignment if multiple defineEditable calls exist
     const schema = parseDefineEditable(code);
     if (schema) return schema;
@@ -841,7 +962,9 @@ export function resolveComponentEditableSchema(code, filePath, themeRoot) {
   if (pickSchema) return pickSchema;
 
   // 4. Re-export
-  const exportMatch = code.match(/export\s+\{\s*[^}]*\beditable\b[^}]*\}\s+from\s+['"]([^'"]+)['"]/);
+  const exportMatch = code.match(
+    /export\s+\{\s*[^}]*\beditable\b[^}]*\}\s+from\s+['"]([^'"]+)['"]/,
+  );
   if (exportMatch) {
     const resolved = resolveModulePath(path.dirname(filePath), exportMatch[1]);
     if (resolved) {
@@ -851,7 +974,11 @@ export function resolveComponentEditableSchema(code, filePath, themeRoot) {
   }
 
   // 5. JSDoc from + pick on @forgewp-block (same-comment only — see scanAndGenerateBlocks)
-  if (code.includes('@forgewp-block') && code.includes('from:') && /pick\s*:/i.test(code)) {
+  if (
+    code.includes('@forgewp-block') &&
+    code.includes('from:') &&
+    /pick\s*:/i.test(code)
+  ) {
     const jsdocMatch = code.match(
       /\/\*\*((?:(?!\*\/)[\s\S])*?@forgewp-block(?:(?!\*\/)[\s\S])*?)\*\//,
     );
@@ -859,7 +986,9 @@ export function resolveComponentEditableSchema(code, filePath, themeRoot) {
       const jsdoc = jsdocMatch[1];
       const fromSlug = parseJsdocFromSlug(jsdoc);
       const pickMap = parseJsdocPickSpec(jsdoc);
-      const rel = filePath ? path.relative(themeRoot || '', filePath) : filePath;
+      const rel = filePath
+        ? path.relative(themeRoot || '', filePath)
+        : filePath;
       if (fromSlug && pickMap) {
         const pageSchema = loadPageEditableSchema(themeRoot, fromSlug, {
           context: rel || 'JSDoc from/pick',
@@ -921,7 +1050,12 @@ function splitTopLevelArgs(src) {
     else if (ch === '}') depthBrace--;
     else if (ch === '[') depthBracket++;
     else if (ch === ']') depthBracket--;
-    if (ch === ',' && depthParen === 0 && depthBrace === 0 && depthBracket === 0) {
+    if (
+      ch === ',' &&
+      depthParen === 0 &&
+      depthBrace === 0 &&
+      depthBracket === 0
+    ) {
       if (cur.trim()) args.push(cur.trim());
       cur = '';
       continue;
@@ -963,7 +1097,9 @@ function evalEditableObjectLiteral(objSrc, fileCode) {
  * Later parts override earlier keys.
  */
 export function parseMergeEditableCall(code, filePath, themeRoot) {
-  const exportMatch = code.match(/export\s+const\s+editable\s*=\s*mergeEditable\s*\(/);
+  const exportMatch = code.match(
+    /export\s+const\s+editable\s*=\s*mergeEditable\s*\(/,
+  );
   if (!exportMatch || exportMatch.index === undefined) return null;
 
   const start = exportMatch.index + exportMatch[0].length;
@@ -983,7 +1119,12 @@ export function parseMergeEditableCall(code, filePath, themeRoot) {
   for (const arg of args) {
     if (!arg) continue;
     if (/^pickEditable\s*\(/.test(arg)) {
-      const partial = parsePickEditableExpression(arg, code, filePath, themeRoot);
+      const partial = parsePickEditableExpression(
+        arg,
+        code,
+        filePath,
+        themeRoot,
+      );
       if (partial) Object.assign(result, partial);
       continue;
     }
@@ -994,7 +1135,8 @@ export function parseMergeEditableCall(code, filePath, themeRoot) {
     }
     if (arg.startsWith('{')) {
       const partial = evalEditableObjectLiteral(arg, code);
-      if (partial && typeof partial === 'object') Object.assign(result, partial);
+      if (partial && typeof partial === 'object')
+        Object.assign(result, partial);
       continue;
     }
     reportEditableIssue(
@@ -1019,7 +1161,12 @@ function resolveModulePath(fromDir, importPath) {
 /**
  * Parse a pickEditable(...) expression (export assignment or mergeEditable arg).
  */
-export function parsePickEditableExpression(expr, fileCode, filePath, themeRoot) {
+export function parsePickEditableExpression(
+  expr,
+  fileCode,
+  filePath,
+  themeRoot,
+) {
   const m = expr.match(
     /pickEditable\s*\(\s*([A-Za-z_$][\w$]*)\s*,\s*(\{[\s\S]*\}|\[[\s\S]*\])\s*\)\s*$/,
   );
@@ -1074,8 +1221,7 @@ export function parsePickEditableExpression(expr, fileCode, filePath, themeRoot)
   }
 
   let schemaPath = null;
-  const importRe =
-    /import\s+(?:(\w+)|\{([^}]*)\})\s+from\s+['"]([^'"]+)['"]/g;
+  const importRe = /import\s+(?:(\w+)|\{([^}]*)\})\s+from\s+['"]([^'"]+)['"]/g;
   let im;
   while ((im = importRe.exec(fileCode)) !== null) {
     const defaultImp = im[1];
@@ -1109,6 +1255,9 @@ export function parsePickEditableExpression(expr, fileCode, filePath, themeRoot)
 
   const schemaCode = readFileSync(schemaPath, 'utf8');
   let schema = parseDefineEditable(schemaCode);
+  if (!schema && schemaCode.includes('pageEditableSections')) {
+    schema = parseComposedPageEditableSchema(schemaCode, schemaPath);
+  }
   if (!schema) {
     schema = resolveComponentEditableSchema(schemaCode, schemaPath, themeRoot);
   }
@@ -1122,6 +1271,52 @@ export function parsePickEditableExpression(expr, fileCode, filePath, themeRoot)
   return applyEditablePickMap(schema, map, {
     context: `pickEditable in ${filePath}`,
   });
+}
+
+/**
+ * Resolve a page schema composed from reusable section schemas.
+ * This mirrors the page ACF scanner so pickEditable() can project composed
+ * page fields into generated Gutenberg block attributes as well.
+ */
+function parseComposedPageEditableSchema(code, pagePath) {
+  const match = code.match(
+    /export\s+const\s+pageEditableSections\s*=\s*(\[[\s\S]*?\]);/,
+  );
+  if (!match) return null;
+
+  let sections;
+  try {
+    sections = evaluateStaticLiteral(match[1]);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(sections)) return null;
+
+  const sectionsDir = path.join(path.dirname(pagePath), 'sections');
+  const composed = {};
+  for (const entry of sections) {
+    if (!entry || typeof entry.section !== 'string') continue;
+    const candidates = [
+      path.join(sectionsDir, `${entry.section}.ts`),
+      path.join(sectionsDir, `${entry.section}.tsx`),
+    ];
+    const sectionPath = candidates.find((candidate) => existsSync(candidate));
+    if (!sectionPath) continue;
+    const sectionSchema = parseDefineEditable(
+      readFileSync(sectionPath, 'utf8'),
+    );
+    if (!sectionSchema) continue;
+
+    const prefix = typeof entry.prefix === 'string' ? entry.prefix : '';
+    const rename =
+      entry.rename && typeof entry.rename === 'object' ? entry.rename : {};
+    for (const [key, field] of Object.entries(sectionSchema)) {
+      const suffix = typeof rename[key] === 'string' ? rename[key] : key;
+      composed[`${prefix}${suffix}`] = field;
+    }
+  }
+
+  return Object.keys(composed).length ? composed : null;
 }
 
 /**
@@ -1156,7 +1351,9 @@ export function extractPickAttrMetaMap(code) {
       try {
         map = evaluateStaticLiteral(lit);
       } catch (e) {
-        markLegacyFallback('scanner:pick-attr-meta-map-would-have-tried-legacy');
+        markLegacyFallback(
+          'scanner:pick-attr-meta-map-would-have-tried-legacy',
+        );
         throw e;
       }
       if (map && typeof map === 'object' && !Array.isArray(map)) {
@@ -1199,7 +1396,12 @@ export function parsePickEditableCall(code, filePath, themeRoot) {
     }
   }
   if (end < 0) return null;
-  return parsePickEditableExpression(fromPick.slice(0, end), code, filePath, themeRoot);
+  return parsePickEditableExpression(
+    fromPick.slice(0, end),
+    code,
+    filePath,
+    themeRoot,
+  );
 }
 
 const EDITABLE_FIELD_HELPERS = {
@@ -1250,7 +1452,9 @@ export function mapEditableFieldToAttribute(field) {
     repeater: { type: 'array', control: 'repeater' },
   };
 
-  const attr = { ...(typeMap[field.type] || { type: 'string', control: 'text' }) };
+  const attr = {
+    ...(typeMap[field.type] || { type: 'string', control: 'text' }),
+  };
 
   if (field.label) attr.label = field.label;
   if (field.default !== undefined) {

@@ -1,7 +1,10 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { scanFontWeightUsage, detectUnusedConfiguredWeights } from './font-usage-scanner.js';
+import {
+  scanFontWeightUsage,
+  detectUnusedConfiguredWeights,
+} from './font-usage-scanner.js';
 
 /**
  * Modern Desktop User-Agent used to request WOFF2 format from Google Fonts API.
@@ -64,7 +67,9 @@ export async function fetchGoogleFontCss(families, display = 'swap') {
   });
 
   if (!response.ok) {
-    throw new Error(`[ForgeWP Font Orchestrator] Google Fonts HTTP ${response.status} fetching CSS: ${url}`);
+    throw new Error(
+      `[ForgeWP Font Orchestrator] Google Fonts HTTP ${response.status} fetching CSS: ${url}`,
+    );
   }
 
   return response.text();
@@ -98,7 +103,9 @@ export function parseFontFaceRules(css) {
     const display = getProp('font-display') || 'swap';
     const unicodeRange = getProp('unicode-range') || '';
 
-    const srcMatch = block.match(/src:\s*url\((https:\/\/[^)]+)\)\s*format\(['"]?([^'"]+)['"]?\)/i);
+    const srcMatch = block.match(
+      /src:\s*url\((https:\/\/[^)]+)\)\s*format\(['"]?([^'"]+)['"]?\)/i,
+    );
     const url = srcMatch ? srcMatch[1] : '';
     const format = srcMatch ? srcMatch[2] : 'woff2';
 
@@ -138,7 +145,11 @@ export async function downloadFontFiles(rules, outputDir, cacheDir) {
   let index = 1;
 
   for (const rule of rules) {
-    const urlHash = crypto.createHash('sha256').update(rule.remoteUrl).digest('hex').slice(0, 12);
+    const urlHash = crypto
+      .createHash('sha256')
+      .update(rule.remoteUrl)
+      .digest('hex')
+      .slice(0, 12);
     const cleanFamily = rule.family.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
     const filename = `${cleanFamily}-${rule.weight}-${rule.style}-${urlHash}.woff2`;
     const outputPath = path.join(outputDir, filename);
@@ -169,7 +180,9 @@ export async function downloadFontFiles(rules, outputDir, cacheDir) {
           writeFileSync(path.join(cacheDir, filename), buffer);
         }
       } catch (err) {
-        console.warn(`⚠️  [ForgeWP Font Orchestrator] Failed to download font ${rule.remoteUrl}: ${err.message}`);
+        console.warn(
+          `⚠️  [ForgeWP Font Orchestrator] Failed to download font ${rule.remoteUrl}: ${err.message}`,
+        );
         continue;
       }
     }
@@ -198,7 +211,9 @@ export async function downloadFontFiles(rules, outputDir, cacheDir) {
 export function generateLocalFontFaceCss(enrichedRules, fontUrlPrefix = './') {
   const cssBlocks = enrichedRules.map((rule) => {
     const url = `${fontUrlPrefix}${rule.filename}`;
-    const rangeLine = rule.unicodeRange ? `\n  unicode-range: ${rule.unicodeRange};` : '';
+    const rangeLine = rule.unicodeRange
+      ? `\n  unicode-range: ${rule.unicodeRange};`
+      : '';
 
     return `@font-face {
   font-family: '${rule.family}';
@@ -221,15 +236,25 @@ export function generateLocalFontFaceCss(enrichedRules, fontUrlPrefix = './') {
  * @param {Object} [options]
  * @returns {Promise<{ strategy: string, downloadedCount: number, fontsCssPath: string|null, preloadFonts: string[] }>}
  */
-export async function orchestrateFonts(themeRoot, config, assetGraph, options = {}) {
+export async function orchestrateFonts(
+  themeRoot,
+  config,
+  assetGraph,
+  options = {},
+) {
   const outDir = options.outDir || path.join(themeRoot, '.forgewp', 'out');
   const targetFontsDir = path.join(outDir, 'assets', 'fonts');
   const cacheDir = path.join(themeRoot, '.forgewp', 'cache', 'fonts');
 
   // Discover font configuration
-  const fontConfig = config.fonts?.google || config.settings?.typography?.googleFonts || null;
+  const fontConfig =
+    config.fonts?.google || config.settings?.typography?.googleFonts || null;
   const families = normalizeFontFamilies(fontConfig);
-  const strategy = (config.fonts?.google?.strategy || config.settings?.typography?.fontStrategy || 'self-host').toLowerCase();
+  const strategy = (
+    config.fonts?.google?.strategy ||
+    config.settings?.typography?.fontStrategy ||
+    'self-host'
+  ).toLowerCase();
   const display = config.fonts?.google?.display || 'swap';
 
   if (families.length === 0 || strategy === 'remote') {
@@ -247,17 +272,29 @@ export async function orchestrateFonts(themeRoot, config, assetGraph, options = 
 
   if (unusedWeights.length > 0) {
     for (const u of unusedWeights) {
-      console.warn(`⚠️  [ForgeWP Fonts] Unused Font Weight: ${u.family} ${u.weight} (${u.reason}). Removing it from wp.config.ts saves ~${u.sizeKb} KB.`);
+      if (process.env.FORGEWP_VERBOSE === '1')
+        console.warn(
+          `⚠️  [ForgeWP Fonts] Unused Font Weight: ${u.family} ${u.weight} (${u.reason}). Removing it from wp.config.ts saves ~${u.sizeKb} KB.`,
+        );
     }
   }
 
   try {
     const rawCss = await fetchGoogleFontCss(families, display);
     const parsedRules = parseFontFaceRules(rawCss);
-    const enrichedRules = await downloadFontFiles(parsedRules, targetFontsDir, cacheDir);
+    const enrichedRules = await downloadFontFiles(
+      parsedRules,
+      targetFontsDir,
+      cacheDir,
+    );
 
     if (enrichedRules.length === 0) {
-      return { strategy: 'self-host', downloadedCount: 0, fontsCssPath: null, preloadFonts: [] };
+      return {
+        strategy: 'self-host',
+        downloadedCount: 0,
+        fontsCssPath: null,
+        preloadFonts: [],
+      };
     }
 
     const localCss = generateLocalFontFaceCss(enrichedRules, './');
@@ -271,7 +308,10 @@ export async function orchestrateFonts(themeRoot, config, assetGraph, options = 
       const seenFamilies = new Set();
 
       for (const rule of enrichedRules) {
-        if (primaryWeights.includes(String(rule.weight)) && !seenFamilies.has(`${rule.family}-${rule.weight}`)) {
+        if (
+          primaryWeights.includes(String(rule.weight)) &&
+          !seenFamilies.has(`${rule.family}-${rule.weight}`)
+        ) {
           seenFamilies.add(`${rule.family}-${rule.weight}`);
           preloadFonts.push(rule.publicUrl);
 
@@ -294,7 +334,9 @@ export async function orchestrateFonts(themeRoot, config, assetGraph, options = 
       enrichedRules,
     };
   } catch (err) {
-    console.warn(`⚠️  [ForgeWP Font Orchestrator] Self-hosting failed: ${err.message}. Falling back to remote enqueuing.`);
+    console.warn(
+      `⚠️  [ForgeWP Font Orchestrator] Self-hosting failed: ${err.message}. Falling back to remote enqueuing.`,
+    );
     return {
       strategy: 'remote-fallback',
       downloadedCount: 0,

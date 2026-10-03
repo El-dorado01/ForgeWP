@@ -16,9 +16,19 @@ import wpConfig from '../../wp.config';
 // @ts-ignore
 import rawTranslationsData from '../../cms/translations';
 
-const mockData = (rawMockData && (rawMockData.default || rawMockData.mockData)) || rawMockData || {};
-const menusData = (rawMenusData && (rawMenusData.default || rawMenusData.menus)) || rawMenusData || {};
-const translationsData = (rawTranslationsData && (rawTranslationsData.default || rawTranslationsData.translations)) || rawTranslationsData || {};
+const mockData =
+  (rawMockData && (rawMockData.default || rawMockData.mockData)) ||
+  rawMockData ||
+  {};
+const menusData =
+  (rawMenusData && (rawMenusData.default || rawMenusData.menus)) ||
+  rawMenusData ||
+  {};
+const translationsData =
+  (rawTranslationsData &&
+    (rawTranslationsData.default || rawTranslationsData.translations)) ||
+  rawTranslationsData ||
+  {};
 
 import {
   WpQueryLoop as _WpQueryLoop,
@@ -90,7 +100,53 @@ import {
   useRoute,
 } from '@forgewp/react';
 
-export { WpPostContext, defineEditable, getEditableDefaults, buildPageEditable, pickEditable, mergeEditable, text, richText, image, boolean, repeater, color, url, select, number, icon, isEditorPreview, useIsEditorPreview, isDecoupled, useIsDecoupled, isWordPress, useIsWordPress, WpRepeater, WpIcon, defineWpOptions, optionText, optionUrl, optionEmail, optionTextarea, optionToggle, optionNumber, optionPostPicker, WpFormFields, submitWpForm, WpLink, Link, Router, Route, Switch, useLocation, useSearch, useParams, useRoute, useLocation as useWpLocation, useSearch as useWpSearch };
+export {
+  WpPostContext,
+  defineEditable,
+  getEditableDefaults,
+  buildPageEditable,
+  pickEditable,
+  mergeEditable,
+  text,
+  richText,
+  image,
+  boolean,
+  repeater,
+  color,
+  url,
+  select,
+  number,
+  icon,
+  isEditorPreview,
+  useIsEditorPreview,
+  isDecoupled,
+  useIsDecoupled,
+  isWordPress,
+  useIsWordPress,
+  WpRepeater,
+  WpIcon,
+  defineWpOptions,
+  optionText,
+  optionUrl,
+  optionEmail,
+  optionTextarea,
+  optionToggle,
+  optionNumber,
+  optionPostPicker,
+  WpFormFields,
+  submitWpForm,
+  WpLink,
+  Link,
+  Router,
+  Route,
+  Switch,
+  useLocation,
+  useSearch,
+  useParams,
+  useRoute,
+  useLocation as useWpLocation,
+  useSearch as useWpSearch,
+};
 
 import type {
   WpQueryLoopProps,
@@ -119,9 +175,10 @@ const IS_DEV =
   import.meta.env?.DEV === true;
 
 const IS_DECOUPLED =
-  (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime)
+  typeof window !== 'undefined' && (window as any)._forgeWpCompileTime
     ? false
-    : IS_DEV || (typeof window !== 'undefined' && !(window as any).forgeWpHydration);
+    : IS_DEV ||
+      (typeof window !== 'undefined' && !(window as any).forgeWpHydration);
 
 export function decodeHtmlEntities(str: string): string {
   if (!str) return '';
@@ -171,20 +228,31 @@ if (IS_DEV) {
       // URL-prefix-detected language (matching useWpI18n's own dev-mode
       // detection below), falling back to the configured default locale.
       const configuredLocales: string[] = wpConfig.i18n?.locales || [];
-      let devLang: string | undefined = wpConfig.i18n?.defaultLocale || configuredLocales[0];
+      let devLang: string | undefined =
+        wpConfig.i18n?.defaultLocale || configuredLocales[0];
       if (configuredLocales.length > 1) {
-        const match = window.location.pathname.match(/^\/([a-zA-Z]{2})(?:\/|$)/);
+        const match = window.location.pathname.match(
+          /^\/([a-zA-Z]{2})(?:\/|$)/,
+        );
         if (match && configuredLocales.includes(match[1])) {
           devLang = match[1];
         }
       }
-      for (const [formName, formConfig] of Object.entries(wpConfig.forms as Record<string, any>)) {
-        const seed = formConfig?.clientFields?.enabled ? formConfig.clientFields.seed : undefined;
+      for (const [formName, formConfig] of Object.entries(
+        wpConfig.forms as Record<string, any>,
+      )) {
+        const seed = formConfig?.clientFields?.enabled
+          ? formConfig.clientFields.seed
+          : undefined;
         let seedFields: any[] = [];
         if (Array.isArray(seed)) {
           seedFields = seed;
         } else if (seed && typeof seed === 'object') {
-          seedFields = seed[devLang as string] || (configuredLocales[0] && seed[configuredLocales[0]]) || Object.values(seed)[0] || [];
+          seedFields =
+            seed[devLang as string] ||
+            (configuredLocales[0] && seed[configuredLocales[0]]) ||
+            Object.values(seed)[0] ||
+            [];
         }
         mockForms[formName] = { fields: seedFields };
       }
@@ -235,7 +303,12 @@ export function useWpFeaturedImage(): string {
  * which made island remounts wipe SSR text (front page, About, etc.).
  */
 function isEmptyMetaValue(value: unknown): boolean {
-  if (value === null || value === undefined || value === false || value === '') {
+  if (
+    value === null ||
+    value === undefined ||
+    value === false ||
+    value === ''
+  ) {
     return true;
   }
   if (Array.isArray(value) && value.length === 0) {
@@ -252,7 +325,10 @@ export function useWpCustomField(fieldName: string, defaultValue = ''): any {
     if (!win._forgeWpCompileTime) {
       const post = React.useContext(WpPostContext);
       const currentPost = post || win.forgeWpHydration?.post;
-      if (currentPost?.customFields && typeof currentPost.customFields[fieldName] !== 'undefined') {
+      if (
+        currentPost?.customFields &&
+        typeof currentPost.customFields[fieldName] !== 'undefined'
+      ) {
         const val = currentPost.customFields[fieldName];
         if (!isEmptyMetaValue(val)) {
           return val;
@@ -272,7 +348,10 @@ export function useWpField(fieldName: string, defaultValue = ''): any {
     if (!win._forgeWpCompileTime) {
       const post = React.useContext(WpPostContext);
       const currentPost = post || win.forgeWpHydration?.post;
-      if (currentPost?.customFields && typeof currentPost.customFields[fieldName] !== 'undefined') {
+      if (
+        currentPost?.customFields &&
+        typeof currentPost.customFields[fieldName] !== 'undefined'
+      ) {
         const val = currentPost.customFields[fieldName];
         if (!isEmptyMetaValue(val)) {
           return val;
@@ -284,11 +363,17 @@ export function useWpField(fieldName: string, defaultValue = ''): any {
   return '__FORGEWP_CUSTOM_FIELD__' + fieldName + '__';
 }
 
-export const WpBlockContext = typeof window !== 'undefined'
-  ? ((window as any)._forgeWpBlockContext || ((window as any)._forgeWpBlockContext = React.createContext<any>(null)))
-  : React.createContext<any>(null);
+export const WpBlockContext =
+  typeof window !== 'undefined'
+    ? (window as any)._forgeWpBlockContext ||
+      ((window as any)._forgeWpBlockContext = React.createContext<any>(null))
+    : React.createContext<any>(null);
 
-export function useWpMeta<T>(key: string, defaultValue: T, postId?: number | string): T {
+export function useWpMeta<T>(
+  key: string,
+  defaultValue: T,
+  postId?: number | string,
+): T {
   if (IS_DECOUPLED) return (_useWpMeta as any)(key, defaultValue);
 
   // Browser-side hydration: check for forgeWpHydration data first
@@ -301,28 +386,42 @@ export function useWpMeta<T>(key: string, defaultValue: T, postId?: number | str
           if (item && typeof item === 'object') {
             const tokenItem: any = {};
             for (const prop in item) {
-              const defaultStr = typeof item[prop] === 'string' ? item[prop] : JSON.stringify(item[prop]);
-              tokenItem[prop] = `__FORGEWP_META_${key}_${index}_${prop}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
+              const defaultStr =
+                typeof item[prop] === 'string'
+                  ? item[prop]
+                  : JSON.stringify(item[prop]);
+              tokenItem[prop] =
+                `__FORGEWP_META_${key}_${index}_${prop}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
             }
             return tokenItem;
           }
-          const defaultStr = typeof item === 'string' ? item : JSON.stringify(item);
+          const defaultStr =
+            typeof item === 'string' ? item : JSON.stringify(item);
           return `__FORGEWP_META_${key}_${index}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
         }) as any as T;
       }
-      const defaultStr = typeof defaultValue === 'string' ? defaultValue : JSON.stringify(defaultValue);
+      const defaultStr =
+        typeof defaultValue === 'string'
+          ? defaultValue
+          : JSON.stringify(defaultValue);
       const postSuffix = postId ? `_POST_${postId}` : '';
       return `__FORGEWP_META_${key}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__` as any as T;
     }
     const blockAttrs = React.useContext(WpBlockContext) as any;
-    if (!postId && blockAttrs && typeof blockAttrs[key] !== 'undefined' && !isEmptyMetaValue(blockAttrs[key])) {
+    if (
+      !postId &&
+      blockAttrs &&
+      typeof blockAttrs[key] !== 'undefined' &&
+      !isEmptyMetaValue(blockAttrs[key])
+    ) {
       return blockAttrs[key] as T;
     }
     let targetPost = null;
     if (postId) {
       let resolvedPostId = postId;
       if (postId === 'front') {
-        resolvedPostId = win.forgeWpHydration?.siteSettings?.options?.page_on_front || 0;
+        resolvedPostId =
+          win.forgeWpHydration?.siteSettings?.options?.page_on_front || 0;
       }
       if (win.forgeWpHydration?.posts?.[resolvedPostId]) {
         targetPost = win.forgeWpHydration.posts[resolvedPostId];
@@ -331,7 +430,10 @@ export function useWpMeta<T>(key: string, defaultValue: T, postId?: number | str
       const post = React.useContext(WpPostContext);
       targetPost = post || win.forgeWpHydration?.post;
     }
-    if (targetPost?.customFields && typeof targetPost.customFields[key] !== 'undefined') {
+    if (
+      targetPost?.customFields &&
+      typeof targetPost.customFields[key] !== 'undefined'
+    ) {
       const val = targetPost.customFields[key];
       if (!isEmptyMetaValue(val)) {
         return val as T;
@@ -348,8 +450,12 @@ export function useWpMeta<T>(key: string, defaultValue: T, postId?: number | str
       if (item && typeof item === 'object') {
         const tokenItem: any = {};
         for (const prop in item) {
-          const defaultStr = typeof item[prop] === 'string' ? item[prop] : JSON.stringify(item[prop]);
-          tokenItem[prop] = `__FORGEWP_META_${key}_${index}_${prop}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
+          const defaultStr =
+            typeof item[prop] === 'string'
+              ? item[prop]
+              : JSON.stringify(item[prop]);
+          tokenItem[prop] =
+            `__FORGEWP_META_${key}_${index}_${prop}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
         }
         return tokenItem;
       }
@@ -358,7 +464,10 @@ export function useWpMeta<T>(key: string, defaultValue: T, postId?: number | str
     }) as any as T;
   }
 
-  const defaultStr = typeof defaultValue === 'string' ? defaultValue : JSON.stringify(defaultValue);
+  const defaultStr =
+    typeof defaultValue === 'string'
+      ? defaultValue
+      : JSON.stringify(defaultValue);
   const postSuffix = postId ? `_POST_${postId}` : '';
   return `__FORGEWP_META_${key}${postSuffix}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__` as any as T;
 }
@@ -380,7 +489,10 @@ export function useWpOption(optionName: string, defaultValue = ''): string {
   }
 
   // Fallback to token for compiler replacement
-  const defaultStr = typeof defaultValue === 'string' ? defaultValue : JSON.stringify(defaultValue);
+  const defaultStr =
+    typeof defaultValue === 'string'
+      ? defaultValue
+      : JSON.stringify(defaultValue);
   return `__FORGEWP_OPTION_${optionName}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
 }
 
@@ -401,7 +513,10 @@ export function useWpThemeMod(modName: string, defaultValue = ''): string {
   }
 
   // Fallback to token for compiler replacement
-  const defaultStr = typeof defaultValue === 'string' ? defaultValue : JSON.stringify(defaultValue);
+  const defaultStr =
+    typeof defaultValue === 'string'
+      ? defaultValue
+      : JSON.stringify(defaultValue);
   return `__FORGEWP_THEME_MOD_${modName}_DEFAULT_${encodeURIComponent(defaultStr).replace(/_/g, '%5F')}__`;
 }
 
@@ -423,7 +538,10 @@ export function useWpPageLink(name: string, fallback: string): string {
       return resolved;
     }
     // pageLinks key exists but is empty string (page not assigned template yet) → use fallback
-    if (win.forgeWpHydration?.pageLinks && name in win.forgeWpHydration.pageLinks) {
+    if (
+      win.forgeWpHydration?.pageLinks &&
+      name in win.forgeWpHydration.pageLinks
+    ) {
       return fallback || '';
     }
   }
@@ -441,13 +559,21 @@ export function useWpPagePath(name: string, fallback: string): string {
   const href = useWpPageLink(name, fallback);
   return React.useMemo(() => {
     try {
-      return new URL(href, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').pathname;
+      return new URL(
+        href,
+        typeof window !== 'undefined'
+          ? window.location.origin
+          : 'http://localhost',
+      ).pathname;
     } catch (e) {
       return href;
     }
   }, [href]);
 }
-const queryCache = new Map<string, { posts: any[]; total: number; hasMore: boolean; totalPages?: number }>();
+const queryCache = new Map<
+  string,
+  { posts: any[]; total: number; hasMore: boolean; totalPages?: number }
+>();
 
 const activeQueries = new Set<{
   args: any;
@@ -459,6 +585,7 @@ let prefetchTimeout: any = null;
 
 async function fetchWpApi(args: any, page: number) {
   const {
+    queryId = '',
     postType = 'post',
     postsPerPage = 10,
     categoryName = '',
@@ -466,23 +593,43 @@ async function fetchWpApi(args: any, page: number) {
     orderby = 'date',
     order = 'DESC',
     p,
+    taxQuery = [],
+    metaQuery = [],
   } = args;
 
   const endpoint =
-    postType === 'post'
-      ? 'posts'
-      : postType === 'page'
-        ? 'pages'
-        : postType;
+    postType === 'post' ? 'posts' : postType === 'page' ? 'pages' : postType;
 
   // Single-post lookup by ID (mirrors WP_Query's `p` argument) — hits the REST
   // single-resource route directly instead of the list route, bypassing every
   // other filter/sort/pagination option, matching WP_Query's own precedence.
   const isSinglePostLookup = p !== undefined && p !== null && p !== '';
+  const useGeneratedQuery = Boolean(queryId) && !isSinglePostLookup;
+
+  if (
+    !isSinglePostLookup &&
+    !queryId &&
+    (taxQuery.length > 0 || metaQuery.length > 0)
+  ) {
+    throw new Error(
+      'useWpQuery with taxQuery or metaQuery requires a stable queryId in production.',
+    );
+  }
 
   const params = new URLSearchParams();
   if (isSinglePostLookup) {
     params.append('_embed', '1');
+  } else if (useGeneratedQuery) {
+    params.append('page', String(page));
+    if (s) params.append('search', s);
+    taxQuery.forEach((query: any, index: number) => {
+      params.append(`tax_${index}`, JSON.stringify(query.terms));
+    });
+    metaQuery.forEach((query: any, index: number) => {
+      if (query.value !== undefined) {
+        params.append(`meta_${index}`, JSON.stringify(query.value));
+      }
+    });
   } else {
     params.append('per_page', String(postsPerPage));
     params.append('page', String(page));
@@ -502,16 +649,23 @@ async function fetchWpApi(args: any, page: number) {
   }
 
   // Polylang multi-language query support
-  const currentLang = (window as any).forgeWpLocale || (window as any).forgeWpTranslations?.currentLanguage;
+  const currentLang =
+    (window as any).forgeWpLocale ||
+    (window as any).forgeWpTranslations?.currentLanguage;
   if (currentLang) {
     params.append('lang', currentLang);
   }
 
-  const apiBase = (typeof window !== 'undefined' && (window as any).FORGEWP_API_URL) ||
+  const apiBase =
+    (typeof window !== 'undefined' && (window as any).FORGEWP_API_URL) ||
     (import.meta as any).env?.VITE_WP_API_URL ||
-    (typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.env && ((globalThis as any).process.env.NEXT_PUBLIC_WP_API_URL || (globalThis as any).process.env.WP_API_URL)) ||
+    (typeof (globalThis as any).process !== 'undefined' &&
+      (globalThis as any).process.env &&
+      ((globalThis as any).process.env.NEXT_PUBLIC_WP_API_URL ||
+        (globalThis as any).process.env.WP_API_URL)) ||
     (() => {
-      const homeUrl = (window as any).forgeWpHydration?.siteSettings?.options?.home || '';
+      const homeUrl =
+        (window as any).forgeWpHydration?.siteSettings?.options?.home || '';
       if (homeUrl) {
         try {
           return new URL(homeUrl).pathname.replace(/\/$/, '');
@@ -519,9 +673,15 @@ async function fetchWpApi(args: any, page: number) {
       }
       return '';
     })();
-  const fetchUrl = isSinglePostLookup
-    ? `${apiBase}/wp-json/wp/v2/${endpoint}/${p}?${params.toString()}`
-    : `${apiBase}/wp-json/wp/v2/${endpoint}?${params.toString()}`;
+  const cleanQueryId = String(queryId)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  const fetchUrl = useGeneratedQuery
+    ? `${apiBase}/wp-json/forgewp/v1/query-${cleanQueryId}?${params.toString()}`
+    : isSinglePostLookup
+      ? `${apiBase}/wp-json/wp/v2/${endpoint}/${p}?${params.toString()}`
+      : `${apiBase}/wp-json/wp/v2/${endpoint}?${params.toString()}`;
   console.log(`[useWpQuery] Fetching CPT "${postType}" from URL:`, fetchUrl);
 
   const headers: Record<string, string> = {};
@@ -546,11 +706,17 @@ async function fetchWpApi(args: any, page: number) {
   }
 
   const rawData = await response.json();
-  const data = isSinglePostLookup ? [rawData] : rawData;
+  const data = isSinglePostLookup
+    ? [rawData]
+    : useGeneratedQuery
+      ? rawData.posts
+      : rawData;
   if (!Array.isArray(data)) {
     throw new Error('Invalid response format from WordPress API');
   }
-  console.log(`[useWpQuery] Successfully loaded ${data.length} items for CPT "${postType}"`);
+  console.log(
+    `[useWpQuery] Successfully loaded ${data.length} items for CPT "${postType}"`,
+  );
 
   const cleanHtml = (html: string) => {
     if (!html) return '';
@@ -558,7 +724,11 @@ async function fetchWpApi(args: any, page: number) {
   };
 
   const mappedPosts: WpPost[] = data.map((wp: any) => {
-    let featuredImage = 'https://picsum.photos/seed/forgewp/1200/630';
+    let featuredImage =
+      typeof wp.featuredImage === 'string'
+        ? wp.featuredImage
+        : wp.featuredImage?.url ||
+          'https://picsum.photos/seed/forgewp/1200/630';
     if (
       wp._embedded &&
       wp._embedded['wp:featuredmedia'] &&
@@ -579,7 +749,8 @@ async function fetchWpApi(args: any, page: number) {
             _terms[taxonomy] = termGroup.map((t: any) => ({
               id: t.id,
               slug: t.slug,
-              name: typeof t.name === 'string' ? decodeHtmlEntities(t.name) : '',
+              name:
+                typeof t.name === 'string' ? decodeHtmlEntities(t.name) : '',
             }));
           }
         }
@@ -587,58 +758,70 @@ async function fetchWpApi(args: any, page: number) {
     }
 
     return {
-      id: wp.id,
+      id: wp.id ?? wp.ID,
       title:
-        typeof wp.title === 'object' ? decodeHtmlEntities(wp.title.rendered) : decodeHtmlEntities(wp.title || ''),
+        typeof wp.title === 'object'
+          ? decodeHtmlEntities(wp.title.rendered)
+          : decodeHtmlEntities(wp.title || ''),
       excerpt:
         typeof wp.excerpt === 'object'
           ? cleanHtml(wp.excerpt.rendered)
           : cleanHtml(wp.excerpt || ''),
       content:
-        typeof wp.content === 'object'
-          ? wp.content.rendered
-          : wp.content || '',
+        typeof wp.content === 'object' ? wp.content.rendered : wp.content || '',
       date: wp.date
-        ? new Date(wp.date).toLocaleDateString(currentLang === 'de' ? 'de-DE' : 'en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })
+        ? new Date(wp.date).toLocaleDateString(
+            currentLang === 'de' ? 'de-DE' : 'en-US',
+            {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            },
+          )
         : '',
       modified: wp.modified
-        ? new Date(wp.modified).toLocaleDateString(currentLang === 'de' ? 'de-DE' : 'en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })
+        ? new Date(wp.modified).toLocaleDateString(
+            currentLang === 'de' ? 'de-DE' : 'en-US',
+            {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            },
+          )
         : '',
       author:
-        wp._embedded &&
-        wp._embedded['author'] &&
-        wp._embedded['author'][0]
+        wp._embedded && wp._embedded['author'] && wp._embedded['author'][0]
           ? wp._embedded['author'][0].name
           : 'Admin',
       featuredImage,
-      permalink: wp.link,
+      permalink: wp.link || wp.permalink,
       // ACF REST may return `[]` when no field group matches — never spread arrays into customFields.
       customFields: {
-        ...(wp.acf && !Array.isArray(wp.acf) && typeof wp.acf === 'object' ? wp.acf : {}),
-        ...(wp.meta && !Array.isArray(wp.meta) && typeof wp.meta === 'object' ? wp.meta : {}),
+        ...(wp.acf && !Array.isArray(wp.acf) && typeof wp.acf === 'object'
+          ? wp.acf
+          : {}),
+        ...(wp.meta && !Array.isArray(wp.meta) && typeof wp.meta === 'object'
+          ? wp.meta
+          : {}),
       },
       _terms,
-      __postType: wp.type || postType,
+      __postType: wp.type || wp.post_type || postType,
     };
   });
 
   const totalPagesHeader = response.headers.get('X-WP-TotalPages');
-  const totalPages = totalPagesHeader
-    ? parseInt(totalPagesHeader, 10)
-    : 1;
+  const totalPages = useGeneratedQuery
+    ? Number(rawData.totalPages) || 1
+    : totalPagesHeader
+      ? parseInt(totalPagesHeader, 10)
+      : 1;
 
   const totalHeader = response.headers.get('X-WP-Total');
-  const total = totalHeader
-    ? parseInt(totalHeader, 10)
-    : mappedPosts.length;
+  const total = useGeneratedQuery
+    ? Number(rawData.total) || mappedPosts.length
+    : totalHeader
+      ? parseInt(totalHeader, 10)
+      : mappedPosts.length;
 
   return {
     posts: mappedPosts,
@@ -654,7 +837,10 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
   }
 
   // Node SSR (Compile-time)
-  if (typeof window === 'undefined' || (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime)) {
+  if (
+    typeof window === 'undefined' ||
+    (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime)
+  ) {
     // In production WordPress themes, dynamic hydration islands should SSR in a loading state
     // so that the initial page layout contains loading skeletons instead of developer's compile-time mock data.
     return {
@@ -686,6 +872,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
   } = args;
 
   const queryKey = JSON.stringify({
+    queryId: args.queryId,
     postType,
     postsPerPage,
     categoryName,
@@ -694,6 +881,9 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     orderby,
     order,
     p,
+    taxQuery: args.taxQuery,
+    metaQuery: args.metaQuery,
+    metaRelation: args.metaRelation,
   });
 
   let initialState = null;
@@ -710,7 +900,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
             queryCache.set(cacheKey, {
               posts: initialState.posts,
               hasMore: initialState.hasMore,
-              total: initialState.total || initialState.posts.length
+              total: initialState.total || initialState.posts.length,
             });
           }
         }
@@ -720,11 +910,15 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     }
   }
 
-  const [posts, setPosts] = React.useState<WpPost[]>(initialState ? initialState.posts : []);
+  const [posts, setPosts] = React.useState<WpPost[]>(
+    initialState ? initialState.posts : [],
+  );
   const [loading, setLoading] = React.useState(initialState ? false : true);
   const [error, setError] = React.useState<string | null>(null);
   const [currentPage, setCurrentPage] = React.useState(paged);
-  const [hasMore, setHasMore] = React.useState(initialState ? initialState.hasMore : true);
+  const [hasMore, setHasMore] = React.useState(
+    initialState ? initialState.hasMore : true,
+  );
   const [totalPages, setTotalPages] = React.useState<number>(1);
   const hydratedFromSsrRef = React.useRef(initialState ? true : false);
   // 'append' = loadMore behaviour; 'replace' = goToPage behaviour
@@ -752,26 +946,41 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
         setPosts((prev: WpPost[]) => {
           if (mode === 'append') {
             const existingIds = new Set(prev.map((p: WpPost) => p.id));
-            const newPosts = cached.posts.filter((p: WpPost) => !existingIds.has(p.id));
+            const newPosts = cached.posts.filter(
+              (p: WpPost) => !existingIds.has(p.id),
+            );
             return [...prev, ...newPosts];
           }
           return cached.posts;
         });
         setHasMore(cached.hasMore);
-        if ((cached as any).totalPages) setTotalPages((cached as any).totalPages);
+        if ((cached as any).totalPages)
+          setTotalPages((cached as any).totalPages);
         setError(null);
         return;
       }
 
       setLoading(true);
       try {
-        const { posts: fetchedPosts, hasMore: nextPageHasMore, total: totalCount, totalPages: tp } = await fetchWpApi(argsRef.current, page);
-        queryCache.set(cacheKey, { posts: fetchedPosts, hasMore: nextPageHasMore, total: totalCount, totalPages: tp });
+        const {
+          posts: fetchedPosts,
+          hasMore: nextPageHasMore,
+          total: totalCount,
+          totalPages: tp,
+        } = await fetchWpApi(argsRef.current, page);
+        queryCache.set(cacheKey, {
+          posts: fetchedPosts,
+          hasMore: nextPageHasMore,
+          total: totalCount,
+          totalPages: tp,
+        });
 
         setPosts((prev: WpPost[]) => {
           if (mode === 'append') {
             const existingIds = new Set(prev.map((p: WpPost) => p.id));
-            const newPosts = fetchedPosts.filter((p: WpPost) => !existingIds.has(p.id));
+            const newPosts = fetchedPosts.filter(
+              (p: WpPost) => !existingIds.has(p.id),
+            );
             return [...prev, ...newPosts];
           }
           return fetchedPosts;
@@ -810,7 +1019,9 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
     const item = {
-      get args() { return argsRef.current; },
+      get args() {
+        return argsRef.current;
+      },
       querySelector,
       execute: async (targetArgs: any) => {
         const cacheKey = JSON.stringify({ ...targetArgs, paged: 1 });
@@ -819,7 +1030,7 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
           const res = await fetchWpApi(targetArgs, 1);
           queryCache.set(cacheKey, res);
         } catch (e) {}
-      }
+      },
     };
     activeQueries.add(item);
     return () => {
@@ -834,13 +1045,16 @@ export function useWpQuery(args: WpQueryArgs = {}): WpQueryResults {
     setCurrentPage(nextPage);
   }, [currentPage, loading, hasMore]);
 
-  const goToPage = React.useCallback((targetPage: number) => {
-    if (loading) return;
-    if (targetPage < 1 || targetPage > totalPages) return;
-    pageModeRef.current = 'replace';
-    setPosts([]);
-    setCurrentPage(targetPage);
-  }, [loading, totalPages]);
+  const goToPage = React.useCallback(
+    (targetPage: number) => {
+      if (loading) return;
+      if (targetPage < 1 || targetPage > totalPages) return;
+      pageModeRef.current = 'replace';
+      setPosts([]);
+      setCurrentPage(targetPage);
+    },
+    [loading, totalPages],
+  );
 
   const refetch = React.useCallback(async () => {
     pageModeRef.current = 'replace';
@@ -896,9 +1110,14 @@ export interface WpTerm {
   meta: Record<string, any>;
 }
 
-export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolean; error: string | null } {
+export function useWpTerms(taxonomy: string): {
+  terms: WpTerm[];
+  loading: boolean;
+  error: string | null;
+} {
   if (IS_DEV) {
-    const raw: any[] = (getDevMockPosts() as any)?.[`_taxonomy_${taxonomy}`] || [];
+    const raw: any[] =
+      (getDevMockPosts() as any)?.[`_taxonomy_${taxonomy}`] || [];
     const terms: WpTerm[] = raw.map((t: any) => ({
       id: t.id ?? 0,
       name: t.name ?? '',
@@ -922,12 +1141,22 @@ export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolea
 
   React.useEffect(() => {
     let cancelled = false;
-    const endpoint = taxonomy === 'category' ? 'categories' : taxonomy === 'post_tag' ? 'tags' : taxonomy;
-    const apiBase = (typeof window !== 'undefined' && (window as any).FORGEWP_API_URL) ||
+    const endpoint =
+      taxonomy === 'category'
+        ? 'categories'
+        : taxonomy === 'post_tag'
+          ? 'tags'
+          : taxonomy;
+    const apiBase =
+      (typeof window !== 'undefined' && (window as any).FORGEWP_API_URL) ||
       (import.meta as any).env?.VITE_WP_API_URL ||
-      (typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.env && ((globalThis as any).process.env.NEXT_PUBLIC_WP_API_URL || (globalThis as any).process.env.WP_API_URL)) ||
+      (typeof (globalThis as any).process !== 'undefined' &&
+        (globalThis as any).process.env &&
+        ((globalThis as any).process.env.NEXT_PUBLIC_WP_API_URL ||
+          (globalThis as any).process.env.WP_API_URL)) ||
       (() => {
-        const homeUrl = (window as any).forgeWpHydration?.siteSettings?.options?.home || '';
+        const homeUrl =
+          (window as any).forgeWpHydration?.siteSettings?.options?.home || '';
         if (homeUrl) {
           try {
             return new URL(homeUrl).pathname.replace(/\/$/, '');
@@ -935,10 +1164,15 @@ export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolea
         }
         return '';
       })();
-    const currentLang = (window as any).forgeWpLocale || (window as any).forgeWpTranslations?.currentLanguage;
+    const currentLang =
+      (window as any).forgeWpLocale ||
+      (window as any).forgeWpTranslations?.currentLanguage;
     const langParam = currentLang ? `&lang=${currentLang}` : '';
     const fetchUrl = `${apiBase}/wp-json/wp/v2/${endpoint}?per_page=100&_fields=id,name,slug,description,count,acf,meta${langParam}`;
-    console.log(`[useWpTerms] Fetching taxonomy "${taxonomy}" from URL:`, fetchUrl);
+    console.log(
+      `[useWpTerms] Fetching taxonomy "${taxonomy}" from URL:`,
+      fetchUrl,
+    );
 
     const headers: Record<string, string> = {};
     if (typeof window !== 'undefined') {
@@ -955,7 +1189,9 @@ export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolea
       })
       .then((data: any[]) => {
         if (cancelled) return;
-        console.log(`[useWpTerms] Successfully loaded ${data.length} terms for taxonomy "${taxonomy}"`);
+        console.log(
+          `[useWpTerms] Successfully loaded ${data.length} terms for taxonomy "${taxonomy}"`,
+        );
         setTerms(
           data.map((t) => ({
             id: t.id,
@@ -964,26 +1200,29 @@ export function useWpTerms(taxonomy: string): { terms: WpTerm[]; loading: boolea
             description: t.description || '',
             count: t.count || 0,
             meta: { ...(t.acf || {}), ...(t.meta || {}) },
-          }))
+          })),
         );
         setError(null);
       })
       .catch((err: any) => {
         if (!cancelled) {
-          console.error(`[useWpTerms] Error loading taxonomy "${taxonomy}":`, err);
+          console.error(
+            `[useWpTerms] Error loading taxonomy "${taxonomy}":`,
+            err,
+          );
           setError(err.message || `Failed to load ${taxonomy} terms`);
         }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [taxonomy]);
 
   return { terms, loading, error };
 }
-
-
 
 // ── WpQueryLoop — data bridge wraps @forgewp/react with mock data ─────────────
 
@@ -1003,7 +1242,9 @@ export function WpQueryLoop({
       posts = [...posts].sort((a, b) => {
         const titleA = a.title || '';
         const titleB = b.title || '';
-        return order === 'ASC' ? titleA.localeCompare(titleB) : titleB.localeCompare(titleA);
+        return order === 'ASC'
+          ? titleA.localeCompare(titleB)
+          : titleB.localeCompare(titleA);
       });
     } else if (orderby === 'date') {
       posts = [...posts].sort((a, b) => {
@@ -1062,20 +1303,37 @@ export function WpLoop({ children }: { children: React.ReactNode }) {
 
 // ── useWpMenu ────────────────────────────────────────────────────────────────
 
-export function useWpMenu(location: string = 'primary'): { items: WpMenuItem[]; loading: boolean } {
+export function useWpMenu(location: string = 'primary'): {
+  items: WpMenuItem[];
+  loading: boolean;
+} {
   if (IS_DEV) {
     return _useWpMenu(location);
   }
 
   // Node SSR (Compile-time)
-  if (typeof window === "undefined" || (window as any)._forgeWpCompileTime) {
+  if (typeof window === 'undefined' || (window as any)._forgeWpCompileTime) {
     const items = (menusData as any)?.[location] || [];
-    return { items, loading: false };
+    return { items: normalizeRuntimeMenuItems(items), loading: false };
   }
 
   // Browser production hydration client
-  const items = (window as any).forgeWpHydration?.menus?.[location] || (menusData as any)?.[location] || [];
-  return { items, loading: false };
+  const items =
+    (window as any).forgeWpHydration?.menus?.[location] ||
+    (menusData as any)?.[location] ||
+    [];
+  return { items: normalizeRuntimeMenuItems(items), loading: false };
+}
+
+function normalizeRuntimeMenuItems(items: any[]): any[] {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({
+    ...item,
+    id: item?.id == null || item.id === '' ? item?.id : String(item.id),
+    children: item?.children
+      ? normalizeRuntimeMenuItems(item.children)
+      : item?.children,
+  }));
 }
 
 // ── WpMenu — data bridge wraps @forgewp/react with menus.json ────────────────
@@ -1099,23 +1357,30 @@ export function WpMenu({
   }
 
   // Production browser hydration client: render menu items from localized PHP data
-  if (typeof window !== "undefined" && !(window as any)._forgeWpCompileTime) {
+  if (typeof window !== 'undefined' && !(window as any)._forgeWpCompileTime) {
     if (items.length > 0) {
       return (
         <nav className={className}>
           {items.map((item: any, idx: number) => (
-            <a key={idx} href={item.url} className={linkClassName}>
+            <a
+              key={idx}
+              href={item.url}
+              className={linkClassName}
+            >
               {item.title}
             </a>
           ))}
         </nav>
       );
     }
-    
+
     // Server-matching fallback nav to guarantee zero hydration mismatch
     return (
       <nav className={className}>
-        <a href="/" className={linkClassName}>
+        <a
+          href='/'
+          className={linkClassName}
+        >
           Home
         </a>
       </nav>
@@ -1175,7 +1440,13 @@ export function WpHead(props: WpHeadProps) {
     />
   );
 }
-export type { WpHeadProps, WpImageProps, WpAttachment, WpRepeaterProps, WpIconProps };
+export type {
+  WpHeadProps,
+  WpImageProps,
+  WpAttachment,
+  WpRepeaterProps,
+  WpIconProps,
+};
 
 export function WpImage(props: WpImageProps) {
   if (IS_DECOUPLED) {
@@ -1190,23 +1461,24 @@ export function WpImage(props: WpImageProps) {
   return <_WpImage {...props} />;
 }
 
-
-
 export function useWpI18n() {
   const getTranslatedText = (text: string) => {
-    if (typeof window === "undefined") {
+    if (typeof window === 'undefined') {
       return text;
     }
-    const currentLang = (window as any).forgeWpLocale || (window as any).forgeWpTranslations?.currentLanguage || 'de';
+    const currentLang =
+      (window as any).forgeWpLocale ||
+      (window as any).forgeWpTranslations?.currentLanguage ||
+      'de';
     const dict = (window as any).forgeWpTranslations?.translations;
-    
+
     if (dict) {
       // 1. Nested dictionary format: { de: { ... }, en: { ... } }
-      if (dict[currentLang] && typeof dict[currentLang][text] !== "undefined") {
+      if (dict[currentLang] && typeof dict[currentLang][text] !== 'undefined') {
         return dict[currentLang][text];
       }
       // 2. Flat enqueued active locale format: { 'Kontakt': 'Kontakt' }
-      if (typeof dict[text] !== "undefined") {
+      if (typeof dict[text] !== 'undefined') {
         return dict[text];
       }
     }
@@ -1216,30 +1488,33 @@ export function useWpI18n() {
   if (IS_DECOUPLED) {
     return {
       __: (text: string) => {
-        if (typeof window === "undefined") {
+        if (typeof window === 'undefined') {
           return text;
         }
         const pathname = window.location.pathname;
         const translations = translationsData || {};
-        const languages = Object.keys(translations).length > 0 ? Object.keys(translations) : ['de', 'en'];
+        const languages =
+          Object.keys(translations).length > 0
+            ? Object.keys(translations)
+            : ['de', 'en'];
         const defaultLanguage = languages[0] || 'de';
 
-        const matchedLang = languages.find(lang => {
+        const matchedLang = languages.find((lang) => {
           if (lang === defaultLanguage) return false;
           return pathname.startsWith(`/${lang}/`) || pathname === `/${lang}`;
         });
         const currentLang = matchedLang || defaultLanguage;
 
         const dict = (translationsData as any)?.[currentLang];
-        if (dict && typeof dict[text] !== "undefined") {
+        if (dict && typeof dict[text] !== 'undefined') {
           return dict[text];
         }
         return text;
-      }
+      },
     };
   }
   // Node SSR (Compile-time): return the token so the compiler can perform string replacement
-  if (typeof window === "undefined" || (window as any)._forgeWpCompileTime) {
+  if (typeof window === 'undefined' || (window as any)._forgeWpCompileTime) {
     return {
       __: (text: string) => `__FORGEWP_I18N_${text}__`,
     };
@@ -1249,7 +1524,9 @@ export function useWpI18n() {
     __: getTranslatedText,
   };
 }
-const locationListeners = new Set<(payload: { pathname: string; search: string }) => void>();
+const locationListeners = new Set<
+  (payload: { pathname: string; search: string }) => void
+>();
 let popstateBound = false;
 
 function handleLocationUpdate() {
@@ -1260,7 +1537,9 @@ function handleLocationUpdate() {
   locationListeners.forEach((listener) => listener(payload));
 }
 
-export function subscribeToLocation(listener: (payload: { pathname: string; search: string }) => void) {
+export function subscribeToLocation(
+  listener: (payload: { pathname: string; search: string }) => void,
+) {
   locationListeners.add(listener);
   if (typeof window !== 'undefined' && !popstateBound) {
     window.addEventListener('popstate', handleLocationUpdate);
@@ -1268,7 +1547,11 @@ export function subscribeToLocation(listener: (payload: { pathname: string; sear
   }
   return () => {
     locationListeners.delete(listener);
-    if (locationListeners.size === 0 && typeof window !== 'undefined' && popstateBound) {
+    if (
+      locationListeners.size === 0 &&
+      typeof window !== 'undefined' &&
+      popstateBound
+    ) {
       window.removeEventListener('popstate', handleLocationUpdate);
       popstateBound = false;
     }
@@ -1315,23 +1598,24 @@ export function useWpPrefetch() {
   return prefetch;
 }
 
-
-
 export function useWpSearchParams(): URLSearchParams {
   const search = useSearch();
   return React.useMemo(() => new URLSearchParams(search), [search]);
 }
 
-
 export function useWpLanguage() {
   if (IS_DECOUPLED) {
     const translations = translationsData || {};
-    const languages = Object.keys(translations).length > 0 ? Object.keys(translations) : ['de', 'en'];
+    const languages =
+      Object.keys(translations).length > 0
+        ? Object.keys(translations)
+        : ['de', 'en'];
     const defaultLanguage = languages[0] || 'de';
 
-    const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+    const pathname =
+      typeof window !== 'undefined' ? window.location.pathname : '/';
     // Find if the path starts with one of the non-default languages, e.g. "/en" or "/en/"
-    const matchedLang = languages.find(lang => {
+    const matchedLang = languages.find((lang) => {
       if (lang === defaultLanguage) return false;
       return pathname.startsWith(`/${lang}/`) || pathname === `/${lang}`;
     });
@@ -1340,7 +1624,7 @@ export function useWpLanguage() {
     // Generate URLs dynamically
     const urls: Record<string, string> = {};
     const homeUrls: Record<string, string> = {};
-    languages.forEach(lang => {
+    languages.forEach((lang) => {
       const url = lang === defaultLanguage ? '/' : `/${lang}/`;
       urls[lang] = url;
       homeUrls[lang] = url;
@@ -1348,14 +1632,20 @@ export function useWpLanguage() {
 
     const homeUrl = homeUrls[currentLanguage] || '/';
 
-    const switchLanguage = React.useCallback((lang: string) => {
-      if (typeof window !== 'undefined') {
-        const search = window.location.search;
-        const base = urls[lang] || (lang === defaultLanguage ? '/' : `/${lang}/`);
-        const separator = base.includes('?') ? '&' : '?';
-        window.location.href = search ? (base + separator + search.substring(1)) : base;
-      }
-    }, [urls, defaultLanguage]);
+    const switchLanguage = React.useCallback(
+      (lang: string) => {
+        if (typeof window !== 'undefined') {
+          const search = window.location.search;
+          const base =
+            urls[lang] || (lang === defaultLanguage ? '/' : `/${lang}/`);
+          const separator = base.includes('?') ? '&' : '?';
+          window.location.href = search
+            ? base + separator + search.substring(1)
+            : base;
+        }
+      },
+      [urls, defaultLanguage],
+    );
 
     return {
       currentLanguage,
@@ -1367,8 +1657,9 @@ export function useWpLanguage() {
     };
   }
 
-  const translations = typeof window !== 'undefined' ? (window as any).forgeWpTranslations : null;
-  
+  const translations =
+    typeof window !== 'undefined' ? (window as any).forgeWpTranslations : null;
+
   // Dynamic current language slug enqueued by WordPress
   const currentLanguage = translations?.currentLanguage || 'de';
 
@@ -1376,21 +1667,29 @@ export function useWpLanguage() {
   const urls: Record<string, string> = translations?.urls || { de: '/' };
 
   // Dynamic dictionary mapping active language slugs to home page URLs
-  const homeUrls: Record<string, string> = translations?.homeUrls || { de: '/' };
+  const homeUrls: Record<string, string> = translations?.homeUrls || {
+    de: '/',
+  };
   const homeUrl = homeUrls[currentLanguage] || '/';
 
   // Dynamic list of active language slugs enqueued on the site
   const languages = React.useMemo(() => Object.keys(urls), [urls]);
 
   // Redirection helper to switch safely between languages
-  const switchLanguage = React.useCallback((lang: string) => {
-    if (typeof window !== 'undefined') {
-      const search = window.location.search;
-      const base = (urls && urls[lang]) ? urls[lang] : (lang === 'de' ? '/' : `/${lang}/`);
-      const separator = base.includes('?') ? '&' : '?';
-      window.location.href = search ? (base + separator + search.substring(1)) : base;
-    }
-  }, [urls]);
+  const switchLanguage = React.useCallback(
+    (lang: string) => {
+      if (typeof window !== 'undefined') {
+        const search = window.location.search;
+        const base =
+          urls && urls[lang] ? urls[lang] : lang === 'de' ? '/' : `/${lang}/`;
+        const separator = base.includes('?') ? '&' : '?';
+        window.location.href = search
+          ? base + separator + search.substring(1)
+          : base;
+      }
+    },
+    [urls],
+  );
 
   return {
     currentLanguage,
@@ -1401,7 +1700,6 @@ export function useWpLanguage() {
     switchLanguage,
   };
 }
-
 
 // ── Compiler custom element JSX declarations ──────────────────────────────────
 

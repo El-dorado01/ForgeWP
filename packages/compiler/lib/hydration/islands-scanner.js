@@ -1,7 +1,11 @@
-import { readFileSync, readdirSync, existsSync } from "node:fs";
-import path from "node:path";
-import { isComponentInteractive, getInteractiveExportNames, readComponentSource } from "./is-interactive.js";
-import { getComponentRootClassName } from "./root-class-extractor.js";
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import path from 'node:path';
+import {
+  isComponentInteractive,
+  getInteractiveExportNames,
+  readComponentSource,
+} from './is-interactive.js';
+import { getComponentRootClassName } from './root-class-extractor.js';
 
 /** True when `content` contains a JSX opening/self-closing tag for `tagName`. */
 function sourceUsesJsxTag(content, tagName) {
@@ -11,8 +15,8 @@ function sourceUsesJsxTag(content, tagName) {
 
 function toKebabName(exportName) {
   return exportName
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
-    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
     .toLowerCase();
 }
 
@@ -43,15 +47,15 @@ function reportSmartDiscovery(key, verboseMessage) {
  * @returns {string|null} The absolute path to the component file, or null if not found.
  */
 export function findComponentPath(themeRoot, kebabName) {
-  const compDir = path.join(themeRoot, "src", "components");
-  const appDir = path.join(themeRoot, "src", "app");
-  const blocksDir = path.join(themeRoot, "src", "blocks");
+  const compDir = path.join(themeRoot, 'src', 'components');
+  const appDir = path.join(themeRoot, 'src', 'app');
+  const blocksDir = path.join(themeRoot, 'src', 'blocks');
 
   // Convert kebab-case back to PascalCase and check candidates
   const pascalName = kebabName
-    .split("-")
+    .split('-')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join("");
+    .join('');
 
   const candidates = [
     `${pascalName}.tsx`,
@@ -60,7 +64,7 @@ export function findComponentPath(themeRoot, kebabName) {
     `${kebabName}.ts`,
   ];
 
-  const cleanKebab = kebabName.replace(/[-_]/g, "").toLowerCase();
+  const cleanKebab = kebabName.replace(/[-_]/g, '').toLowerCase();
   const fileExtRegex = /\.(tsx|ts|jsx|js)$/;
 
   let result = null;
@@ -79,7 +83,10 @@ export function findComponentPath(themeRoot, kebabName) {
             return;
           }
           if (fileExtRegex.test(item.name)) {
-            const base = item.name.replace(fileExtRegex, "").replace(/[-_]/g, "").toLowerCase();
+            const base = item.name
+              .replace(fileExtRegex, '')
+              .replace(/[-_]/g, '')
+              .toLowerCase();
             if (base === cleanKebab) {
               result = fullPath;
               return;
@@ -94,7 +101,13 @@ export function findComponentPath(themeRoot, kebabName) {
   if (result) return result;
 
   // Special cases for page templates
-  if (kebabName === "page" || kebabName === "layout" || kebabName === "404" || kebabName === "single" || kebabName === "archive") {
+  if (
+    kebabName === 'page' ||
+    kebabName === 'layout' ||
+    kebabName === '404' ||
+    kebabName === 'single' ||
+    kebabName === 'archive'
+  ) {
     const pagePath = path.join(appDir, `${kebabName}.tsx`);
     if (existsSync(pagePath)) return pagePath;
     const tsPath = path.join(appDir, `${kebabName}.ts`);
@@ -116,13 +129,18 @@ export function findComponentPath(themeRoot, kebabName) {
         const fullPath = path.join(dir, item.name);
         if (item.isDirectory()) {
           searchNamedExports(fullPath);
-        } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+        } else if (
+          item.isFile() &&
+          (item.name.endsWith('.tsx') || item.name.endsWith('.ts'))
+        ) {
           try {
-            const content = readFileSync(fullPath, "utf8");
+            const content = readFileSync(fullPath, 'utf8');
             const hasExport =
               content.includes(`export function ${pascalName}`) ||
               content.includes(`export const ${pascalName}`) ||
-              new RegExp(`\\bexport\\s*\\{[^}]*\\b${pascalName}\\b`).test(content);
+              new RegExp(`\\bexport\\s*\\{[^}]*\\b${pascalName}\\b`).test(
+                content,
+              );
             if (hasExport) {
               result = fullPath;
               return;
@@ -156,9 +174,9 @@ export function scanForHydrationIslands(themeRoot) {
   let newDiscoveries = 0;
 
   const dirsToScan = [
-    path.join(themeRoot, "src", "app"),
-    path.join(themeRoot, "src", "components"),
-    path.join(themeRoot, "src", "blocks"),
+    path.join(themeRoot, 'src', 'app'),
+    path.join(themeRoot, 'src', 'components'),
+    path.join(themeRoot, 'src', 'blocks'),
   ];
 
   function collectFilesRecursive(dir) {
@@ -169,7 +187,10 @@ export function scanForHydrationIslands(themeRoot) {
         const fullPath = path.join(dir, item.name);
         if (item.isDirectory()) {
           collectFilesRecursive(fullPath);
-        } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+        } else if (
+          item.isFile() &&
+          (item.name.endsWith('.tsx') || item.name.endsWith('.ts'))
+        ) {
           filesToScan.push(fullPath);
         }
       }
@@ -189,7 +210,7 @@ export function scanForHydrationIslands(themeRoot) {
       // dev's original, unmodified content — is what actually determines
       // which components need their own hydration bundle.
       const content = readComponentSource(filePath);
-      
+
       // Matches <Hydrate ...> ... </Hydrate>
       const hydrateRegex = /<Hydrate\b([\s\S]*?)>([\s\S]*?)<\/Hydrate>/g;
       let match;
@@ -209,20 +230,22 @@ export function scanForHydrationIslands(themeRoot) {
         if (componentTagMatch) {
           const compName = componentTagMatch[1];
           const kebabName = compName
-            .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+            .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
             .toLowerCase();
           islands.add(kebabName);
         }
       }
     } catch (err) {
-      console.warn(`[Hydration Scanner] Failed to scan file ${filePath}:`, err.message);
+      console.warn(
+        `[Hydration Scanner] Failed to scan file ${filePath}:`,
+        err.message,
+      );
     }
   }
 
   // 3. Smart Component Discovery: scan src/components/ for interactive exports
   // (per-export, not per-file — a file that also exports a static helper must
   // not force that helper into a client island).
-  const compDir = path.join(themeRoot, "src", "components");
   const interactiveExports = new Map(); // PascalCase export name -> file path
 
   function scanComponentsRecursive(dir) {
@@ -233,7 +256,10 @@ export function scanForHydrationIslands(themeRoot) {
         const fullPath = path.join(dir, item.name);
         if (item.isDirectory()) {
           scanComponentsRecursive(fullPath);
-        } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+        } else if (
+          item.isFile() &&
+          (item.name.endsWith('.tsx') || item.name.endsWith('.ts'))
+        ) {
           try {
             for (const exportName of getInteractiveExportNames(fullPath)) {
               interactiveExports.set(exportName, fullPath);
@@ -244,7 +270,13 @@ export function scanForHydrationIslands(themeRoot) {
     } catch {}
   }
 
-  scanComponentsRecursive(compDir);
+  const componentDirs = [
+    path.join(themeRoot, 'src', 'components'),
+    path.join(themeRoot, 'src', 'app', 'components'),
+  ];
+  for (const componentDir of componentDirs) {
+    scanComponentsRecursive(componentDir);
+  }
 
   for (const filePath of filesToScan) {
     try {
@@ -259,10 +291,13 @@ export function scanForHydrationIslands(themeRoot) {
           const kebabName = toKebabName(exportName);
           if (!islands.has(kebabName)) {
             islands.add(kebabName);
-            if (reportSmartDiscovery(
-              `component:${kebabName}`,
-              `\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected "${exportName}" uses interactive hooks/animations. Auto-enforcing code-splitting chunk. Wrap it in <Hydrate> in page markup for dynamic browser activation!\x1b[0m`,
-            )) newDiscoveries++;
+            if (
+              reportSmartDiscovery(
+                `component:${kebabName}`,
+                `\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected "${exportName}" uses interactive hooks/animations. Auto-enforcing code-splitting chunk. Wrap it in <Hydrate> in page markup for dynamic browser activation!\x1b[0m`,
+              )
+            )
+              newDiscoveries++;
           }
         }
       }
@@ -271,25 +306,36 @@ export function scanForHydrationIslands(themeRoot) {
 
   // 4. Smart Page Hydration: if a page file itself is interactive, register it directly
   const pageDirs = [
-    path.join(themeRoot, "src", "app"),
-    path.join(themeRoot, "src", "app", "pages"),
+    path.join(themeRoot, 'src', 'app'),
+    path.join(themeRoot, 'src', 'app', 'pages'),
   ];
   for (const pDir of pageDirs) {
     if (existsSync(pDir)) {
       try {
         const items = readdirSync(pDir, { withFileTypes: true });
         for (const item of items) {
-          if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+          if (
+            item.isFile() &&
+            (item.name.endsWith('.tsx') || item.name.endsWith('.ts'))
+          ) {
             const fullPath = path.join(pDir, item.name);
             if (isComponentInteractive(fullPath)) {
-              const compName = path.basename(item.name, path.extname(item.name));
-              const kebabName = compName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+              const compName = path.basename(
+                item.name,
+                path.extname(item.name),
+              );
+              const kebabName = compName
+                .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+                .toLowerCase();
               if (!islands.has(kebabName)) {
                 islands.add(kebabName);
-                if (reportSmartDiscovery(
-                  `page:${kebabName}`,
-                  `\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected interactive page file "${compName}". Auto-enforcing page hydration island!\x1b[0m`,
-                )) newDiscoveries++;
+                if (
+                  reportSmartDiscovery(
+                    `page:${kebabName}`,
+                    `\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected interactive page file "${compName}". Auto-enforcing page hydration island!\x1b[0m`,
+                  )
+                )
+                  newDiscoveries++;
               }
             }
           }
@@ -298,8 +344,10 @@ export function scanForHydrationIslands(themeRoot) {
     }
   }
 
-  if (newDiscoveries > 0 && !process.env.FORGEWP_VERBOSE) {
-    console.warn(`\x1b[33m[ForgeWP Optimizer] Smart Discovery: auto-enforced code-splitting for ${newDiscoveries} interactive component(s)/page(s) — set FORGEWP_VERBOSE=1 to see which.\x1b[0m`);
+  if (newDiscoveries > 0 && process.env.FORGEWP_VERBOSE === '1') {
+    console.warn(
+      `\x1b[33m[ForgeWP Optimizer] Smart Discovery: auto-enforced code-splitting for ${newDiscoveries} interactive component(s)/page(s) — set FORGEWP_VERBOSE=1 to see which.\x1b[0m`,
+    );
   }
 
   return Array.from(islands);
@@ -319,9 +367,9 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
   let newDiscoveries = 0;
 
   const dirsToScan = [
-    path.join(themeRoot, "src", "app"),
-    path.join(themeRoot, "src", "components"),
-    path.join(themeRoot, "src", "blocks"),
+    path.join(themeRoot, 'src', 'app'),
+    path.join(themeRoot, 'src', 'components'),
+    path.join(themeRoot, 'src', 'blocks'),
   ];
 
   function collectFilesRecursive(dir) {
@@ -332,7 +380,10 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
         const fullPath = path.join(dir, item.name);
         if (item.isDirectory()) {
           collectFilesRecursive(fullPath);
-        } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+        } else if (
+          item.isFile() &&
+          (item.name.endsWith('.tsx') || item.name.endsWith('.ts'))
+        ) {
           filesToScan.push(fullPath);
         }
       }
@@ -360,7 +411,7 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
   };
 
   for (const filePath of filesToScan) {
-    const relFile = path.relative(themeRoot, filePath).replace(/\\/g, "/");
+    const relFile = path.relative(themeRoot, filePath).replace(/\\/g, '/');
     try {
       // readComponentSource (not raw readFileSync): a file's on-disk content
       // may have been auto-split, in which case the shell's rewritten source
@@ -383,17 +434,21 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
           const componentTagMatch = childrenStr.match(/<([A-Z][a-zA-Z0-9]*)\b/);
           if (componentTagMatch) {
             const compName = componentTagMatch[1];
-            islandName = compName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+            islandName = compName
+              .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+              .toLowerCase();
           }
         }
 
         if (islandName) {
           namesFound.add(islandName);
-          const trigger = getAttr(propsStr, "trigger") || "visible";
-          const preload = getAttr(propsStr, "preload") || "none";
-          const media = getAttr(propsStr, "media");
-          const connection = getAttr(propsStr, "connection") || "any";
-          const clientOnly = propsStr.includes("clientOnly") && !propsStr.includes("clientOnly={false}");
+          const trigger = getAttr(propsStr, 'trigger') || 'visible';
+          const preload = getAttr(propsStr, 'preload') || 'none';
+          const media = getAttr(propsStr, 'media');
+          const connection = getAttr(propsStr, 'connection') || 'any';
+          const clientOnly =
+            propsStr.includes('clientOnly') &&
+            !propsStr.includes('clientOnly={false}');
 
           discovered.push({
             name: islandName,
@@ -407,12 +462,15 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
         }
       }
     } catch (err) {
-      console.warn(`[Hydration Scanner] Failed to scan file ${filePath}:`, err.message);
+      console.warn(
+        `[Hydration Scanner] Failed to scan file ${filePath}:`,
+        err.message,
+      );
     }
   }
 
   // Smart Discovery matching — per interactive *export*, not per file.
-  const compDir = path.join(themeRoot, "src", "components");
+  const compDir = path.join(themeRoot, 'src', 'components');
   const interactiveExports = new Map(); // PascalCase export name -> absolute file path
 
   function scanComponentsRecursive(dir) {
@@ -423,7 +481,10 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
         const fullPath = path.join(dir, item.name);
         if (item.isDirectory()) {
           scanComponentsRecursive(fullPath);
-        } else if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+        } else if (
+          item.isFile() &&
+          (item.name.endsWith('.tsx') || item.name.endsWith('.ts'))
+        ) {
           try {
             for (const exportName of getInteractiveExportNames(fullPath)) {
               interactiveExports.set(exportName, fullPath);
@@ -437,7 +498,7 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
   scanComponentsRecursive(compDir);
 
   for (const filePath of filesToScan) {
-    const relFile = path.relative(themeRoot, filePath).replace(/\\/g, "/");
+    const relFile = path.relative(themeRoot, filePath).replace(/\\/g, '/');
     try {
       // readComponentSource (not raw readFileSync): a file's on-disk content
       // may have been auto-split, in which case the shell's rewritten source
@@ -457,14 +518,14 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
             discovered.push({
               name: kebabName,
               file: relFile,
-              trigger: "load",
-              preload: "none",
+              trigger: 'load',
+              preload: 'none',
               media: null,
-              connection: "any",
+              connection: 'any',
               clientOnly: false,
               smartDiscovered: true,
               rootClassName: rootInfo.resolvable ? rootInfo.className : null,
-              rootClassNameUnresolved: rootInfo.reason === "dynamic-classname",
+              rootClassNameUnresolved: rootInfo.reason === 'dynamic-classname',
             });
           }
         }
@@ -474,38 +535,52 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
 
   // Smart Page Hydration: if a page file itself is interactive, register it directly
   const pageDirs2 = [
-    path.join(themeRoot, "src", "app"),
-    path.join(themeRoot, "src", "app", "pages"),
+    path.join(themeRoot, 'src', 'app'),
+    path.join(themeRoot, 'src', 'app', 'pages'),
   ];
   for (const pDir of pageDirs2) {
     if (existsSync(pDir)) {
       try {
         const items = readdirSync(pDir, { withFileTypes: true });
         for (const item of items) {
-          if (item.isFile() && (item.name.endsWith(".tsx") || item.name.endsWith(".ts"))) {
+          if (
+            item.isFile() &&
+            (item.name.endsWith('.tsx') || item.name.endsWith('.ts'))
+          ) {
             const fullPath = path.join(pDir, item.name);
             if (isComponentInteractive(fullPath)) {
-              const compName = path.basename(item.name, path.extname(item.name));
-              const kebabName = compName.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+              const compName = path.basename(
+                item.name,
+                path.extname(item.name),
+              );
+              const kebabName = compName
+                .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+                .toLowerCase();
               if (!namesFound.has(kebabName)) {
                 namesFound.add(kebabName);
                 const rootInfo = getComponentRootClassName(fullPath);
                 discovered.push({
                   name: kebabName,
-                  file: path.relative(themeRoot, fullPath).replace(/\\/g, "/"),
-                  trigger: "load", // Pages should default to load trigger for immediate responsiveness
-                  preload: "none",
+                  file: path.relative(themeRoot, fullPath).replace(/\\/g, '/'),
+                  trigger: 'load', // Pages should default to load trigger for immediate responsiveness
+                  preload: 'none',
                   media: null,
-                  connection: "any",
+                  connection: 'any',
                   clientOnly: false,
                   smartDiscovered: true,
-                  rootClassName: rootInfo.resolvable ? rootInfo.className : null,
-                  rootClassNameUnresolved: rootInfo.reason === "dynamic-classname",
+                  rootClassName: rootInfo.resolvable
+                    ? rootInfo.className
+                    : null,
+                  rootClassNameUnresolved:
+                    rootInfo.reason === 'dynamic-classname',
                 });
-                if (reportSmartDiscovery(
-                  `page:${kebabName}`,
-                  `\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected interactive page file "${compName}". Auto-enforcing page hydration island!\x1b[0m`,
-                )) newDiscoveries++;
+                if (
+                  reportSmartDiscovery(
+                    `page:${kebabName}`,
+                    `\x1b[33m[ForgeWP Optimizer] Smart Discovery: Detected interactive page file "${compName}". Auto-enforcing page hydration island!\x1b[0m`,
+                  )
+                )
+                  newDiscoveries++;
               }
             }
           }
@@ -514,8 +589,10 @@ export function scanForHydrationIslandsWithProps(themeRoot) {
     }
   }
 
-  if (newDiscoveries > 0 && !process.env.FORGEWP_VERBOSE) {
-    console.warn(`\x1b[33m[ForgeWP Optimizer] Smart Discovery: auto-enforced page hydration for ${newDiscoveries} interactive page file(s) — set FORGEWP_VERBOSE=1 to see which.\x1b[0m`);
+  if (newDiscoveries > 0 && process.env.FORGEWP_VERBOSE === '1') {
+    console.warn(
+      `\x1b[33m[ForgeWP Optimizer] Smart Discovery: auto-enforced page hydration for ${newDiscoveries} interactive page file(s) — set FORGEWP_VERBOSE=1 to see which.\x1b[0m`,
+    );
   }
 
   return discovered;

@@ -58,7 +58,10 @@ ${headlessScript}
                     if ((int)$item->menu_item_parent === (int)$parent_id) {
                         $children = forgewp_build_menu_tree($menu_items, $item->ID);
                         $node = array(
-                            'id'    => (int)$item->ID,
+                            // String, not int. Client state uses this id as an
+                            // object key, and those keys are always strings.
+                            // A numeric id never matches, so submenu toggles no-op.
+                            'id'    => (string) $item->ID,
                             'title' => $item->title,
                             'url'   => $item->url,
                         );

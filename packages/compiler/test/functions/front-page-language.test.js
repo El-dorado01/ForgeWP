@@ -36,12 +36,34 @@ describe('buildIndexPhp — front page template detection is language-aware', ()
     expect(php).toContain('$front_id = get_queried_object_id();');
     // Only an explanatory comment may still mention the option by name —
     // no line may actually assign $front_id from it.
-    expect(php).not.toMatch(/\$front_id\s*=\s*\(int\)\s*get_option\(\s*'page_on_front'\s*\)/);
+    expect(php).not.toMatch(
+      /\$front_id\s*=\s*\(int\)\s*get_option\(\s*'page_on_front'\s*\)/,
+    );
   });
 
-  it('still gates the Builder canvas on that post\'s own template slug', () => {
+  it("still gates the Builder canvas on that post's own template slug", () => {
     expect(php).toContain('get_page_template_slug($front_id)');
     expect(php).toContain("$tpl === 'template-forgewp-builder.php'");
+  });
+});
+
+describe('buildIndexPhp({ ownsShell: true }) — blank layout keeps the page document', () => {
+  const php = buildIndexPhp({ ownsShell: true });
+
+  it('is a full document and does not include the default layout header/footer files', () => {
+    expect(php).toContain('<!DOCTYPE html>');
+    expect(php).toContain('wp_head();');
+    expect(php).toContain('wp_footer();');
+    expect(php).not.toContain('forgewp-static/header.html');
+    expect(php).not.toContain('forgewp-static/footer.html');
+  });
+
+  it('still resolves the Builder template from the queried post', () => {
+    expect(php).toContain('$front_id = get_queried_object_id();');
+    expect(php).not.toMatch(
+      /\$front_id\s*=\s*\(int\)\s*get_option\(\s*'page_on_front'\s*\)/,
+    );
+    expect(php).toContain('get_header();');
   });
 });
 
@@ -55,7 +77,19 @@ describe('forgewp_resolve_front_page_id()', () => {
     textDomain: 'testtheme',
     i18n: { locales: ['en', 'de'], defaultLocale: 'en' },
   };
-  const php = buildFunctionsPhp(config, ASSETS, [], process.cwd(), [], {}, { mapping: {}, mainJsFile: 'assets/main.js' }, [], {}, [], []);
+  const php = buildFunctionsPhp(
+    config,
+    ASSETS,
+    [],
+    process.cwd(),
+    [],
+    {},
+    { mapping: {}, mainJsFile: 'assets/main.js' },
+    [],
+    {},
+    [],
+    [],
+  );
 
   it('is defined, anchored on page_on_front, and resolved to the current language via pll_get_post', () => {
     const fnStart = php.indexOf('function forgewp_resolve_front_page_id()');
@@ -79,10 +113,17 @@ describe('markup-processor.js — the "_POST_front_" meta token resolves through
   // scope here. What matters for THIS fix is that both call sites in the
   // replace callbacks emit the language-aware helper instead of the raw
   // option, which is a direct source-text guarantee.
-  const src = readFileSync(path.join(__dirname, '../../lib/markup-processor.js'), 'utf8');
+  const src = readFileSync(
+    path.join(__dirname, '../../lib/markup-processor.js'),
+    'utf8',
+  );
 
   it('both postId==="front" branches emit forgewp_resolve_front_page_id(), not the raw page_on_front option', () => {
-    const matches = [...src.matchAll(/postId\.toLowerCase\(\)\s*===\s*'front'\)\s*\?\s*'([^']+)'/g)];
+    const matches = [
+      ...src.matchAll(
+        /postId\s*&&\s*postId\.toLowerCase\(\)\s*===\s*'front'\s*\)?\s*\?\s*'([^']+)'/g,
+      ),
+    ];
     expect(matches.length).toBe(2);
     for (const m of matches) {
       expect(m[1]).toBe('forgewp_resolve_front_page_id()');

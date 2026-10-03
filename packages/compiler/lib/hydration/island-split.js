@@ -1,17 +1,65 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
-import path from "node:path";
-import { ts, createInteractivityChecker, setContentOverride, clearContentOverrides, CLIENT_ANIMATION_PACKAGES } from "./is-interactive.js";
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  readdirSync,
+} from 'node:fs';
+import path from 'node:path';
+import {
+  ts,
+  createInteractivityChecker,
+  setContentOverride,
+  clearContentOverrides,
+  CLIENT_ANIMATION_PACKAGES,
+} from './is-interactive.js';
 
 // Well-known JS/browser globals that need no import and are never a prop or
 // local declaration — referencing one of these must not force a bail-out.
 const KNOWN_GLOBALS = new Set([
-  "console", "window", "document", "navigator", "localStorage", "sessionStorage",
-  "Math", "JSON", "Array", "Object", "String", "Number", "Boolean", "Date",
-  "RegExp", "Map", "Set", "Promise", "Symbol", "Error", "TypeError", "RangeError",
-  "parseInt", "parseFloat", "isNaN", "isFinite", "encodeURIComponent", "decodeURIComponent",
-  "setTimeout", "clearTimeout", "setInterval", "clearInterval", "fetch",
-  "undefined", "NaN", "Infinity", "globalThis",
-  "URLSearchParams", "URL", "FormData", "Headers", "AbortController", "Intl",
+  'console',
+  'window',
+  'document',
+  'navigator',
+  'localStorage',
+  'sessionStorage',
+  'Math',
+  'JSON',
+  'Array',
+  'Object',
+  'String',
+  'Number',
+  'Boolean',
+  'Date',
+  'RegExp',
+  'Map',
+  'Set',
+  'Promise',
+  'Symbol',
+  'Error',
+  'TypeError',
+  'RangeError',
+  'parseInt',
+  'parseFloat',
+  'isNaN',
+  'isFinite',
+  'encodeURIComponent',
+  'decodeURIComponent',
+  'setTimeout',
+  'clearTimeout',
+  'setInterval',
+  'clearInterval',
+  'fetch',
+  'undefined',
+  'NaN',
+  'Infinity',
+  'globalThis',
+  'URLSearchParams',
+  'URL',
+  'FormData',
+  'Headers',
+  'AbortController',
+  'Intl',
 ]);
 
 /** True for JsxElement/JsxSelfClosingElement/JsxFragment nodes. */
@@ -27,8 +75,8 @@ function isJsxNode(node) {
 // Mirrors islands-scanner.js's scan roots — new islands land in a dedicated
 // subfolder of src/components so Smart Discovery picks them up with zero
 // additional wiring, same as a hand-written child component today.
-const SCAN_DIRS = ["src/app", "src/components", "src/blocks"];
-export const GENERATED_ISLANDS_DIRNAME = ".forgewp-islands";
+const SCAN_DIRS = ['src/app', 'src/components', 'src/blocks'];
+export const GENERATED_ISLANDS_DIRNAME = '.forgewp-islands';
 
 function collectCandidateFiles(themeRoot) {
   const files = [];
@@ -40,11 +88,15 @@ function collectCandidateFiles(themeRoot) {
       return;
     }
     for (const entry of entries) {
-      if (entry.name === GENERATED_ISLANDS_DIRNAME || entry.name === "generated") continue;
+      if (
+        entry.name === GENERATED_ISLANDS_DIRNAME ||
+        entry.name === 'generated'
+      )
+        continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         walk(full);
-      } else if (entry.name.endsWith(".tsx")) {
+      } else if (entry.name.endsWith('.tsx')) {
         files.push(full);
       }
     }
@@ -59,7 +111,10 @@ function collectCandidateFiles(themeRoot) {
 function collectBindingNames(nameNode, out = []) {
   if (ts.isIdentifier(nameNode)) {
     out.push(nameNode.text);
-  } else if (ts.isObjectBindingPattern(nameNode) || ts.isArrayBindingPattern(nameNode)) {
+  } else if (
+    ts.isObjectBindingPattern(nameNode) ||
+    ts.isArrayBindingPattern(nameNode)
+  ) {
     for (const el of nameNode.elements) {
       if (ts.isBindingElement(el)) collectBindingNames(el.name, out);
     }
@@ -75,7 +130,9 @@ function collectAllBoundNamesDeep(node) {
     if (ts.isVariableDeclaration(n) || ts.isParameter(n)) {
       collectBindingNames(n.name).forEach((x) => names.add(x));
     } else if (ts.isCatchClause(n) && n.variableDeclaration) {
-      collectBindingNames(n.variableDeclaration.name).forEach((x) => names.add(x));
+      collectBindingNames(n.variableDeclaration.name).forEach((x) =>
+        names.add(x),
+      );
     }
     ts.forEachChild(n, walk);
   }
@@ -111,21 +168,42 @@ function findComponentFunction(sourceFile) {
     if (ts.isFunctionDeclaration(node) && node.name && node.body) {
       const found = findReturnJsx(node.body);
       if (found) {
-        result = { fnNode: node, fnBody: node.body, componentName: node.name.text, ...found };
+        result = {
+          fnNode: node,
+          fnBody: node.body,
+          componentName: node.name.text,
+          ...found,
+        };
         return;
       }
     }
-    if (ts.isVariableDeclaration(node) && node.name && ts.isIdentifier(node.name) && node.initializer) {
+    if (
+      ts.isVariableDeclaration(node) &&
+      node.name &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
       const init = node.initializer;
       if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) {
         if (ts.isBlock(init.body)) {
           const found = findReturnJsx(init.body);
           if (found) {
-            result = { fnNode: init, fnBody: init.body, componentName: node.name.text, ...found };
+            result = {
+              fnNode: init,
+              fnBody: init.body,
+              componentName: node.name.text,
+              ...found,
+            };
             return;
           }
         } else if (isJsxNode(init.body)) {
-          result = { fnNode: init, fnBody: null, componentName: node.name.text, jsxRoot: init.body, returnStatement: null };
+          result = {
+            fnNode: init,
+            fnBody: null,
+            componentName: node.name.text,
+            jsxRoot: init.body,
+            returnStatement: null,
+          };
           return;
         }
       }
@@ -138,8 +216,10 @@ function findComponentFunction(sourceFile) {
 
 /** v1 supports only a single destructured-object parameter (the shape every real component in this codebase uses). */
 function collectComponentParamNames(fnNode) {
-  if (!fnNode.parameters || fnNode.parameters.length === 0) return { names: new Set(), supported: true };
-  if (fnNode.parameters.length > 1) return { names: new Set(), supported: false };
+  if (!fnNode.parameters || fnNode.parameters.length === 0)
+    return { names: new Set(), supported: true };
+  if (fnNode.parameters.length > 1)
+    return { names: new Set(), supported: false };
   const param = fnNode.parameters[0];
   if (ts.isObjectBindingPattern(param.name)) {
     return { names: new Set(collectBindingNames(param.name)), supported: true };
@@ -154,14 +234,25 @@ function collectLocalDeclarations(fnBody, returnStatement) {
     if (stmt === returnStatement) break;
     if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
-        decls.push({ names: collectBindingNames(decl.name), node: decl, statement: stmt, initializer: decl.initializer });
+        decls.push({
+          names: collectBindingNames(decl.name),
+          node: decl,
+          statement: stmt,
+          initializer: decl.initializer,
+        });
       }
     } else {
       // Any other statement shape before return (if-blocks, plain function
       // declarations, etc.) is unmodeled in v1 — signal via a synthetic
       // "unsupported" declaration name so callers can bail conservatively
       // rather than silently ignoring code that might matter.
-      decls.push({ names: [], node: stmt, statement: stmt, initializer: null, unsupportedStatement: true });
+      decls.push({
+        names: [],
+        node: stmt,
+        statement: stmt,
+        initializer: null,
+        unsupportedStatement: true,
+      });
     }
   }
   return decls;
@@ -196,7 +287,9 @@ function collectFreeIdentifiers(node, opts = {}) {
         // binding in scope (a module import, prop, or local) that must still
         // be resolved/copied for the extraction to be valid.
         if (
-          (ts.isJsxOpeningElement(parent) || ts.isJsxClosingElement(parent) || ts.isJsxSelfClosingElement(parent)) &&
+          (ts.isJsxOpeningElement(parent) ||
+            ts.isJsxClosingElement(parent) ||
+            ts.isJsxSelfClosingElement(parent)) &&
           parent.tagName === n &&
           n.text[0] === n.text[0].toLowerCase()
         ) {
@@ -206,7 +299,11 @@ function collectFreeIdentifiers(node, opts = {}) {
       if (!bound.has(n.text)) free.add(n.text);
       return;
     }
-    if (ts.isArrowFunction(n) || ts.isFunctionExpression(n) || ts.isFunctionDeclaration(n)) {
+    if (
+      ts.isArrowFunction(n) ||
+      ts.isFunctionExpression(n) ||
+      ts.isFunctionDeclaration(n)
+    ) {
       // Not just parameters — a handler body commonly declares its own
       // locals (`const params = new URLSearchParams();` inside a submit
       // handler). Without collecting those too, a reference to `params`
@@ -297,7 +394,9 @@ function findImmediateJsxChildren(node) {
  */
 function hasOwnInteractivity(node, isNodeInteractiveWithBoundary, hookTaint) {
   if (isNodeInteractiveWithBoundary(node, (n) => isJsxNode(n))) return true;
-  for (const name of collectFreeIdentifiers(node, { stopAtJsxBoundary: true })) {
+  for (const name of collectFreeIdentifiers(node, {
+    stopAtJsxBoundary: true,
+  })) {
     if (hookTaint.get(name)) return true;
   }
   return false;
@@ -312,7 +411,12 @@ function hasOwnInteractivity(node, isNodeInteractiveWithBoundary, hookTaint) {
  * subtrees are kept separate by default (Astro-style small islands) — merging
  * happens later if they turn out to share a hook-tainted dependency.
  */
-function findMaximalInteractiveSubtrees(rootJsxNode, isSubtreeInteractive, isNodeInteractiveWithBoundary, hookTaint) {
+function findMaximalInteractiveSubtrees(
+  rootJsxNode,
+  isSubtreeInteractive,
+  isNodeInteractiveWithBoundary,
+  hookTaint,
+) {
   const results = [];
   function visit(node) {
     if (!isSubtreeInteractive(node)) return;
@@ -321,7 +425,9 @@ function findMaximalInteractiveSubtrees(rootJsxNode, isSubtreeInteractive, isNod
       return;
     }
     const jsxChildren = findImmediateJsxChildren(node);
-    const interactiveChildren = jsxChildren.filter((c) => isSubtreeInteractive(c));
+    const interactiveChildren = jsxChildren.filter((c) =>
+      isSubtreeInteractive(c),
+    );
     if (interactiveChildren.length === 0) {
       // Shouldn't normally happen (isSubtreeInteractive(node) was true with
       // no own-content cause and no interactive children) — bail
@@ -339,11 +445,23 @@ function findMaximalInteractiveSubtrees(rootJsxNode, isSubtreeInteractive, isNod
 function collectModuleLevelNames(sourceFile, componentFnNode) {
   const names = new Set();
   for (const stmt of sourceFile.statements) {
-    if (stmt === componentFnNode || (ts.isVariableStatement(stmt) && stmt.declarationList.declarations.includes(componentFnNode))) continue;
+    if (
+      stmt === componentFnNode ||
+      (ts.isVariableStatement(stmt) &&
+        stmt.declarationList.declarations.includes(componentFnNode))
+    )
+      continue;
     if (ts.isImportDeclaration(stmt) && stmt.importClause) {
       if (stmt.importClause.name) names.add(stmt.importClause.name.text);
       const nb = stmt.importClause.namedBindings;
-      if (nb && ts.isNamedImports(nb)) nb.elements.forEach((el) => names.add((el.propertyName ?? el.name).text === el.name.text ? el.name.text : el.name.text));
+      if (nb && ts.isNamedImports(nb))
+        nb.elements.forEach((el) =>
+          names.add(
+            (el.propertyName ?? el.name).text === el.name.text
+              ? el.name.text
+              : el.name.text,
+          ),
+        );
       if (nb && ts.isNamespaceImport(nb)) names.add(nb.name.text);
     } else if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
@@ -351,7 +469,10 @@ function collectModuleLevelNames(sourceFile, componentFnNode) {
       }
     } else if (ts.isFunctionDeclaration(stmt) && stmt.name) {
       names.add(stmt.name.text);
-    } else if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) {
+    } else if (
+      ts.isInterfaceDeclaration(stmt) ||
+      ts.isTypeAliasDeclaration(stmt)
+    ) {
       names.add(stmt.name.text);
     }
   }
@@ -365,13 +486,20 @@ function collectModuleLevelNames(sourceFile, componentFnNode) {
  * to a prop, a local declaration, or a module-level name, so the caller must
  * bail conservatively rather than guess.
  */
-function classifyExtraction(jsxNodes, propNames, hookTaint, declByName, moduleLevelNames) {
+function classifyExtraction(
+  jsxNodes,
+  propNames,
+  hookTaint,
+  declByName,
+  moduleLevelNames,
+) {
   const props = new Set();
   const relocatedNames = new Set();
   let unresolved = false;
 
   const toResolve = [];
-  for (const node of jsxNodes) for (const n of collectFreeIdentifiers(node)) toResolve.push(n);
+  for (const node of jsxNodes)
+    for (const n of collectFreeIdentifiers(node)) toResolve.push(n);
   const seen = new Set();
 
   while (toResolve.length > 0) {
@@ -393,7 +521,8 @@ function classifyExtraction(jsxNodes, propNames, hookTaint, declByName, moduleLe
       }
       relocatedNames.add(name);
       if (decl.initializer) {
-        for (const f of collectFreeIdentifiers(decl.initializer)) if (!seen.has(f)) toResolve.push(f);
+        for (const f of collectFreeIdentifiers(decl.initializer))
+          if (!seen.has(f)) toResolve.push(f);
       }
       continue;
     }
@@ -414,56 +543,116 @@ function classifyExtraction(jsxNodes, propNames, hookTaint, declByName, moduleLe
  * Pure/no I/O: callers handle writing files.
  */
 function computeIslandSplit(filePath, sourceText) {
-  if (!ts) return { success: false, reason: "typescript module unavailable" };
+  if (!ts) return { success: false, reason: 'typescript module unavailable' };
 
   let sourceFile;
   try {
-    sourceFile = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    sourceFile = ts.createSourceFile(
+      filePath,
+      sourceText,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
   } catch (e) {
     return { success: false, reason: `parse error: ${e.message}` };
   }
 
-  const { isNodeInteractive, isNodeInteractiveWithBoundary } = createInteractivityChecker(sourceFile, ts);
-  if (!isNodeInteractive(sourceFile)) return { success: false, reason: "component is not interactive" };
+  const { isNodeInteractive, isNodeInteractiveWithBoundary } =
+    createInteractivityChecker(sourceFile, ts);
+  if (!isNodeInteractive(sourceFile))
+    return { success: false, reason: 'component is not interactive' };
 
   // Check if component uses motion animation libraries/wrappers (framer-motion, motion helpers, etc.)
   // Splitting motion-animated components into partial islands tears apart scroll/entrance
   // animation timelines and CSS grid/flex containers. They must hydrate as cohesive islands.
   const usesMotionModule =
-    CLIENT_ANIMATION_PACKAGES.some((pkg) => sourceText.includes(`"${pkg}"`) || sourceText.includes(`'${pkg}'`)) ||
+    CLIENT_ANIMATION_PACKAGES.some(
+      (pkg) =>
+        sourceText.includes(`"${pkg}"`) || sourceText.includes(`'${pkg}'`),
+    ) ||
     /from\s+['"][^'"]*\/motion\/[^'"]*['"]/.test(sourceText) ||
     /from\s+['"][^'"]*reveal['"]/.test(sourceText);
   if (usesMotionModule) {
-    return { success: false, reason: "component uses client motion animations; component must hydrate as a cohesive island" };
+    return {
+      success: false,
+      reason:
+        'component uses client motion animations; component must hydrate as a cohesive island',
+    };
   }
 
   const componentInfo = findComponentFunction(sourceFile);
-  if (!componentInfo || !componentInfo.jsxRoot) return { success: false, reason: "no component function with a JSX return found" };
-  if (!componentInfo.fnBody) return { success: false, reason: "implicit-return arrow components are not supported in v1" };
+  if (!componentInfo || !componentInfo.jsxRoot)
+    return {
+      success: false,
+      reason: 'no component function with a JSX return found',
+    };
+  if (!componentInfo.fnBody)
+    return {
+      success: false,
+      reason: 'implicit-return arrow components are not supported in v1',
+    };
 
-  const { supported, names: propNames } = collectComponentParamNames(componentInfo.fnNode);
-  if (!supported) return { success: false, reason: "unsupported parameter shape (v1 requires a single destructured props parameter)" };
+  const { supported, names: propNames } = collectComponentParamNames(
+    componentInfo.fnNode,
+  );
+  if (!supported)
+    return {
+      success: false,
+      reason:
+        'unsupported parameter shape (v1 requires a single destructured props parameter)',
+    };
 
-  const localDecls = collectLocalDeclarations(componentInfo.fnBody, componentInfo.returnStatement);
+  const localDecls = collectLocalDeclarations(
+    componentInfo.fnBody,
+    componentInfo.returnStatement,
+  );
   const { taint, declByName } = computeHookTaint(localDecls, isNodeInteractive);
-  const moduleLevelNames = collectModuleLevelNames(sourceFile, componentInfo.fnNode);
+  const moduleLevelNames = collectModuleLevelNames(
+    sourceFile,
+    componentInfo.fnNode,
+  );
 
   function isSubtreeInteractive(node) {
     if (isNodeInteractive(node)) return true;
-    for (const name of collectFreeIdentifiers(node)) if (taint.get(name)) return true;
+    for (const name of collectFreeIdentifiers(node))
+      if (taint.get(name)) return true;
     return false;
   }
 
-  const candidates = findMaximalInteractiveSubtrees(componentInfo.jsxRoot, isSubtreeInteractive, isNodeInteractiveWithBoundary, taint);
-  if (candidates.length === 0) return { success: false, reason: "no extractable interactive subtree found" };
+  const candidates = findMaximalInteractiveSubtrees(
+    componentInfo.jsxRoot,
+    isSubtreeInteractive,
+    isNodeInteractiveWithBoundary,
+    taint,
+  );
+  if (candidates.length === 0)
+    return {
+      success: false,
+      reason: 'no extractable interactive subtree found',
+    };
 
   let groups = candidates.map((node) => {
-    const result = classifyExtraction([node], propNames, taint, declByName, moduleLevelNames);
-    return { nodes: [node], props: result.props, relocatedNames: result.relocatedNames, unresolved: result.unresolved };
+    const result = classifyExtraction(
+      [node],
+      propNames,
+      taint,
+      declByName,
+      moduleLevelNames,
+    );
+    return {
+      nodes: [node],
+      props: result.props,
+      relocatedNames: result.relocatedNames,
+      unresolved: result.unresolved,
+    };
   });
 
   if (groups.some((g) => g.unresolved)) {
-    return { success: false, reason: "unresolved free variable in at least one candidate subtree" };
+    return {
+      success: false,
+      reason: 'unresolved free variable in at least one candidate subtree',
+    };
   }
 
   function collectHookRootStatements(names) {
@@ -500,17 +689,34 @@ function computeIslandSplit(filePath, sourceText) {
     merged = false;
     outer: for (let i = 0; i < groups.length; i++) {
       for (let j = i + 1; j < groups.length; j++) {
-        const shares =
-          [...groups[i].relocatedNames].some((n) => groups[j].relocatedNames.has(n));
+        const shares = [...groups[i].relocatedNames].some((n) =>
+          groups[j].relocatedNames.has(n),
+        );
         const iRoots = collectHookRootStatements(groups[i].relocatedNames);
         const jRoots = collectHookRootStatements(groups[j].relocatedNames);
         const sharesHookRoot = [...iRoots].some((r) => jRoots.has(r));
         if (shares || sharesHookRoot) {
           const combinedNodes = [...groups[i].nodes, ...groups[j].nodes];
-          const result = classifyExtraction(combinedNodes, propNames, taint, declByName, moduleLevelNames);
-          if (result.unresolved) return { success: false, reason: "merging sibling islands produced an unresolved free variable" };
+          const result = classifyExtraction(
+            combinedNodes,
+            propNames,
+            taint,
+            declByName,
+            moduleLevelNames,
+          );
+          if (result.unresolved)
+            return {
+              success: false,
+              reason:
+                'merging sibling islands produced an unresolved free variable',
+            };
           groups.splice(j, 1);
-          groups.splice(i, 1, { nodes: combinedNodes, props: result.props, relocatedNames: result.relocatedNames, unresolved: false });
+          groups.splice(i, 1, {
+            nodes: combinedNodes,
+            props: result.props,
+            relocatedNames: result.relocatedNames,
+            unresolved: false,
+          });
           merged = true;
           break outer;
         }
@@ -523,24 +729,40 @@ function computeIslandSplit(filePath, sourceText) {
   // When a component has multiple interactive/motion regions, it must hydrate
   // as a single cohesive unit to preserve layout and animation synchronization.
   if (groups.length > 1) {
-    return { success: false, reason: "multiple disjoint interactive subtrees; component must hydrate as a cohesive island" };
+    return {
+      success: false,
+      reason:
+        'multiple disjoint interactive subtrees; component must hydrate as a cohesive island',
+    };
   }
 
   // Non-sibling extractions get concatenated into a fragment. That tears
   // the original layout apart (two cells of a grid becoming one fragment).
   for (const g of groups) {
     if (!nodesAreSiblings(g.nodes)) {
-      return { success: false, reason: "extracted nodes are not siblings; splitting would break layout" };
+      return {
+        success: false,
+        reason:
+          'extracted nodes are not siblings; splitting would break layout',
+      };
     }
   }
 
   // No benefit to splitting if an island would swallow the large majority of
   // the component's own JSX.
-  const totalJsxLength = componentInfo.jsxRoot.getEnd() - componentInfo.jsxRoot.getStart(sourceFile);
+  const totalJsxLength =
+    componentInfo.jsxRoot.getEnd() - componentInfo.jsxRoot.getStart(sourceFile);
   for (const g of groups) {
-    const groupLength = g.nodes.reduce((sum, n) => sum + (n.getEnd() - n.getStart(sourceFile)), 0);
+    const groupLength = g.nodes.reduce(
+      (sum, n) => sum + (n.getEnd() - n.getStart(sourceFile)),
+      0,
+    );
     if (totalJsxLength > 0 && groupLength / totalJsxLength > 0.9) {
-      return { success: false, reason: "extraction candidate would contain the large majority of the component; no benefit to splitting" };
+      return {
+        success: false,
+        reason:
+          'extraction candidate would contain the large majority of the component; no benefit to splitting',
+      };
     }
   }
 
@@ -557,16 +779,25 @@ function computeIslandSplit(filePath, sourceText) {
 
   const remainingIsInteractive = isNodeInteractiveWithBoundary(
     componentInfo.jsxRoot,
-    (n) => allExtractedNodes.has(n)
+    (n) => allExtractedNodes.has(n),
   );
   if (remainingIsInteractive) {
-    return { success: false, reason: "surviving JSX still contains interactive or motion elements; cannot safely split" };
+    return {
+      success: false,
+      reason:
+        'surviving JSX still contains interactive or motion elements; cannot safely split',
+    };
   }
 
-  const remainingJsxFree = collectFreeIdentifiers(componentInfo.jsxRoot, { excludeNodes: allExtractedNodes });
+  const remainingJsxFree = collectFreeIdentifiers(componentInfo.jsxRoot, {
+    excludeNodes: allExtractedNodes,
+  });
   for (const name of remainingJsxFree) {
     if (allRelocatedNames.has(name)) {
-      return { success: false, reason: `"${name}" is still referenced outside the extracted subtree(s) (shared state) — cannot safely split` };
+      return {
+        success: false,
+        reason: `"${name}" is still referenced outside the extracted subtree(s) (shared state) — cannot safely split`,
+      };
     }
   }
   for (const decl of localDecls) {
@@ -581,7 +812,10 @@ function computeIslandSplit(filePath, sourceText) {
       // surviving statement, not skipped.
       for (const name of collectFreeIdentifiers(decl.node)) {
         if (allRelocatedNames.has(name)) {
-          return { success: false, reason: `"${name}" is still referenced by a surviving statement (e.g. an effect) — cannot safely split` };
+          return {
+            success: false,
+            reason: `"${name}" is still referenced by a surviving statement (e.g. an effect) — cannot safely split`,
+          };
         }
       }
       continue;
@@ -589,7 +823,10 @@ function computeIslandSplit(filePath, sourceText) {
     if (!decl.initializer) continue;
     for (const name of collectFreeIdentifiers(decl.initializer)) {
       if (allRelocatedNames.has(name)) {
-        return { success: false, reason: `"${name}" is still referenced by a surviving local declaration — cannot safely split` };
+        return {
+          success: false,
+          reason: `"${name}" is still referenced by a surviving local declaration — cannot safely split`,
+        };
       }
     }
   }
@@ -607,11 +844,22 @@ function computeIslandSplit(filePath, sourceText) {
     const decl = localDecls.find((d) => d.statement === stmt);
     if (!decl) continue;
     if (decl.names.some((n) => !allRelocatedNames.has(n))) {
-      return { success: false, reason: "a relocated declaration shares a binding statement with a name that must stay in the parent — cannot safely split" };
+      return {
+        success: false,
+        reason:
+          'a relocated declaration shares a binding statement with a name that must stay in the parent — cannot safely split',
+      };
     }
   }
 
-  return { success: true, sourceFile, componentInfo, groups, statementsToRemove, localDecls };
+  return {
+    success: true,
+    sourceFile,
+    componentInfo,
+    groups,
+    statementsToRemove,
+    localDecls,
+  };
 }
 
 function deriveIslandName(componentName, index) {
@@ -638,16 +886,31 @@ const GENERATED_BANNER = (componentName) =>
  * package specifiers (`react`, `lucide-react`) are untouched.
  */
 function rewriteImportForIslandDepth(importDecl, sourceFile, sourceText) {
-  const raw = sourceText.slice(importDecl.getStart(sourceFile), importDecl.getEnd());
+  const raw = sourceText.slice(
+    importDecl.getStart(sourceFile),
+    importDecl.getEnd(),
+  );
   const spec = importDecl.moduleSpecifier;
-  if (!spec || !ts.isStringLiteral(spec) || !spec.text.startsWith(".")) return raw;
+  if (!spec || !ts.isStringLiteral(spec) || !spec.text.startsWith('.'))
+    return raw;
   const specStart = spec.getStart(sourceFile) - importDecl.getStart(sourceFile);
   const specEnd = spec.getEnd() - importDecl.getStart(sourceFile);
   const quote = raw[specStart];
-  return raw.slice(0, specStart) + `${quote}../../${spec.text}${quote}` + raw.slice(specEnd);
+  return (
+    raw.slice(0, specStart) +
+    `${quote}../../${spec.text}${quote}` +
+    raw.slice(specEnd)
+  );
 }
 
-function buildIslandSource(sourceFile, sourceText, group, localDecls, componentInfo, islandName) {
+function buildIslandSource(
+  sourceFile,
+  sourceText,
+  group,
+  localDecls,
+  componentInfo,
+  islandName,
+) {
   const declByName = new Map();
   for (const d of localDecls) for (const n of d.names) declByName.set(n, d);
 
@@ -656,22 +919,30 @@ function buildIslandSource(sourceFile, sourceText, group, localDecls, componentI
     const decl = declByName.get(name);
     if (decl) stmtSet.add(decl.statement);
   }
-  const stmts = [...stmtSet].sort((a, b) => a.getStart(sourceFile) - b.getStart(sourceFile));
-  const bodyLines = stmts.map((s) => sourceText.slice(s.getStart(sourceFile), s.getEnd()));
+  const stmts = [...stmtSet].sort(
+    (a, b) => a.getStart(sourceFile) - b.getStart(sourceFile),
+  );
+  const bodyLines = stmts.map((s) =>
+    sourceText.slice(s.getStart(sourceFile), s.getEnd()),
+  );
 
   const jsxParts = group.nodes
     .slice()
     .sort((a, b) => a.getStart(sourceFile) - b.getStart(sourceFile))
     .map((n) => sourceText.slice(n.getStart(sourceFile), n.getEnd()));
-  const returnExpr = jsxParts.length === 1 ? jsxParts[0] : `<>\n${jsxParts.join("\n")}\n</>`;
+  const returnExpr =
+    jsxParts.length === 1 ? jsxParts[0] : `<>\n${jsxParts.join('\n')}\n</>`;
 
   const propsList = [...group.props];
   const propsInterfaceName = `${islandName}Props`;
   const propsInterface =
     propsList.length > 0
-      ? `export interface ${propsInterfaceName} {\n${propsList.map((p) => `  ${p}?: any;`).join("\n")}\n}\n\n`
-      : "";
-  const propsParam = propsList.length > 0 ? `{ ${propsList.join(", ")} }: ${propsInterfaceName}` : "";
+      ? `export interface ${propsInterfaceName} {\n${propsList.map((p) => `  ${p}?: any;`).join('\n')}\n}\n\n`
+      : '';
+  const propsParam =
+    propsList.length > 0
+      ? `{ ${propsList.join(', ')} }: ${propsInterfaceName}`
+      : '';
 
   // Copy every top-level import verbatim rather than selectively trimming —
   // unused imports cost nothing here (this file is compiler-generated, never
@@ -683,30 +954,42 @@ function buildIslandSource(sourceFile, sourceText, group, localDecls, componentI
   const importLines = sourceFile.statements
     .filter((s) => ts.isImportDeclaration(s))
     .map((s) => rewriteImportForIslandDepth(s, sourceFile, sourceText))
-    .join("\n");
+    .join('\n');
 
   // Module-level consts / helpers / types the island JSX closes over.
   // classifyExtraction treats these as "copied wholesale" — so copy them,
   // or the island throws ReferenceError on hydrate.
   const moduleLevelLines = sourceFile.statements
     .filter((s) => {
-      if (ts.isImportDeclaration(s) || ts.isExportDeclaration(s) || ts.isExportAssignment(s)) return false;
+      if (
+        ts.isImportDeclaration(s) ||
+        ts.isExportDeclaration(s) ||
+        ts.isExportAssignment(s)
+      )
+        return false;
       if (s === componentInfo.fnNode) return false;
-      if (ts.isFunctionDeclaration(s) && s.name && s.name.text === componentInfo.componentName) return false;
+      if (
+        ts.isFunctionDeclaration(s) &&
+        s.name &&
+        s.name.text === componentInfo.componentName
+      )
+        return false;
       if (
         ts.isVariableStatement(s) &&
-        s.declarationList.declarations.some((d) => d.initializer === componentInfo.fnNode)
+        s.declarationList.declarations.some(
+          (d) => d.initializer === componentInfo.fnNode,
+        )
       ) {
         return false;
       }
       return true;
     })
     .map((s) => sourceText.slice(s.getStart(sourceFile), s.getEnd()))
-    .join("\n\n");
+    .join('\n\n');
 
   return (
-    `${GENERATED_BANNER(componentInfo.componentName)}${importLines}\n\n${moduleLevelLines ? moduleLevelLines + "\n\n" : ""}${propsInterface}` +
-    `export function ${islandName}(${propsParam}) {\n${bodyLines.join("\n")}\n  return (\n    ${returnExpr}\n  );\n}\n\n` +
+    `${GENERATED_BANNER(componentInfo.componentName)}${importLines}\n\n${moduleLevelLines ? moduleLevelLines + '\n\n' : ''}${propsInterface}` +
+    `export function ${islandName}(${propsParam}) {\n${bodyLines.join('\n')}\n  return (\n    ${returnExpr}\n  );\n}\n\n` +
     `export default ${islandName};\n`
   );
 }
@@ -730,11 +1013,17 @@ function buildShellSource(sourceFile, sourceText, splitResult, islandNames) {
 
   groups.forEach((g, i) => {
     const islandName = islandNames[i];
-    const propsAttrs = [...g.props].map((p) => ` ${p}={${p}}`).join("");
+    const propsAttrs = [...g.props].map((p) => ` ${p}={${p}}`).join('');
     const replacementTag = `<${islandName}${propsAttrs} />`;
-    const sortedNodes = g.nodes.slice().sort((a, b) => a.getStart(sourceFile) - b.getStart(sourceFile));
+    const sortedNodes = g.nodes
+      .slice()
+      .sort((a, b) => a.getStart(sourceFile) - b.getStart(sourceFile));
     sortedNodes.forEach((node, idx) => {
-      edits.push({ start: node.getStart(sourceFile), end: node.getEnd(), text: idx === 0 ? replacementTag : "" });
+      edits.push({
+        start: node.getStart(sourceFile),
+        end: node.getEnd(),
+        text: idx === 0 ? replacementTag : '',
+      });
     });
 
     const stmtSet = new Set();
@@ -743,7 +1032,11 @@ function buildShellSource(sourceFile, sourceText, splitResult, islandNames) {
       if (decl) stmtSet.add(decl.statement);
     }
     for (const stmt of stmtSet) {
-      edits.push({ start: stmt.getStart(sourceFile), end: stmt.getEnd(), text: "" });
+      edits.push({
+        start: stmt.getStart(sourceFile),
+        end: stmt.getEnd(),
+        text: '',
+      });
     }
   });
 
@@ -754,7 +1047,12 @@ function buildShellSource(sourceFile, sourceText, splitResult, islandNames) {
     result = result.slice(0, edit.start) + edit.text + result.slice(edit.end);
   }
 
-  const importLines = islandNames.map((name) => `import { ${name} } from './${GENERATED_ISLANDS_DIRNAME}/${splitResult.componentInfo.componentName}/${name}';`).join("\n");
+  const importLines = islandNames
+    .map(
+      (name) =>
+        `import { ${name} } from './${GENERATED_ISLANDS_DIRNAME}/${splitResult.componentInfo.componentName}/${name}';`,
+    )
+    .join('\n');
   return `${importLines}\n${result}`;
 }
 
@@ -799,9 +1097,9 @@ let tsUnavailableWarned = false;
 // opportunity, it's just not shaped for this pass. Not worth reporting even
 // in verbose mode; only the genuine safety-gate bail-outs are.
 const NON_ACTIONABLE_REASONS = [
-  "component is not interactive",
-  "no extractable interactive subtree found",
-  "extraction candidate would contain the large majority of the component; no benefit to splitting",
+  'component is not interactive',
+  'no extractable interactive subtree found',
+  'extraction candidate would contain the large majority of the component; no benefit to splitting',
 ];
 
 function splitInteractiveIslands(themeRoot) {
@@ -810,7 +1108,9 @@ function splitInteractiveIslands(themeRoot) {
   if (!ts) {
     if (!tsUnavailableWarned) {
       tsUnavailableWarned = true;
-      console.warn("[ForgeWP Auto-Island-Split] typescript module unavailable — skipping auto-split for this project (components will hydrate as-is, same as before this pass existed).");
+      console.warn(
+        '[ForgeWP Auto-Island-Split] typescript module unavailable — skipping auto-split for this project (components will hydrate as-is, same as before this pass existed).',
+      );
     }
     return 0;
   }
@@ -822,7 +1122,7 @@ function splitInteractiveIslands(themeRoot) {
   for (const filePath of files) {
     let content;
     try {
-      content = readFileSync(filePath, "utf8");
+      content = readFileSync(filePath, 'utf8');
     } catch {
       continue;
     }
@@ -831,7 +1131,10 @@ function splitInteractiveIslands(themeRoot) {
     try {
       result = computeIslandSplit(filePath, content);
     } catch (err) {
-      console.warn(`[ForgeWP Auto-Island-Split] Error analyzing ${filePath}:`, err.message);
+      console.warn(
+        `[ForgeWP Auto-Island-Split] Error analyzing ${filePath}:`,
+        err.message,
+      );
       continue;
     }
 
@@ -848,24 +1151,47 @@ function splitInteractiveIslands(themeRoot) {
     }
 
     try {
-      const islandNames = result.groups.map((g, i) => deriveIslandName(result.componentInfo.componentName, i));
-      const islandDir = path.join(path.dirname(filePath), GENERATED_ISLANDS_DIRNAME, result.componentInfo.componentName);
+      const islandNames = result.groups.map((g, i) =>
+        deriveIslandName(result.componentInfo.componentName, i),
+      );
+      const islandDir = path.join(
+        path.dirname(filePath),
+        GENERATED_ISLANDS_DIRNAME,
+        result.componentInfo.componentName,
+      );
       mkdirSync(islandDir, { recursive: true });
 
       result.groups.forEach((g, i) => {
-        const islandCode = buildIslandSource(result.sourceFile, content, g, result.localDecls, result.componentInfo, islandNames[i]);
+        const islandCode = buildIslandSource(
+          result.sourceFile,
+          content,
+          g,
+          result.localDecls,
+          result.componentInfo,
+          islandNames[i],
+        );
         const islandPath = path.join(islandDir, `${islandNames[i]}.tsx`);
-        const existing = existsSync(islandPath) ? readFileSync(islandPath, "utf8") : null;
+        const existing = existsSync(islandPath)
+          ? readFileSync(islandPath, 'utf8')
+          : null;
         if (existing !== islandCode) {
-          writeFileSync(islandPath, islandCode, "utf8");
+          writeFileSync(islandPath, islandCode, 'utf8');
         }
       });
 
-      const shellCode = buildShellSource(result.sourceFile, content, result, islandNames);
+      const shellCode = buildShellSource(
+        result.sourceFile,
+        content,
+        result,
+        islandNames,
+      );
       setContentOverride(filePath, shellCode);
       splitCount++;
     } catch (err) {
-      console.warn(`[ForgeWP Auto-Island-Split] Error generating split output for ${filePath}:`, err.message);
+      console.warn(
+        `[ForgeWP Auto-Island-Split] Error generating split output for ${filePath}:`,
+        err.message,
+      );
     }
   }
 
@@ -874,10 +1200,10 @@ function splitInteractiveIslands(themeRoot) {
       for (const { relPath, reason } of newBailouts) {
         console.warn(
           `[ForgeWP Auto-Island-Split] Could not auto-split ${relPath}: ${reason}. ` +
-          `Consider extracting the interactive part into its own component by hand (see HeroSearchBoard.tsx / HeroSpotlight.tsx for the pattern).`,
+            `Consider extracting the interactive part into its own component by hand (see HeroSearchBoard.tsx / HeroSpotlight.tsx for the pattern).`,
         );
       }
-    } else {
+    } else if (process.env.FORGEWP_VERBOSE === '1') {
       console.warn(
         `[ForgeWP Auto-Island-Split] ${newBailouts.length} component(s) could not be auto-split (they hydrate as-is, same as before this pass existed) — set FORGEWP_VERBOSE=1 for the per-file reasons.`,
       );

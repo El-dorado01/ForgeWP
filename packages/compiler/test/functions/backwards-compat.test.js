@@ -4,23 +4,13 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 
-describe('Zero-Clutter Backwards Compatibility Layer', () => {
-  it('provides fallback resolution for legacy @/wordpress and .forgewp/wordpress imports', () => {
+describe('Virtual Runtime Compatibility', () => {
+  it('does not resolve private legacy runtime aliases', () => {
     const plugin = forgewpVirtualPlugin();
 
-    // 1. Check resolveId maps @/wordpress to virtual legacy module
-    const resolvedAt = plugin.resolveId('@/wordpress');
-    expect(resolvedAt).toBe('\0virtual:forgewp-legacy-wordpress');
-
-    const resolvedSrc = plugin.resolveId('src/.forgewp/wordpress');
-    expect(resolvedSrc).toBe('\0virtual:forgewp-legacy-wordpress');
-
-    const resolvedRel = plugin.resolveId('../.forgewp/wordpress');
-    expect(resolvedRel).toBe('\0virtual:forgewp-legacy-wordpress');
-
-    // 2. Check load provides re-exports from @forgewp/react
-    const legacyCode = plugin.load('\0virtual:forgewp-legacy-wordpress');
-    expect(legacyCode).toContain("export * from '@forgewp/react';");
+    expect(plugin.resolveId('@/wordpress')).toBe(null);
+    expect(plugin.resolveId('src/.forgewp/wordpress')).toBe(null);
+    expect(plugin.resolveId('../.forgewp/wordpress')).toBe(null);
   });
 
   it('loads mock database into virtual:forgewp-runtime for dev mode', async () => {
@@ -31,7 +21,7 @@ describe('Zero-Clutter Backwards Compatibility Layer', () => {
     fs.writeFileSync(
       path.join(cmsDir, 'mock-data.json'),
       JSON.stringify({ posts: [{ id: 1, title: 'Hello World' }] }),
-      'utf8'
+      'utf8',
     );
 
     const plugin = forgewpVirtualPlugin({ projectRoot: tmpDir });

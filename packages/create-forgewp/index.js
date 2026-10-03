@@ -338,8 +338,15 @@ async function main() {
   const targetDir = path.resolve(cwd(), projectDirName);
 
   if (existsSync(targetDir)) {
-    console.error(pc.red(`Directory already exists: ${targetDir}`));
-    process.exit(1);
+    if (
+      existsSync(path.join(targetDir, 'package.json')) ||
+      existsSync(path.join(targetDir, 'wp.config.ts'))
+    ) {
+      console.error(
+        pc.red(`Directory already contains a ForgeWP project: ${targetDir}`),
+      );
+      process.exit(1);
+    }
   }
 
   const slug = slugify(path.basename(projectDirName));

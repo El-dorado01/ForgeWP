@@ -6,7 +6,14 @@
  */
 
 export type WpOptionField = {
-  _type: 'text' | 'url' | 'email' | 'textarea' | 'toggle' | 'number' | 'postPicker';
+  _type:
+    | 'text'
+    | 'url'
+    | 'email'
+    | 'textarea'
+    | 'toggle'
+    | 'number'
+    | 'postPicker';
   label?: string;
   default?: string;
   postType?: string;
@@ -19,33 +26,47 @@ export type WpOptionField = {
 export type WpOptionsSchema = Record<string, WpOptionField>;
 
 /** Plain text input field. */
-export function optionText(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+export function optionText(
+  config: Omit<WpOptionField, '_type'> = {},
+): WpOptionField {
   return { ...config, _type: 'text' };
 }
 
 /** URL input field (sanitized with esc_url_raw server-side). */
-export function optionUrl(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+export function optionUrl(
+  config: Omit<WpOptionField, '_type'> = {},
+): WpOptionField {
   return { ...config, _type: 'url' };
 }
 
 /** Email input field. */
-export function optionEmail(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+export function optionEmail(
+  config: Omit<WpOptionField, '_type'> = {},
+): WpOptionField {
   return { ...config, _type: 'email' };
 }
 
 /** Multi-line textarea field. */
-export function optionTextarea(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+export function optionTextarea(
+  config: Omit<WpOptionField, '_type'> = {},
+): WpOptionField {
   return { ...config, _type: 'textarea' };
 }
 
 /** Checkbox / boolean toggle field. */
-export function optionToggle(config: Omit<WpOptionField, '_type'> = {}): WpOptionField {
+export function optionToggle(
+  config: Omit<WpOptionField, '_type'> = {},
+): WpOptionField {
   return { ...config, _type: 'toggle' };
 }
 
 /** Numeric input field. */
 export function optionNumber(
-  config: Omit<WpOptionField, '_type'> & { min?: number; max?: number; step?: number } = {}
+  config: Omit<WpOptionField, '_type'> & {
+    min?: number;
+    max?: number;
+    step?: number;
+  } = {},
 ): WpOptionField {
   return { ...config, _type: 'number' };
 }
@@ -55,7 +76,7 @@ export function optionNumber(
  * in the Theme Options admin page that searches posts of the given post type.
  */
 export function optionPostPicker(
-  config: Omit<WpOptionField, '_type'> & { postType: string }
+  config: Omit<WpOptionField, '_type'> & { postType: string },
 ): WpOptionField {
   return { ...config, _type: 'postPicker' };
 }
@@ -84,7 +105,13 @@ export function defineWpOptions(schema: WpOptionsSchema): WpOptionsSchema {
 }
 
 export type WpFormFieldType =
-  | 'text' | 'email' | 'tel' | 'number' | 'textarea' | 'select' | 'checkbox';
+  | 'text'
+  | 'email'
+  | 'tel'
+  | 'number'
+  | 'textarea'
+  | 'select'
+  | 'checkbox';
 
 export interface WpFormField {
   type: WpFormFieldType;
@@ -106,6 +133,13 @@ export interface WpFormClientFieldsConfig {
    * provide a per-locale map instead so each language seeds independently.
    */
   seed: WpFormFieldSeed | Record<string, WpFormFieldSeed>;
+}
+
+export interface WpFormConfirmationConfig {
+  enabled: boolean;
+  emailField: string;
+  subject: string;
+  body: string;
 }
 
 export interface WpFormConfig {
@@ -131,6 +165,10 @@ export interface WpFormConfig {
   clientFields?: WpFormClientFieldsConfig;
   /** Store each submission in the forgewp_submission CPT (client inbox). Default true. */
   storeSubmissions?: boolean;
+  /** Optional plain-text submitter confirmation. Disabled unless enabled. */
+  confirmation?: WpFormConfirmationConfig;
+  /** Permanently delete stored submissions after this many days. No cleanup by default. */
+  retentionDays?: number;
 }
 
 /**
@@ -245,7 +283,10 @@ export interface WpPostBase {
         caption?: string;
         width?: number;
         height?: number;
-        sizes?: Record<string, { url: string; width?: number; height?: number }>;
+        sizes?: Record<
+          string,
+          { url: string; width?: number; height?: number }
+        >;
         [key: string]: any;
       };
   status?: 'publish' | 'draft' | 'pending' | 'private' | 'trash' | string;
@@ -287,7 +328,7 @@ export type WpPostsConfig<TCustom = Record<string, any>> = {
  * ```
  */
 export function defineWpPosts<TCustom = Record<string, any>>(
-  posts: WpPostsConfig<TCustom>
+  posts: WpPostsConfig<TCustom>,
 ): WpPostsConfig<TCustom> {
   return posts;
 }
@@ -333,7 +374,7 @@ export interface WpMenuItem {
  * ```
  */
 export function defineWpMenus(
-  menus: Record<string, WpMenuItem[]>
+  menus: Record<string, WpMenuItem[]>,
 ): Record<string, WpMenuItem[]> {
   return menus;
 }
@@ -344,7 +385,13 @@ export interface WpUserSeed {
   email: string;
   displayName?: string;
   roles: Array<
-    'administrator' | 'editor' | 'author' | 'contributor' | 'subscriber' | 'customer' | string
+    | 'administrator'
+    | 'editor'
+    | 'author'
+    | 'contributor'
+    | 'subscriber'
+    | 'customer'
+    | string
   >;
   avatarUrl?: string;
   emailVerified?: boolean;
@@ -362,7 +409,7 @@ export function defineWpUsers(users: WpUserSeed[]): WpUserSeed[] {
  * Type-safe helper for declaring custom role capability matrices in `cms/roles.ts`.
  */
 export function defineWpRoles(
-  roles: Record<string, string[]>
+  roles: Record<string, string[]>,
 ): Record<string, string[]> {
   return roles;
 }
@@ -371,7 +418,7 @@ export function defineWpRoles(
  * Type-safe helper for declaring i18n localization dictionary strings in `cms/translations.ts`.
  */
 export function defineTranslations(
-  translations: Record<string, Record<string, string>>
+  translations: Record<string, Record<string, string>>,
 ): Record<string, Record<string, string>> {
   return translations;
 }
@@ -407,5 +454,3 @@ export interface ForgeWPSeedConfig {
    */
   developmentOnly?: boolean;
 }
-
-

@@ -7,6 +7,7 @@ import { buildRoutingPhp } from '../../lib/functions/routing.js';
 import { buildHydrationEnqueuerPhp } from '../../lib/functions/hydration-enqueuer.js';
 import { buildThemeSetupPhp } from '../../lib/functions/theme-setup.js';
 import { loadMenusData } from '../../lib/functions/load-menus.js';
+import { collectFallbackPageRoutes } from '../../lib/collect-static-routes.js';
 
 describe('Mega Menus & Hierarchical Navigation Compiler Tests', () => {
   it('serializes nested mega menu items with children, badges, images, and classes to PHP', () => {
@@ -57,15 +58,21 @@ describe('Mega Menus & Hierarchical Navigation Compiler Tests', () => {
       [], // i18nKeys
       {}, // schemas
       [], // queries
-      [] // wpOptions
+      [], // wpOptions
     );
 
     expect(generatedPhp).toContain("'title' => 'Furniture'");
     expect(generatedPhp).toContain("'badge' => 'New Season'");
-    expect(generatedPhp).toContain("'image' => 'https://example.com/furniture.jpg'");
-    expect(generatedPhp).toContain("'classes' => array('mega-menu-col', 'featured')");
+    expect(generatedPhp).toContain(
+      "'image' => 'https://example.com/furniture.jpg'",
+    );
+    expect(generatedPhp).toContain(
+      "'classes' => array('mega-menu-col', 'featured')",
+    );
     expect(generatedPhp).toContain("'title' => 'Living Room'");
-    expect(generatedPhp).toContain("'description' => 'Sofas, tables, and lounge chairs'");
+    expect(generatedPhp).toContain(
+      "'description' => 'Sofas, tables, and lounge chairs'",
+    );
     expect(generatedPhp).toContain("'title' => 'Sofas'");
     expect(generatedPhp).toContain("'title' => 'Coffee Tables'");
     expect(generatedPhp).toContain('forgewp_seed_menu_items');
@@ -88,14 +95,22 @@ describe('Mega Menus & Hierarchical Navigation Compiler Tests', () => {
       schemaDefaultsPhp,
       menuItemsPhpArray,
       socialSettingsPhp,
-      postTypes
+      postTypes,
     );
 
-    expect(routingPhp).toContain('function forgewp_seed_menu_items($menu_id, $items, $parent_id = 0)');
+    expect(routingPhp).toContain(
+      'function forgewp_seed_menu_items($menu_id, $items, $parent_id = 0)',
+    );
     expect(routingPhp).toContain("'menu-item-parent-id' => (int)$parent_id");
-    expect(routingPhp).toContain("update_post_meta($item_id, '_forgewp_menu_badge'");
-    expect(routingPhp).toContain("update_post_meta($item_id, '_forgewp_menu_image'");
-    expect(routingPhp).toContain("forgewp_seed_menu_items($menu_id, $item['children'], $item_id)");
+    expect(routingPhp).toContain(
+      "update_post_meta($item_id, '_forgewp_menu_badge'",
+    );
+    expect(routingPhp).toContain(
+      "update_post_meta($item_id, '_forgewp_menu_image'",
+    );
+    expect(routingPhp).toContain(
+      "forgewp_seed_menu_items($menu_id, $item['children'], $item_id)",
+    );
   });
 
   it('buildHydrationEnqueuerPhp includes forgewp_build_menu_tree function and attaches nested hierarchy', () => {
@@ -119,14 +134,24 @@ describe('Mega Menus & Hierarchical Navigation Compiler Tests', () => {
       '', // headlessScript
       '', // currentUserHydrationField
       'usernameAndEmail', // defaultLoginField
-      '' // providersPhp
+      '', // providersPhp
     );
 
-    expect(enqueuerPhp).toContain('function forgewp_build_menu_tree($menu_items, $parent_id = 0)');
-    expect(enqueuerPhp).toContain("(int)$item->menu_item_parent === (int)$parent_id");
-    expect(enqueuerPhp).toContain("forgewp_build_menu_tree($menu_items, $item->ID)");
+    expect(enqueuerPhp).toContain(
+      'function forgewp_build_menu_tree($menu_items, $parent_id = 0)',
+    );
+    expect(enqueuerPhp).toContain(
+      '(int)$item->menu_item_parent === (int)$parent_id',
+    );
+    expect(enqueuerPhp).toContain(
+      'forgewp_build_menu_tree($menu_items, $item->ID)',
+    );
     expect(enqueuerPhp).toContain("$node['children'] = $children;");
-    expect(enqueuerPhp).toContain("$items_list = forgewp_build_menu_tree($menu_items, 0);");
+    expect(enqueuerPhp).toContain(
+      '$items_list = forgewp_build_menu_tree($menu_items, 0);',
+    );
+    expect(enqueuerPhp).toContain("'id'    => (string) $item->ID,");
+    expect(enqueuerPhp).not.toContain("'id'    => (int)$item->ID,");
   });
 });
 
@@ -163,8 +188,29 @@ export const menus = defineWpMenus({
   ]
 });
 
+describe('menu route collection', () => {
+  it('keeps nested page paths and ignores anchor-only links', () => {
+    const routes = collectFallbackPageRoutes({
+      menus: {
+        primary: [
+          { title: 'Events', url: '/events' },
+          { title: 'Berlin', url: '/events/berlin' },
+          { title: 'Landing section', url: '#events' },
+          { title: 'Checkout', url: '/checkout/single-license#consent' },
+        ],
+      },
+    });
+
+    expect(routes.map((route) => route.slug)).toEqual([
+      'events',
+      'events/berlin',
+      'checkout/single-license',
+    ]);
+  });
+});
+
 export default menus;
-`
+`,
     );
 
     const menus = loadMenusData(tmpDir);
@@ -178,11 +224,11 @@ export default menus;
   it('prefers cms/menus.ts over cms/menus.json', () => {
     fs.writeFileSync(
       path.join(tmpDir, 'cms', 'menus.ts'),
-      `export const menus = { primary: [{ title: 'From TS', url: '/ts' }] };`
+      `export const menus = { primary: [{ title: 'From TS', url: '/ts' }] };`,
     );
     fs.writeFileSync(
       path.join(tmpDir, 'cms', 'menus.json'),
-      JSON.stringify({ primary: [{ title: 'From JSON', url: '/json' }] })
+      JSON.stringify({ primary: [{ title: 'From JSON', url: '/json' }] }),
     );
 
     const menus = loadMenusData(tmpDir);
@@ -195,7 +241,7 @@ export default menus;
       JSON.stringify({
         primary: [{ title: 'Shop', url: '/shop' }],
         footer: [{ title: 'Privacy', url: '/privacy' }],
-      })
+      }),
     );
 
     const menus = loadMenusData(tmpDir);
@@ -227,7 +273,7 @@ describe('theme setup always enables Appearance → Menus', () => {
       '1',
       '1',
       '0',
-      menus
+      menus,
     );
   }
 
@@ -248,6 +294,3 @@ describe('theme setup always enables Appearance → Menus', () => {
     expect(php).toContain("'footer_col_1'");
   });
 });
-
-
-
