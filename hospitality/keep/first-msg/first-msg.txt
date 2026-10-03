@@ -1,0 +1,350 @@
+1. Website & technische Zugänge
+WordPress-/Hosting-Zugang, sofern WordPress bzw. das Hosting bereits eingerichtet ist www.wordpress.com roland.schwecke@dicon-beratung.de 
+Domain-/DNS-Zugang bzw. die entsprechenden Informationen, falls die Domain bereits anderweitig verbunden ist www.dicon-beratung.de
+Stripe-Zugang bzw. Bestätigung des Stripe-Kontos, das angebunden werden soll den muss ich neu beantragen – mach ich alsbald möglich
+Vorhandene WordPress-/EDD-Zugänge, falls diese bereits eingerichtet wurden WordPress-/EDD-Zugänge: Bislang noch nicht vorhanden. Die Landingpage einschließlich der erforderlichen WordPress-/EDD-Umgebung soll im Rahmen des Auftrags neu eingerichtet werden.
+Administratorzugang zu WordPress, EDD und die Systeme sollten auf DICON registriert werden – wenn ich etwas tun soll sagen Sie gerne Bescheid. Am besten ist für wesentliche Unterseiten subdomains von www.dicon-beratung.de verwenden.
+
+Falls diese Punkte noch nicht eingerichtet sind, kann ich Ihnen selbstverständlich mitteilen, was dafür benötigt wird.
+
+2. Finale Studienunterlagen
+Finale Studien-PDF ist vertraulich anbei
+Finales Studien-Cover kommt noch
+5–8 ausgewählte Seiten bzw. Doppelseiten für die Vorschau kommt noch
+Charts, Grafiken oder weitere Bilder, die auf der Landingpage verwendet werden sollen evtl. das von Herrn Ögerli?
+Falls vorhanden: gewünschte Bilder/Mokups für die Darstellung der Studie  
+Anhand der finalen PDF kann ich außerdem die genauen Anforderungen für die optionale personalisierte PDF-Lizenzierung prüfen und Ihnen anschließend den verbindlichen Preis für dieses Add-on innerhalb der bereits besprochenen Spanne von 250–400 € nennen. Bitte auch eine englische Version als Spiegelung bedenken (Sind das Zusatzkosten? Wenn ja, sagen Sie einfach bescheid
+
+3. Unternehmens- und Rechtstexte
+Bitte auf der Landingpage die Rollen sauber trennen: „Autor / Herausgeber“ bei mir, „Studienpartner“ für IHA, HotellerieSuisse und KNX Deutschland sowie „Panel & Industry Partners“ bzw. eine ähnliche Kategorie für Accor und Terra Robotics (Oracle ist evtl. ein weiterer Partner.
+
+Dadurch entsteht nicht der Eindruck einer selbstveröffentlichten Einzelstudie, sondern eines fachlich eingebetteten Branchenprojekts.
+
+Ganz unten im Footer gehören dann die formalen Unternehmensangaben zu DICON Marketing- und Beratungsgesellschaft mbH, einschließlich Geschäftsanschrift, Geschäftsführer, Handelsregister, USt-ID DE235630864, Kontakt sowie Links zu Impressum und Datenschutz. Diese Angaben würde ich bewusst vom persönlichen Autorenprofil trennen.
+
+ 
+Bitte stellen Sie mir die finalen Informationen zur Verfügung:
+
+DICON-Unternehmensadresse: DICON Marketing- und Beratungsgesellschaft mbH, Reinhardtstr. 29C, 10117 Berlin
+E-Mail-Adresse contact@dicon-beratung.de
+Telefonnummer 030  / 300132500
+Angaben zum Geschäftsführer (Bitte nicht zu viel Platz dafür, evtl. als PopUp wenn man drauf klickt oder darüber hoovert?:
+Roland Schwecke ist Diplom-Volkswirt und Hotelkaufmann und seit 2004 Geschäftsführer der DICON Marketing- und Beratungsgesellschaft mbH. Seine Tätigkeitsschwerpunkte liegen in der wirtschaftlichen und strategischen Beratung der Hotellerie, insbesondere in Markt- und Wirtschaftlichkeitsanalysen, Hotelentwicklung und der Bewertung neuer Beherbergungs- und Betreiberkonzepte.
+
+Mit der Entwicklung der Beherbergungswirtschaft und insbesondere neuer und preisorientierter Hotelkonzepte beschäftigt er sich seit vielen Jahren. Bereits 2007 veröffentlichte DICON die Studie „Hostels – ein Wachstumssegment im Beherbergungsmarkt“, an deren Redaktion Roland Schwecke beteiligt war. Es folgten die DICON-Studien zu den Budgetsegmenten der Beherbergungsindustrie 2011 sowie zu den Budgetsegmenten der Tourismusmetropolen in Deutschland 2013.
+
+Mit „Hospitality 2035 – Wie sich die wirtschaftliche Logik der Hotellerie verändert“ führt Roland Schwecke diese Auseinandersetzung mit dem strukturellen Wandel der Branche fort und richtet den Blick auf die kommenden Jahre: auf Automatisierung und künstliche Intelligenz, neue Betreiber- und Beherbergungskonzepte sowie die Veränderungen von Personal-, Flächen- und Geschäftsmodellen.
+
+Impressum
+Datenschutzerklärung
+Allgemeine Geschäftsbedingungen / Lizenzbedingungen
+Weitere erforderliche Rechtstexte
+1. Impressum (Bitte auch den Anhang AGB/Lizenzbedingungen berücksichtigen – sind hier Doppelungen mit dem Folgetext??)
+
+DICON Marketing- und Beratungsgesellschaft mbH
+[vollständige Geschäftsanschrift]
+
+Vertreten durch den Geschäftsführer:
+Dipl.-Volkswirt Roland Schwecke
+
+Telefon: 030 / 300132500
+E-Mail: contact@dicon-beratung.de
+
+Handelsregister: Amtsgericht Berlin Charlottenburf
+Handelsregisternummer: HRB: 933399 B
+
+Umsatzsteuer-ID: DE235630864
+
+Umsatzsteuer-Identifikationsnummer gemäß § 27a UStG:
+DE235630864
+
+Verantwortlich für den Inhalt:
+Roland Schwecke
+[Anschrift wie oben]
+
+2. Datenschutzerklärung
+
+Es ist eine eigene Seite „Datenschutzerklärung“ vorzusehen.
+
+Die Datenschutzerklärung muss insbesondere die tatsächlich auf der Landingpage eingesetzten Systeme und Datenverarbeitungen berücksichtigen. Dazu gehören – soweit eingesetzt:
+
+Hosting der Website
+Server-Logfiles
+Kontakt- und Anfrageformulare
+Anmeldung zu den Veranstaltungen in Berlin und Zürich
+Bestellung der Studie
+Zahlungsabwicklung über Stripe
+Rechnungs- und Bestelldaten
+automatischer Versand bzw. Download der Studie
+Vergabe und Verarbeitung individueller Lizenznummern
+Newsletter bzw. Marketing-Einwilligung, sofern vorgesehen
+Analyse-/Trackingtools, sofern eingesetzt
+eingebettete externe Inhalte
+Cookie- bzw. Consent-Management
+Dauer der Datenspeicherung
+Empfänger bzw. Auftragsverarbeiter
+gegebenenfalls Datenübermittlung in Drittländer
+Rechte der betroffenen Personen und zuständige Datenschutzaufsichtsbehörde
+Wichtig: Der konkrete Text muss nach Festlegung der tatsächlich eingesetzten technischen Dienste erstellt bzw. angepasst werden.
+
+3. Allgemeine Geschäfts- und Lizenzbedingungen
+
+Eigene Seite:
+
+„Allgemeine Geschäfts- und Lizenzbedingungen für Hospitality 2035“
+
+Die Bedingungen sollen insbesondere den Erwerb und die Nutzung der digitalen Studie regeln.
+
+Folgende Punkte sind vorzusehen:
+
+Anbieter und Vertragsgegenstand
+Vertragspartner ist die DICON Marketing- und Beratungsgesellschaft mbH. Vertragsgegenstand ist die Bereitstellung der digitalen Studie „Hospitality 2035 – Wie sich die wirtschaftliche Logik der Hotellerie verändert“ als PDF-Datei.
+
+Lizenzmodelle
+
+Single License – €249 net
+Nutzungsrecht für eine einzelne Person.
+
+Team License – €1,490 net
+Nutzungsrecht für bis zu 10 Nutzer innerhalb eines Unternehmens.
+
+Corporate License – from €2,490 net
+Nutzungsrecht für größere Teams, Hotelgruppen und Unternehmen. Umfang und Preis entsprechend der individuell vereinbarten Lizenz.
+
+Nutzungsrechte
+Der Erwerb einer Lizenz überträgt kein Urheberrecht an der Studie. Die Studie darf ausschließlich im Umfang der jeweils erworbenen Lizenz genutzt werden.
+
+Insbesondere nicht gestattet sind ohne vorherige schriftliche Zustimmung von DICON:
+
+Weitergabe an Personen außerhalb des vereinbarten Nutzerkreises
+öffentliche Bereitstellung oder Veröffentlichung der PDF-Datei
+Weiterverkauf oder kommerzielle Weiterverbreitung
+vollständige oder wesentliche Vervielfältigung
+Entfernung oder Veränderung von Lizenznummern, Copyright-Hinweisen oder sonstigen Kennzeichnungen.
+Zitate und die Verwendung einzelner Inhalte bleiben im Rahmen der gesetzlichen Bestimmungen und unter ordnungsgemäßer Quellenangabe zulässig.
+
+Personalisierte Lizenznummer
+Online erworbene Exemplare können mit einer individuellen und fortlaufenden Lizenznummer versehen werden. Diese dient insbesondere der Zuordnung der jeweiligen Lizenz und der Sicherung der vereinbarten Nutzungsrechte.
+
+Preise und Zahlung
+Alle angegebenen Preise verstehen sich, soweit entsprechend ausgewiesen, zuzüglich der jeweils gesetzlich anwendbaren Umsatzsteuer.
+
+Single Licenses können unmittelbar über die auf der Website angebotenen Zahlungsmethoden erworben werden.
+
+Team und Corporate Licenses können über ein Anfrageformular angefragt und anschließend gesondert angeboten bzw. abgerechnet werden.
+
+Bereitstellung
+Nach erfolgreichem Abschluss des Bestell- und Zahlungsvorgangs wird die Studie elektronisch bereitgestellt bzw. an die angegebene E-Mail-Adresse übermittelt.
+
+Urheberrecht
+Sämtliche Inhalte, Texte, Grafiken, Tabellen, Analysen und sonstigen Bestandteile der Studie sind urheberrechtlich geschützt, soweit nicht ausdrücklich anders gekennzeichnet.
+
+© DICON Marketing- und Beratungsgesellschaft mbH / Hospitality 2035.
+
+4. Widerrufsbelehrung für Verbraucher
+
+Bitte eine separate Seite bzw. einen eindeutig erreichbaren Bereich
+
+„Widerrufsbelehrung“
+
+vorsehen.
+
+Da es sich bei der Studie um einen unmittelbar bereitgestellten digitalen Inhalt handelt, muss der Checkout technisch so gestaltet werden, dass die gesetzlichen Voraussetzungen für den Beginn der Bereitstellung vor Ablauf der Widerrufsfrist und gegebenenfalls das Erlöschen des Widerrufsrechts erfüllt werden.
+
+Hierfür muss im Checkout eine entsprechende ausdrückliche Zustimmung und Bestätigung des Käufers technisch vorgesehen werden.
+
+Die konkrete Formulierung ist vor Livegang rechtlich zu prüfen.
+
+5. Checkout / Bestellprozess
+
+Im Checkout müssen vor Abschluss der Bestellung insbesondere deutlich erkennbar sein:
+
+Produkt bzw. erworbene Lizenz
+Anzahl der Nutzer
+Preis
+Umsatzsteuer bzw. Gesamtpreis
+Zahlungsart
+Hinweis auf die digitale Bereitstellung
+Verlinkung zu den AGB/Lizenzbedingungen
+erforderliche Zustimmung zu den Bedingungen
+gegebenenfalls erforderliche Erklärung zum sofortigen Beginn der Bereitstellung des digitalen Inhalts und zum Widerrufsrecht.
+Die Bestellbestätigung soll per E-Mail erfolgen und die wesentlichen Vertragsinformationen enthalten.
+
+6. Widerrufsfunktion
+
+Sofern die Landingpage auch Verträge mit Verbrauchern ermöglicht, ist eine technisch geeignete und gut auffindbare Online-Widerrufsfunktion entsprechend der seit Juni 2026 geltenden gesetzlichen Anforderungen vorzusehen.
+
+Die Webdesignerin sollte hierfür eine entsprechende technische Möglichkeit einplanen.
+
+7. Veranstaltungsteilnahme Berlin / Zürich
+
+Für die Anmeldung zu den Präsentationsveranstaltungen sollte angegeben werden:
+
+Veranstalter
+Veranstaltungsort und Termin
+Teilnahmebedingungen
+ob die Teilnahme kostenfrei oder kostenpflichtig ist
+Umgang mit personenbezogenen Anmeldedaten
+gegebenenfalls Foto-/Videoaufnahmen bei der Veranstaltung
+gegebenenfalls Bedingungen für Absage, Umbuchung oder Änderung der Veranstaltung.
+Die Anmeldung zur Veranstaltung sollte nicht automatisch mit einer Newsletter-Einwilligung verbunden werden. Eine eventuelle Marketing-/Newsletter-Einwilligung sollte separat erfolgen.
+
+8. Weitere rechtliche Hinweise
+
+Im Footer sollten folgende Links vorgesehen werden:
+
+Impressum | Datenschutz | AGB & Lizenzbedingungen | Widerrufsbelehrung | Widerruf | Kontakt
+
+Gegebenenfalls zusätzlich:
+
+Hinweise zur Verbraucherstreitbeilegung
+
+Die konkrete Notwendigkeit und Formulierung ist anhand der Unternehmensgröße und der tatsächlichen Ausgestaltung des Verkaufs zu prüfen.
+
+9. Cookie-/Consent-Lösung
+
+Sofern technisch nicht notwendige Cookies, Tracking-, Analyse- oder Marketingdienste eingesetzt werden, muss eine entsprechende Consent-Lösung vorgesehen werden.
+
+Die Gestaltung und Funktionsweise muss sicherstellen, dass zustimmungspflichtige Dienste erst nach entsprechender Einwilligung aktiviert werden.
+
+10. Technischer Hinweis für die Umsetzung
+
+Die Rechtstexte sollten nicht fest in das Layout eingebaut werden, sondern als separat editierbare Seiten bzw. Inhalte angelegt werden, damit spätere rechtliche Anpassungen ohne Neugestaltung der Landingpage möglich sind.
+
+Die Webdesignerin soll zunächst die hierfür notwendigen Seiten, Footer-Links, Checkboxen und technischen Funktionen vorsehen. Die final abgestimmten Rechtstexte werden vor Veröffentlichung eingesetzt.
+
+ 
+
+ 
+
+Seit 19. Juni 2026 ist für online abgeschlossene Verbraucherverträge, bei denen ein Widerrufsrecht besteht, eine leicht zugängliche Online-Widerrufsfunktion vorgeschrieben. Verbraucherzentrale Gleichzeitig kann bei einem sofort ausgelieferten PDF das Widerrufsrecht bei korrekter Gestaltung erlöschen, wenn der Verbraucher ausdrücklich dem sofortigen Beginn zustimmt, den Verlust des Widerrufsrechts bestätigt und eine entsprechende Vertragsbestätigung erhält. Gesetze im Internet Das sollte Frau Kohl daher technisch von Anfang an berücksichtigen und nicht erst später als Rechtstext ergänzen.
+
+Beim Impressum verlangt § 5 DDG für eine GmbH insbesondere Firma, Anschrift, Vertretungsberechtigten, Kontaktmöglichkeiten, Register/Registernummer und – sofern vorhanden – die USt-ID.
+
+ 
+
+4. Veranstaltungen
+Für die Bereiche Berlin und Zürich kann ich die Struktur bereits auf Grundlage der bisher übermittelten Informationen aufbauen.
+
+Sobald verfügbar, benötige ich noch: Das ist alles noch nicht abgeschlossen und in Abstimmung
+
+Genaue Veranstaltungstermine
+Veranstaltungsort
+Finales Programm
+Bestätigte Podiumsteilnehmer Accor, DICON, hotelinside (Moderation)
+Namen, Funktionen und Unternehmen der Teilnehmer
+Fotos/Logos der Teilnehmer, sofern vorgesehen
+Bestätigte Veranstaltungs-/Partnerlogos
+Die Anmeldeformulare werden wie vereinbart direkt in die Website integriert, einschließlich Erfassung der Teilnehmerdaten, Verwaltung im Backend, CSV-/Excel-Export und automatischer Anmeldebestätigung per E-Mail.
+
+5. Partner und Unterstützer
+Die aktuelle Struktur für Studien- und Branchenpartner habe ich aufgenommen, einschließlich IHA, KNX Germany und HotellerieSuisse sowie der derzeit genannten Panelteilnehmer. Die drei sind keine Panelteilnehmer sondern
+
+Unternehmen Partnerbezeichnung
+
+STRATEGIC PARTNERS
+Accor · Terra Robotics/UBTECH · Oracle Hospitality
+jeweils mit individueller Partnerbezeichnung
+
+INDUSTRY PARTNERS
+Häfele · DreamBoks · weitere kleinere kommerzielle Partner
+ebenfalls mit individueller Fachbezeichnung
+
+INDUSTRY & ASSOCIATION PARTNERS
+IHA · KNX Deutschland · HotellerieSuisse
+
+ 
+
+Accor Hospitality / Operator Partner of Hospitality 2035
+
+Oracle HospitalityTechnology Partner of Hospitality 2035
+
+DreamBoks Hospitality Innovation Partner of Hospitality 2035
+
+Häfele Hotel Infrastructure & Access Partner of Hospitality 2035
+
+Terra Robotics / UBTECH Robotics & Automation Partner of Hospitality 2035
+
+Weitere Logos und Informationen können Sie mir, wie von Ihnen angekündigt, nach und nach zukommen lassen, sobald die entsprechenden Bestätigungen vorliegen. Diese können dann während der Umsetzung ergänzt werden. Prima!
+
+6. Lizenz- und Preisinformationen
+Ich habe außerdem die aktuelle Lizenzstruktur aus Ihrem Landingpage-Entwurf berücksichtigt. Ok – aber auf dem Impressum der Studie habe ich das gestrichen – das werde ich nachtragen lassen für die Vorschau der Studie – so soll das im pdf von der Grafikerin aufgenommen werden:
+
+Lizenznehmer: [Name / Unternehmen]
+
+Lizenzart: [Einzellizenz / Team / Corporate / Group / Enterprise]
+
+Bevor diese Preise auf der Website veröffentlicht werden, möchte ich lediglich kurz bestätigen, dass die folgenden Beträge die finalen Preise sind, die auf der Website dargestellt werden sollen:
+
+Bitte so einstellen:
+
+Einzellizenz – 249 € netto
+Für einen Nutzer
+
+Teamlizenz – 1.490 € netto
+Für bis zu 10 Nutzer innerhalb eines Unternehmens
+
+Firmenlizenz – ab 2.490 € netto
+Für größere Teams, Hotelgruppen und Unternehmen; Preis abhängig vom Nutzungsumfang
+
+Alle Preise verstehen sich netto zzgl. gesetzlicher Umsatzsteuer. Das Angebot richtet sich ausschließlich an Unternehmen und gewerbliche Nutzer.
+
+Hinweis: Der Shop sollte als reiner B2B-Shop ausgestaltet sein; ein bloßer Hinweis im Kleingedruckten genügt dafür nicht zuverlässig.
+
+Der aktuelle Entwurf enthält ebenfalls die entsprechenden Anfrageformulare für die Team- und Firmenlizenzen. ok
+
+Sobald Sie diese Beträge bestätigen, werde ich sie als Grundlage für die Umsetzung der Landingpage und des Shops verwenden.
+
+Projektstart
+Ich kann bereits jetzt mit der grundlegenden Designstruktur und der technischen Basis beginnen, während die noch fehlenden Inhalte finalisiert werden.
+
+Die Umsetzung erfolgt wie vereinbart innerhalb von etwa 10–14 Werktagen, vorausgesetzt, dass die erforderlichen Zugänge und die wesentlichen Materialien zeitnah bereitgestellt werden.
+
+Zunächst werde ich die grundlegende Seitenstruktur, die visuelle Ausrichtung, das responsive Layout und die technische Basis aufbauen. Anschließend werden Shop, Veranstaltungsanmeldung, Lizenzbereiche, Partnerbereiche und die weiteren Inhalte schrittweise integriert.
+
+Bitte senden Sie mir die verfügbaren Zugänge und Unterlagen, sobald es für Sie möglich ist. Ich werde dann direkt mit der Umsetzung beginnen.
+
+Vielen Dank nochmals für Ihr Vertrauen und für das klare Briefing. Ich freue mich darauf, Hospitality 2035 gemeinsam mit Ihnen umzusetzen. Toll – vielen Dank! Gutes Vorankommen und schönes Wochenende!
+
+Mit freundlichen Grüßen
+
+Stefanie  
+
+ 
+
+Zur Bildwelt:
+
+ 
+
+Die zwei Bilder sind ok finde ich…..Hier einige Infos zur Bildwelt:
+
+ 
+
+Bildwelt / Hintergrundgestaltung
+Die Landingpage soll überwiegend hell, hochwertig und editorial wirken. Im Hintergrund können sehr dezent und teilweise transparent technische und architektonische Motive eingesetzt werden. Die Bildwelt soll die Verbindung von Hospitality, Hotelimmobilie, Digitalisierung, KI, Gebäudeautomation und Robotik vermitteln – nicht wie eine klassische Hotelwerbung und auch nicht wie eine Science-Fiction-Website.
+
+Denkbar sind insbesondere transparente Gebäudestrukturen / Digital-Twin-Elemente, Grundriss- oder Architekturkonturen, feine Datenlinien, Sensor- und Netzwerkstrukturen sowie abstrahierte Icons für KI, Zugang, Energie, Klima, Licht, Robotik, Daten und Gebäudeautomation.
+
+Farblich bitte konsequent an der Studie orientieren: Weiß und sehr helle Grautöne als Basis, Dunkelblau als Leitfarbe, Magenta/Pink als Akzent, ergänzt um die bereits in den Grafiken verwendeten zurückhaltenden Grün-, Blau- und Violetttöne.
+
+Die Hintergrundelemente sollten mit geringer Deckkraft eingesetzt werden und niemals mit Text oder Produkt-Mockup konkurrieren.
+
+Ich würde drei verschiedene Hintergrundmotive verwenden
+
+Hero-Bereich: Hier passt am besten eine abstrahierte moderne Hotelimmobilie als Digital Twin. Also ein reales/realistisches Gebäude, das an einer Seite allmählich in transparente Linien, Datenpunkte und technische Ebenen übergeht. Dazu vielleicht nur 4–5 sehr dezente Symbole für AI, Energy, Access, Robotics und Building Systems. Das würde hervorragend zu Ihrem Thema „Automation Readiness“ passen, das in der Studie ausdrücklich auch Grundriss, Erschließung, Gebäudetechnik und digitale Infrastruktur umfasst. Studie_Hospitality_2035_1209202…
+
+Mittlerer Bereich der Landingpage: Dort würde ich mit einer extrem dezenten Netzwerk-/Ökosystemgrafik arbeiten: Punkte und feine Verbindungslinien zwischen stilisierten Symbolen für Gast, Hotel, Betreiber, Immobilie, Technologie, Plattform und Kapital. Das greift Ihre eigentliche Aussage besser auf als irgendwelche Roboterbilder.
+
+Technologie-/Automation-Abschnitt: Hier kann dann das gerade erstellte „Future Hospitality“-Lobbybild oder eine Variante davon auftauchen – aber als richtiges Bild, nicht als vollflächiger Hintergrund. Der humanoide Roboter und der Saugroboter sind dann ein konkretes Beispiel für physische Automation. Die Studie behandelt Robotik gerade im Zusammenhang mit standardisierten physischen Arbeitsprozessen und den daraus entstehenden Anforderungen an Gebäude und technische Infrastruktur. Studie_Hospitality_2035_1209202…
+
+Was ich vermeiden würde
+
+Keine ständig sichtbaren Leiterplatten, Binärcodes, riesige Roboterköpfe, blau leuchtende Hände, „AI Brain“-Stockbilder oder überall schwebende Hologramme. Das würde aus Ihrer wirtschaftlichen Zukunftsstudie schnell eine Tech-Konferenz machen.
+
+Das Spannende ist vielmehr der Gegensatz:
+
+Editoriale Studie + reale Hospitality + unsichtbare technische Infrastruktur.
+
+Genau deshalb würde ich im Hero auch keinen humanoiden Roboter dominant platzieren. Ein Gebäude, dessen technische Intelligenz erst beim zweiten Blick sichtbar wird, passt meines Erachtens wesentlich besser zur Positionierung der Studie.
+
+Wenn Sie möchten, kann ich Ihnen genau so einen transparenten Hero-Hintergrund jetzt generieren – passend zu den Farben der Studie, mit Hotelimmobilie + Digital Twin + Gebäudeautomation + sehr subtiler Robotik, sodass Frau Kohl ihn unmittelbar als Designvorlage verwenden kann.

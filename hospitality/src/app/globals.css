@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700;800;900&display=swap');
+@import 'tailwindcss';
+@plugin "tailwindcss-animate";
+
+@theme {
+  /* Font Family Mappings */
+  --font-sans: var(
+    --wp--preset--font-family--sans,
+    'Outfit',
+    system-ui,
+    sans-serif
+  );
+  --font-serif: var(--wp--preset--font-family--serif, 'Lora', Georgia, serif);
+  --font-heading: var(
+    --wp--preset--font-family--heading,
+    'Space Grotesk',
+    var(--font-sans)
+  );
+
+  /* Color Palette Mappings */
+  --color-brand: var(--wp--preset--color--brand, #0f172a);
+  --color-brand-foreground: #ffffff;
+  --color-secondary: var(--wp--preset--color--secondary, #334155);
+  --color-accent: var(--wp--preset--color--accent, #e11d48);
+  --color-bg-light: var(--wp--preset--color--background, #f8fafc);
+  --color-text-slate: var(--wp--preset--color--text, #0f172a);
+
+  /* Shadcn Core Theme Compatibility (Tailwind v4) */
+  --color-background: var(--wp--preset--color--background, #f8fafc);
+  --color-foreground: var(--wp--preset--color--text, #0f172a);
+  --color-primary: var(--wp--preset--color--brand, #0f172a);
+  --color-primary-foreground: #ffffff;
+  --color-card: #ffffff;
+  --color-card-foreground: var(--wp--preset--color--text, #0f172a);
+  --color-border: #e2e8f0;
+  --color-input: #cbd5e1;
+  --color-ring: var(--wp--preset--color--accent, #e11d48);
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+  html,
+  body {
+    @apply antialiased;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility;
+  }
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
+  }
+  body {
+    @apply bg-bg-light font-sans text-text-slate;
+  }
+  body:not(.editor-styles-wrapper):not(#tinymce):not(.mce-content-body) {
+    min-height: 100vh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .event-reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes event-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.event-reveal {
+  animation: event-reveal 700ms ease-out both;
+}
+
+.event-reveal-delay-1 {
+  animation-delay: 100ms;
+}
+
+.event-reveal-delay-2 {
+  animation-delay: 180ms;
+}
+
+/* Prevent Gutenberg editor iframe height feedback loop caused by min-h-screen on body */
+.editor-styles-wrapper {
+  min-height: auto !important;
+}

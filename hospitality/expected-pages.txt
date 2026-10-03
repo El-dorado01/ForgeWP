@@ -1,0 +1,59 @@
+# Hospitality 2035 — Route Status
+
+## Routes
+
+| Route | Current status |
+| --- | --- |
+| `/` | Authored Hospitality 2035 landing page; partner section includes confirmed client logos. |
+| `/studie` | Redirects to `/studie/hospitality-2035`. |
+| `/studie/hospitality-2035` | Authored study detail page with preview and partner content. Final preview PDF is still missing. |
+| `/events` | CMS-driven `hospitality_event` overview with animated feature tiles and event listings. |
+| `/events/[event-slug]` | Shared `hospitality_event` single template with animated hero, editable information and programme blocks. |
+| `/lizenzen` | Authored comparison page for single, team, and corporate licenses. |
+| `/checkout/single-license` | Frontend checkout presentation only. EDD/Stripe and order processing are not connected; controls remain disabled. |
+| `/lizenz/team` | Native WordPress inquiry form; sends a notification to DICON, stores the submission in the protected Forms inbox for 180 days, and sends a plain-text acknowledgement. |
+| `/lizenz/unternehmen` | Native WordPress inquiry form; sends a notification to DICON, stores the submission in the protected Forms inbox for 180 days, and sends a plain-text acknowledgement. |
+| `/impressum` | DICON details and editable Gutenberg page-body support; legal draft needs final company-data confirmation and review. |
+| `/datenschutz` | Editable Gutenberg page-body support with a requirements outline; not a final privacy notice until actual services and processors are confirmed and reviewed. |
+| `/agb-lizenzbedingungen` | Starter text based on the client’s September 2026 draft; legal review and final commerce terms are outstanding. |
+| `/widerrufsbelehrung` | Starter text based on the client’s draft; legal review and alignment with the final checkout are outstanding. |
+| `/vertrag-widerrufen` | Frontend form prepares an email to DICON. It does not yet provide automatic timestamped receipt confirmation or backend processing. |
+| `/kontakt` | Authored DICON contact details with editable Gutenberg page-body support. |
+
+## Editing Legal Pages
+
+The legal and contact routes share `src/app/components/LegalPageTemplate.tsx`. In WordPress, each route’s normal Page editor body is rendered through a `BlockArea`, so the client can compose and revise standard Gutenberg blocks without changing React code.
+
+The text currently shown in local preview is a code fallback. It is **not automatically inserted into the WordPress Pages as saved Gutenberg blocks**. Before client handoff, transfer the approved starter text into each corresponding WordPress Page body and verify that the page uses its intended template. Saved Gutenberg content then replaces the local fallback on the frontend.
+
+## Completed
+
+- Replaced generic CMS contact defaults with DICON’s supplied contact details and company name.
+- Registered one `hospitality_event` custom post type with a `/events` rewrite base and disabled archive so the authored `/events` Page remains unambiguous.
+- Added Berlin and Zürich event fixtures, a shared event single template, independent event hero/information/programme blocks, and a two-column details shell. Event cards use WordPress permalinks.
+- Added entrance animations to the event archive and event detail sections, with reduced-motion handling.
+- Added native team/corporate inquiry handling: WordPress submission storage, DICON email notifications, 180-day retention, and submitter acknowledgements. Local Vite previews simulate submissions; they do not verify WordPress delivery or storage.
+- Added the single-license checkout presentation.
+- Added the supplied Accor, Oracle Hospitality, KNX Deutschland, and HotellerieSuisse marks to landing-page section 07 alongside IHA. Transparent, cropped display copies are used; client originals are preserved.
+- Added Gutenberg body areas and starter legal/contact content for the legal routes. The starter text remains subject to client and legal review.
+- Added smooth landing-page hash navigation with a fixed-header offset and reduced-motion handling.
+
+## Validation
+
+Latest validation on 2026-10-03:
+- `pnpm run typecheck` passes.
+- `pnpm run build` passes.
+- `pnpm run export` passes and creates the WordPress theme ZIP.
+- Local browser checks confirmed the legal/contact routes render content, the withdrawal email-preparation form renders at mobile width, section 07 partner image paths load, and event/archive content renders.
+
+## Remaining Work
+
+1. **Finalize and publish legal content.** Confirm the correct HRB number (client notes conflict), check all Impressum details, obtain legal approval for the AGB and Widerrufsbelehrung, and finalize the Datenschutz text against the actual hosting, Google Fonts, analytics/cookies, forms, payment, and other processors. Seed the approved copy into the WordPress Gutenberg body for each page.
+2. **Implement the electronic withdrawal workflow.** The current mailto preparation form is not the required electronic function. Add server-side receipt, immutable timestamp/content record, and automatic confirmation on a durable medium; verify applicable 2026 requirements with counsel.
+3. **Connect single-license commerce.** EDD/Stripe account and integration, VAT/total calculation, required immediate-delivery consent and timestamp, payment confirmation, secure PDF delivery, and order confirmation remain unimplemented. The final study PDF and approved legal wording are prerequisites.
+4. **Verify team and corporate inquiry handling in WordPress staging.** The native workflow is implemented with storage in the protected Forms inbox, notifications to `contact@dicon-beratung.de`, plain-text submitter acknowledgements, and 180-day automatic deletion. Test mail delivery/failure logging, storage access and CSV export, retention scheduling, and acknowledgements with WordPress staging mail transport. Confirm the 180-day period and disclosure text with privacy counsel before production.
+5. **Implement event registration — deferred.** Still needed if reinstated: separate Berlin/Zürich forms, WordPress storage, confirmation email, export, capacity/approval handling, and separate optional marketing consent. Registration was previously deferred; the current event pages are informational only.
+6. **Supply final content and assets.** `/assets/hospitality-preview.pdf`, final study PDF/pages/cover, confirmed dates/venues/programmes/participants, and outstanding partner content/logos are not yet complete.
+7. **Run launch QA in WordPress staging.** Assign templates, seed and edit Gutenberg content, test every route/link at mobile and desktop sizes, verify checkout and withdrawal workflows, and confirm export/deployment behavior. Existing live WordPress Pages at `/events/berlin` and `/events/zurich` should be reviewed/retired during rollout; theme export does not delete existing WordPress content.
+
+**Launch status:** the site is a substantial frontend/CMS prototype. Approved legal copy, live commerce, the complete withdrawal function, final study assets, and any reinstated event-registration workflow remain launch blockers.

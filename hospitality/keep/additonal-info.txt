@@ -1,0 +1,12 @@
+Additional Technical Requirements – Single License Checkout
+
+Hi, just one important addition to the technical checklist based on the legal/checkout document I sent:
+
+Single License Checkout: €249 net purchase via EDD + Stripe, with secure digital PDF delivery after successful payment.
+Mandatory Consent Checkbox: A non-prechecked checkbox must be required before purchase, confirming the customer's agreement to immediate digital delivery and acknowledgement regarding the withdrawal right.
+Consent Documentation: The customer's consent must be technically recorded together with the date and time (timestamp) and reflected/documented in the order confirmation.
+Payment Obligation: The checkout button must clearly indicate the payment obligation, e.g. “Zahlungspflichtig bestellen – 249,00 €”.
+Legal Links: AGB & Lizenzbedingungen and Widerrufsbelehrung must be directly accessible before the order is completed, with the required contract information included in the confirmation.
+Electronic Withdrawal: The website should provide an electronic “Vertrag widerrufen” function where applicable, including automatic confirmation of the withdrawal request.
+
+Please treat these as mandatory checkout/technical requirements for the initial build, not as the optional PDF license-numbering add-on.

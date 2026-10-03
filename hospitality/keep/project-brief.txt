@@ -1,0 +1,83 @@
+HOSPITALITY 2035
+Project Overview — Landing Page, E-Commerce & Event Registration
+Purpose: This document summarizes what we are building, the agreed functional scope, the supplied content
+structure, and the technical requirements for implementation. It is intended as a working brief for design and
+development.
+Project objective
+Build a premium, editorial-style landing page for the study Hospitality 2035 – How the economic logic of the
+hotel industry is changing. The website will present the study, support direct digital sales, provide information
+and registration for Berlin and Zurich events, present study/industry partners, and provide enquiry paths for team
+and company licenses.
+Core content supplied by the client
+• Study title, positioning and introductory copy.
+• Study preview and cover presentation structure.
+• Key theses and strategic themes around costs, staffing, AI, digitization, robotics, automation, business models and
+hotel operations.
+• Target audiences: hotel operators/groups; owners, investors and project developers; technology/solutions
+providers; banks, financiers and consultants; associations and industry organizations.
+• Berlin and Zurich event content structure.
+• Current license/pricing content and enquiry forms.
+• Study partner / industry partner structure and DICON company information.
+1. Landing page structure
+The page should be designed as a long-form, high-quality editorial landing page with strong visual hierarchy and
+clear conversion paths.
+Hero / Above the fold
+• DICON branding.
+• Hospitality 2035 title and subtitle.
+• Strong study positioning statement.
+• Primary actions: View Preview and Buy Study – €249 net.
+• Large study-cover visual / mock-up.
+Study introduction & key themes
+• Why the hotel industry is undergoing structural change.
+• Eight key theses / future scenarios.
+• Automation readiness system.
+• Visual content blocks for major themes.
+
+Hospitality 2035 — Project Overview | 2
+
+Target audiences
+• Hotel operators and hotel groups.
+• Owners, investors and project developers.
+• Technology and solutions providers.
+• Banks, financiers and consultants.
+• Associations and industry organizations.
+Study preview
+• Preview CTA.
+• Preview PDF intended to show title page, table of contents and study/cooperation partner information.
+• Final preview pages will be supplied by the client.
+Events: Berlin & Zurich
+• Dedicated event section for November 2026.
+• Berlin: Study & Media Launch.
+• Zurich: Executive Event Switzerland.
+• Editable dates, venues, programme, panel participants and partner information.
+• Panel participant cards with photo/logo, name, function and company.
+• Additional participants can be added later.
+Event registration
+• Directly integrated registration forms; no external event platform.
+• Fields: first/last name, company, function, email address, event selection.
+• Separate Berlin and Zurich registration paths/forms.
+• Registrations visible in the WordPress backend.
+• CSV/Excel export of participant data.
+• Automatic registration confirmation email.
+• Registration should support the stated limited-capacity / confirmation workflow.
+Licensing & sales
+• Single license: €249 net — direct purchase and Stripe payment.
+• Team license: €1,490 net — request workflow for up to 10 users.
+• Company license: from €2,490 net — request workflow for larger teams/hotel groups/companies.
+• Secure digital delivery of the study after successful purchase.
+• Statutory VAT wording as supplied by the client.
+Partners & collaborations
+• Study partners.
+• Industry and cooperation partners.
+• Media partners.
+• Logo areas that can be updated as confirmations arrive.
+• Current supplied supporter information includes IHA, KNX Germany and HotellerieSuisse; further logos/details will
+follow.
+
+Hospitality 2035 — Project Overview | 3
+
+About DICON & contact
+• DICON company profile.
+• Business address, email and phone placeholders until final data is supplied.
+• Managing director information.
+• Legal links: Legal Notice, Privacy Policy, Terms & Conditions / License Agreement.

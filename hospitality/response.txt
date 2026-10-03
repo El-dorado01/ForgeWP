@@ -1,0 +1,16 @@
+Hello Stefanie,
+
+The new STRATO hosting for WordPress Plus has now been activated. The two domains hospitality2035.de and hospitality2035.com are also now available in my STRATO account.
+
+Attached is a screenshot of the current status.
+
+I haven't started the setup process yet via "Start" so I don't accidentally change any settings. Could you please briefly tell me what access or login details you need for the setup and how I can best provide them to you?
+
+Please use www.hospitality2035.de as the main domain. hospitality2035.com should redirect to the main domain.
+
+DICON's Stripe account is also set up and available . As soon as you need the Stripe integration for Easy Digital Downloads, I can gladly add you with the necessary permissions via Stripe's user/team management. For security reasons, I prefer not to send API keys or personal login details via email.
+
+If you require any further information from me for the setup, please let me know.
+
+Best regards
+Roland

@@ -1,0 +1,12 @@
+node_modules
+dist
+.forgewp
+.forgewp-islands
+*.local
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+*.log
+.vite
