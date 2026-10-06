@@ -1,4 +1,10 @@
-import { pickEditable, useWpMeta, WpEditable } from '@forgewp/react';
+import {
+  pickEditable,
+  useWpMeta,
+  useWpPageLink,
+  WpEditable,
+  WpLink,
+} from '@forgewp/react';
 import { motion, type Variants } from 'framer-motion';
 import { editable as pageEditable } from '../../../cms/editables/front-page';
 import { defaults as licenseDefaults } from '../../../cms/editables/sections/licensing';
@@ -45,6 +51,15 @@ export default function LicensingSection({
   vatNote: vatNoteProp,
   setAttributes,
 }: LicensingSectionProps) {
+  const singleLicenseHref = useWpPageLink(
+    'einzellizenz-page',
+    '/checkout/single-license',
+  );
+  const teamLicenseHref = useWpPageLink('teamlizenz-page', '/lizenz/team');
+  const companyLicenseHref = useWpPageLink(
+    'unternehmenslizenz-page',
+    '/lizenz/unternehmen',
+  );
   const eyebrow =
     eyebrowProp ?? useWpMeta('licensing_eyebrow', licenseDefaults.eyebrow);
   const intro =
@@ -202,13 +217,13 @@ export default function LicensingSection({
                     license.description
                   )}
                 </p>
-                <a
+                <WpLink
                   href={
                     featured
-                      ? '#checkout'
+                      ? singleLicenseHref
                       : index === 1
-                        ? '#team-inquiry'
-                        : '#corporate-inquiry'
+                        ? teamLicenseHref
+                        : companyLicenseHref
                   }
                   className={`mt-auto inline-flex items-center justify-center border px-4 py-3.5 text-center text-[10px] font-bold uppercase tracking-[0.15em] ${featured ? 'border-accent bg-accent text-white' : 'border-brand text-brand'}`}
                 >
@@ -221,7 +236,7 @@ export default function LicensingSection({
                   ) : (
                     license.action
                   )}
-                </a>
+                </WpLink>
               </motion.article>
             );
           })}

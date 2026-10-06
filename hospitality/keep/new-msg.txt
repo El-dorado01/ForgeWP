@@ -1,0 +1,85 @@
+In addition to my detailed email of September 26th, I would like to briefly clarify the legal and technical points for the landing page and the shop so that these are taken into account from the beginning of the further implementation.
+
+As already stated in my email, the study will only be sold to businesses and commercial users (B2B) . Therefore, please ensure that the shop is clearly designed as a B2B-only shop from a technical perspective and do not simply include a corresponding note in the footer or small print.
+
+Please pay particular attention to the following points during implementation:
+
+1. Imprint
+
+Please provide a separate legal notice page accessible via the footer. I have already sent you the company details:
+
+DICON Marketing and Consulting Company Ltd.
+Reinhardtstr. 29C
+10117 Berlin
+
+Managing Director: Roland Schwecke, Economist
+Telephone: 030 / 300132500
+Email: contact@dicon-beratung.de
+Registry Court: Charlottenburg District Court
+Commercial Register Number: HRB 93339 B
+VAT ID No.: DE235630864
+
+2. Data Privacy Statement
+
+Please provide a separate, editable "Privacy Policy" page.
+
+The privacy policy must later be adapted in particular to the actual technical systems used, including hosting, server log files, contact and event forms, Easy Digital Downloads, Stripe, order and invoice data, automated emails or downloads, license numbering if applicable, analytics and any cookies or external content that may be used.
+
+Therefore, please inform me before completion which plugins, analytics/tracking services, external services and consent/cookie solutions are actually used , so that the final privacy policy text can be tailored accordingly.
+
+3. General Terms and Conditions and License Terms
+
+Please create a separate page accessible via the footer.
+
+"Terms & Conditions of License"
+
+provide.
+
+In particular, it regulates the three licensing models, scope of use, prohibition of disclosure, copyright, payment terms and provision of the digital study.
+
+I will deliver the final texts to you before the launch.
+
+4. B2B Checkout
+
+Since the shop is intended exclusively for entrepreneurs and commercial users, this should be clearly identifiable and technically taken into account in the ordering process.
+
+Please include a corresponding confirmation in the checkout process, e.g.:
+
+"I confirm that I am placing this order as an entrepreneur or on behalf of a company and not as a consumer."
+
+The checkbox should be mandatory before completing the order.
+
+Additionally, this should be clearly indicated in the pricing section or before entering the checkout process:
+
+"This offer is aimed exclusively at businesses and commercial users."
+
+5. Checkout / Order Confirmation
+
+Before completing the order, the acquired license, number of users, net price, sales tax and total price, as well as the payment method and digital delivery, should be clearly displayed.
+
+The terms and conditions and license agreement should be linked there and can be confirmed by the buyer.
+
+After a successful order, an order confirmation should be automatically sent via email, as already planned.
+
+6. Cookie/Consent Solution
+
+If cookies or analytics, tracking or marketing services that are not technically necessary are used, please provide a suitable consent solution where these services are only activated after appropriate consent.
+
+7. Event registration Berlin / Zurich
+
+Please take note of the necessary data protection information and the link to the privacy policy in the registration forms.
+
+Registration for an event must not be automatically linked to consent for newsletters or marketing. If we wish to obtain such consent later, it should be separate and voluntary.
+
+8. Technical implementation of the legal texts
+
+Please create the legal notice, privacy policy, and terms and conditions as separate, editable pages and do not integrate them directly into the layout. This allows us to make legal adjustments later without affecting the actual web design.
+
+We can then review and incorporate the final legal texts before going live, based on the actual technical components used.
+
+If you require any further information from me for the technical implementation of the points mentioned above, or if you have specific functions or plugins in mind for this purpose, please let me know briefly.
+
+Thank you very much and have a nice weekend!
+
+Best regards from
+Roland

@@ -7,6 +7,7 @@ import {
   useRef,
   useEffect,
   createContext,
+  type FormEvent,
 } from 'react';
 import { WpPostContext } from './context';
 import type { WpPost, WpQueryArgs, WpQueryResults, WpMenuItem } from './types';
@@ -347,6 +348,58 @@ export async function submitWpForm(
   } catch {
     return { ok: false, message: 'network' };
   }
+}
+
+export type WpFormStatus = 'idle' | 'submitting' | 'success' | 'error';
+
+export interface WpFormState {
+  status: WpFormStatus;
+  isSubmitting: boolean;
+  message: string;
+  errors: Record<string, string>;
+  handleSubmit: (event: FormEvent<HTMLFormElement>) => Promise<WpFormResult>;
+  reset: () => void;
+}
+
+/**
+ * Provides accessible submission state for a native ForgeWP form while
+ * delegating transport and server behavior to submitWpForm().
+ */
+export function useWpForm(name: string): WpFormState {
+  const [status, setStatus] = useState<WpFormStatus>('idle');
+  const [message, setMessage] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ): Promise<WpFormResult> {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setStatus('submitting');
+    setMessage('');
+    setErrors({});
+
+    const result = await submitWpForm(name, data);
+    setStatus(result.ok ? 'success' : 'error');
+    setMessage(result.message || '');
+    setErrors(result.errors || {});
+    return result;
+  }
+
+  function reset() {
+    setStatus('idle');
+    setMessage('');
+    setErrors({});
+  }
+
+  return {
+    status,
+    isSubmitting: status === 'submitting',
+    message,
+    errors,
+    handleSubmit,
+    reset,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1015,6 +1068,14 @@ export interface BlockDefinition<TAttrs = Record<string, any>> {
   /** Layout classes for parent shells (ignored for leaf content blocks). */
   shell?: BlockShellConfig;
   edit: ComponentType<{
+    attributes: TAttrs;
+    setAttributes: (attrs: Partial<TAttrs>) => void;
+  }>;
+  /**
+   * Optional editor-only canvas view for blocks whose visitor renderer is interactive.
+   * Keep this view safe for editing: it should not submit forms or depend on live data.
+   */
+  editorPreview?: ComponentType<{
     attributes: TAttrs;
     setAttributes: (attrs: Partial<TAttrs>) => void;
   }>;

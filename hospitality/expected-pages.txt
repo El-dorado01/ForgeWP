@@ -7,17 +7,17 @@
 | `/` | Authored Hospitality 2035 landing page; partner section includes confirmed client logos. |
 | `/studie` | Redirects to `/studie/hospitality-2035`. |
 | `/studie/hospitality-2035` | Authored study detail page with preview and partner content. Final preview PDF is still missing. |
-| `/events` | CMS-driven `hospitality_event` overview with animated feature tiles and event listings. |
-| `/events/[event-slug]` | Shared `hospitality_event` single template with animated hero, editable information and programme blocks. |
+| `/events` | CMS-driven `hospitality_event` overview with animated feature tiles and event listings. Berlin/Zurich registration is now requested; the current pages remain informational until the registration workflow is implemented. |
+| `/events/[event-slug]` | Shared `hospitality_event` single template with animated hero, editable information and programme blocks. Registration must link the privacy notice and must not imply newsletter or marketing consent. |
 | `/lizenzen` | Authored comparison page for single, team, and corporate licenses. |
-| `/checkout/single-license` | Frontend checkout presentation only. EDD/Stripe and order processing are not connected; controls remain disabled. |
+| `/checkout/single-license` | The generated developer template preserves the shipped layout by default. Selecting ForgeWP Builder starts a nested Gutenberg composition with the same hero, two-column checkout/legal content, sticky purchase panel, editable price details, EDD Buy Button slot, and return link. Insert EDD's native Buy Button in the slot and select the site's EDD Download. The displayed `249,00 €` amount is currently editable page content, not dynamically bound to EDD; verify it against the Download. EDD's Pages settings independently map Checkout to a WordPress Page containing the EDD Checkout block. No product ID, checkout slug, or Stripe credential is embedded in theme source. The client reports a successful local test-mode purchase, but the updated theme export still needs verification in WordPress. B2B/legal checkout requirements remain unverified. |
 | `/lizenz/team` | Native WordPress inquiry form; sends a notification to DICON, stores the submission in the protected Forms inbox for 180 days, and sends a plain-text acknowledgement. |
 | `/lizenz/unternehmen` | Native WordPress inquiry form; sends a notification to DICON, stores the submission in the protected Forms inbox for 180 days, and sends a plain-text acknowledgement. |
-| `/impressum` | DICON details and editable Gutenberg page-body support; legal draft needs final company-data confirmation and review. |
-| `/datenschutz` | Editable Gutenberg page-body support with a requirements outline; not a final privacy notice until actual services and processors are confirmed and reviewed. |
-| `/agb-lizenzbedingungen` | Starter text based on the client’s September 2026 draft; legal review and final commerce terms are outstanding. |
+| `/impressum` | Separate page with editable Gutenberg body support. The latest client note supplies company, address, director, contact, registry, and VAT details; confirm the exact legal company name and registry data against prior materials before approval. |
+| `/datenschutz` | Separate editable Gutenberg page with a requirements outline; not a final notice until the actual hosting, logs, forms, event registration, commerce/payment, email/download, analytics, cookies, and external-content stack is confirmed and reviewed. Provide the client the actual plugin/service inventory before completion. |
+| `/agb-lizenzbedingungen` | Separate page for the client’s final “Terms & Conditions of License” covering the three models, scope, disclosure restrictions, copyright, payment, and digital delivery. Final text is still due from the client. |
 | `/widerrufsbelehrung` | Starter text based on the client’s draft; legal review and alignment with the final checkout are outstanding. |
-| `/vertrag-widerrufen` | Frontend form prepares an email to DICON. It does not yet provide automatic timestamped receipt confirmation or backend processing. |
+| `/vertrag-widerrufen` | Hospitality legal-page layout with the EDD Customer Right of Withdrawal block in the editable WordPress Page body. Verify the native form and receipt behavior in the exported WordPress theme. |
 | `/kontakt` | Authored DICON contact details with editable Gutenberg page-body support. |
 
 ## Editing Legal Pages
@@ -26,6 +26,19 @@ The legal and contact routes share `src/app/components/LegalPageTemplate.tsx`. I
 
 The text currently shown in local preview is a code fallback. It is **not automatically inserted into the WordPress Pages as saved Gutenberg blocks**. Before client handoff, transfer the approved starter text into each corresponding WordPress Page body and verify that the page uses its intended template. Saved Gutenberg content then replaces the local fallback on the frontend.
 
+EDD system Pages use generated Hospitality templates and keep their EDD blocks in the editable WordPress Page body. In the Page editor, assign the matching template, add the corresponding EDD block, then select that Page in Downloads → Settings → General → Pages:
+
+| EDD destination | Hospitality template | Page content |
+| --- | --- | --- |
+| Checkout | `CheckoutPage` | EDD Checkout block |
+| Order History | `OrderHistoryPage` | EDD Order History block |
+| Receipt | `ReceiptPage` | EDD Receipt block |
+| Transaction Failed | `TransactionFailedPage` | EDD failure/status content provided for this destination |
+| Confirmation Page | `ConfirmationPage` | EDD Confirmation block |
+| Products / Shop Page | `ProductsPage` | EDD Products block |
+
+The theme export generates templates but does not create or change WordPress Pages or EDD settings. Keep the existing EDD Page records, assign each custom template in WordPress, and map those Pages in EDD settings.
+
 ## Completed
 
 - Replaced generic CMS contact defaults with DICON’s supplied contact details and company name.
@@ -33,7 +46,9 @@ The text currently shown in local preview is a code fallback. It is **not automa
 - Added Berlin and Zürich event fixtures, a shared event single template, independent event hero/information/programme blocks, and a two-column details shell. Event cards use WordPress permalinks.
 - Added entrance animations to the event archive and event detail sections, with reduced-motion handling.
 - Added native team/corporate inquiry handling: WordPress submission storage, DICON email notifications, 180-day retention, and submitter acknowledgements. Local Vite previews simulate submissions; they do not verify WordPress delivery or storage.
-- Added the single-license checkout presentation.
+- Added the single-license summary page with a WordPress content slot for the EDD Buy Button block; the editor selects the Download in the block, and EDD handles checkout on its separately assigned Checkout Page.
+- Added branded EDD system-page templates for Checkout, Order History, Receipt, Transaction Failed, Confirmation, and Products. The EDD blocks and page content remain editable in WordPress and are rendered through BlockArea.
+- Replaced the withdrawal page's mailto-only mock with guidance for the EDD Customer Right of Withdrawal block, which is managed in the WordPress Page body.
 - Added the supplied Accor, Oracle Hospitality, KNX Deutschland, and HotellerieSuisse marks to landing-page section 07 alongside IHA. Transparent, cropped display copies are used; client originals are preserved.
 - Added Gutenberg body areas and starter legal/contact content for the legal routes. The starter text remains subject to client and legal review.
 - Added smooth landing-page hash navigation with a fixed-header offset and reduced-motion handling.
@@ -44,16 +59,23 @@ Latest validation on 2026-10-03:
 - `pnpm run typecheck` passes.
 - `pnpm run build` passes.
 - `pnpm run export` passes and creates the WordPress theme ZIP.
-- Local browser checks confirmed the legal/contact routes render content, the withdrawal email-preparation form renders at mobile width, section 07 partner image paths load, and event/archive content renders.
+- Local browser checks confirmed the legal/contact routes render content, section 07 partner image paths load, and event/archive content renders. The new EDD templates and native withdrawal block still require verification in the exported theme on WordPress.
+
+Local WordPress commerce check (client-reported): EDD Lite 3.7.1 with Stripe in test mode completed a test purchase. This confirms the plugin-side test flow only; the screenshots show WordPress admin/plugin settings and older page state, not a validation of the current exported theme or its purchase CTA.
 
 ## Remaining Work
 
-1. **Finalize and publish legal content.** Confirm the correct HRB number (client notes conflict), check all Impressum details, obtain legal approval for the AGB and Widerrufsbelehrung, and finalize the Datenschutz text against the actual hosting, Google Fonts, analytics/cookies, forms, payment, and other processors. Seed the approved copy into the WordPress Gutenberg body for each page.
-2. **Implement the electronic withdrawal workflow.** The current mailto preparation form is not the required electronic function. Add server-side receipt, immutable timestamp/content record, and automatic confirmation on a durable medium; verify applicable 2026 requirements with counsel.
-3. **Connect single-license commerce.** EDD/Stripe account and integration, VAT/total calculation, required immediate-delivery consent and timestamp, payment confirmation, secure PDF delivery, and order confirmation remain unimplemented. The final study PDF and approved legal wording are prerequisites.
-4. **Verify team and corporate inquiry handling in WordPress staging.** The native workflow is implemented with storage in the protected Forms inbox, notifications to `contact@dicon-beratung.de`, plain-text submitter acknowledgements, and 180-day automatic deletion. Test mail delivery/failure logging, storage access and CSV export, retention scheduling, and acknowledgements with WordPress staging mail transport. Confirm the 180-day period and disclosure text with privacy counsel before production.
-5. **Implement event registration — deferred.** Still needed if reinstated: separate Berlin/Zürich forms, WordPress storage, confirmation email, export, capacity/approval handling, and separate optional marketing consent. Registration was previously deferred; the current event pages are informational only.
-6. **Supply final content and assets.** `/assets/hospitality-preview.pdf`, final study PDF/pages/cover, confirmed dates/venues/programmes/participants, and outstanding partner content/logos are not yet complete.
-7. **Run launch QA in WordPress staging.** Assign templates, seed and edit Gutenberg content, test every route/link at mobile and desktop sizes, verify checkout and withdrawal workflows, and confirm export/deployment behavior. Existing live WordPress Pages at `/events/berlin` and `/events/zurich` should be reviewed/retired during rollout; theme export does not delete existing WordPress content.
+Start these shared prerequisites in parallel: obtain the final study PDF and legal texts; confirm the exact legal company/registry details; identify the actual host, plugins, payment, email, analytics, cookie, and external-content services; and provide that service inventory to the client before completion. Decide whether a consent solution is needed from the services actually selected, and do not activate non-essential tracking before consent.
 
-**Launch status:** the site is a substantial frontend/CMS prototype. Approved legal copy, live commerce, the complete withdrawal function, final study assets, and any reinstated event-registration workflow remain launch blockers.
+### Ranked Implementation Priorities
+
+1. **Finish single-license B2B commerce with EDD + Stripe.** Local WordPress EDD/Stripe test mode is connected and the client reports a successful test purchase. Keep EDD responsible for the product/order/payment/download and keep Stripe credentials in WordPress. In the WordPress Page assigned the `Einzellizenz Page` template, add EDD's Buy Button block in the designated content slot and select the local site's single-license Download. In EDD Settings → General → Pages, assign the client's chosen Checkout Page, which must contain EDD's Checkout block; confirmation, receipt, failed transaction, and (if used) order-history pages also remain EDD-managed WordPress Pages. Neither Download IDs nor EDD page slugs belong in theme source or a second Theme Options setting. Verify the exported theme on WordPress, B2B confirmation, terms acceptance, order summary/net price/VAT/total, legally required immediate-delivery consent, receipt email, and protected PDF delivery. Confirm EDD Lite transaction fees, tax/legal settings, final PDF, and approved terms before live mode. Guest checkout is already enabled in the screenshot; a customer portal is optional.
+2. **Verify the electronic withdrawal workflow.** The page now uses the installed EDD Customer Right of Withdrawal add-on's native block instead of a `mailto:` mock. Test submission, timestamped receipt, customer confirmation, and request management on the exported WordPress site. Confirm applicability and legal wording with counsel for the actual B2B/B2C and digital-content model before launch.
+3. **Implement Berlin/Zurich event registration.** The latest client note now requests registration-form privacy information and a privacy-policy link. Define capacity/approval needs, collect only necessary data, send confirmations, and provide export/storage controls. Newsletter or marketing consent must be separate, optional, and unchecked by default. Do not reuse the licensing inquiry form as event registration without an explicit data/retention design.
+
+4. **Finalize and publish legal content.** Incorporate the client’s final Impressum details, final license terms, and final privacy/withdrawal wording after the actual technical stack and checkout behavior are known. Confirm the registry number against prior materials, seed approved copy into each WordPress Gutenberg page body, and verify footer access to the legal pages.
+5. **Verify team and corporate inquiry handling in WordPress staging.** Test mail delivery/failure logging, storage access and CSV export, retention scheduling, and acknowledgements with WordPress staging mail transport. Confirm the 180-day period and disclosure text with privacy counsel before production.
+6. **Supply remaining content and assets.** `/assets/hospitality-preview.pdf`, final study pages/cover, confirmed event dates/venues/programmes/participants, and outstanding partner content/logos are not yet complete.
+7. **Run launch QA in WordPress staging.** Assign templates, seed and edit Gutenberg content, test every route/link at mobile and desktop sizes, verify B2B purchase, payment/delivery, withdrawal receipt, event registration/privacy behavior, footer legal links, and export/deployment. Existing live WordPress Pages at `/events/berlin` and `/events/zurich` should be reviewed during rollout; theme export does not delete existing WordPress content.
+
+**Launch status:** the site is a substantial frontend/CMS prototype. B2B commerce, the legally confirmed withdrawal workflow, requested event registration, approved legal copy, the actual service/consent inventory, and final study assets remain launch blockers.

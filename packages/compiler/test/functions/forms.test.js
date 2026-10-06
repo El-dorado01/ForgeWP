@@ -160,6 +160,8 @@ describe('buildFormsPhp — representative config', () => {
     expect(php).toContain("'create_posts' => 'do_not_allow'");
     expect(php).toContain("'capability_type' => 'forgewp_submission'");
     expect(php).toContain("'edit_posts' => 'manage_options'");
+    expect(php).toContain("'map_meta_cap' => false");
+    expect(php).not.toContain("'map_meta_cap' => true");
   });
 
   it('uses one configured capability for both forms administration and stored submissions', () => {
@@ -172,6 +174,7 @@ describe('buildFormsPhp — representative config', () => {
     expect(configured).toContain("'read_post' => 'edit_pages'");
     expect(configured).toContain("'edit_pages',\n            'forgewp-forms'");
     expect(configured).toContain("current_user_can('edit_pages')");
+    expect(configured).toContain("'map_meta_cap' => false");
     expect(configured).not.toContain("current_user_can('manage_options')");
   });
 

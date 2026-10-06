@@ -573,7 +573,7 @@ function parseDefineBlockAst(code) {
     }
     if (prop.type === 'ObjectMethod') {
       const key = prop.key.type === 'Identifier' ? prop.key.name : null;
-      if (key === 'edit' || key === 'save') {
+      if (key === 'edit' || key === 'save' || key === 'editorPreview') {
         out[key] = null;
         continue;
       }
@@ -589,7 +589,7 @@ function parseDefineBlockAst(code) {
           : null;
     if (key === null) throw new Error('non-static key');
     if (
-      (key === 'edit' || key === 'save') &&
+      (key === 'edit' || key === 'save' || key === 'editorPreview') &&
       (prop.value.type === 'ArrowFunctionExpression' ||
         prop.value.type === 'FunctionExpression')
     ) {

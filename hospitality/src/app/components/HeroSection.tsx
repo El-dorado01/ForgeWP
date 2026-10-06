@@ -1,6 +1,6 @@
 import { forwardRef } from 'react';
 import { ArrowDownRight, Eye, ShoppingBag } from 'lucide-react';
-import { pickEditable, useWpMeta, WpEditable } from '@forgewp/react';
+import { pickEditable, useWpMeta, WpEditable, WpImage } from '@forgewp/react';
 import { motion, type Variants } from 'framer-motion';
 import { editable as pageEditable } from '../../../cms/editables/front-page';
 import { defaults as heroDefaults } from '../../../cms/editables/sections/hero';
@@ -150,7 +150,7 @@ const HeroSection = forwardRef<HTMLElement, HeroSectionProps>(
             <div className='relative [transform:rotateY(-9deg)_rotateZ(-2deg)] transition-transform duration-700 ease-out group-hover:[transform:rotateY(-3deg)_rotateZ(-1deg)_translateY(-8px)]'>
               <div className='absolute -right-3 top-2 bottom-2 w-3 origin-left skew-y-[2deg] bg-slate-300 shadow-inner' />
               <div className='absolute -left-1 top-2 bottom-2 w-1 bg-white/40 blur-[1px]' />
-              <img
+              <WpImage
                 src='/assets/hospitality-cover.png'
                 alt={coverAlt}
                 className='relative block aspect-[0.7] w-full object-cover shadow-[20px_28px_30px_rgba(15,23,42,0.25),3px_4px_0_rgba(15,23,42,0.12)]'

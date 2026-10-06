@@ -52,6 +52,13 @@ const TARGET_SLUGS = [
   'trust-strip',
 ];
 
+const SERVER_RENDERED_PREVIEW_SLUGS = new Set([
+  'contact-form-section',
+  'destinations',
+  'featured-hotels',
+  'hero-section',
+]);
+
 const isMangled = (out) => out.includes('") : ("') || out.includes('`)}`');
 
 let tmpRoot;
@@ -127,6 +134,11 @@ describe('compileBlocks against real hotelchecker24 components', () => {
       const block = blocksBySlug.get(slug);
       expect(block, `block "${slug}" not found`).toBeTruthy();
       const code = block.customEditJsx;
+      if (SERVER_RENDERED_PREVIEW_SLUGS.has(slug)) {
+        expect(code).toBeUndefined();
+        expect(renderPhpBySlug.get(slug)).toContain('data-forgewp-hydrate=');
+        return;
+      }
       expect(code, `block "${slug}" has no customEditJsx`).toBeTruthy();
       expect(isMangled(code), `block "${slug}" customEditJsx looks mangled`).toBe(false);
       expect(() => new Function('return ' + code), `block "${slug}" customEditJsx failed to parse`).not.toThrow();

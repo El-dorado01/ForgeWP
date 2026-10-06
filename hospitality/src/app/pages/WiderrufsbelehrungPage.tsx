@@ -1,8 +1,14 @@
 import { LegalPageTemplate } from '../components/LegalPageTemplate';
+import { useWpPageLink } from '@forgewp/react';
 
 export const pageConfig = { layout: 'default' };
 
 export function WiderrufsbelehrungPage() {
+  const withdrawalHref = useWpPageLink(
+    'vertrag-widerrufen-page',
+    '/vertrag-widerrufen',
+  );
+
   return (
     <LegalPageTemplate
       slug='widerrufsbelehrung'
@@ -48,7 +54,7 @@ export function WiderrufsbelehrungPage() {
           ],
         },
       ]}
-      links={[{ label: 'Vertrag widerrufen', href: '/vertrag-widerrufen' }]}
+      links={[{ label: 'Vertrag widerrufen', href: withdrawalHref }]}
     />
   );
 }

@@ -17,9 +17,11 @@ import {
 } from './hydration/scan-app-providers.js';
 import { visibleFirstPaintProps } from './hydration/enter-hidden-initial.js';
 import { layoutOwnsDocument, resolveFrontPageLayout } from './route-layout.js';
+import { collectStaticRouteDefinitions } from './collect-static-routes.js';
 import { loadMenusData } from './functions/load-menus.js';
 import { loadMockData } from './functions/seed-mock-data.js';
 import { loadProductsData } from './functions/seed-products.js';
+import { usesBlockArea } from './hydration/uses-block-area.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 register(pathToFileURL(path.join(__dirname, 'asset-loader.js')).href);
@@ -35,7 +37,11 @@ if (!themeRoot) {
 // Use the theme's own node_modules for ALL packages (React 19)
 const require = createRequire(path.join(themeRoot, 'package.json'));
 const React = require('react');
-globalThis.React = React; // Polyfill for classic JSX transform in Node.js
+const forgeWpGlobal = globalThis as typeof globalThis & {
+  React: any;
+  __forgewpSsrQueries: Record<string, any>;
+};
+forgeWpGlobal.React = React; // Polyfill for classic JSX transform in Node.js
 
 // Resilient browser globals polyfills for Node SSR/compile-time rendering
 if (typeof globalThis.window === 'undefined') {
@@ -145,6 +151,7 @@ const autoIslandNames = new Set(
     }),
 );
 const autoIslandKebabByPascal = new Map<string, string>();
+const pagesWithBlockArea = new Set<string>();
 // Root className each Smart Discovery component's own outermost JSX element carries
 // (when statically resolvable) — hoisted onto the wrapper div below so auto-hydration
 // doesn't silently strip layout-critical classes (w-full, flex, grid, ...) from the tree.
@@ -266,7 +273,7 @@ React.createElement = function patchedCreateElement(
 ) {
   props = paintVisibleProps(props);
   const name = componentIslandName(type);
-  if (name && autoIslandNames.has(name)) {
+  if (name && autoIslandNames.has(name) && !pagesWithBlockArea.has(name)) {
     const inner = origCreate.call(this, type, props, ...children);
     return origCreate.call(
       this,
@@ -291,7 +298,12 @@ function patchJsxRuntime(runtime: any) {
     (type: any, props: any, key: any, ...rest: any[]) => {
       const nextProps = paintVisibleProps(props);
       const name = componentIslandName(type);
-      if (!name || !autoIslandNames.has(name) || typeof orig !== 'function') {
+      if (
+        !name ||
+        !autoIslandNames.has(name) ||
+        pagesWithBlockArea.has(name) ||
+        typeof orig !== 'function'
+      ) {
         return orig(type, nextProps, key, ...rest);
       }
       const inner = orig(type, nextProps, undefined, ...rest);
@@ -429,8 +441,20 @@ function renderPage(
   options: { ownsShell?: boolean } = {},
 ): string {
   try {
+    const hasBlockArea =
+      Boolean(filePath) &&
+      existsSync(filePath!) &&
+      usesBlockArea(readFileSync(filePath!, 'utf8'));
+    const pageName = hasBlockArea ? componentIslandName(PageComponent) : null;
+    if (pageName) pagesWithBlockArea.add(pageName);
+
     let pageEl = React.createElement(PageComponent);
-    if (filePath && existsSync(filePath) && isComponentInteractive(filePath)) {
+    if (
+      filePath &&
+      existsSync(filePath) &&
+      isComponentInteractive(filePath) &&
+      !hasBlockArea
+    ) {
       const compName = path.basename(filePath, path.extname(filePath));
       const kebabName = compName
         .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
@@ -1033,7 +1057,7 @@ if (existsSync(appDir)) {
           const module = await import(pathToFileURL(filePath).href);
           const TemplateComponent = module.default;
           if (TemplateComponent) {
-            globalThis.__forgewpSsrQueries = {};
+            forgeWpGlobal.__forgewpSsrQueries = {};
             let html = '';
             if (name === '404') {
               let pageEl = React.createElement(TemplateComponent);
@@ -1053,7 +1077,7 @@ if (existsSync(appDir)) {
               html = renderPage(TemplateComponent, filePath);
             }
 
-            const ssrState = globalThis.__forgewpSsrQueries || {};
+            const ssrState = forgeWpGlobal.__forgewpSsrQueries || {};
             let stateScript = '';
             if (Object.keys(ssrState).length > 0) {
               stateScript = `\n<script id="forgewp-initial-state" type="application/json">${JSON.stringify({ queries: ssrState })}</script>`;
@@ -1118,7 +1142,7 @@ if (VERBOSE) {
 if (existsSync(pagesDir)) {
   const { readdirSync } = require('node:fs');
   const pages = readdirSync(pagesDir).filter(
-    (f) => f.endsWith('.tsx') && !/^placeholder\.tsx$/i.test(f),
+    (f: string) => f.endsWith('.tsx') && !/^placeholder\.tsx$/i.test(f),
   );
 
   for (const pageFile of pages) {
@@ -1130,7 +1154,7 @@ if (existsSync(pagesDir)) {
       const module = await import(pathToFileURL(pagePath).href);
       const CustomPage = module.default || Object.values(module)[0];
       if (CustomPage) {
-        globalThis.__forgewpSsrQueries = {};
+        forgeWpGlobal.__forgewpSsrQueries = {};
         const pageConfig =
           module.pageConfig && typeof module.pageConfig === 'object'
             ? module.pageConfig
@@ -1202,7 +1226,7 @@ if (existsSync(pagesDir)) {
 
         const LayoutComponent = await resolveLayoutComponent(pageConfig.layout);
         const customHtml = renderPage(CustomPage, pagePath, LayoutComponent);
-        const ssrState = globalThis.__forgewpSsrQueries || {};
+        const ssrState = forgeWpGlobal.__forgewpSsrQueries || {};
         let stateScript = '';
         if (Object.keys(ssrState).length > 0) {
           stateScript = `\n<script id="forgewp-initial-state" type="application/json">${JSON.stringify({ queries: ssrState })}</script>`;
@@ -1311,10 +1335,8 @@ if (existsSync(routesFile)) {
 
     if (AppRoutes) {
       const staticRouteSlugs = new Set<string>();
-      for (const m of routesSource.matchAll(
-        /path\s*=\s*['"]\/([^'"`]+)['"]/g,
-      )) {
-        const raw = m[1].replace(/^\/+|\/+$/g, '');
+      for (const route of collectStaticRouteDefinitions(routesSource)) {
+        const raw = route.path.replace(/^\/+|\/+$/g, '');
         if (raw && !raw.includes(':') && !raw.includes('*')) {
           staticRouteSlugs.add(raw);
         }
@@ -1345,7 +1367,7 @@ if (existsSync(routesFile)) {
           continue;
 
         try {
-          globalThis.__forgewpSsrQueries = {};
+          forgeWpGlobal.__forgewpSsrQueries = {};
           if (globalThis.window && globalThis.window.location) {
             (globalThis.window.location as any).pathname = '/' + slug;
           }
@@ -1373,7 +1395,7 @@ if (existsSync(routesFile)) {
             wrapWithRootProviders(pageBoundary, RootLayout),
           );
 
-          const ssrState = globalThis.__forgewpSsrQueries || {};
+          const ssrState = forgeWpGlobal.__forgewpSsrQueries || {};
           let stateScript = '';
           if (Object.keys(ssrState).length > 0) {
             stateScript = `\n<script id="forgewp-initial-state" type="application/json">${JSON.stringify({ queries: ssrState })}</script>`;
@@ -1382,7 +1404,7 @@ if (existsSync(routesFile)) {
           let customExtraHeadTags = '';
           const cleanCustomHtml = customHtml.replace(
             /<forgewp-head\b[^>]*>(.*?)<\/forgewp-head>/gs,
-            (match, childrenHtml) => {
+            (match: string, childrenHtml: string) => {
               customExtraHeadTags += '\n' + childrenHtml;
               return '';
             },

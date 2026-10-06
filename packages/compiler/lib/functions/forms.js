@@ -644,7 +644,8 @@ if (!function_exists('forgewp_register_submission_cpt')) {
 ${submissionCapabilities}
                 'create_posts' => 'do_not_allow',
             ),
-            'map_meta_cap' => true,
+            // The configured Forms capability is primitive; do not register it as a global meta-cap alias.
+            'map_meta_cap' => false,
         ));
     }
     add_action('init', 'forgewp_register_submission_cpt');

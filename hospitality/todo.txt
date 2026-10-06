@@ -1,0 +1,16 @@
+Yes, you can make the EDD pages custom. EDD owns the purchase and checkout logic, but it doesn’t dictate the whole page design.
+
+**Custom EDD pages**
+`/checkout/single-license` is your product landing page; it is not necessarily EDD’s actual Checkout Page. Keep its custom layout, or rebuild it as Gutenberg content. The EDD Buy Button is just the product-to-cart connection.
+
+For the actual Checkout Page, you can design the surrounding page in ForgeWP and render EDD’s checkout inside it. EDD’s **Checkout** block has rearrangeable cart, customer-details, payment, and discount sections, with several layouts. The older `[download_checkout]` shortcode is another option, though the block is the better editor experience. EDD also documents theme template overrides, but those need more maintenance than using its block inside a custom page. See EDD’s [blocks guide](https://easydigitaldownloads.com/docs/easy-digital-downloads-blocks/) and [checkout layout guide](https://easydigitaldownloads.com/docs/customizing-checkout-page-layout/).
+
+**Making the license page rearrangeable**
+That’s a good fit for ForgeWP blocks. We can turn sections such as the product summary, license details, and terms into insertable blocks with editable fields. The WordPress Page would render its saved block content through a BlockArea, so the client can rearrange sections while the native EDD Buy Button remains in the page content. We can provide a starter arrangement and optionally constrain which blocks are allowed. Product price should come from EDD rather than duplicated hardcoded text, so the page summary can’t drift from the purchasable Download.
+
+**Electronic withdrawal**
+There’s a better route than building this workflow ourselves: EDD now provides a [Customer Right of Withdrawal feature](https://easydigitaldownloads.com/docs/right-of-withdrawal/). Its documentation says it is available to EDD users and provides a withdrawal page, a two-step declaration, a timestamped acknowledgement by email, and an admin dashboard for requests. Enable it under **Downloads → Settings → Policies → Right of Withdrawal**, configure order matching, and make the withdrawal page easy to find. Accepting a request does **not** issue a refund; that must be processed separately in EDD.
+
+Germany’s current [BGB §356a](https://www.gesetze-im-internet.de/bgb/__356a.html) requires an accessible online withdrawal function for covered consumer distance contracts. The EU rules apply from 19 June 2026. Whether the obligation applies to this store depends in part on whether it genuinely sells only B2B; have counsel confirm that, along with the digital-content withdrawal rules and checkout consent wording. The current `/vertrag-widerrufen` form only prepares an email, so it does not provide the automatic receipt and timestamp workflow.
+
+Created 3 todos

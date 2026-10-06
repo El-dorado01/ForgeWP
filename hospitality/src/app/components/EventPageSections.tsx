@@ -3,7 +3,10 @@ import {
   WpEditable,
   useWpExcerpt,
   useWpFeaturedImage,
+  useWpPageLink,
   useWpTitle,
+  WpImage,
+  WpLink,
 } from '@forgewp/react';
 import { motion, useReducedMotion, type Variants } from 'framer-motion';
 
@@ -31,6 +34,7 @@ export function EventHeroSection({
   const title = useWpTitle();
   const excerpt = useWpExcerpt();
   const image = useWpFeaturedImage() || '/assets/hospitality-cover.png';
+  const eventsHref = useWpPageLink('events-page', '/events');
 
   return (
     <motion.header
@@ -41,8 +45,8 @@ export function EventHeroSection({
     >
       <div className='mx-auto grid max-w-360 lg:min-h-147.5 lg:grid-cols-[0.9fr_1.1fr]'>
         <div className='flex flex-col items-start justify-center px-5 py-12 sm:px-8 sm:py-16 lg:px-14 lg:py-20'>
-          <a
-            href='/events'
+          <WpLink
+            href={eventsHref}
             className='inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-slate-300 transition-colors hover:text-white'
           >
             <ArrowLeft
@@ -50,7 +54,7 @@ export function EventHeroSection({
               aria-hidden='true'
             />{' '}
             Alle Veranstaltungen
-          </a>
+          </WpLink>
           <p className='mt-10 text-xs font-bold uppercase tracking-[0.18em] text-accent'>
             <WpEditable
               tagName='span'
@@ -76,7 +80,7 @@ export function EventHeroSection({
           </a>
         </div>
         <div className='relative min-h-75 sm:min-h-105 lg:min-h-full'>
-          <img
+          <WpImage
             src={image}
             alt={title}
             className='absolute inset-0 h-full w-full object-cover'

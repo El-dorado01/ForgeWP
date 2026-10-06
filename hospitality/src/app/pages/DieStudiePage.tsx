@@ -1,4 +1,4 @@
-import { WpHead } from '@forgewp/react';
+import { useWpPageLink, WpHead, WpLink } from '@forgewp/react';
 import { useEffect, useState } from 'react';
 import { useReducedMotion, type Variants } from 'framer-motion';
 import StudySection from '../components/StudySection';
@@ -17,6 +17,7 @@ const revealVariants: Variants = {
 };
 
 export function DieStudiePage() {
+  const licensesHref = useWpPageLink('lizenzen-page', '/lizenzen');
   const reduceMotion = useReducedMotion();
   const revealInitial = reduceMotion ? false : 'hidden';
   const [pageReady, setPageReady] = useState(false);
@@ -77,12 +78,12 @@ export function DieStudiePage() {
               Die vollständige Studie lesen.
             </h2>
           </div>
-          <a
-            href='/lizenzen'
+          <WpLink
+            href={licensesHref}
             className='inline-flex items-center justify-center border border-white px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white transition-colors hover:bg-white hover:text-accent'
           >
             Lizenzmodelle ansehen
-          </a>
+          </WpLink>
         </div>
       </section>
 

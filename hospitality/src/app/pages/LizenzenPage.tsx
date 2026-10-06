@@ -1,5 +1,5 @@
 import { ArrowRight, Check } from 'lucide-react';
-import { WpHead } from '@forgewp/react';
+import { useWpPageLink, WpHead, WpLink } from '@forgewp/react';
 import { motion, useReducedMotion, type Variants } from 'framer-motion';
 
 export const pageConfig = { layout: 'default' };
@@ -16,6 +16,19 @@ const revealVariants: Variants = {
 export function LizenzenPage() {
   const reduceMotion = useReducedMotion();
   const revealInitial = reduceMotion ? false : 'hidden';
+  const singleLicenseHref = useWpPageLink(
+    'einzellizenz-page',
+    '/checkout/single-license',
+  );
+  const teamLicenseHref = useWpPageLink('teamlizenz-page', '/lizenz/team');
+  const companyLicenseHref = useWpPageLink(
+    'unternehmenslizenz-page',
+    '/lizenz/unternehmen',
+  );
+  const termsHref = useWpPageLink(
+    'agb-lizenzbedingungen-page',
+    '/agb-lizenzbedingungen',
+  );
 
   return (
     <main className='min-h-screen bg-[#f5f3ee] text-brand'>
@@ -81,13 +94,12 @@ export function LizenzenPage() {
 
         <div className='grid border border-brand/20 bg-brand/20 lg:grid-cols-3 lg:gap-px'>
           <motion.article
-            className='flex min-h-[390px] flex-col bg-white p-6 transition-shadow duration-300 hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)] sm:p-8'
+            className='flex min-h-[390px] flex-col bg-white p-6 sm:p-8'
             initial={revealInitial}
             whileInView='visible'
             viewport={{ once: true, amount: 0.2 }}
             variants={revealVariants}
             transition={{ delay: 0.04, duration: 0.65, ease: 'easeOut' }}
-            whileHover={reduceMotion ? undefined : { y: -4 }}
           >
             <p className='text-xs font-bold uppercase tracking-[0.16em] text-slate-500'>
               Für eine Person
@@ -117,8 +129,8 @@ export function LizenzenPage() {
                 <span>Für einzelne Entscheider und Fachverantwortliche</span>
               </li>
             </ul>
-            <a
-              href='/checkout/single-license'
+            <WpLink
+              href={singleLicenseHref}
               className='mt-auto inline-flex items-center justify-between gap-2 whitespace-nowrap border border-brand px-3 py-3.5 text-[10px] font-bold uppercase tracking-[0.06em] text-brand transition-colors hover:bg-brand hover:text-white sm:gap-3 sm:px-4 sm:text-xs sm:tracking-[0.1em]'
             >
               Einzellizenz auswählen{' '}
@@ -126,17 +138,16 @@ export function LizenzenPage() {
                 size={16}
                 aria-hidden='true'
               />
-            </a>
+            </WpLink>
           </motion.article>
 
           <motion.article
-            className='flex min-h-[390px] flex-col bg-brand p-6 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] transition-shadow duration-300 hover:shadow-[0_22px_48px_rgba(15,23,42,0.2)]'
+            className='flex min-h-[390px] flex-col bg-brand p-6 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)]'
             initial={revealInitial}
             whileInView='visible'
             viewport={{ once: true, amount: 0.2 }}
             variants={revealVariants}
             transition={{ delay: 0.14, duration: 0.65, ease: 'easeOut' }}
-            whileHover={reduceMotion ? undefined : { y: -4 }}
           >
             <p className='text-xs font-bold uppercase tracking-[0.16em] text-accent'>
               Für bis zu 10 Nutzer
@@ -162,8 +173,8 @@ export function LizenzenPage() {
                 <span>Für Managementteams und Fachabteilungen</span>
               </li>
             </ul>
-            <a
-              href='/lizenz/team'
+            <WpLink
+              href={teamLicenseHref}
               className='mt-auto inline-flex items-center justify-between gap-2 whitespace-nowrap border border-accent bg-accent px-3 py-3.5 text-[10px] font-bold uppercase tracking-[0.06em] text-white transition-colors hover:bg-transparent sm:gap-3 sm:px-4 sm:text-xs sm:tracking-[0.1em]'
             >
               Teamlizenz anfragen{' '}
@@ -171,17 +182,16 @@ export function LizenzenPage() {
                 size={16}
                 aria-hidden='true'
               />
-            </a>
+            </WpLink>
           </motion.article>
 
           <motion.article
-            className='flex min-h-[390px] flex-col bg-white p-6 transition-shadow duration-300 hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)] sm:p-8'
+            className='flex min-h-[390px] flex-col bg-white p-6 sm:p-8'
             initial={revealInitial}
             whileInView='visible'
             viewport={{ once: true, amount: 0.2 }}
             variants={revealVariants}
             transition={{ delay: 0.24, duration: 0.65, ease: 'easeOut' }}
-            whileHover={reduceMotion ? undefined : { y: -4 }}
           >
             <p className='text-xs font-bold uppercase tracking-[0.16em] text-slate-500'>
               Für größere Organisationen
@@ -211,8 +221,8 @@ export function LizenzenPage() {
                 <span>Preis abhängig vom vereinbarten Nutzungsumfang</span>
               </li>
             </ul>
-            <a
-              href='/lizenz/unternehmen'
+            <WpLink
+              href={companyLicenseHref}
               className='mt-auto inline-flex items-center justify-between gap-2 whitespace-nowrap border border-brand px-3 py-3.5 text-[10px] font-bold uppercase tracking-[0.06em] text-brand transition-colors hover:bg-brand hover:text-white sm:gap-3 sm:px-4 sm:text-xs sm:tracking-[0.1em]'
             >
               Firmenlizenz anfragen{' '}
@@ -220,7 +230,7 @@ export function LizenzenPage() {
                 size={16}
                 aria-hidden='true'
               />
-            </a>
+            </WpLink>
           </motion.article>
         </div>
       </motion.section>
@@ -247,8 +257,8 @@ export function LizenzenPage() {
               Studie innerhalb Ihres Unternehmens nutzen. Nutzungsrechte und
               Lizenzbedingungen gelten gemäß den vereinbarten Konditionen.
             </p>
-            <a
-              href='/agb-lizenzbedingungen'
+            <WpLink
+              href={termsHref}
               className='mt-5 inline-flex items-center gap-2 border-b border-brand pb-1 text-xs font-bold uppercase tracking-[0.1em] text-brand hover:border-accent hover:text-accent'
             >
               AGB & Lizenzbedingungen{' '}
@@ -256,7 +266,7 @@ export function LizenzenPage() {
                 size={15}
                 aria-hidden='true'
               />
-            </a>
+            </WpLink>
           </div>
         </div>
       </motion.section>

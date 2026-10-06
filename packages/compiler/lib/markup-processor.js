@@ -40,6 +40,11 @@ export function processMarkup(html, textDomain = 'theme', richTextKeys = null) {
   );
 
   processed = processed.replace(
+    /<forgewp-block-area\b[^>]*>\s*<\/forgewp-block-area>/gi,
+    '<?php the_content(); ?>',
+  );
+
+  processed = processed.replace(
     /__FORGEWP_THE_PERMALINK__/g,
     '<?php the_permalink(); ?>',
   );

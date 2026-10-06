@@ -3,7 +3,9 @@ import {
   WpQueryLoop,
   useRoute,
   useWpCustomField,
-  useWpQuery, 
+  useWpPageLink,
+  WpLink,
+  useWpQuery,
 } from '@forgewp/react';
 import {
   EventHeroSection,
@@ -12,6 +14,7 @@ import {
 } from './EventPageSections';
 
 function EventBySlug({ slug }: { slug: string }) {
+  const eventsHref = useWpPageLink('events-page', '/events');
   const { posts, loading } = useWpQuery({
     postType: 'hospitality_event',
     postsPerPage: 100,
@@ -33,12 +36,12 @@ function EventBySlug({ slug }: { slug: string }) {
         <h1 className='font-heading text-3xl font-bold text-brand'>
           Veranstaltung nicht gefunden
         </h1>
-        <a
+        <WpLink
           className='mt-6 inline-block underline'
-          href='/events'
+          href={eventsHref}
         >
           Alle Veranstaltungen
-        </a>
+        </WpLink>
       </main>
     );
   }

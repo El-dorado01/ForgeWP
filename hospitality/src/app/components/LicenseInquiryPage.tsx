@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { submitWpForm, WpHead } from '@forgewp/react';
+import { submitWpForm, useWpPageLink, WpHead, WpLink } from '@forgewp/react';
 import { motion, useReducedMotion, type Variants } from 'framer-motion';
 
 export type LicenseInquiryField = {
@@ -14,6 +14,27 @@ export type LicenseInquiryField = {
   placeholder?: string;
   wide?: boolean;
 };
+
+type LicenseInquiryFieldPresentation = Pick<
+  LicenseInquiryField,
+  'autoComplete' | 'min' | 'max' | 'placeholder' | 'wide'
+>;
+
+export function buildLicenseInquiryFields(
+  schemaFields: Record<
+    string,
+    { type: string; label?: string; required?: boolean }
+  >,
+  presentation: Record<string, LicenseInquiryFieldPresentation> = {},
+): LicenseInquiryField[] {
+  return Object.entries(schemaFields).map(([name, field]) => ({
+    name,
+    label: field.label ?? name,
+    type: field.type as LicenseInquiryField['type'],
+    required: field.required,
+    ...presentation[name],
+  }));
+}
 
 type LicenseInquiryPageProps = {
   title: string;
@@ -56,6 +77,8 @@ export function LicenseInquiryPage({
   formName,
   otherLicense,
 }: LicenseInquiryPageProps) {
+  const licensesHref = useWpPageLink('lizenzen-page', '/lizenzen');
+  const privacyHref = useWpPageLink('datenschutz-page', '/datenschutz');
   const reduceMotion = useReducedMotion();
   const revealInitial = reduceMotion ? false : 'hidden';
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -108,8 +131,8 @@ export function LicenseInquiryPage({
         variants={revealVariants}
       >
         <div className='mx-auto max-w-[1440px] px-6 py-10 sm:px-8 sm:py-14 lg:px-14 lg:py-16'>
-          <a
-            href='/lizenzen'
+          <WpLink
+            href={licensesHref}
             className='inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-slate-300 transition-colors hover:text-white'
           >
             <ArrowLeft
@@ -117,7 +140,7 @@ export function LicenseInquiryPage({
               aria-hidden='true'
             />{' '}
             Alle Lizenzen
-          </a>
+          </WpLink>
           <div className='mt-9 grid min-w-0 grid-cols-1 gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-end'>
             <div>
               <p className='text-xs font-bold uppercase tracking-[0.18em] text-accent'>
@@ -199,12 +222,12 @@ export function LicenseInquiryPage({
               Ihre Angaben werden an DICON übermittelt und zur Bearbeitung der
               Anfrage gespeichert. Informationen zur Verarbeitung finden Sie in
               der{' '}
-              <a
-                href='/datenschutz'
+              <WpLink
+                href={privacyHref}
                 className='font-semibold text-brand underline decoration-accent underline-offset-4 hover:text-accent'
               >
                 Datenschutzerklärung
-              </a>
+              </WpLink>
               .
             </p>
             {submissionStatus && (
@@ -268,7 +291,7 @@ export function LicenseInquiryPage({
               </li>
             ))}
           </ul>
-          <a
+          <WpLink
             href={otherLicense.href}
             className='mt-8 inline-flex items-center gap-2 border-b border-brand pb-1 text-xs font-bold uppercase tracking-[0.08em] text-brand transition-colors hover:border-accent hover:text-accent'
           >
@@ -277,7 +300,7 @@ export function LicenseInquiryPage({
               size={14}
               aria-hidden='true'
             />
-          </a>
+          </WpLink>
         </motion.aside>
       </div>
     </main>

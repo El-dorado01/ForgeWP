@@ -30,3 +30,14 @@ describe('Markup Processor — WpQueryLoop', () => {
     expect(output).toContain("'p' => 301");
   });
 });
+
+describe('Markup Processor — BlockArea', () => {
+  it('replaces the export marker with the WordPress page content call', () => {
+    const output = processMarkup(
+      '<main><forgewp-block-area data-name="single-license-edd-purchase-button"></forgewp-block-area></main>',
+      'hospitality',
+    );
+
+    expect(output).toBe('<main><?php the_content(); ?></main>');
+  });
+});

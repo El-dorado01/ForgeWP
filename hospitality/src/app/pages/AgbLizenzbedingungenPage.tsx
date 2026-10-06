@@ -1,8 +1,14 @@
 import { LegalPageTemplate } from '../components/LegalPageTemplate';
+import { useWpPageLink } from '@forgewp/react';
 
 export const pageConfig = { layout: 'default' };
 
 export function AgbLizenzbedingungenPage() {
+  const withdrawalHref = useWpPageLink(
+    'widerrufsbelehrung-page',
+    '/widerrufsbelehrung',
+  );
+
   return (
     <LegalPageTemplate
       slug='agb-lizenzbedingungen'
@@ -108,7 +114,7 @@ export function AgbLizenzbedingungenPage() {
           ],
         },
       ]}
-      links={[{ label: 'Widerrufsbelehrung', href: '/widerrufsbelehrung' }]}
+      links={[{ label: 'Widerrufsbelehrung', href: withdrawalHref }]}
     />
   );
 }

@@ -1,20 +1,39 @@
+import { useWpPageLink, WpImage, WpLink } from '@forgewp/react';
+
 export default function SiteFooter() {
+  const homeHref = useWpPageLink('front-page', '/');
+  const impressumHref = useWpPageLink('impressum-page', '/impressum');
+  const privacyHref = useWpPageLink('datenschutz-page', '/datenschutz');
+  const termsHref = useWpPageLink(
+    'agb-lizenzbedingungen-page',
+    '/agb-lizenzbedingungen',
+  );
+  const withdrawalHref = useWpPageLink(
+    'widerrufsbelehrung-page',
+    '/widerrufsbelehrung',
+  );
+  const withdrawalFormHref = useWpPageLink(
+    'vertrag-widerrufen-page',
+    '/vertrag-widerrufen',
+  );
+  const contactHref = useWpPageLink('kontakt-page', '/kontakt');
+
   return (
     <footer className='border-t border-slate-200 bg-brand px-5 py-12 text-white sm:px-8 lg:px-12 lg:py-16'>
       <div className='mx-auto max-w-[1440px]'>
         <div className='grid gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-24'>
           <div>
-            <a
-              href='/'
+            <WpLink
+              href={homeHref}
               className='relative block h-12 w-36'
               aria-label='DICON home'
             >
-              <img
+              <WpImage
                 src='/Logo_DICON-removebg-preview.png'
                 alt='DICON Beratung'
                 className='h-full w-full object-contain object-left'
               />
-            </a>
+            </WpLink>
             <p className='mt-8 max-w-xl text-lg leading-relaxed text-slate-300'>
               Hospitality 2035 ist eine Studie von DICON Marketing- und
               Beratungsgesellschaft mbH über die wirtschaftliche Zukunft der
@@ -55,42 +74,42 @@ export default function SiteFooter() {
                 Rechtliches
               </p>
               <div className='mt-5 flex flex-col items-start gap-3 text-sm text-slate-300'>
-                <a
-                  href='/impressum'
+                <WpLink
+                  href={impressumHref}
                   className='hover:text-white'
                 >
                   Impressum
-                </a>
-                <a
-                  href='/datenschutz'
+                </WpLink>
+                <WpLink
+                  href={privacyHref}
                   className='hover:text-white'
                 >
                   Datenschutzerklärung
-                </a>
-                <a
-                  href='/agb-lizenzbedingungen'
+                </WpLink>
+                <WpLink
+                  href={termsHref}
                   className='hover:text-white'
                 >
                   AGB & Lizenzbedingungen
-                </a>
-                <a
-                  href='/widerrufsbelehrung'
+                </WpLink>
+                <WpLink
+                  href={withdrawalHref}
                   className='hover:text-white'
                 >
                   Widerrufsbelehrung
-                </a>
-                <a
-                  href='/vertrag-widerrufen'
+                </WpLink>
+                <WpLink
+                  href={withdrawalFormHref}
                   className='font-semibold text-accent hover:text-white'
                 >
                   Vertrag widerrufen
-                </a>
-                <a
-                  href='/kontakt'
+                </WpLink>
+                <WpLink
+                  href={contactHref}
                   className='hover:text-white'
                 >
                   Kontakt
-                </a>
+                </WpLink>
               </div>
             </nav>
           </div>

@@ -82,25 +82,33 @@ export function generateAcfFieldPhp(key, field, parentKey = '') {
   if (acfType === 'image') {
     php += `\n                'return_format' => 'url',`;
   } else if (acfType === 'relationship') {
-    const pts = field.postTypes ? field.postTypes.map(pt => `'${pt}'`).join(', ') : '';
+    const pts = field.postTypes
+      ? field.postTypes.map((pt) => `'${pt}'`).join(', ')
+      : '';
     const ptExpr = pts ? `array(${pts})` : `array()`;
     php += `\n                'post_type' => ${ptExpr},\n                'filters' => array('search', 'taxonomy'),\n                'return_format' => 'id',`;
   } else if (acfType === 'true_false') {
     php += `\n                'ui' => 1,`;
   } else if (acfType === 'select' && field.options) {
-    const choices = field.options.map(opt => {
-      if (typeof opt === 'string') {
-        return `'${opt.replace(/'/g, "\\'")}' => '${opt.replace(/'/g, "\\'")}'`;
-      }
-      return `'${String(opt.value).replace(/'/g, "\\'")}' => '${String(opt.label).replace(/'/g, "\\'")}'`;
-    }).join(', ');
+    const choices = field.options
+      .map((opt) => {
+        if (typeof opt === 'string') {
+          return `'${opt.replace(/'/g, "\\'")}' => '${opt.replace(/'/g, "\\'")}'`;
+        }
+        return `'${String(opt.value).replace(/'/g, "\\'")}' => '${String(opt.label).replace(/'/g, "\\'")}'`;
+      })
+      .join(', ');
     php += `\n                'choices' => array(${choices}),`;
   } else if (acfType === 'number') {
-    if (field.min !== undefined) php += `\n                'min' => ${field.min},`;
-    if (field.max !== undefined) php += `\n                'max' => ${field.max},`;
+    if (field.min !== undefined)
+      php += `\n                'min' => ${field.min},`;
+    if (field.max !== undefined)
+      php += `\n                'max' => ${field.max},`;
   } else if (acfType === 'repeater' && field.fields) {
     const subFieldsPhp = Object.entries(field.fields)
-      .map(([subKey, subField]) => generateAcfFieldPhp(subKey, subField, acfKey))
+      .map(([subKey, subField]) =>
+        generateAcfFieldPhp(subKey, subField, acfKey),
+      )
       .join(',\n');
     php += `\n                'sub_fields' => array(
 ${subFieldsPhp}
@@ -159,7 +167,8 @@ export function generateDynamicAcfFieldPhp(key, field, templateSlug = '') {
         for ($i = 0; $i < $count; $i++) {\n`;
 
   for (const [subKey, subField] of Object.entries(field.fields)) {
-    const subLabel = subField.label || subKey.charAt(0).toUpperCase() + subKey.slice(1);
+    const subLabel =
+      subField.label || subKey.charAt(0).toUpperCase() + subKey.slice(1);
     const subTypeMap = {
       text: 'text',
       richText: 'wysiwyg',
@@ -183,16 +192,20 @@ export function generateDynamicAcfFieldPhp(key, field, templateSlug = '') {
     } else if (subType === 'true_false') {
       fallbackPhp += `\n                'ui' => 1,`;
     } else if (subType === 'select' && subField.options) {
-      const choices = subField.options.map(opt => {
-        if (typeof opt === 'string') {
-          return `'${opt.replace(/'/g, "\\'")}' => '${opt.replace(/'/g, "\\'")}'`;
-        }
-        return `'${String(opt.value).replace(/'/g, "\\'")}' => '${String(opt.label).replace(/'/g, "\\'")}'`;
-      }).join(', ');
+      const choices = subField.options
+        .map((opt) => {
+          if (typeof opt === 'string') {
+            return `'${opt.replace(/'/g, "\\'")}' => '${opt.replace(/'/g, "\\'")}'`;
+          }
+          return `'${String(opt.value).replace(/'/g, "\\'")}' => '${String(opt.label).replace(/'/g, "\\'")}'`;
+        })
+        .join(', ');
       fallbackPhp += `\n                'choices' => array(${choices}),`;
     } else if (subType === 'number') {
-      if (subField.min !== undefined) fallbackPhp += `\n                'min' => ${subField.min},`;
-      if (subField.max !== undefined) fallbackPhp += `\n                'max' => ${subField.max},`;
+      if (subField.min !== undefined)
+        fallbackPhp += `\n                'min' => ${subField.min},`;
+      if (subField.max !== undefined)
+        fallbackPhp += `\n                'max' => ${subField.max},`;
     }
     fallbackPhp += `\n            );\n`;
   }
@@ -217,9 +230,10 @@ export const LINK_RESET_CSS = `    a { text-decoration-line: none; }
     .hover\\:underline:hover { text-decoration-line: underline !important; }`;
 
 export function buildHeaderPhp(config, options = {}) {
-  const preloadHtml = Array.isArray(options.preloadTags) && options.preloadTags.length > 0
-    ? '  ' + options.preloadTags.join('\n  ') + '\n'
-    : '';
+  const preloadHtml =
+    Array.isArray(options.preloadTags) && options.preloadTags.length > 0
+      ? '  ' + options.preloadTags.join('\n  ') + '\n'
+      : '';
 
   return `<?php
 /**
@@ -653,6 +667,36 @@ get_footer();
 `;
 }
 
+export function buildBuilderPageCanvasPhp() {
+  return `$forgewp_hide_title = function_exists('forgewp_should_hide_page_title')
+    ? forgewp_should_hide_page_title(get_the_ID())
+    : true;
+echo '<main class="forgewp-builder-canvas">';
+if (!$forgewp_hide_title) {
+    echo '<div class="forgewp-content-width">';
+    echo '<h1 class="text-4xl font-bold mb-6">' . get_the_title() . '</h1>';
+    echo '</div>';
+}
+the_content();
+echo '</main>';`;
+}
+
+export function buildGeneratedPageTemplateContentPhp(staticMarkupFile) {
+  return `if (have_posts()) {
+  while (have_posts()) {
+    the_post();
+    if (get_page_template_slug(get_the_ID()) === 'template-forgewp-builder.php') {
+${buildBuilderPageCanvasPhp()}
+    } else {
+      $markup_file = get_template_directory() . '/${staticMarkupFile}';
+      if (file_exists($markup_file)) {
+        include $markup_file;
+      }
+    }
+  }
+}`;
+}
+
 export function buildBuilderPagePhp() {
   return `<?php
 /**
@@ -667,17 +711,7 @@ get_header();
 if (have_posts()) {
     while (have_posts()) {
         the_post();
-        $forgewp_hide_title = function_exists('forgewp_should_hide_page_title')
-            ? forgewp_should_hide_page_title(get_the_ID())
-            : true;
-        echo '<main class="forgewp-builder-canvas">';
-        if (!$forgewp_hide_title) {
-            echo '<div class="forgewp-content-width">';
-            echo '<h1 class="text-4xl font-bold mb-6">' . get_the_title() . '</h1>';
-            echo '</div>';
-        }
-        the_content();
-        echo '</main>';
+  ${buildBuilderPageCanvasPhp()}
     }
 }
 

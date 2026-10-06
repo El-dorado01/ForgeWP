@@ -113,6 +113,34 @@ describe('Mega Menus & Hierarchical Navigation Compiler Tests', () => {
     );
   });
 
+  it('provisions missing ancestors before creating nested route pages', () => {
+    const routingPhp = buildRoutingPhp(
+      { textDomain: 'test_theme', themeVersion: '1.0.0' },
+      "        array('title' => 'Team', 'slug' => 'lizenz/team', 'template' => 'page-team.php')",
+      '',
+      '',
+      '',
+      [],
+    );
+
+    expect(routingPhp).toContain(
+      'function forgewp_ensure_route_parent_page(string $path): int',
+    );
+    expect(routingPhp).toContain("get_page_by_path($path, OBJECT, 'page')");
+    expect(routingPhp).toContain(
+      "update_post_meta($page_id, 'forgewp_route_parent', '1')",
+    );
+    expect(routingPhp).toContain(
+      '$parent_id = forgewp_ensure_route_parent_page($parent_path);',
+    );
+    expect(routingPhp).toContain(
+      "error_log('[ForgeWP] Could not provision parent path for route: ' . $slug_path);",
+    );
+    expect(routingPhp).toContain(
+      "get_page_by_path($slug_path, OBJECT, 'page')",
+    );
+  });
+
   it('buildHydrationEnqueuerPhp includes forgewp_build_menu_tree function and attaches nested hierarchy', () => {
     const config = {
       textDomain: 'test_theme',

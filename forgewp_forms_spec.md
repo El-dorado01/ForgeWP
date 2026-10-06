@@ -311,7 +311,7 @@ Extend the `window.forgeWpHydration` inline script (built at hydration-enqueuer.
 
 ### 4.6 CPT registration (once, if any form has `storeSubmissions`)
 
-`forgewp_submission`: `public => false`, `show_ui => true`, `show_in_menu => true`, label "Form Submissions", `supports => ['title']`, `capabilities` mapped so it is read-only in the list (creation only via the endpoint; `'map_meta_cap' => true` with `create_posts => 'do_not_allow'`). Add a `meta_box` (or simple `the_content` filter on the edit screen) printing the `field_*` meta as a definition list — the "client inbox".
+`forgewp_submission`: `public => false`, `show_ui => true`, `show_in_menu => true`, label "Form Submissions", `supports => ['title']`, and `capabilities` mapped to the configured Forms capability. Creation stays disabled (`create_posts => 'do_not_allow'`) because submissions are inserted only by the endpoint. Keep `'map_meta_cap' => false`: the configured capability is a primitive capability, and registering it as a meta-cap alias can remap it globally (for example, remapping `manage_options` breaks unrelated Settings access). Add a `meta_box` (or simple `the_content` filter on the edit screen) printing the `field_*` meta as a definition list — the "client inbox".
 
 ### 4.7 CSV export, WordPress privacy, and retention
 

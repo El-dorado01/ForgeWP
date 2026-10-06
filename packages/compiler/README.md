@@ -34,6 +34,43 @@ Dynamically scaffolds dynamic WordPress blocks authored in React with options fo
 pnpm forgewp make:block HeroBlock --attributes=heading,text,image,buttonText
 ```
 
+#### Gutenberg editor previews
+
+ForgeWP uses WordPress's server-rendered block preview for blocks that do not
+define a custom editor view. This renders the compiled `render.php` output and
+keeps interactive visitor code (event handlers, React state, and live-data
+hooks) from running inside the editor. If the custom editor view cannot be
+evaluated, ForgeWP falls back to the same server-rendered preview.
+
+For a block whose visitor output depends on live data or browser interaction,
+define an editor-safe visual approximation with `editorPreview`. It receives
+the block's `attributes` and `setAttributes`, and should not submit forms or
+depend on visitor-only data:
+
+```tsx
+export default defineBlock({
+  name: 'inquiry-form',
+  title: 'Inquiry Form',
+  attributes: { heading: { type: 'string', default: 'Contact us' } },
+  editorPreview: ({ attributes }) => (
+    <section>
+      <h2>{attributes.heading}</h2>
+      <label>
+        Name <input disabled />
+      </label>
+      <button disabled>Send request</button>
+    </section>
+  ),
+  save: () => <InquiryForm />,
+});
+```
+
+The preview is editor-only; the visitor page continues to use `save` and the
+compiled PHP/hydration output. Without `editorPreview`, WordPress previews the
+PHP output, which can show a loading or empty state when the component depends
+on live query data. Validate these blocks in Gutenberg and on the visitor page:
+`pnpm --filter @forgewp/compiler exec vitest run test/blocks/editor-preview.test.js`.
+
 ### 4. Post-Type Loop Scaffolder
 
 Instantly scaffolds beautifully designed React loop grid components bound to custom WordPress post types (ACF-like integration):

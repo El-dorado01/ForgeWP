@@ -36,7 +36,9 @@
 }
 
 @layer base {
-  *, ::before, ::after {
+  *,
+  ::before,
+  ::after {
     border-color: var(--color-border);
   }
   html,
@@ -57,4 +59,14 @@
 /* Prevent Gutenberg editor iframe height feedback loop caused by min-h-screen on body */
 .editor-styles-wrapper {
   min-height: auto !important;
+}
+
+body.admin-bar header.fixed.top-0 {
+  top: 32px;
+}
+
+@media screen and (max-width: 782px) {
+  body.admin-bar header.fixed.top-0 {
+    top: 46px;
+  }
 }

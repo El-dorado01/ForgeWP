@@ -37,9 +37,11 @@ import {
   buildPagePhp,
   buildPlaceholderPagePhp,
   buildBuilderPagePhp,
+  buildGeneratedPageTemplateContentPhp,
   LINK_RESET_CSS,
 } from './php-builders.js';
 import { collectFallbackPageRoutes } from './collect-static-routes.js';
+import { collectPageTemplateRoutes } from './collect-page-template-routes.js';
 import { buildFunctionsPhp } from './functions/index.js';
 import { loadMenusData } from './functions/load-menus.js';
 import {
@@ -187,83 +189,19 @@ export async function generateTheme({
     }
   }
 
-  // Gather compiled custom page templates for auto-creation with smart slug mapping
-  const pagesToAutoCreate = [];
-  const pageTemplateSlugs = [];
+  // Map compiled Page templates to menu paths, including nested menu items.
   const forgewpDir = path.join(themeRoot, '.forgewp');
-  if (existsSync(forgewpDir)) {
-    const templateFiles = readdirSync(forgewpDir);
-    for (const file of templateFiles) {
-      if (
-        file.startsWith('template-') &&
-        file.endsWith('.html') &&
-        !file.includes('-head')
-      ) {
-        const slug = file.replace('.html', '');
-        const pageTemplateSlug = slug.replace('template-', '');
-        pageTemplateSlugs.push(pageTemplateSlug);
-
-        let matchedSlug = null;
-        let matchedTitle = null;
-
-        const toKebabTemplateSlug = (str) => {
-          const compName =
-            str
-              .replace(/[^a-zA-Z0-9]/g, ' ')
-              .trim()
-              .split(/\s+/)
-              .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-              .join('') + 'Page';
-          return compName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-        };
-
-        const targetKebab = pageTemplateSlug;
-
-        // Search in menus to find matching target URL slugs defined by the developer
-        for (const [location, items] of Object.entries(menus)) {
-          if (!Array.isArray(items)) continue;
-          for (const item of items) {
-            if (!item.url || !item.url.startsWith('/')) continue;
-            const menuUrlSlug = item.url.replace(/^\//, '');
-
-            if (
-              toKebabTemplateSlug(item.title) === targetKebab ||
-              toKebabTemplateSlug(menuUrlSlug) === targetKebab
-            ) {
-              matchedSlug = menuUrlSlug;
-              matchedTitle = item.title;
-              break;
-            }
-          }
-          if (matchedSlug) break;
-        }
-
-        // Fallback 1: Strip trailing "-page" from template slug
-        if (!matchedSlug) {
-          matchedSlug = pageTemplateSlug.endsWith('-page')
-            ? pageTemplateSlug.slice(0, -5)
-            : pageTemplateSlug;
-        }
-
-        // Fallback 2: Generate clean human-readable title
-        if (!matchedTitle) {
-          const cleanName = pageTemplateSlug.endsWith('-page')
-            ? pageTemplateSlug.slice(0, -5)
-            : pageTemplateSlug;
-          matchedTitle = cleanName
-            .split('-')
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(' ');
-        }
-
-        pagesToAutoCreate.push({
-          title: matchedTitle,
-          slug: matchedSlug,
-          template: `page-${pageTemplateSlug}.php`,
-        });
-      }
-    }
-  }
+  const pageTemplateSlugs = existsSync(forgewpDir)
+    ? readdirSync(forgewpDir)
+        .filter(
+          (file) =>
+            file.startsWith('template-') &&
+            file.endsWith('.html') &&
+            !file.includes('-head'),
+        )
+        .map((file) => file.replace(/^template-|\.html$/g, ''))
+    : [];
+  const pagesToAutoCreate = collectPageTemplateRoutes(pageTemplateSlugs, menus);
 
   // Menu + routes.tsx paths that have no compiled template still need a WP page,
   // or redirect_canonical will steal similar CPT slugs (about → about-a-chair).
@@ -682,10 +620,10 @@ export async function generateTheme({
     import(scriptUrl)
       .then((module) => {
         const Component = resolveExport(module, islandName);
-        if (typeof Component !== "function") {
+        if (!isReactComponentType(Component)) {
           const exportsList = Object.keys(module).join(", ");
           console.error(
-            "[ForgeWP Hydrator] Chunk for " + islandName + " does not export a valid React component. " +
+            "[ForgeWP Hydrator] Chunk for " + islandName + " does not export a valid React component type. " +
             "Available exports: " + exportsList
           );
           return;
@@ -738,6 +676,17 @@ export async function generateTheme({
       });
   }
 
+  function isReactComponentType(value) {
+    if (typeof value === "function" || typeof value === "string") return true;
+    if (!value || typeof value !== "object") return false;
+    const type = value.$$typeof;
+    return type === Symbol.for("react.forward_ref") ||
+      type === Symbol.for("react.memo") ||
+      type === Symbol.for("react.lazy") ||
+      type === Symbol.for("react.provider") ||
+      type === Symbol.for("react.context");
+  }
+
   function resolveExport(module, islandName) {
     if (!module || typeof module !== "object") return undefined;
     const pascalName = islandName
@@ -746,49 +695,50 @@ export async function generateTheme({
       .join("");
     const camelName = pascalName.charAt(0).toLowerCase() + pascalName.slice(1);
 
-    if (typeof module[pascalName] === "function") return module[pascalName];
-    if (typeof module[camelName] === "function") return module[camelName];
-    if (typeof module.default === "function") return module.default;
+    if (isReactComponentType(module[pascalName])) return module[pascalName];
+    if (isReactComponentType(module[camelName])) return module[camelName];
+    if (isReactComponentType(module.default)) return module.default;
 
     const keys = Object.keys(module);
     for (let i = 0; i < keys.length; i++) {
       const val = module[keys[i]];
-      if (typeof val === "function") {
-        if (val.displayName === pascalName || val.name === pascalName) return val;
-        if (val.displayName === camelName || val.name === camelName) return val;
+      if (isReactComponentType(val)) {
+        const componentName = val.displayName || val.name || (val.render && val.render.name);
+        if (componentName === pascalName || componentName === camelName) return val;
       }
     }
 
     const cleanIsland = islandName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
     for (let i = 0; i < keys.length; i++) {
       const k = keys[i];
-      if (k.toLowerCase() === cleanIsland && typeof module[k] === "function") {
+      if (k.toLowerCase() === cleanIsland && isReactComponentType(module[k])) {
         return module[k];
       }
     }
 
-    const fnKeys = keys.filter(function (k) {
-      return typeof module[k] === "function";
+    const componentKeys = keys.filter(function (k) {
+      return isReactComponentType(module[k]);
     });
-    if (fnKeys.length === 1) return module[fnKeys[0]];
+    if (componentKeys.length === 1) return module[componentKeys[0]];
 
-    const nonHooks = fnKeys.filter(function (k) {
-      const fn = module[k];
-      const fnName = fn.displayName || fn.name || k;
-      return !/^use[A-Z]/.test(fnName);
+    const nonHooks = componentKeys.filter(function (k) {
+      const component = module[k];
+      const componentName = component.displayName || component.name || (component.render && component.render.name) || k;
+      return !/^use[A-Z]/.test(componentName);
     });
     if (nonHooks.length === 1) return module[nonHooks[0]];
 
     if (islandName.endsWith("-provider") || islandName.includes("provider")) {
-      const provMatch = fnKeys.find(function (k) {
-        const fnName = module[k].displayName || module[k].name || k;
-        return /Provider$/i.test(fnName);
+      const provMatch = componentKeys.find(function (k) {
+        const component = module[k];
+        const componentName = component.displayName || component.name || (component.render && component.render.name) || k;
+        return /Provider$/i.test(componentName);
       });
       if (provMatch) return module[provMatch];
     }
 
     if (nonHooks.length > 0) return module[nonHooks[0]];
-    if (fnKeys.length > 0) return module[fnKeys[0]];
+    if (componentKeys.length > 0) return module[componentKeys[0]];
     return undefined;
   }
 
@@ -811,7 +761,7 @@ export async function generateTheme({
         return null;
       });
     })).then(function (list) {
-      return list.filter(function (fn) { return typeof fn === "function"; });
+      return list.filter(function (component) { return isReactComponentType(component); });
     });
     return providerComponentsPromise;
   }
@@ -1730,8 +1680,14 @@ if (window.forgeWpBlocks) {
                             element
                         );
                     } catch (e) {
-                        console.error("[ForgeWP Editor] Custom edit render failed for block " + block.name + ":", e);
-                        return createElement('div', blockProps, 'Render Error: ' + e.message);
+                      console.error("[ForgeWP Editor] Custom preview failed for block " + block.name + "; falling back to WordPress server rendering:", e);
+                      return createElement('div', blockProps,
+                        inspector,
+                        createElement(ServerSideRender, {
+                          block: block.name,
+                          attributes: attributes
+                        })
+                      );
                     }
                 }
 
@@ -2450,10 +2406,7 @@ ${LINK_RESET_CSS}
 ${redirectPhp}
 ${headerCall}
 
-$markup_file = get_template_directory() . '/forgewp-static/${file}';
-if (file_exists($markup_file)) {
-    include $markup_file;
-}
+${buildGeneratedPageTemplateContentPhp(`forgewp-static/${file}`)}
 
 ${footerCall}
 `;

@@ -1,8 +1,8 @@
-import { readFileSync, existsSync, statSync } from "node:fs";
-import path from "node:path";
-import { findHtmlTagEnd, resolveIconToSvgHtml } from "./shared-utils.js";
-import { readComponentSource } from "../hydration/is-interactive.js";
-import { tryParseSource, traverse, markLegacyFallback } from "./ast-parser.js";
+import { readFileSync, existsSync, statSync } from 'node:fs';
+import path from 'node:path';
+import { findHtmlTagEnd, resolveIconToSvgHtml } from './shared-utils.js';
+import { readComponentSource } from '../hydration/is-interactive.js';
+import { tryParseSource, traverse, markLegacyFallback } from './ast-parser.js';
 
 /**
  * Removes every `<WpEditable ...>...</WpEditable>` / self-closing
@@ -14,19 +14,19 @@ import { tryParseSource, traverse, markLegacyFallback } from "./ast-parser.js";
  * silently defeating any check meant to ignore it.
  */
 function stripWpEditableBlocks(content) {
-  let result = "";
+  let result = '';
   let pos = 0;
   while (true) {
-    const idx = content.indexOf("<WpEditable", pos);
+    const idx = content.indexOf('<WpEditable', pos);
     if (idx === -1) {
       result += content.slice(pos);
       break;
     }
-    const afterName = content[idx + "<WpEditable".length];
+    const afterName = content[idx + '<WpEditable'.length];
     if (afterName !== undefined && /[a-zA-Z0-9_]/.test(afterName)) {
       // False match (e.g. <WpEditableFoo>) — not our tag, keep scanning past it.
-      result += content.slice(pos, idx + "<WpEditable".length);
-      pos = idx + "<WpEditable".length;
+      result += content.slice(pos, idx + '<WpEditable'.length);
+      pos = idx + '<WpEditable'.length;
       continue;
     }
     result += content.slice(pos, idx);
@@ -36,12 +36,12 @@ function stripWpEditableBlocks(content) {
       result += content.slice(idx);
       break;
     }
-    const isSelfClosing = content[tagEnd - 1] === "/";
+    const isSelfClosing = content[tagEnd - 1] === '/';
     if (isSelfClosing) {
       pos = tagEnd + 1;
     } else {
-      const closeIdx = content.indexOf("</WpEditable>", tagEnd + 1);
-      pos = closeIdx === -1 ? tagEnd + 1 : closeIdx + "</WpEditable>".length;
+      const closeIdx = content.indexOf('</WpEditable>', tagEnd + 1);
+      pos = closeIdx === -1 ? tagEnd + 1 : closeIdx + '</WpEditable>'.length;
     }
   }
   return result;
@@ -56,7 +56,8 @@ function stripWpEditableBlocks(content) {
  */
 function parseJsxAttributes(attrsStr) {
   const attrs = [];
-  const re = /([a-zA-Z_][\w-]*)\s*=\s*(?:\{((?:[^{}]|\{[^{}]*\})*)\}|"([^"]*)"|'([^']*)')/g;
+  const re =
+    /([a-zA-Z_][\w-]*)\s*=\s*(?:\{((?:[^{}]|\{[^{}]*\})*)\}|"([^"]*)"|'([^']*)')/g;
   let m;
   while ((m = re.exec(attrsStr)) !== null) {
     const name = m[1];
@@ -100,7 +101,9 @@ function buildPhpPropsArrayExpr(attrsStr) {
     // on the frontend, never a real data prop worth serializing for hydration.
     if (name === 'key' || name === 'ref' || name === 'setAttributes') continue;
     let phpValue;
-    const attrAccessMatch = expr.match(/^attributes(?:\.([a-zA-Z_$][\w$]*)|\[\s*['"]([^'"]+)['"]\s*\])$/);
+    const attrAccessMatch = expr.match(
+      /^attributes(?:\.([a-zA-Z_$][\w$]*)|\[\s*['"]([^'"]+)['"]\s*\])$/,
+    );
     if (isStringLiteral) {
       phpValue = `'${expr.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
     } else if (attrAccessMatch) {
@@ -152,7 +155,11 @@ function isJsxNode(node) {
 }
 
 function isFunctionLikeNode(node) {
-  return !!node && (node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression');
+  return (
+    !!node &&
+    (node.type === 'ArrowFunctionExpression' ||
+      node.type === 'FunctionExpression')
+  );
 }
 
 /**
@@ -176,7 +183,8 @@ function collectTopLevelReturnJsx(bodyNode, out) {
       break;
     case 'TryStatement':
       collectTopLevelReturnJsx(bodyNode.block, out);
-      if (bodyNode.handler) collectTopLevelReturnJsx(bodyNode.handler.body, out);
+      if (bodyNode.handler)
+        collectTopLevelReturnJsx(bodyNode.handler.body, out);
       if (bodyNode.finalizer) collectTopLevelReturnJsx(bodyNode.finalizer, out);
       break;
     case 'SwitchStatement':
@@ -226,7 +234,12 @@ function findNamedFunction(ast, name) {
     ObjectProperty(path) {
       if (objectMatch) return;
       const key = path.node.key;
-      const keyName = key.type === 'Identifier' ? key.name : key.type === 'StringLiteral' ? key.value : null;
+      const keyName =
+        key.type === 'Identifier'
+          ? key.name
+          : key.type === 'StringLiteral'
+            ? key.value
+            : null;
       if (keyName === name && isFunctionLikeNode(path.node.value)) {
         objectMatch = path.node.value;
       }
@@ -234,11 +247,17 @@ function findNamedFunction(ast, name) {
     ObjectMethod(path) {
       if (objectMatch) return;
       const key = path.node.key;
-      const keyName = key.type === 'Identifier' ? key.name : key.type === 'StringLiteral' ? key.value : null;
+      const keyName =
+        key.type === 'Identifier'
+          ? key.name
+          : key.type === 'StringLiteral'
+            ? key.value
+            : null;
       if (keyName === name) objectMatch = path.node;
     },
     FunctionDeclaration(path) {
-      if (!funcDeclMatch && path.node.id && path.node.id.name === name) funcDeclMatch = path.node;
+      if (!funcDeclMatch && path.node.id && path.node.id.name === name)
+        funcDeclMatch = path.node;
     },
     VariableDeclarator(path) {
       if (
@@ -259,7 +278,9 @@ function findNamedFunction(ast, name) {
 function findFirstJsxReturningFunction(ast, preferLast) {
   let result = null;
   traverse(ast, {
-    'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression|ObjectMethod'(path) {
+    'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression|ObjectMethod'(
+      path,
+    ) {
       if (result) return;
       const jsx = extractJsxFromFunctionNode(path.node, preferLast);
       if (jsx) {
@@ -326,7 +347,7 @@ export function parenthesizeTernaryExpression(expr) {
 
   for (let i = 0; i < expr.length; i++) {
     const char = expr[i];
-    
+
     if (char === '\\') {
       i++;
       continue;
@@ -343,7 +364,7 @@ export function parenthesizeTernaryExpression(expr) {
       inBacktick = !inBacktick;
       continue;
     }
-    
+
     if (inSingleQuote || inDoubleQuote || inBacktick) {
       continue;
     }
@@ -357,7 +378,11 @@ export function parenthesizeTernaryExpression(expr) {
       }
       if (char === '?' && firstQuestionIdx === -1) {
         firstQuestionIdx = i;
-      } else if (char === ':' && firstQuestionIdx !== -1 && firstColonIdx === -1) {
+      } else if (
+        char === ':' &&
+        firstQuestionIdx !== -1 &&
+        firstColonIdx === -1
+      ) {
         if (expr[i + 1] === ':') {
           i++;
           continue;
@@ -379,8 +404,14 @@ export function parenthesizeTernaryExpression(expr) {
   const newTruthy = parenthesizeTernaryExpression(truthy);
   const newFalsy = parenthesizeTernaryExpression(falsy);
 
-  const wrapTruthy = (truthy.replace(/\?\?/g, '').includes('?') && !isFullyParenthesized(truthy)) ? `(${newTruthy})` : newTruthy;
-  const wrapFalsy = (falsy.replace(/\?\?/g, '').includes('?') && !isFullyParenthesized(falsy)) ? `(${newFalsy})` : newFalsy;
+  const wrapTruthy =
+    truthy.replace(/\?\?/g, '').includes('?') && !isFullyParenthesized(truthy)
+      ? `(${newTruthy})`
+      : newTruthy;
+  const wrapFalsy =
+    falsy.replace(/\?\?/g, '').includes('?') && !isFullyParenthesized(falsy)
+      ? `(${newFalsy})`
+      : newFalsy;
 
   return `${cond} ? ${wrapTruthy} : ${wrapFalsy}`;
 }
@@ -402,14 +433,45 @@ export function neutralizeUnknownJsCalls(expr, freeFunctions = new Set()) {
   if (!expr || typeof expr !== 'string') return expr;
 
   const callable = new Set([
-    'esc_attr', 'esc_html', 'esc_url', 'esc_js', 'esc_textarea',
-    'is_string', 'is_array', 'is_object', 'is_numeric', 'isset', 'empty',
-    'floatval', 'intval', 'strval', 'boolval', 'count', 'strlen', 'trim',
-    'sprintf', 'printf', 'json_encode', 'json_decode', 'absint',
-    'preg_replace', 'explode',
-    'forgewp_resolve_page_link', 'wp_kses_post', 'wpautop',
-    'Number', 'String', 'Boolean', 'parseInt', 'parseFloat',
-    'Math.max', 'Math.min', 'Math.round', 'Math.floor', 'Math.ceil', 'Math.abs',
+    'esc_attr',
+    'esc_html',
+    'esc_url',
+    'esc_js',
+    'esc_textarea',
+    'is_string',
+    'is_array',
+    'is_object',
+    'is_numeric',
+    'isset',
+    'empty',
+    'floatval',
+    'intval',
+    'strval',
+    'boolval',
+    'count',
+    'strlen',
+    'trim',
+    'sprintf',
+    'printf',
+    'json_encode',
+    'json_decode',
+    'absint',
+    'preg_replace',
+    'explode',
+    'forgewp_resolve_page_link',
+    'wp_kses_post',
+    'wpautop',
+    'Number',
+    'String',
+    'Boolean',
+    'parseInt',
+    'parseFloat',
+    'Math.max',
+    'Math.min',
+    'Math.round',
+    'Math.floor',
+    'Math.ceil',
+    'Math.abs',
     ...freeFunctions,
   ]);
 
@@ -499,11 +561,15 @@ export function neutralizeUnknownJsCalls(expr, freeFunctions = new Set()) {
 // valid PCRE modifiers too.
 export function translateReplaceTrim(jsExpr) {
   if (!jsExpr || typeof jsExpr !== 'string') return jsExpr;
-  const callRegex = /([A-Za-z_$][\w$.\[\]'"]*)\.replace\(\s*\/((?:\\.|[^\/\\])*)\/([a-z]*)\s*,\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")\s*\)/g;
-  let result = jsExpr.replace(callRegex, (match, subject, pattern, flags, replacement) => {
-    const pcreModifiers = flags.replace(/g/g, '');
-    return `preg_replace('/${pattern}/${pcreModifiers}', ${replacement}, ${subject})`;
-  });
+  const callRegex =
+    /([A-Za-z_$][\w$.\[\]'"]*)\.replace\(\s*\/((?:\\.|[^\/\\])*)\/([a-z]*)\s*,\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")\s*\)/g;
+  let result = jsExpr.replace(
+    callRegex,
+    (match, subject, pattern, flags, replacement) => {
+      const pcreModifiers = flags.replace(/g/g, '');
+      return `preg_replace('/${pattern}/${pcreModifiers}', ${replacement}, ${subject})`;
+    },
+  );
   // Fold a directly-chained `.trim()` or `.split('sep')` into the wrapping
   // call — only when it immediately follows a replace we just translated
   // (identified via the preg_replace(...) text we just produced), so an
@@ -513,7 +579,10 @@ export function translateReplaceTrim(jsExpr) {
   // (`preg_replace(...).split(...)` isn't valid PHP), so it must be folded
   // into an outer explode(...) call here rather than left to a later,
   // identifier-only `.split()` rule.
-  result = result.replace(/(preg_replace\((?:[^()]|\([^()]*\))*\))\.trim\(\)/g, 'trim($1)');
+  result = result.replace(
+    /(preg_replace\((?:[^()]|\([^()]*\))*\))\.trim\(\)/g,
+    'trim($1)',
+  );
   result = result.replace(
     /(preg_replace\((?:[^()]|\([^()]*\))*\)|trim\((?:[^()]|\([^()]*\))*\))\.split\(\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")\s*\)/g,
     (match, inner, sep) => `explode(${sep}, ${inner})`,
@@ -709,13 +778,44 @@ export function translateTemplateLiteral(jsExpr) {
   return result;
 }
 
-export function translateJsExpressionToPhp(jsExpr, blockAttrKeys = [], localVars = new Set(), freeFunctions = new Set()) {
+export function translateJsExpressionToPhp(
+  jsExpr,
+  blockAttrKeys = [],
+  localVars = new Set(),
+  freeFunctions = new Set(),
+) {
   const skipWords = new Set([
-    'true', 'false', 'null', 'undefined', 'attributes', 'props',
-    'esc_attr', 'esc_html', 'esc_url', 'esc_js', 'esc_textarea',
-    'is_string', 'is_array', 'is_object', 'is_numeric', 'isset', 'empty',
-    'json_decode', 'json_encode', 'Number', 'String', 'Boolean', 'parseInt', 'parseFloat',
-    'useWpPageLink', 'count', 'array_filter', 'array_map', 'explode', 'trim', 'array',
+    'true',
+    'false',
+    'null',
+    'undefined',
+    'attributes',
+    'props',
+    'esc_attr',
+    'esc_html',
+    'esc_url',
+    'esc_js',
+    'esc_textarea',
+    'is_string',
+    'is_array',
+    'is_object',
+    'is_numeric',
+    'isset',
+    'empty',
+    'json_decode',
+    'json_encode',
+    'Number',
+    'String',
+    'Boolean',
+    'parseInt',
+    'parseFloat',
+    'useWpPageLink',
+    'count',
+    'array_filter',
+    'array_map',
+    'explode',
+    'trim',
+    'array',
     'preg_replace',
   ]);
   for (const fn of freeFunctions) {
@@ -733,99 +833,119 @@ export function translateJsExpressionToPhp(jsExpr, blockAttrKeys = [], localVars
   cleanedExpr = translateReplaceTrim(cleanedExpr);
 
   // Replace .length with count((array)(...)) for PHP 8 compatibility
-  cleanedExpr = cleanedExpr.replace(/([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*|\[[^\]]+\])*)\.length\b/g, 'count((array)($1))');
+  cleanedExpr = cleanedExpr.replace(
+    /([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*|\[[^\]]+\])*)\.length\b/g,
+    'count((array)($1))',
+  );
 
   // Neutralize browser/theme helpers with no PHP twin (padding maps, etc.)
   cleanedExpr = neutralizeUnknownJsCalls(cleanedExpr, freeFunctions);
 
   // First convert dot notation for properties: someVar.prop -> someVar['prop']
-  let phpExpr = cleanedExpr.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`[^`]*`|(\b(?:attributes|props))\b\.([a-zA-Z0-9_-]+)(?![a-zA-Z0-9_-])(?!\.)|(\b(?:attributes|props))\b\.([a-zA-Z0-9_-]+)(?![a-zA-Z0-9_-])(?=\.)|(?<!\b(?:attributes|props))\.([a-zA-Z0-9_-]+)/g, (match, attrGroup, attrNextGroup, attrGroup2, attrNextGroup2, generalProp) => {
-    if (match.startsWith("'") || match.startsWith('"') || match.startsWith('`')) {
+  let phpExpr = cleanedExpr.replace(
+    /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`[^`]*`|(\b(?:attributes|props))\b\.([a-zA-Z0-9_-]+)(?![a-zA-Z0-9_-])(?!\.)|(\b(?:attributes|props))\b\.([a-zA-Z0-9_-]+)(?![a-zA-Z0-9_-])(?=\.)|(?<!\b(?:attributes|props))\.([a-zA-Z0-9_-]+)/g,
+    (
+      match,
+      attrGroup,
+      attrNextGroup,
+      attrGroup2,
+      attrNextGroup2,
+      generalProp,
+    ) => {
+      if (
+        match.startsWith("'") ||
+        match.startsWith('"') ||
+        match.startsWith('`')
+      ) {
+        return match;
+      }
+      if (generalProp) {
+        return `['${generalProp}']`;
+      }
+      if (attrGroup && attrNextGroup) {
+        if (localVars.has(attrNextGroup)) {
+          return `($${attrNextGroup} ?? null)`;
+        }
+        return `($attributes['${attrNextGroup}'] ?? null)`;
+      }
+      if (attrGroup2 && attrNextGroup2) {
+        if (localVars.has(attrNextGroup2)) {
+          return `$${attrNextGroup2}`;
+        }
+        return `$attributes['${attrNextGroup2}']`;
+      }
       return match;
-    }
-    if (generalProp) {
-      return `['${generalProp}']`;
-    }
-    if (attrGroup && attrNextGroup) {
-      if (localVars.has(attrNextGroup)) {
-        return `($${attrNextGroup} ?? null)`;
-      }
-      return `($attributes['${attrNextGroup}'] ?? null)`;
-    }
-    if (attrGroup2 && attrNextGroup2) {
-      if (localVars.has(attrNextGroup2)) {
-        return `$${attrNextGroup2}`;
-      }
-      return `$attributes['${attrNextGroup2}']`;
-    }
-    return match;
-  });
+    },
+  );
 
-  phpExpr = phpExpr.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (match, offset, str) => {
-    if (match.startsWith("'") || match.startsWith('"')) {
-      return match;
-    }
-    // Already a PHP variable ($row, $attributes, …) — do not re-wrap
-    if (offset > 0 && str[offset - 1] === '$') {
-      return match;
-    }
-    if (skipWords.has(match)) {
-      return match;
-    }
-    // Free function call: name( → keep bare name
-    if (freeFunctions.has(match)) {
-      return match;
-    }
-    if (localVars.has(match)) {
-      const nextChar = str[offset + match.length];
-      if (nextChar === '.' || nextChar === '[') {
-        return `$${match}`;
+  phpExpr = phpExpr.replace(
+    /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|\b[a-zA-Z_][a-zA-Z0-9_]*\b/g,
+    (match, offset, str) => {
+      if (match.startsWith("'") || match.startsWith('"')) {
+        return match;
       }
-      return `($${match} ?? null)`;
-    }
-    if (blockAttrKeys.includes(match)) {
-      const nextChar = str[offset + match.length];
-      if (nextChar === '.' || nextChar === '[') {
-        return `$attributes['${match}']`;
+      // Already a PHP variable ($row, $attributes, …) — do not re-wrap
+      if (offset > 0 && str[offset - 1] === '$') {
+        return match;
       }
-      return `($attributes['${match}'] ?? null)`;
-    }
-    // "XProp" is the dual-host naming convention for a function parameter
-    // destructured from a block's own attribute of the same name (e.g.
-    // `{ title: titleProp }`, fed in via `<HeroSection {...props.attributes} />`
-    // in the compiled editor). `titleProp` itself never appears in
-    // blockAttrKeys (only `title` does), so without this it fell through to
-    // the generic bare-identifier case below — `($titleProp ?? null)`, a PHP
-    // variable that's never actually assigned anywhere, always null. That
-    // silently discarded every block's own attribute values (edited/saved
-    // in the block editor) on the frontend, permanently falling back to
-    // whichever *Meta (useWpMeta / page-template ACF) value the component
-    // also reads — confirmed live: block edits persisted correctly and
-    // showed in the editor, but never appeared for visitors.
-    if (match.endsWith('Prop') && match.length > 4 && !localVars.has(match)) {
-      const attrKey = match.slice(0, -4);
-      if (blockAttrKeys.includes(attrKey)) {
+      if (skipWords.has(match)) {
+        return match;
+      }
+      // Free function call: name( → keep bare name
+      if (freeFunctions.has(match)) {
+        return match;
+      }
+      if (localVars.has(match)) {
         const nextChar = str[offset + match.length];
         if (nextChar === '.' || nextChar === '[') {
-          return `$attributes['${attrKey}']`;
+          return `$${match}`;
         }
-        return `($attributes['${attrKey}'] ?? null)`;
+        return `($${match} ?? null)`;
       }
-    }
-    // Loop vars already rewritten to $row['x'] may still leave bare identifiers in mixed expr —
-    // only $prefix when clearly a simple JS identifier (not PHP keywords we missed)
-    const nextChar = str[offset + match.length];
-    if (nextChar === '[' || nextChar === '-') {
-      // e.g. leftover from broken `$($row` — leave alone if looks wrong
-      return match;
-    }
-    return `($${match} ?? null)`;
-  });
+      if (blockAttrKeys.includes(match)) {
+        const nextChar = str[offset + match.length];
+        if (nextChar === '.' || nextChar === '[') {
+          return `$attributes['${match}']`;
+        }
+        return `($attributes['${match}'] ?? null)`;
+      }
+      // "XProp" is the dual-host naming convention for a function parameter
+      // destructured from a block's own attribute of the same name (e.g.
+      // `{ title: titleProp }`, fed in via `<HeroSection {...props.attributes} />`
+      // in the compiled editor). `titleProp` itself never appears in
+      // blockAttrKeys (only `title` does), so without this it fell through to
+      // the generic bare-identifier case below — `($titleProp ?? null)`, a PHP
+      // variable that's never actually assigned anywhere, always null. That
+      // silently discarded every block's own attribute values (edited/saved
+      // in the block editor) on the frontend, permanently falling back to
+      // whichever *Meta (useWpMeta / page-template ACF) value the component
+      // also reads — confirmed live: block edits persisted correctly and
+      // showed in the editor, but never appeared for visitors.
+      if (match.endsWith('Prop') && match.length > 4 && !localVars.has(match)) {
+        const attrKey = match.slice(0, -4);
+        if (blockAttrKeys.includes(attrKey)) {
+          const nextChar = str[offset + match.length];
+          if (nextChar === '.' || nextChar === '[') {
+            return `$attributes['${attrKey}']`;
+          }
+          return `($attributes['${attrKey}'] ?? null)`;
+        }
+      }
+      // Loop vars already rewritten to $row['x'] may still leave bare identifiers in mixed expr —
+      // only $prefix when clearly a simple JS identifier (not PHP keywords we missed)
+      const nextChar = str[offset + match.length];
+      if (nextChar === '[' || nextChar === '-') {
+        // e.g. leftover from broken `$($row` — leave alone if looks wrong
+        return match;
+      }
+      return `($${match} ?? null)`;
+    },
+  );
 
   // Wrap any raw multi-level property access chains in ( ... ?? null)
   phpExpr = phpExpr.replace(
     /(\$(?:attributes|[a-zA-Z0-9_]+)(?:\[\s*(['"])[a-zA-Z0-9_-]+\2\s*\]){2,})/g,
-    '($1 ?? null)'
+    '($1 ?? null)',
   );
 
   const parenthesized = parenthesizeTernaryExpression(phpExpr);
@@ -833,7 +953,9 @@ export function translateJsExpressionToPhp(jsExpr, blockAttrKeys = [], localVars
   // Replace JS logical OR (||) with PHP Elvis operator (?:)
   let finalPhpExpr = parenthesized.replace(/\|\|/g, '?:');
 
-  const questionCount = (finalPhpExpr.replace(/\?\?/g, '').replace(/\?:/g, '').match(/\?/g) || []).length;
+  const questionCount = (
+    finalPhpExpr.replace(/\?\?/g, '').replace(/\?:/g, '').match(/\?/g) || []
+  ).length;
   if (questionCount >= 1 && !isFullyParenthesized(finalPhpExpr)) {
     return `(${finalPhpExpr})`;
   }
@@ -878,16 +1000,16 @@ export function extractJsxByTagBalancing(code) {
   const startMatch = code.match(/<[a-zA-Z]|<>/);
   if (!startMatch) return null;
   const startIndex = startMatch.index;
-  
+
   let index = startIndex;
   let tagStack = [];
   let curlyDepth = 0;
   let inQuote = null;
   let esc = false;
-  
+
   while (index < code.length) {
     const c = code[index];
-    
+
     if (curlyDepth > 0) {
       if (inQuote) {
         if (esc) {
@@ -922,7 +1044,7 @@ export function extractJsxByTagBalancing(code) {
         continue;
       }
     }
-    
+
     if (c === '<') {
       if (code.substring(index, index + 5) === '<?php') {
         const phpEnd = code.indexOf('?>', index);
@@ -938,18 +1060,21 @@ export function extractJsxByTagBalancing(code) {
           continue;
         }
       }
-      
+
       const isCloseTag = code[index + 1] === '/';
       const tagMatch = isCloseTag
         ? code.substring(index).match(/^<\/([A-Za-z][A-Za-z0-9_-]*|<>)/)
         : code.substring(index).match(/^<([A-Za-z][A-Za-z0-9_-]*|<>)/);
-        
+
       if (tagMatch) {
         if (isCloseTag) {
           const tagEnd = findHtmlTagEnd(code, index);
           if (tagEnd === -1) break;
           const tagName = tagMatch[1];
-          if (tagStack.length > 0 && tagStack[tagStack.length - 1] === tagName) {
+          if (
+            tagStack.length > 0 &&
+            tagStack[tagStack.length - 1] === tagName
+          ) {
             tagStack.pop();
             if (tagStack.length === 0) {
               return code.substring(startIndex, tagEnd + 1);
@@ -962,7 +1087,11 @@ export function extractJsxByTagBalancing(code) {
           if (tagEnd === -1) break;
           const tagName = tagMatch[1];
           const tagContent = code.substring(index + 1, tagEnd).trim();
-          const isSelfClosing = tagContent.endsWith('/') || ['img', 'input', 'br', 'hr', 'meta', 'link'].includes(tagName.toLowerCase());
+          const isSelfClosing =
+            tagContent.endsWith('/') ||
+            ['img', 'input', 'br', 'hr', 'meta', 'link'].includes(
+              tagName.toLowerCase(),
+            );
           if (!isSelfClosing) {
             tagStack.push(tagName);
           } else {
@@ -991,30 +1120,79 @@ const SKIP_NESTED_COMPONENTS = new Set([
   'WpIcon',
 ]);
 
-export function resolveImportedComponentJsx(compName, sourceCode, sourceFilePath, themeRoot, mode = 'editor', callSiteAttrsStr = '') {
+function findSameFileComponentSource(compName, sourceCode) {
+  const ast = tryParseSource(sourceCode);
+  if (!ast) return null;
+
+  let componentNode = null;
+  traverse(ast, {
+    FunctionDeclaration(path) {
+      if (path.node.id?.name === compName) {
+        componentNode = path.node;
+        path.stop();
+      }
+    },
+    VariableDeclarator(path) {
+      if (
+        path.node.id.type === 'Identifier' &&
+        path.node.id.name === compName &&
+        ['ArrowFunctionExpression', 'FunctionExpression'].includes(
+          path.node.init?.type,
+        )
+      ) {
+        componentNode = path.node.init;
+        path.stop();
+      }
+    },
+  });
+
+  return componentNode
+    ? sourceCode.slice(componentNode.start, componentNode.end)
+    : null;
+}
+
+export function resolveImportedComponentJsx(
+  compName,
+  sourceCode,
+  sourceFilePath,
+  themeRoot,
+  mode = 'editor',
+  callSiteAttrsStr = '',
+) {
   const importRegex = new RegExp(
     `import\\s+(?:\\{\\s*${compName}\\s*\\}|${compName})\\s+from\\s+["']([^"']+)["']`,
   );
   const match = sourceCode.match(importRegex);
-  if (!match) return null;
-
-  let importPath = match[1];
-  let resolvedPath = '';
-  if (importPath.startsWith('@/')) {
-    resolvedPath = path.resolve(themeRoot, importPath.replace('@/', './src/'));
-  } else {
-    resolvedPath = path.resolve(path.dirname(sourceFilePath), importPath);
-  }
-
   let finalPath = '';
-  for (const ext of ['.tsx', '.jsx', '/index.tsx', '/index.jsx']) {
-    if (existsSync(resolvedPath + ext)) {
-      finalPath = resolvedPath + ext;
-      break;
+  if (match) {
+    const importPath = match[1];
+    let resolvedPath = '';
+    if (importPath.startsWith('@/')) {
+      resolvedPath = path.resolve(
+        themeRoot,
+        importPath.replace('@/', './src/'),
+      );
+    } else {
+      resolvedPath = path.resolve(path.dirname(sourceFilePath), importPath);
     }
-  }
-  if (!finalPath && existsSync(resolvedPath) && statSync(resolvedPath).isFile()) {
-    finalPath = resolvedPath;
+    for (const ext of ['.tsx', '.jsx', '/index.tsx', '/index.jsx']) {
+      if (existsSync(resolvedPath + ext)) {
+        finalPath = resolvedPath + ext;
+        break;
+      }
+    }
+    if (
+      !finalPath &&
+      existsSync(resolvedPath) &&
+      statSync(resolvedPath).isFile()
+    ) {
+      finalPath = resolvedPath;
+    }
+  } else if (
+    mode === 'php' &&
+    findSameFileComponentSource(compName, sourceCode)
+  ) {
+    finalPath = sourceFilePath;
   }
   if (!finalPath) return null;
 
@@ -1023,11 +1201,16 @@ export function resolveImportedComponentJsx(compName, sourceCode, sourceFilePath
     // itself have been auto-split, in which case its rewritten shell — not
     // the dev's original file content — is the real source of truth.
     const compContent = readComponentSource(finalPath);
+    const componentSource =
+      finalPath === sourceFilePath
+        ? findSameFileComponentSource(compName, compContent)
+        : compContent;
+    if (!componentSource) return null;
 
     // Strip <WpEditable ...>...</WpEditable> before the handler check below —
     // same reasoning as is-interactive.js's isAttributeOfWpEditable: WpEditable's
     // onChange is inert on the frontend and shouldn't by itself count as live-data.
-    const compContentForHandlerCheck = stripWpEditableBlocks(compContent);
+    const compContentForHandlerCheck = stripWpEditableBlocks(componentSource);
 
     // Strip import statements before the hook-usage checks below — an
     // auto-split shell keeps its original (now partly unused) import list
@@ -1036,7 +1219,10 @@ export function resolveImportedComponentJsx(compName, sourceCode, sourceFilePath
     // whose only call site moved into an extracted island would otherwise
     // still match these word-boundary regexes against the bare import line
     // and falsely brand the whole shell a live-data island.
-    const compContentForHookCheck = compContent.replace(/^\s*import\s[^;]*;/gm, "");
+    const compContentForHookCheck = componentSource.replace(
+      /^\s*import\s[^;]*;/gm,
+      '',
+    );
 
     // Live-data / stateful islands cannot be safely inlined into the editor IIFE:
     // - React hooks (useState/useEffect/…) won't run in new Function()
@@ -1049,9 +1235,13 @@ export function resolveImportedComponentJsx(compName, sourceCode, sourceFilePath
     //   as static markup, never wired up to any hydration boundary
     // Show a stable placeholder; the real island still hydrates on the visitor page.
     const isLiveDataIsland =
-      /\buse(State|Effect|Reducer|LayoutEffect|ImperativeHandle)\b/.test(compContentForHookCheck) ||
+      /\buse(State|Effect|Reducer|LayoutEffect|ImperativeHandle)\b/.test(
+        compContentForHookCheck,
+      ) ||
       /\bReact\.use(State|Effect|Reducer)\b/.test(compContentForHookCheck) ||
-      /\buseWp(Query|Terms|SearchParams|Location|Search)\b/.test(compContentForHookCheck) ||
+      /\buseWp(Query|Terms|SearchParams|Location|Search)\b/.test(
+        compContentForHookCheck,
+      ) ||
       /\buseIsEditorPreview\b/.test(compContentForHookCheck) ||
       /\bon[A-Z][a-zA-Z]*\s*=/.test(compContentForHandlerCheck);
 
@@ -1063,7 +1253,9 @@ export function resolveImportedComponentJsx(compName, sourceCode, sourceFilePath
       // wrapper; Smart Discovery already builds this component its own JS chunk since
       // it uses live-data hooks, so the client hydrator can mount it directly.
       if (mode === 'php') {
-        const islandSlug = compName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+        const islandSlug = compName
+          .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+          .toLowerCase();
         // Nested islands need their own props the same way the top-level block
         // wrapper does (data-forgewp-props) — without this, whatever the JSX
         // call site actually passed (e.g. searchPlaceholder={searchPlaceholder})
@@ -1072,15 +1264,18 @@ export function resolveImportedComponentJsx(compName, sourceCode, sourceFilePath
         // value server-side.
         const propsArrayExpr = buildPhpPropsArrayExpr(callSiteAttrsStr);
         const propsAttr = `data-forgewp-props="<?php echo esc_attr( json_encode( ${propsArrayExpr} ) ); ?>" `;
-        const hydrationBoundary = (
+        const hydrationBoundary =
           `<div className="forgewp-hydrate-boundary" ` +
           `data-forgewp-hydrate="${islandSlug}" ` +
           propsAttr +
           `data-forgewp-trigger="visible" ` +
           `style={{display:'block'}}>` +
-          `</div>`
-        );
-        return { jsx: hydrationBoundary, sourceCode: compContent, sourceFilePath: finalPath };
+          `</div>`;
+        return {
+          jsx: hydrationBoundary,
+          sourceCode: compContent,
+          sourceFilePath: finalPath,
+        };
       }
 
       // Parent may own dual-host / WpEditable fields even when the nested island
@@ -1092,62 +1287,50 @@ export function resolveImportedComponentJsx(compName, sourceCode, sourceFilePath
         /\bdefineEditable\b/.test(sourceCode) ||
         /\bmergeEditable\b/.test(sourceCode);
 
-      const hasLiveQuery =
-        /\buseWp(Query|Terms)\b/.test(compContent);
+      const hasLiveQuery = /\buseWp(Query|Terms)\b/.test(compContent);
 
       // Keep guidance free of double-quotes so JSX → createElement string
       // coercion never breaks the editor Function() body.
       const guidance = parentHasEditables
-        ? (
-          hasLiveQuery
-            ? (
-              `This section loads live data (hotels, terms, posts) on the visitor page. ` +
-              `Edit headings and labels in the block sidebar under Block Settings, ` +
-              `or use any inline fields shown on the canvas above this box. ` +
-              `The live grid/list appears on the frontend after save.`
-            )
-            : (
-              `This section is interactive on the live site (forms, state, live data). ` +
-              `Edit text and options in the block sidebar under Block Settings, ` +
-              `or use any inline fields shown on the canvas above/below this box. ` +
-              `The full interactive UI appears on the visitor page.`
-            )
-        )
-        : (
-          hasLiveQuery
-            ? (
-              `This section loads live data on the visitor page (not in the editor canvas). ` +
-              `Preview the full grid/list on the frontend after publishing.`
-            )
-            : (
-              `This section is interactive on the live site (forms, state, live data). ` +
-              `The full UI appears on the visitor page - use the canvas/sidebar when ` +
-              `this block exposes editable fields.`
-            )
-        );
+        ? hasLiveQuery
+          ? `This section loads live data (hotels, terms, posts) on the visitor page. ` +
+            `Edit headings and labels in the block sidebar under Block Settings, ` +
+            `or use any inline fields shown on the canvas above this box. ` +
+            `The live grid/list appears on the frontend after save.`
+          : `This section is interactive on the live site (forms, state, live data). ` +
+            `Edit text and options in the block sidebar under Block Settings, ` +
+            `or use any inline fields shown on the canvas above/below this box. ` +
+            `The full interactive UI appears on the visitor page.`
+        : hasLiveQuery
+          ? `This section loads live data on the visitor page (not in the editor canvas). ` +
+            `Preview the full grid/list on the frontend after publishing.`
+          : `This section is interactive on the live site (forms, state, live data). ` +
+            `The full UI appears on the visitor page - use the canvas/sidebar when ` +
+            `this block exposes editable fields.`;
 
-      const placeholder = (
+      const placeholder =
         `<div className="forgewp-editor-island-placeholder" ` +
         `style={{padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',` +
         `background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'}}>` +
         `<strong style={{display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'}}>` +
         `${compName} - interactive preview</strong>` +
         `<span style={{display:'block'}}>${guidance}</span>` +
-        `</div>`
-      );
-      return { jsx: placeholder, sourceCode: compContent, sourceFilePath: finalPath };
+        `</div>`;
+      return {
+        jsx: placeholder,
+        sourceCode: compContent,
+        sourceFilePath: finalPath,
+      };
     }
 
     const funcIndex = compContent.indexOf(`function ${compName}`);
     const constIndex = compContent.indexOf(`const ${compName}`);
     // default export: export default function Comp / export default Comp
-    const defaultFn = compContent.indexOf(`export default function ${compName}`);
+    const defaultFn = compContent.indexOf(
+      `export default function ${compName}`,
+    );
     const searchIndex =
-      defaultFn !== -1
-        ? defaultFn
-        : funcIndex !== -1
-          ? funcIndex
-          : constIndex;
+      defaultFn !== -1 ? defaultFn : funcIndex !== -1 ? funcIndex : constIndex;
     if (searchIndex === -1) return null;
 
     // Prefer the last top-level return in the function body (main render
@@ -1158,7 +1341,9 @@ export function resolveImportedComponentJsx(compName, sourceCode, sourceFilePath
     // text scans below remain as the fallback chain.
     let compJsx = extractJsxAstPreferLast(compContent, compName);
     if (!compJsx) {
-      markLegacyFallback('php-transpiler:resolveImportedComponentJsx-extraction');
+      markLegacyFallback(
+        'php-transpiler:resolveImportedComponentJsx-extraction',
+      );
       compJsx =
         extractJsx(compContent.substring(searchIndex), compName) ||
         extractJsx(compContent, compName);
@@ -1199,23 +1384,49 @@ export function resolveImportedComponentJsx(compName, sourceCode, sourceFilePath
  * `<?php … ?>` hydration attribute, at which point the caller falls back to
  * the legacy text scan for any remaining tags.
  */
-function expandNestedTagsAstPass(jsxText, sourceCode, sourceFilePath, themeRoot, _depth, mode) {
+function expandNestedTagsAstPass(
+  jsxText,
+  sourceCode,
+  sourceFilePath,
+  themeRoot,
+  _depth,
+  mode,
+) {
   const ast = tryParseSource(jsxText);
   if (!ast) return null;
 
   const splices = [];
   const walk = (node) => {
-    if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
+    if (!node || typeof node !== 'object' || typeof node.type !== 'string')
+      return;
     if (node.type === 'JSXElement') {
-      const name = node.openingElement.name.type === 'JSXIdentifier' ? node.openingElement.name.name : '';
+      const name =
+        node.openingElement.name.type === 'JSXIdentifier'
+          ? node.openingElement.name.name
+          : '';
       if (name && /^[A-Z]/.test(name) && !SKIP_NESTED_COMPONENTS.has(name)) {
         const selfClosing = node.openingElement.selfClosing;
         const attrsEnd = node.openingElement.end - (selfClosing ? 2 : 1);
-        const callSiteAttrsStr = jsxText.slice(node.openingElement.name.end, attrsEnd);
-        const resolved = resolveImportedComponentJsx(name, sourceCode, sourceFilePath, themeRoot, mode, callSiteAttrsStr);
+        const callSiteAttrsStr = jsxText.slice(
+          node.openingElement.name.end,
+          attrsEnd,
+        );
+        const resolved = resolveImportedComponentJsx(
+          name,
+          sourceCode,
+          sourceFilePath,
+          themeRoot,
+          mode,
+          callSiteAttrsStr,
+        );
         if (resolved) {
           const compJsx = expandNestedComponentTags(
-            resolved.jsx, resolved.sourceCode, resolved.sourceFilePath, themeRoot, _depth + 1, mode,
+            resolved.jsx,
+            resolved.sourceCode,
+            resolved.sourceFilePath,
+            themeRoot,
+            _depth + 1,
+            mode,
           );
           splices.push({ start: node.start, end: node.end, text: compJsx });
           return; // replaced wholesale — don't descend into the old children
@@ -1245,17 +1456,33 @@ function expandNestedTagsAstPass(jsxText, sourceCode, sourceFilePath, themeRoot,
   return out;
 }
 
-export function expandNestedComponentTags(jsx, sourceCode, sourceFilePath, themeRoot, _depth = 0, mode = 'editor') {
+export function expandNestedComponentTags(
+  jsx,
+  sourceCode,
+  sourceFilePath,
+  themeRoot,
+  _depth = 0,
+  mode = 'editor',
+) {
   if (_depth > 10) return jsx; // guard against pathological/circular import chains
   let output = jsx;
   for (let pass = 0; pass < 20; pass++) {
-    const expanded = expandNestedTagsAstPass(output, sourceCode, sourceFilePath, themeRoot, _depth, mode);
+    const expanded = expandNestedTagsAstPass(
+      output,
+      sourceCode,
+      sourceFilePath,
+      themeRoot,
+      _depth,
+      mode,
+    );
     if (expanded === null) {
       // Unparseable (PHP island boundary spliced in on an earlier pass, or
       // a non-JSX fragment) — legacy text scan handles whatever remains.
       // Legacy text-scan fallback deleted (Phase 4 — zero entries on the
       // entire known theme surface). Remaining tags stay as-is; marker kept.
-      markLegacyFallback('php-transpiler:expandNestedComponentTags-would-have-tried-legacy');
+      markLegacyFallback(
+        'php-transpiler:expandNestedComponentTags-would-have-tried-legacy',
+      );
       return output;
     }
     if (expanded === output) return output; // fixpoint — nothing left to expand
@@ -1283,7 +1510,8 @@ export function inlineIconWrapperTags(jsx, sourceCode) {
   if (!jsx || !sourceCode || !/<WpIcon\b/.test(sourceCode)) return jsx;
 
   let output = jsx;
-  const fnRegex = /function\s+([A-Z][A-Za-z0-9_]*)\s*\(\s*\{([^{}]*)\}[^)]*\)\s*\{/g;
+  const fnRegex =
+    /function\s+([A-Z][A-Za-z0-9_]*)\s*\(\s*\{([^{}]*)\}[^)]*\)\s*\{/g;
   let m;
   while ((m = fnRegex.exec(sourceCode)) !== null) {
     const compName = m[1];
@@ -1298,12 +1526,20 @@ export function inlineIconWrapperTags(jsx, sourceCode) {
     if (!wpIconMatch) continue;
     const wpAttrs = wpIconMatch[1];
     const nameAttr = wpAttrs.match(/\bname\s*=\s*\{\s*([A-Za-z0-9_$]+)\s*\}/);
-    const classAttr = wpAttrs.match(/\bclassName\s*=\s*\{\s*([A-Za-z0-9_$]+)\s*\}/);
-    const providerAttr = wpAttrs.match(/\bprovider\s*=\s*(?:"([^"]*)"|'([^']*)')/);
+    const classAttr = wpAttrs.match(
+      /\bclassName\s*=\s*\{\s*([A-Za-z0-9_$]+)\s*\}/,
+    );
+    const providerAttr = wpAttrs.match(
+      /\bprovider\s*=\s*(?:"([^"]*)"|'([^']*)')/,
+    );
     if (!nameAttr) continue;
-    const provider = (providerAttr && (providerAttr[1] || providerAttr[2])) || 'lucide';
+    const provider =
+      (providerAttr && (providerAttr[1] || providerAttr[2])) || 'lucide';
 
-    const paramNames = m[2].split(',').map((p) => p.trim().split(':')[0].trim()).filter(Boolean);
+    const paramNames = m[2]
+      .split(',')
+      .map((p) => p.trim().split(':')[0].trim())
+      .filter(Boolean);
 
     // What the wrapper actually feeds WpIcon's `name` — either a param
     // directly, or (the one real-world shape seen so far) a local const of
@@ -1326,21 +1562,28 @@ export function inlineIconWrapperTags(jsx, sourceCode) {
     }
     if (!namePropParam) continue;
 
-    const classPropParam = classAttr && paramNames.includes(classAttr[1]) ? classAttr[1] : null;
+    const classPropParam =
+      classAttr && paramNames.includes(classAttr[1]) ? classAttr[1] : null;
 
     const tagRx = new RegExp(`<${compName}\\b([^>]*?)/>`, 'g');
     output = output.replace(tagRx, (fullTag, attrsStr) => {
       const getAttrValue = (attrName) => {
-        const litM = attrsStr.match(new RegExp(`\\b${attrName}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`));
+        const litM = attrsStr.match(
+          new RegExp(`\\b${attrName}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`),
+        );
         if (litM) return `'${(litM[1] ?? litM[2] ?? '').replace(/'/g, "\\'")}'`;
-        const exprM = attrsStr.match(new RegExp(`\\b${attrName}\\s*=\\s*\\{\\s*([\\s\\S]*?)\\s*\\}`));
+        const exprM = attrsStr.match(
+          new RegExp(`\\b${attrName}\\s*=\\s*\\{\\s*([\\s\\S]*?)\\s*\\}`),
+        );
         if (exprM) return exprM[1].trim();
         return null;
       };
 
       const nameCallSiteValue = getAttrValue(namePropParam);
       if (nameCallSiteValue === null) return fullTag;
-      const nameExpr = nameDefault ? `${nameCallSiteValue} || ${nameDefault}` : nameCallSiteValue;
+      const nameExpr = nameDefault
+        ? `${nameCallSiteValue} || ${nameDefault}`
+        : nameCallSiteValue;
 
       let classAttrOut = '';
       if (classPropParam) {
@@ -1360,7 +1603,8 @@ export function convertJsObjectToPhp(jsObjStr) {
     clean = clean.substring(1, clean.length - 1).trim();
   }
   const props = [];
-  const propRegex = /([a-zA-Z0-9_-]+)\s*:\s*('[^']*'|"[^"]*"|__\('[^']*'\)|__\("[^"]*"\)|[a-zA-Z0-9_-]+)/g;
+  const propRegex =
+    /([a-zA-Z0-9_-]+)\s*:\s*('[^']*'|"[^"]*"|__\('[^']*'\)|__\("[^"]*"\)|[a-zA-Z0-9_-]+)/g;
   let match;
   while ((match = propRegex.exec(clean)) !== null) {
     const key = match[1];
@@ -1390,9 +1634,21 @@ export function convertJsArrayToPhp(jsArrStr) {
 // A className expression's operands are always strings, so unlike the
 // generic case, JS `+` concatenation can be safely rewritten to PHP's `.`
 // without risking a numeric-addition misread elsewhere.
-export function translateClassNameExpr(jsExpr, blockAttrKeys = [], localVars = new Set(), freeFunctions = new Set()) {
-  const phpExpr = translateJsExpressionToPhp(jsExpr, blockAttrKeys, localVars, freeFunctions);
-  return phpExpr.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|\+/g, (m) => (m === '+' ? '.' : m));
+export function translateClassNameExpr(
+  jsExpr,
+  blockAttrKeys = [],
+  localVars = new Set(),
+  freeFunctions = new Set(),
+) {
+  const phpExpr = translateJsExpressionToPhp(
+    jsExpr,
+    blockAttrKeys,
+    localVars,
+    freeFunctions,
+  );
+  return phpExpr.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|\+/g, (m) =>
+    m === '+' ? '.' : m,
+  );
 }
 
 // Handles a loop-body `class(Name)?={...}` attribute whose expression is more
@@ -1412,7 +1668,10 @@ function substituteLoopVarInClassAttr(jsx, varName) {
     const exprText = output.slice(openBraceIdx + 1, closeBraceIdx).trim();
     const phpExpr = translateClassNameExpr(exprText, [], new Set([varName]));
     const replacement = `class="<?php echo esc_attr( ${phpExpr} ); ?>"`;
-    output = output.slice(0, match.index) + replacement + output.slice(closeBraceIdx + 1);
+    output =
+      output.slice(0, match.index) +
+      replacement +
+      output.slice(closeBraceIdx + 1);
     attrRx.lastIndex = match.index + replacement.length;
   }
   return output;
@@ -1424,20 +1683,28 @@ function substituteLoopVarInClassAttr(jsx, varName) {
 // substitution used to always apply the text-content form regardless of position, which left
 // attribute values like `src={row.avatar}` as unquoted, incorrectly-escaped PHP.
 function substituteLoopVarInJsx(innerJsx, varName) {
-  const fieldRx = new RegExp(`([a-zA-Z0-9_-]+=)?\\{\\s*${varName}\\.([a-zA-Z0-9_-]+)\\s*\\}`, 'g');
+  const fieldRx = new RegExp(
+    `([a-zA-Z0-9_-]+=)?\\{\\s*${varName}\\.([a-zA-Z0-9_-]+)\\s*\\}`,
+    'g',
+  );
   let processedJsx = innerJsx.replace(fieldRx, (m, attrPrefix, field) => {
     if (attrPrefix) {
       const attrName = attrPrefix.slice(0, -1);
-      const escFunc = (attrName === 'href' || attrName === 'src') ? 'esc_url' : 'esc_attr';
+      const escFunc =
+        attrName === 'href' || attrName === 'src' ? 'esc_url' : 'esc_attr';
       return `${attrName}="<?php echo ${escFunc}( $${varName}['${field}'] ?? '' ); ?>"`;
     }
     return `<?php echo esc_html( $${varName}['${field}'] ?? '' ); ?>`;
   });
-  const primitiveRx = new RegExp(`([a-zA-Z0-9_-]+=)?\\{\\s*${varName}\\s*\\}`, 'g');
+  const primitiveRx = new RegExp(
+    `([a-zA-Z0-9_-]+=)?\\{\\s*${varName}\\s*\\}`,
+    'g',
+  );
   processedJsx = processedJsx.replace(primitiveRx, (m, attrPrefix) => {
     if (attrPrefix) {
       const attrName = attrPrefix.slice(0, -1);
-      const escFunc = (attrName === 'href' || attrName === 'src') ? 'esc_url' : 'esc_attr';
+      const escFunc =
+        attrName === 'href' || attrName === 'src' ? 'esc_url' : 'esc_attr';
       return `${attrName}="<?php echo ${escFunc}( $${varName} ?? '' ); ?>"`;
     }
     return `<?php echo esc_html( $${varName} ); ?>`;
@@ -1458,42 +1725,54 @@ function substituteLoopVarInJsx(innerJsx, varName) {
 
 export function transpileLoops(phpMarkup) {
   // 1. Literal Array Maps: {[ ... ].map((item) => ( ... ))}
-  const literalMapRegex = /\{\s*(\[[^\]]*\])\s*\.map\(\s*\(\s*([a-zA-Z0-9_-]+)\s*(?:,\s*[a-zA-Z0-9_-]+)?\s*\)\s*=>\s*\(\s*(<[\s\S]*?>)\s*\)\s*\)\s*\}/g;
-  phpMarkup = phpMarkup.replace(literalMapRegex, (match, arrayExpr, varName, innerJsx) => {
-    try {
-      const phpArray = convertJsArrayToPhp(arrayExpr);
-      let processedJsx = substituteLoopVarInJsx(innerJsx, varName);
-      processedJsx = processedJsx.replace(/className=/g, 'class=');
-      return `<?php foreach (${phpArray} as $${varName}): ?>\n${processedJsx}\n<?php endforeach; ?>`;
-    } catch (e) {
-      return match;
-    }
-  });
+  const literalMapRegex =
+    /\{\s*(\[[^\]]*\])\s*\.map\(\s*\(\s*([a-zA-Z0-9_-]+)\s*(?:,\s*[a-zA-Z0-9_-]+)?\s*\)\s*=>\s*\(\s*(<[\s\S]*?>)\s*\)\s*\)\s*\}/g;
+  phpMarkup = phpMarkup.replace(
+    literalMapRegex,
+    (match, arrayExpr, varName, innerJsx) => {
+      try {
+        const phpArray = convertJsArrayToPhp(arrayExpr);
+        let processedJsx = substituteLoopVarInJsx(innerJsx, varName);
+        processedJsx = processedJsx.replace(/className=/g, 'class=');
+        return `<?php foreach (${phpArray} as $${varName}): ?>\n${processedJsx}\n<?php endforeach; ?>`;
+      } catch (e) {
+        return match;
+      }
+    },
+  );
 
   // 2. Identifier Maps: {items.map((item) => ( ... ))}
-  const idMapRegex = /\{\s*([a-zA-Z0-9_-]+)\s*\.map\(\s*\(\s*([a-zA-Z0-9_-]+)\s*(?:,\s*[a-zA-Z0-9_-]+)?\s*\)\s*=>\s*\(\s*(<[\s\S]*?>)\s*\)\s*\)\s*\}/g;
-  phpMarkup = phpMarkup.replace(idMapRegex, (match, arrayVar, varName, innerJsx) => {
-    try {
-      let processedJsx = substituteLoopVarInJsx(innerJsx, varName);
-      processedJsx = processedJsx.replace(/className=/g, 'class=');
-      return `<?php foreach (($attributes['${arrayVar}'] ?? $${arrayVar} ?? array()) as $${varName}): ?>\n${processedJsx}\n<?php endforeach; ?>`;
-    } catch (e) {
-      return match;
-    }
-  });
+  const idMapRegex =
+    /\{\s*([a-zA-Z0-9_-]+)\s*\.map\(\s*\(\s*([a-zA-Z0-9_-]+)\s*(?:,\s*[a-zA-Z0-9_-]+)?\s*\)\s*=>\s*\(\s*(<[\s\S]*?>)\s*\)\s*\)\s*\}/g;
+  phpMarkup = phpMarkup.replace(
+    idMapRegex,
+    (match, arrayVar, varName, innerJsx) => {
+      try {
+        let processedJsx = substituteLoopVarInJsx(innerJsx, varName);
+        processedJsx = processedJsx.replace(/className=/g, 'class=');
+        return `<?php foreach (($attributes['${arrayVar}'] ?? $${arrayVar} ?? array()) as $${varName}): ?>\n${processedJsx}\n<?php endforeach; ?>`;
+      } catch (e) {
+        return match;
+      }
+    },
+  );
 
   // 3. String Split and Map: {(tags || '').split(',').map(...).filter(...).map((tag) => ( ... ))}
-  const splitMapRegex = /\{\s*\((?:attributes\.|props\.)?([a-zA-Z0-9_-]+)\s*\|\|\s*(['"])\2\)\s*\.split\(\s*(['"])([^'"]+)\3\s*\)(?:\.map\(\s*[a-zA-Z0-9_-]+\s*=>\s*[a-zA-Z0-9_-]+\.trim\(\)\s*\))?(?:\.filter\(\s*[a-zA-Z0-9_-]+\s*\))?\.map\(\s*\(\s*([a-zA-Z0-9_-]+)\s*\)\s*=>\s*\(\s*(<[\s\S]*?>)\s*\)\s*\)\s*\}/g;
-  phpMarkup = phpMarkup.replace(splitMapRegex, (match, arrayVar, q1, q2, separator, varName, innerJsx) => {
-    try {
-      let processedJsx = substituteLoopVarInJsx(innerJsx, varName);
-      processedJsx = processedJsx.replace(/className=/g, 'class=');
-      const phpExpr = `$attributes['${arrayVar}'] ?? ''`;
-      return `<?php foreach (array_filter(array_map('trim', explode('${separator}', ${phpExpr}))) as $${varName}): ?>\n${processedJsx}\n<?php endforeach; ?>`;
-    } catch (e) {
-      return match;
-    }
-  });
+  const splitMapRegex =
+    /\{\s*\((?:attributes\.|props\.)?([a-zA-Z0-9_-]+)\s*\|\|\s*(['"])\2\)\s*\.split\(\s*(['"])([^'"]+)\3\s*\)(?:\.map\(\s*[a-zA-Z0-9_-]+\s*=>\s*[a-zA-Z0-9_-]+\.trim\(\)\s*\))?(?:\.filter\(\s*[a-zA-Z0-9_-]+\s*\))?\.map\(\s*\(\s*([a-zA-Z0-9_-]+)\s*\)\s*=>\s*\(\s*(<[\s\S]*?>)\s*\)\s*\)\s*\}/g;
+  phpMarkup = phpMarkup.replace(
+    splitMapRegex,
+    (match, arrayVar, q1, q2, separator, varName, innerJsx) => {
+      try {
+        let processedJsx = substituteLoopVarInJsx(innerJsx, varName);
+        processedJsx = processedJsx.replace(/className=/g, 'class=');
+        const phpExpr = `$attributes['${arrayVar}'] ?? ''`;
+        return `<?php foreach (array_filter(array_map('trim', explode('${separator}', ${phpExpr}))) as $${varName}): ?>\n${processedJsx}\n<?php endforeach; ?>`;
+      } catch (e) {
+        return match;
+      }
+    },
+  );
 
   return phpMarkup;
 }
@@ -1503,7 +1782,7 @@ export function transpileConditionals(phpMarkup, attrKeys = []) {
   while (true) {
     const matchIndex = phpMarkup.lastIndexOf('&&', index);
     if (matchIndex === -1) break;
-    
+
     // Ignore if inside an active <?php ... ?> block
     const lastPhpStart = phpMarkup.lastIndexOf('<?php', matchIndex);
     const lastPhpEnd = phpMarkup.lastIndexOf('?>', matchIndex);
@@ -1511,24 +1790,31 @@ export function transpileConditionals(phpMarkup, attrKeys = []) {
       index = matchIndex - 1;
       continue;
     }
-    
+
     const openBrace = phpMarkup.lastIndexOf('{', matchIndex);
     if (openBrace !== -1 && openBrace > matchIndex - 100) {
       const condVar = phpMarkup.substring(openBrace + 1, matchIndex).trim();
       if (/^[a-zA-Z0-9_.\-\s&|!=<>'"]+$/.test(condVar)) {
         const openParen = phpMarkup.indexOf('(', matchIndex);
         if (openParen !== -1 && openParen < matchIndex + 10) {
-          const innerJsx = extractJsxByTagBalancing(phpMarkup.substring(openParen + 1));
+          const innerJsx = extractJsxByTagBalancing(
+            phpMarkup.substring(openParen + 1),
+          );
           if (innerJsx) {
             const trueJsxIndex = phpMarkup.indexOf(innerJsx, openParen);
             const closeParenIndexActual = trueJsxIndex + innerJsx.length;
             const endBrace = phpMarkup.indexOf('}', closeParenIndexActual);
             if (endBrace !== -1) {
-              const gap = phpMarkup.substring(closeParenIndexActual, endBrace).trim();
+              const gap = phpMarkup
+                .substring(closeParenIndexActual, endBrace)
+                .trim();
               if (gap === ')' || gap === '') {
                 const phpCond = translateJsExpressionToPhp(condVar, attrKeys);
                 const replacement = `<?php if (${phpCond}): ?>\n${innerJsx}\n<?php endif; ?>`;
-                phpMarkup = phpMarkup.substring(0, openBrace) + replacement + phpMarkup.substring(endBrace + 1);
+                phpMarkup =
+                  phpMarkup.substring(0, openBrace) +
+                  replacement +
+                  phpMarkup.substring(endBrace + 1);
                 index = openBrace - 1;
                 continue;
               }
@@ -1602,7 +1888,9 @@ function extractTernaryBranch(phpMarkup, openParenIdx, attrKeys) {
   // `.find()` lookup wrapped in `(() => { const x = ...; return ...; })()`)
   // are far beyond what it can safely rewrite, and previously came out as
   // mangled, syntactically-broken PHP. Degrade to a blank string instead.
-  const looksComplex = /=>|\bfunction\b|;|\bconst\b|\blet\b|\bvar\b/.test(rawExpr);
+  const looksComplex = /=>|\bfunction\b|;|\bconst\b|\blet\b|\bvar\b/.test(
+    rawExpr,
+  );
   const content = looksComplex
     ? `<?php echo ''; ?>`
     : `<?php echo esc_html( ${translateJsExpressionToPhp(rawExpr, attrKeys)} ); ?>`;
@@ -1615,14 +1903,14 @@ export function parseTernaryBounds(str) {
   let bracketDepth = 0;
   let inQuote = null;
   let esc = false;
-  
+
   let qIdx = -1;
   let colonIdx = -1;
   let ternaryCount = 0;
 
   for (let i = 0; i < str.length; i++) {
     const c = str[i];
-    
+
     if (inQuote) {
       if (esc) {
         esc = false;
@@ -1633,19 +1921,37 @@ export function parseTernaryBounds(str) {
       }
       continue;
     }
-    
+
     if (c === "'" || c === '"' || c === '`') {
       inQuote = c;
       continue;
     }
-    
-    if (c === '(') { parenDepth++; continue; }
-    if (c === ')') { parenDepth--; continue; }
-    if (c === '{') { braceDepth++; continue; }
-    if (c === '}') { braceDepth--; continue; }
-    if (c === '[') { bracketDepth++; continue; }
-    if (c === ']') { bracketDepth--; continue; }
-    
+
+    if (c === '(') {
+      parenDepth++;
+      continue;
+    }
+    if (c === ')') {
+      parenDepth--;
+      continue;
+    }
+    if (c === '{') {
+      braceDepth++;
+      continue;
+    }
+    if (c === '}') {
+      braceDepth--;
+      continue;
+    }
+    if (c === '[') {
+      bracketDepth++;
+      continue;
+    }
+    if (c === ']') {
+      bracketDepth--;
+      continue;
+    }
+
     if (parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
       if (c === '?') {
         if (str[i + 1] === '?') {
@@ -1670,7 +1976,7 @@ export function parseTernaryBounds(str) {
       }
     }
   }
-  
+
   if (qIdx !== -1 && colonIdx !== -1) {
     return { qIdx, colonIdx };
   }
@@ -1696,7 +2002,9 @@ export function transpileTernaryString(expr, attrKeys = []) {
     if (parenStripped !== trimmed) {
       return transpileTernaryString(parenStripped, attrKeys);
     }
-    const looksComplex = /=>|\bfunction\b|;|\bconst\b|\blet\b|\bvar\b/.test(trimmed);
+    const looksComplex = /=>|\bfunction\b|;|\bconst\b|\blet\b|\bvar\b/.test(
+      trimmed,
+    );
     if (looksComplex) return `<?php echo ''; ?>`;
     return `<?php echo esc_html( ${translateJsExpressionToPhp(trimmed, attrKeys)} ); ?>`;
   }
@@ -1774,11 +2082,16 @@ export function transpileTernaries(phpMarkup, attrKeys = []) {
     }
 
     if (closeBrace !== -1) {
-      const braceContent = phpMarkup.substring(openBrace + 1, closeBrace).trim();
+      const braceContent = phpMarkup
+        .substring(openBrace + 1, closeBrace)
+        .trim();
       const bounds = parseTernaryBounds(braceContent);
       if (bounds) {
         const transpiled = transpileTernaryString(braceContent, attrKeys);
-        phpMarkup = phpMarkup.substring(0, openBrace) + transpiled + phpMarkup.substring(closeBrace + 1);
+        phpMarkup =
+          phpMarkup.substring(0, openBrace) +
+          transpiled +
+          phpMarkup.substring(closeBrace + 1);
         index = openBrace - 1;
         continue;
       }
@@ -1816,7 +2129,8 @@ export function inlineJsxRenderHelperCalls(text, templates) {
       if (parenEnd === -1) continue;
 
       let closeBraceIdx = parenEnd + 1;
-      while (closeBraceIdx < result.length && /\s/.test(result[closeBraceIdx])) closeBraceIdx++;
+      while (closeBraceIdx < result.length && /\s/.test(result[closeBraceIdx]))
+        closeBraceIdx++;
       if (result[closeBraceIdx] !== '}') continue;
 
       const argsText = result.slice(parenStart + 1, parenEnd);
@@ -1825,7 +2139,9 @@ export function inlineJsxRenderHelperCalls(text, templates) {
       let jsxBody = tmpl.jsxBody;
       tmpl.params.forEach((p, idx) => {
         const argExpr = args[idx] !== undefined ? args[idx].trim() : 'null';
-        const isStringLiteral = /^'(?:[^'\\]|\\.)*'$/.test(argExpr) || /^"(?:[^"\\]|\\.)*"$/.test(argExpr);
+        const isStringLiteral =
+          /^'(?:[^'\\]|\\.)*'$/.test(argExpr) ||
+          /^"(?:[^"\\]|\\.)*"$/.test(argExpr);
 
         // A JSX attribute assigned via braces (`className={className}`) needs
         // the whole `={param}` replaced, not just the identifier inside —
@@ -1877,7 +2193,10 @@ export function inlineJsxRenderHelperCalls(text, templates) {
       // specifically look for the `{` immediately before the condition to
       // find its boundaries, so those braces must be kept.
       const replacement = isBareJsx ? jsxBody : `{${jsxBody}}`;
-      result = result.slice(0, match.index) + replacement + result.slice(closeBraceIdx + 1);
+      result =
+        result.slice(0, match.index) +
+        replacement +
+        result.slice(closeBraceIdx + 1);
       changed = true;
     }
   }
@@ -2066,7 +2385,9 @@ function findTopLevelColon(str) {
 // can fall back to today's behavior instead of risking a bad inline.
 function resolveLocalSvgComponent(sourceCode, compName) {
   if (!sourceCode) return null;
-  const declRx = new RegExp(`const\\s+${compName}\\s*=\\s*\\([^)]*\\)(?:\\s*:[^=]+)?\\s*=>\\s*\\(`);
+  const declRx = new RegExp(
+    `const\\s+${compName}\\s*=\\s*\\([^)]*\\)(?:\\s*:[^=]+)?\\s*=>\\s*\\(`,
+  );
   const declMatch = sourceCode.match(declRx);
   if (!declMatch) return null;
   const parenOpenIdx = declMatch.index + declMatch[0].length - 1;
@@ -2075,7 +2396,10 @@ function resolveLocalSvgComponent(sourceCode, compName) {
   const jsx = sourceCode.slice(parenOpenIdx + 1, parenCloseIdx).trim();
   if (!/^<svg\b/i.test(jsx)) return null;
   if (!/\bclassName\s*=\s*\{[^}]*\}/.test(jsx)) return null;
-  return jsx.replace(/\bclassName\s*=\s*\{[^}]*\}/, 'class="__FORGEWP_ICON_CLASS__"');
+  return jsx.replace(
+    /\bclassName\s*=\s*\{[^}]*\}/,
+    'class="__FORGEWP_ICON_CLASS__"',
+  );
 }
 
 // Resolves one object-literal field value (raw JS text) to either a PHP
@@ -2086,11 +2410,20 @@ function resolveLocalSvgComponent(sourceCode, compName) {
 // JSX call site's own className is known (so e.g. `<Icon className="w-4 h-4" />`
 // gets that class merged into the real <svg>, matching how a directly-named
 // `<Phone className="…" />` tag is already resolved elsewhere in this file).
-function resolveStaticMapValue(rawValue, settings, localVarNames, sourceCode = '', freeFunctions = new Set()) {
+function resolveStaticMapValue(
+  rawValue,
+  settings,
+  localVarNames,
+  sourceCode = '',
+  freeFunctions = new Set(),
+) {
   // Strip a trailing TS type assertion (`undefined as string | undefined`,
   // `x as const`, …) — the fields in this object-literal idiom commonly carry
   // one to satisfy a shared row type across items with different value shapes.
-  let v = rawValue.trim().replace(/\s+as\s+[^,}]+$/, '').trim();
+  let v = rawValue
+    .trim()
+    .replace(/\s+as\s+[^,}]+$/, '')
+    .trim();
 
   if (v === 'undefined' || v === 'null') {
     return { kind: 'text', phpText: 'null' };
@@ -2099,7 +2432,10 @@ function resolveStaticMapValue(rawValue, settings, localVarNames, sourceCode = '
   const strMatch = v.match(/^'((?:[^'\\]|\\.)*)'$|^"((?:[^"\\]|\\.)*)"$/);
   if (strMatch) {
     const text = (strMatch[1] ?? strMatch[2] ?? '').replace(/\\(['"])/g, '$1');
-    return { kind: 'text', phpText: `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'` };
+    return {
+      kind: 'text',
+      phpText: `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`,
+    };
   }
 
   if (v.startsWith('`') && v.endsWith('`')) {
@@ -2110,13 +2446,21 @@ function resolveStaticMapValue(rawValue, settings, localVarNames, sourceCode = '
     let m;
     while ((m = rx.exec(templateContent)) !== null) {
       const textBefore = templateContent.substring(lastIdx, m.index);
-      if (textBefore) parts.push(`'${textBefore.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`);
+      if (textBefore)
+        parts.push(
+          `'${textBefore.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`,
+        );
       const exprName = m[1].trim();
-      parts.push(localVarNames.has(exprName) ? `$${exprName}` : `(${translateJsExpressionToPhp(exprName, Object.keys(settings.attributes || {}), localVarNames, freeFunctions)})`);
+      parts.push(
+        localVarNames.has(exprName)
+          ? `$${exprName}`
+          : `(${translateJsExpressionToPhp(exprName, Object.keys(settings.attributes || {}), localVarNames, freeFunctions)})`,
+      );
       lastIdx = rx.lastIndex;
     }
     const textAfter = templateContent.substring(lastIdx);
-    if (textAfter) parts.push(`'${textAfter.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`);
+    if (textAfter)
+      parts.push(`'${textAfter.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`);
     return { kind: 'text', phpText: parts.join(' . ') || "''" };
   }
 
@@ -2128,29 +2472,60 @@ function resolveStaticMapValue(rawValue, settings, localVarNames, sourceCode = '
   const ternaryBounds = parseTernaryBounds(v);
   if (ternaryBounds) {
     const condText = v.slice(0, ternaryBounds.qIdx).trim();
-    const trueText = v.slice(ternaryBounds.qIdx + 1, ternaryBounds.colonIdx).trim();
+    const trueText = v
+      .slice(ternaryBounds.qIdx + 1, ternaryBounds.colonIdx)
+      .trim();
     const falseText = v.slice(ternaryBounds.colonIdx + 1).trim();
-    const trueResolved = resolveStaticMapValue(trueText, settings, localVarNames, sourceCode, freeFunctions);
-    const falseResolved = resolveStaticMapValue(falseText, settings, localVarNames, sourceCode, freeFunctions);
+    const trueResolved = resolveStaticMapValue(
+      trueText,
+      settings,
+      localVarNames,
+      sourceCode,
+      freeFunctions,
+    );
+    const falseResolved = resolveStaticMapValue(
+      falseText,
+      settings,
+      localVarNames,
+      sourceCode,
+      freeFunctions,
+    );
     // Icons never appear in a ternary branch for this idiom, only text does —
     // only combine when both branches actually resolved to plain text.
     if (trueResolved.kind === 'text' && falseResolved.kind === 'text') {
-      const condPhp = translateJsExpressionToPhp(condText, Object.keys(settings.attributes || {}), localVarNames, freeFunctions);
-      return { kind: 'text', phpText: `(${condPhp} ? ${trueResolved.phpText} : ${falseResolved.phpText})` };
+      const condPhp = translateJsExpressionToPhp(
+        condText,
+        Object.keys(settings.attributes || {}),
+        localVarNames,
+        freeFunctions,
+      );
+      return {
+        kind: 'text',
+        phpText: `(${condPhp} ? ${trueResolved.phpText} : ${falseResolved.phpText})`,
+      };
     }
   }
 
   const identMatch = v.match(/^[A-Za-z_$][\w$]*$/);
   if (identMatch) {
     if (settings.importMap && settings.importMap[v]) {
-      return { kind: 'icon', componentName: v, packageName: settings.importMap[v] };
+      return {
+        kind: 'icon',
+        componentName: v,
+        packageName: settings.importMap[v],
+      };
     }
     if (localVarNames.has(v)) {
       return { kind: 'text', phpText: `$${v}` };
     }
     const svgTemplate = resolveLocalSvgComponent(sourceCode, v);
     if (svgTemplate) {
-      return { kind: 'icon', componentName: v, packageName: '__local__', svgTemplate };
+      return {
+        kind: 'icon',
+        componentName: v,
+        packageName: '__local__',
+        svgTemplate,
+      };
     }
     // An unresolvable capitalized (component-like) reference — e.g. a locally
     // defined component this scope can't safely inline any other way —
@@ -2164,7 +2539,15 @@ function resolveStaticMapValue(rawValue, settings, localVarNames, sourceCode = '
   // Best-effort fallback for anything else (e.g. a nested expression this
   // scope doesn't specifically model) — pass through translateJsExpressionToPhp,
   // which already handles the common shapes (attribute keys, ?? fallbacks, etc).
-  return { kind: 'text', phpText: translateJsExpressionToPhp(v, Object.keys(settings.attributes || {}), localVarNames, freeFunctions) };
+  return {
+    kind: 'text',
+    phpText: translateJsExpressionToPhp(
+      v,
+      Object.keys(settings.attributes || {}),
+      localVarNames,
+      freeFunctions,
+    ),
+  };
 }
 
 // Substitutes one row's resolved alias values into the JSX template text.
@@ -2176,12 +2559,21 @@ function substituteStaticMapRow(jsxTemplate, resolved, themeRoot) {
     if (value.kind === 'icon') {
       const tagRx = new RegExp(`<${alias}\\b([^>]*?)/>`, 'g');
       out = out.replace(tagRx, (fullTag, attrsStr) => {
-        const classMatch = attrsStr.match(/className\s*=\s*"([^"]*)"|className\s*=\s*'([^']*)'/);
-        const className = classMatch ? (classMatch[1] ?? classMatch[2] ?? '') : '';
+        const classMatch = attrsStr.match(
+          /className\s*=\s*"([^"]*)"|className\s*=\s*'([^']*)'/,
+        );
+        const className = classMatch
+          ? (classMatch[1] ?? classMatch[2] ?? '')
+          : '';
         if (value.packageName === '__local__' && value.svgTemplate) {
           return value.svgTemplate.replace('__FORGEWP_ICON_CLASS__', className);
         }
-        const svg = resolveIconToSvgHtml(value.componentName, value.packageName, themeRoot, className);
+        const svg = resolveIconToSvgHtml(
+          value.componentName,
+          value.packageName,
+          themeRoot,
+          className,
+        );
         return svg || fullTag;
       });
       continue;
@@ -2189,7 +2581,8 @@ function substituteStaticMapRow(jsxTemplate, resolved, themeRoot) {
     const phpExpr = value.phpText;
     const attrRx = new RegExp(`([a-zA-Z0-9_-]+)=\\{\\s*${alias}\\s*\\}`, 'g');
     out = out.replace(attrRx, (m, attrName) => {
-      const escFunc = (attrName === 'href' || attrName === 'src') ? 'esc_url' : 'esc_attr';
+      const escFunc =
+        attrName === 'href' || attrName === 'src' ? 'esc_url' : 'esc_attr';
       return `${attrName}="<?php echo ${escFunc}(${phpExpr}); ?>"`;
     });
     // Bare `{alias}` (child-text position) — but NOT `${alias}` (a template-
@@ -2205,21 +2598,40 @@ function substituteStaticMapRow(jsxTemplate, resolved, themeRoot) {
     // NOT match the attribute *name* left behind by attrRx above (e.g. the
     // literal `href="` in `href="<?php echo esc_url(...); ?>"` — same text
     // as the alias itself), so an immediately-following `="` is excluded.
-    out = out.replace(new RegExp(`(?<![\\w$'"])${alias}(?![\\w$])(?!=")`, 'g'), phpExpr);
+    out = out.replace(
+      new RegExp(`(?<![\\w$'"])${alias}(?![\\w$])(?!=")`, 'g'),
+      phpExpr,
+    );
   }
   out = out.replace(/className=/g, 'class=');
   return out;
 }
 
-function unrollStaticArrayMap(arrayLiteralText, destructureText, jsxTemplate, settings, themeRoot, localVarNames, filterInfo = null, sourceCode = '', freeFunctions = new Set()) {
+function unrollStaticArrayMap(
+  arrayLiteralText,
+  destructureText,
+  jsxTemplate,
+  settings,
+  themeRoot,
+  localVarNames,
+  filterInfo = null,
+  sourceCode = '',
+  freeFunctions = new Set(),
+) {
   const inner = arrayLiteralText.trim().replace(/^\[/, '').replace(/\]$/, '');
-  const itemTexts = splitTopLevelArgs(inner).map((s) => s.trim()).filter(Boolean);
+  const itemTexts = splitTopLevelArgs(inner)
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (itemTexts.length === 0) return null;
 
-  const destructureEntries = splitTopLevelArgs(destructureText).map((s) => s.trim()).filter(Boolean);
+  const destructureEntries = splitTopLevelArgs(destructureText)
+    .map((s) => s.trim())
+    .filter(Boolean);
   const aliasToKey = new Map(); // alias -> original object key
   for (const entry of destructureEntries) {
-    const renameMatch = entry.match(/^([A-Za-z_$][\w$]*)\s*:\s*([A-Za-z_$][\w$]*)$/);
+    const renameMatch = entry.match(
+      /^([A-Za-z_$][\w$]*)\s*:\s*([A-Za-z_$][\w$]*)$/,
+    );
     if (renameMatch) {
       aliasToKey.set(renameMatch[2], renameMatch[1]);
       continue;
@@ -2233,7 +2645,9 @@ function unrollStaticArrayMap(arrayLiteralText, destructureText, jsxTemplate, se
     const t = itemText.trim();
     if (!t.startsWith('{') || !t.endsWith('}')) return null;
     const objInner = t.slice(1, -1);
-    const pairs = splitTopLevelArgs(objInner).map((s) => s.trim()).filter(Boolean);
+    const pairs = splitTopLevelArgs(objInner)
+      .map((s) => s.trim())
+      .filter(Boolean);
     const obj = {};
     for (const pair of pairs) {
       const colonIdx = findTopLevelColon(pair);
@@ -2248,9 +2662,16 @@ function unrollStaticArrayMap(arrayLiteralText, destructureText, jsxTemplate, se
     const resolved = {};
     for (const [alias, key] of aliasToKey) {
       const rawValue = obj[key];
-      resolved[alias] = rawValue === undefined
-        ? { kind: 'text', phpText: "''" }
-        : resolveStaticMapValue(rawValue, settings, localVarNames, sourceCode, freeFunctions);
+      resolved[alias] =
+        rawValue === undefined
+          ? { kind: 'text', phpText: "''" }
+          : resolveStaticMapValue(
+              rawValue,
+              settings,
+              localVarNames,
+              sourceCode,
+              freeFunctions,
+            );
     }
     let rowJsx = substituteStaticMapRow(jsxTemplate, resolved, themeRoot);
 
@@ -2260,14 +2681,25 @@ function unrollStaticArrayMap(arrayLiteralText, destructureText, jsxTemplate, se
     // (a WordPress option). Re-express it as a per-row runtime PHP guard
     // instead of dropping the row outright or ignoring the filter.
     if (filterInfo) {
-      const fieldRx = new RegExp(`\\b${filterInfo.paramName}\\.([A-Za-z_$][\\w$]*)`, 'g');
-      const substitutedCond = filterInfo.conditionText.replace(fieldRx, (m, field) => {
-        const raw = obj[field];
-        if (raw === undefined) return 'null';
-        const trimmed = raw.trim();
-        return /^[A-Za-z_$][\w$]*$/.test(trimmed) ? trimmed : `(${trimmed})`;
-      });
-      const phpCond = translateJsExpressionToPhp(substitutedCond, Object.keys(settings.attributes || {}), localVarNames, freeFunctions);
+      const fieldRx = new RegExp(
+        `\\b${filterInfo.paramName}\\.([A-Za-z_$][\\w$]*)`,
+        'g',
+      );
+      const substitutedCond = filterInfo.conditionText.replace(
+        fieldRx,
+        (m, field) => {
+          const raw = obj[field];
+          if (raw === undefined) return 'null';
+          const trimmed = raw.trim();
+          return /^[A-Za-z_$][\w$]*$/.test(trimmed) ? trimmed : `(${trimmed})`;
+        },
+      );
+      const phpCond = translateJsExpressionToPhp(
+        substitutedCond,
+        Object.keys(settings.attributes || {}),
+        localVarNames,
+        freeFunctions,
+      );
       rowJsx = `<?php if (${phpCond}): ?>\n${rowJsx}\n<?php endif; ?>`;
     }
 
@@ -2290,17 +2722,28 @@ export function findHeaderConstArrayWithFilter(sourceCode, identifier) {
   const bracketOpenIdx = declMatch.index + declMatch[0].length - 1;
   const bracketCloseIdx = findMatchingBracketClose(sourceCode, bracketOpenIdx);
   if (bracketCloseIdx === -1) return null;
-  const arrayLiteralText = sourceCode.slice(bracketOpenIdx, bracketCloseIdx + 1);
+  const arrayLiteralText = sourceCode.slice(
+    bracketOpenIdx,
+    bracketCloseIdx + 1,
+  );
 
   let filterInfo = null;
   const afterArray = sourceCode.slice(bracketCloseIdx + 1);
   const filterCallMatch = afterArray.match(/^\s*(?:as\s+const\s*)?\.filter\(/);
   if (filterCallMatch) {
-    const filterParenOpenIdx = bracketCloseIdx + 1 + filterCallMatch[0].length - 1;
-    const filterParenCloseIdx = findMatchingParenClose(sourceCode, filterParenOpenIdx);
+    const filterParenOpenIdx =
+      bracketCloseIdx + 1 + filterCallMatch[0].length - 1;
+    const filterParenCloseIdx = findMatchingParenClose(
+      sourceCode,
+      filterParenOpenIdx,
+    );
     if (filterParenCloseIdx !== -1) {
-      const filterArgText = sourceCode.slice(filterParenOpenIdx + 1, filterParenCloseIdx).trim();
-      const arrowMatch = filterArgText.match(/^(?:\(\s*([a-zA-Z_$][\w$]*)\s*\)|([a-zA-Z_$][\w$]*))\s*=>\s*([\s\S]+)$/);
+      const filterArgText = sourceCode
+        .slice(filterParenOpenIdx + 1, filterParenCloseIdx)
+        .trim();
+      const arrowMatch = filterArgText.match(
+        /^(?:\(\s*([a-zA-Z_$][\w$]*)\s*\)|([a-zA-Z_$][\w$]*))\s*=>\s*([\s\S]+)$/,
+      );
       if (arrowMatch) {
         const paramName = arrowMatch[1] || arrowMatch[2];
         let conditionText = arrowMatch[3].trim();
@@ -2331,7 +2774,13 @@ export function findHeaderConstArrayWithFilter(sourceCode, identifier) {
 // block unconverted. So instead of inlining, this assigns the condition to a
 // short-named PHP var in a "prelude" the caller must prepend ahead of the
 // rest of the markup, and substitutes just that short bare name inline.
-export function translateStaticArrayLengthCheck(jsx, sourceCode, settings, localVarNames, freeFunctions = new Set()) {
+export function translateStaticArrayLengthCheck(
+  jsx,
+  sourceCode,
+  settings,
+  localVarNames,
+  freeFunctions = new Set(),
+) {
   if (!sourceCode) return { jsx, prelude: '' };
   let prelude = '';
   const rx = /\b([a-zA-Z_$][\w$]*)\.length\s*>\s*0\b/g;
@@ -2339,27 +2788,47 @@ export function translateStaticArrayLengthCheck(jsx, sourceCode, settings, local
     const found = findHeaderConstArrayWithFilter(sourceCode, identifier);
     if (!found || !found.filterInfo) return m;
     try {
-      const inner = found.arrayLiteralText.trim().replace(/^\[/, '').replace(/\]$/, '');
-      const itemTexts = splitTopLevelArgs(inner).map((s) => s.trim()).filter(Boolean);
+      const inner = found.arrayLiteralText
+        .trim()
+        .replace(/^\[/, '')
+        .replace(/\]$/, '');
+      const itemTexts = splitTopLevelArgs(inner)
+        .map((s) => s.trim())
+        .filter(Boolean);
       const conds = itemTexts.map((itemText) => {
         const t = itemText.trim();
         if (!t.startsWith('{') || !t.endsWith('}')) return null;
         const objInner = t.slice(1, -1);
-        const pairs = splitTopLevelArgs(objInner).map((s) => s.trim()).filter(Boolean);
+        const pairs = splitTopLevelArgs(objInner)
+          .map((s) => s.trim())
+          .filter(Boolean);
         const obj = {};
         for (const pair of pairs) {
           const colonIdx = findTopLevelColon(pair);
           if (colonIdx === -1) continue;
           obj[pair.slice(0, colonIdx).trim()] = pair.slice(colonIdx + 1).trim();
         }
-        const fieldRx = new RegExp(`\\b${found.filterInfo.paramName}\\.([A-Za-z_$][\\w$]*)`, 'g');
-        const substituted = found.filterInfo.conditionText.replace(fieldRx, (mm, field) => {
-          const raw = obj[field];
-          if (raw === undefined) return 'null';
-          const trimmed = raw.trim();
-          return /^[A-Za-z_$][\w$]*$/.test(trimmed) ? trimmed : `(${trimmed})`;
-        });
-        return translateJsExpressionToPhp(substituted, Object.keys(settings.attributes || {}), localVarNames, freeFunctions);
+        const fieldRx = new RegExp(
+          `\\b${found.filterInfo.paramName}\\.([A-Za-z_$][\\w$]*)`,
+          'g',
+        );
+        const substituted = found.filterInfo.conditionText.replace(
+          fieldRx,
+          (mm, field) => {
+            const raw = obj[field];
+            if (raw === undefined) return 'null';
+            const trimmed = raw.trim();
+            return /^[A-Za-z_$][\w$]*$/.test(trimmed)
+              ? trimmed
+              : `(${trimmed})`;
+          },
+        );
+        return translateJsExpressionToPhp(
+          substituted,
+          Object.keys(settings.attributes || {}),
+          localVarNames,
+          freeFunctions,
+        );
       });
       if (conds.some((c) => c === null)) return m;
       const varName = `__forgewp_haslen_${identifier}`;
@@ -2380,7 +2849,14 @@ export function translateStaticArrayLengthCheck(jsx, sourceCode, settings, local
 // non-destructured loop param (`items.map((item) => …)`), and from the inline-
 // array-literal case below, whose array is written directly at the .map()
 // call site rather than referenced by name.
-function transpileNamedStaticArrayObjectMap(phpMarkup, settings, themeRoot, localVarNames, sourceCode, freeFunctions = new Set()) {
+function transpileNamedStaticArrayObjectMap(
+  phpMarkup,
+  settings,
+  themeRoot,
+  localVarNames,
+  sourceCode,
+  freeFunctions = new Set(),
+) {
   if (!sourceCode) return phpMarkup;
   const openRegex = /\{\s*([a-zA-Z_$][\w$]*)\s*\.map\(\s*\(\s*\{/g;
   let result = '';
@@ -2390,14 +2866,18 @@ function transpileNamedStaticArrayObjectMap(phpMarkup, settings, themeRoot, loca
     if (match.index < cursor) continue;
     const identifier = match[1];
     const destructureBraceOpenIdx = match.index + match[0].length - 1;
-    const destructureBraceCloseIdx = findMatchingCurlyClose(phpMarkup, destructureBraceOpenIdx);
+    const destructureBraceCloseIdx = findMatchingCurlyClose(
+      phpMarkup,
+      destructureBraceOpenIdx,
+    );
     if (destructureBraceCloseIdx === -1) continue;
 
     const afterDestructure = phpMarkup.slice(destructureBraceCloseIdx + 1);
     const arrowMatch = afterDestructure.match(/^[^)]*\)\s*=>\s*\(/);
     if (!arrowMatch) continue;
 
-    const jsxOpenParenIdx = destructureBraceCloseIdx + 1 + arrowMatch[0].length - 1;
+    const jsxOpenParenIdx =
+      destructureBraceCloseIdx + 1 + arrowMatch[0].length - 1;
     const jsxCloseParenIdx = findMatchingParenClose(phpMarkup, jsxOpenParenIdx);
     if (jsxCloseParenIdx === -1) continue;
 
@@ -2410,8 +2890,14 @@ function transpileNamedStaticArrayObjectMap(phpMarkup, settings, themeRoot, loca
     const found = findHeaderConstArrayWithFilter(sourceCode, identifier);
     let unrolled = null;
     if (found) {
-      const destructureText = phpMarkup.slice(destructureBraceOpenIdx + 1, destructureBraceCloseIdx);
-      const jsxTemplate = phpMarkup.slice(jsxOpenParenIdx + 1, jsxCloseParenIdx);
+      const destructureText = phpMarkup.slice(
+        destructureBraceOpenIdx + 1,
+        destructureBraceCloseIdx,
+      );
+      const jsxTemplate = phpMarkup.slice(
+        jsxOpenParenIdx + 1,
+        jsxCloseParenIdx,
+      );
       try {
         unrolled = unrollStaticArrayMap(
           found.arrayLiteralText,
@@ -2433,7 +2919,10 @@ function transpileNamedStaticArrayObjectMap(phpMarkup, settings, themeRoot, loca
     // Not a recognized static-array-with-filter header const — leave
     // untouched for transpileLoops (or whatever else already handles it)
     // rather than risk mistranslating a genuine runtime array.
-    result += unrolled !== null ? unrolled : phpMarkup.slice(match.index, wholeMatchEnd);
+    result +=
+      unrolled !== null
+        ? unrolled
+        : phpMarkup.slice(match.index, wholeMatchEnd);
     cursor = wholeMatchEnd;
     openRegex.lastIndex = cursor;
   }
@@ -2453,8 +2942,22 @@ function transpileNamedStaticArrayObjectMap(phpMarkup, settings, themeRoot, loca
  * component reference, e.g. `icon: Phone`) be resolved to real SVG markup
  * once, per row, at compile time.
  */
-export function transpileStaticArrayObjectMap(phpMarkup, settings, themeRoot, localVarNames, sourceCode = '', freeFunctions = new Set()) {
-  phpMarkup = transpileNamedStaticArrayObjectMap(phpMarkup, settings, themeRoot, localVarNames, sourceCode, freeFunctions);
+export function transpileStaticArrayObjectMap(
+  phpMarkup,
+  settings,
+  themeRoot,
+  localVarNames,
+  sourceCode = '',
+  freeFunctions = new Set(),
+) {
+  phpMarkup = transpileNamedStaticArrayObjectMap(
+    phpMarkup,
+    settings,
+    themeRoot,
+    localVarNames,
+    sourceCode,
+    freeFunctions,
+  );
 
   const openRegex = /\{\s*\(\s*\[/g;
   let result = '';
@@ -2467,11 +2970,17 @@ export function transpileStaticArrayObjectMap(phpMarkup, settings, themeRoot, lo
     if (bracketCloseIdx === -1) continue;
 
     const afterArray = phpMarkup.slice(bracketCloseIdx + 1);
-    const mapHeadMatch = afterArray.match(/^\s*(?:as\s+const\s*)?\)\s*\.map\(\s*\(\s*\{/);
+    const mapHeadMatch = afterArray.match(
+      /^\s*(?:as\s+const\s*)?\)\s*\.map\(\s*\(\s*\{/,
+    );
     if (!mapHeadMatch) continue;
 
-    const destructureBraceOpenAbs = bracketCloseIdx + 1 + mapHeadMatch[0].length - 1;
-    const destructureBraceCloseAbs = findMatchingCurlyClose(phpMarkup, destructureBraceOpenAbs);
+    const destructureBraceOpenAbs =
+      bracketCloseIdx + 1 + mapHeadMatch[0].length - 1;
+    const destructureBraceCloseAbs = findMatchingCurlyClose(
+      phpMarkup,
+      destructureBraceOpenAbs,
+    );
     if (destructureBraceCloseAbs === -1) continue;
 
     const afterDestructure = phpMarkup.slice(destructureBraceCloseAbs + 1);
@@ -2481,7 +2990,8 @@ export function transpileStaticArrayObjectMap(phpMarkup, settings, themeRoot, lo
     const arrowMatch = afterDestructure.match(/^[^)]*\)\s*=>\s*\(/);
     if (!arrowMatch) continue;
 
-    const jsxOpenParenIdx = destructureBraceCloseAbs + 1 + arrowMatch[0].length - 1;
+    const jsxOpenParenIdx =
+      destructureBraceCloseAbs + 1 + arrowMatch[0].length - 1;
     const jsxCloseParenIdx = findMatchingParenClose(phpMarkup, jsxOpenParenIdx);
     if (jsxCloseParenIdx === -1) continue;
 
@@ -2491,13 +3001,29 @@ export function transpileStaticArrayObjectMap(phpMarkup, settings, themeRoot, lo
 
     const wholeMatchEnd = jsxCloseParenIdx + 1 + closeMatch[0].length;
 
-    const arrayLiteralText = phpMarkup.slice(bracketOpenIdx, bracketCloseIdx + 1);
-    const destructureText = phpMarkup.slice(destructureBraceOpenAbs + 1, destructureBraceCloseAbs);
+    const arrayLiteralText = phpMarkup.slice(
+      bracketOpenIdx,
+      bracketCloseIdx + 1,
+    );
+    const destructureText = phpMarkup.slice(
+      destructureBraceOpenAbs + 1,
+      destructureBraceCloseAbs,
+    );
     const jsxTemplate = phpMarkup.slice(jsxOpenParenIdx + 1, jsxCloseParenIdx);
 
     let unrolled = null;
     try {
-      unrolled = unrollStaticArrayMap(arrayLiteralText, destructureText, jsxTemplate, settings, themeRoot, localVarNames, null, sourceCode, freeFunctions);
+      unrolled = unrollStaticArrayMap(
+        arrayLiteralText,
+        destructureText,
+        jsxTemplate,
+        settings,
+        themeRoot,
+        localVarNames,
+        null,
+        sourceCode,
+        freeFunctions,
+      );
     } catch (e) {
       unrolled = null;
     }
@@ -2506,7 +3032,10 @@ export function transpileStaticArrayObjectMap(phpMarkup, settings, themeRoot, lo
     // Safe fallback on any parse failure: leave the original text untouched
     // rather than emit anything broken — same bail philosophy used
     // throughout this pipeline.
-    result += unrolled !== null ? unrolled : phpMarkup.slice(match.index, wholeMatchEnd);
+    result +=
+      unrolled !== null
+        ? unrolled
+        : phpMarkup.slice(match.index, wholeMatchEnd);
     cursor = wholeMatchEnd;
     openRegex.lastIndex = cursor;
   }
@@ -2557,9 +3086,11 @@ export function transpileStaticArrayObjectMap(phpMarkup, settings, themeRoot, lo
 export function generatePhpMarkupFromJsx(jsxCode, blockSettings, context) {
   const ast = tryParseSource(jsxCode);
   const body = ast && ast.program.body;
-  if (!(body && body.length === 1 && body[0].type === 'ExpressionStatement')) return null;
+  if (!(body && body.length === 1 && body[0].type === 'ExpressionStatement'))
+    return null;
   const rootExpr = body[0].expression;
-  if (rootExpr.type !== 'JSXElement' && rootExpr.type !== 'JSXFragment') return null;
+  if (rootExpr.type !== 'JSXElement' && rootExpr.type !== 'JSXFragment')
+    return null;
 
   const fullContext = {
     attrKeys: Object.keys((blockSettings && blockSettings.attributes) || {}),
@@ -2578,8 +3109,29 @@ export function generatePhpMarkupFromJsx(jsxCode, blockSettings, context) {
 }
 
 const VOID_HTML_TAGS = new Set([
-  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr',
-  'path', 'circle', 'rect', 'line', 'polygon', 'polyline', 'ellipse', 'stop', 'use',
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'param',
+  'source',
+  'track',
+  'wbr',
+  'path',
+  'circle',
+  'rect',
+  'line',
+  'polygon',
+  'polyline',
+  'ellipse',
+  'stop',
+  'use',
 ]);
 
 function isJsxNodePhp(node) {
@@ -2591,7 +3143,8 @@ function getPhpJsxTagName(nameNode) {
   if (nameNode.type === 'JSXMemberExpression') {
     return `${getPhpJsxTagName(nameNode.object)}.${nameNode.property.name}`;
   }
-  if (nameNode.type === 'JSXNamespacedName') return `${nameNode.namespace.name}:${nameNode.name.name}`;
+  if (nameNode.type === 'JSXNamespacedName')
+    return `${nameNode.namespace.name}:${nameNode.name.name}`;
   return '';
 }
 
@@ -2601,7 +3154,9 @@ function readPhpJsxAttrs(openingElement) {
   const attrs = [];
   for (const attr of openingElement.attributes) {
     if (attr.type !== 'JSXAttribute') continue; // spreads: never modeled by the legacy regex pipeline either
-    const name = getPhpJsxTagName(attr.name) || (attr.name.type === 'JSXIdentifier' ? attr.name.name : '');
+    const name =
+      getPhpJsxTagName(attr.name) ||
+      (attr.name.type === 'JSXIdentifier' ? attr.name.name : '');
     if (!attr.value) {
       attrs.push({ name, valueNode: null, hasValue: false });
     } else if (attr.value.type === 'JSXExpressionContainer') {
@@ -2618,7 +3173,12 @@ function findPhpAttr(attrs, name) {
 }
 
 function isStrippedPhpAttrName(name) {
-  return name === 'ref' || name === 'disabled' || name === 'checked' || /^on[A-Z]/.test(name);
+  return (
+    name === 'ref' ||
+    name === 'disabled' ||
+    name === 'checked' ||
+    /^on[A-Z]/.test(name)
+  );
 }
 
 /**
@@ -2630,9 +3190,16 @@ function isStrippedPhpAttrName(name) {
  */
 function emitPhpLeafExpression(exprNode, code, context) {
   const exprText = code.slice(exprNode.start, exprNode.end);
-  const looksComplex = /=>|\bfunction\b|;|\bconst\b|\blet\b|\bvar\b/.test(exprText);
+  const looksComplex = /=>|\bfunction\b|;|\bconst\b|\blet\b|\bvar\b/.test(
+    exprText,
+  );
   if (looksComplex) return `<?php echo ''; ?>`;
-  const phpExpr = translateJsExpressionToPhp(exprText, context.attrKeys, context.localVars, context.freeFunctions);
+  const phpExpr = translateJsExpressionToPhp(
+    exprText,
+    context.attrKeys,
+    context.localVars,
+    context.freeFunctions,
+  );
   return `<?php echo esc_html( ${phpExpr} ); ?>`;
 }
 
@@ -2640,8 +3207,12 @@ function emitPhpLeafExpression(exprNode, code, context) {
  * nested ternary/`&&` recurses into emitPhpExpression; anything else is a
  * leaf expression. */
 function emitPhpBranch(node, code, blockSettings, context) {
-  if (isJsxNodePhp(node)) return emitPhpNode(node, code, blockSettings, context);
-  if (node.type === 'ConditionalExpression' || (node.type === 'LogicalExpression' && node.operator === '&&')) {
+  if (isJsxNodePhp(node))
+    return emitPhpNode(node, code, blockSettings, context);
+  if (
+    node.type === 'ConditionalExpression' ||
+    (node.type === 'LogicalExpression' && node.operator === '&&')
+  ) {
     return emitPhpExpression(node, code, blockSettings, context);
   }
   return emitPhpLeafExpression(node, code, context);
@@ -2656,7 +3227,11 @@ function emitPhpBranch(node, code, blockSettings, context) {
  * text for transpileStaticArrayObjectMap/transpileLoops to catch downstream.
  */
 function tryEmitPhpMapLoop(callExpr, code, blockSettings, context) {
-  if (callExpr.arguments.length !== 1 || callExpr.arguments[0].type !== 'ArrowFunctionExpression') return null;
+  if (
+    callExpr.arguments.length !== 1 ||
+    callExpr.arguments[0].type !== 'ArrowFunctionExpression'
+  )
+    return null;
   const arrow = callExpr.arguments[0];
   if (!isJsxNodePhp(arrow.body)) return null; // only concise `=> ( <JSX/> )` bodies, matching legacy's scope
   if (arrow.params.length < 1 || arrow.params.length > 2) return null;
@@ -2683,7 +3258,10 @@ function tryEmitPhpMapLoop(callExpr, code, blockSettings, context) {
   if (!phpArrayExpr) return null; // complex target (array literal, `as const`, …) — bail
 
   const varName = arrow.params[0].name;
-  const innerContext = { ...context, localVars: new Set([...context.localVars, varName]) };
+  const innerContext = {
+    ...context,
+    localVars: new Set([...context.localVars, varName]),
+  };
   let innerContent = emitPhpNode(arrow.body, code, blockSettings, innerContext);
   innerContent = innerContent.replace(/className=/g, 'class=');
 
@@ -2697,7 +3275,8 @@ function matchPhpSplitMapTarget(node, code) {
   while (
     current.type === 'CallExpression' &&
     current.callee.type === 'MemberExpression' &&
-    (current.callee.property.name === 'filter' || current.callee.property.name === 'map')
+    (current.callee.property.name === 'filter' ||
+      current.callee.property.name === 'map')
   ) {
     current = current.callee.object;
   }
@@ -2715,7 +3294,7 @@ function matchPhpSplitMapTarget(node, code) {
   if (base.left.type !== 'Identifier') return null;
   const fallback = base.right;
   const isEmptyStringFallback =
-    (fallback.type === 'StringLiteral' && fallback.value === '');
+    fallback.type === 'StringLiteral' && fallback.value === '';
   if (!isEmptyStringFallback) return null;
   return { varName: base.left.name, separator: sepArg.value };
 }
@@ -2724,10 +3303,13 @@ function matchPhpSplitMapTarget(node, code) {
  * identifier that is neither a block attribute nor a computed local —
  * i.e. a static array const only resolvable by reading the source file. */
 function hasUnresolvableLengthGuard(node, context) {
-  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return false;
+  if (!node || typeof node !== 'object' || typeof node.type !== 'string')
+    return false;
   if (
-    node.type === 'MemberExpression' && !node.computed &&
-    node.property.type === 'Identifier' && node.property.name === 'length' &&
+    node.type === 'MemberExpression' &&
+    !node.computed &&
+    node.property.type === 'Identifier' &&
+    node.property.name === 'length' &&
     node.object.type === 'Identifier' &&
     !context.localVars.has(node.object.name) &&
     !context.attrKeys.includes(node.object.name)
@@ -2739,9 +3321,18 @@ function hasUnresolvableLengthGuard(node, context) {
     const val = node[key];
     if (Array.isArray(val)) {
       for (const item of val) {
-        if (item && typeof item.type === 'string' && hasUnresolvableLengthGuard(item, context)) return true;
+        if (
+          item &&
+          typeof item.type === 'string' &&
+          hasUnresolvableLengthGuard(item, context)
+        )
+          return true;
       }
-    } else if (val && typeof val.type === 'string' && hasUnresolvableLengthGuard(val, context)) {
+    } else if (
+      val &&
+      typeof val.type === 'string' &&
+      hasUnresolvableLengthGuard(val, context)
+    ) {
       return true;
     }
   }
@@ -2749,18 +3340,41 @@ function hasUnresolvableLengthGuard(node, context) {
 }
 
 const AST_PHP_METADATA_KEYS = new Set([
-  'loc', 'start', 'end', 'range', 'extra', 'leadingComments',
-  'trailingComments', 'innerComments', 'comments',
+  'loc',
+  'start',
+  'end',
+  'range',
+  'extra',
+  'leadingComments',
+  'trailingComments',
+  'innerComments',
+  'comments',
 ]);
 
 function emitPhpExpression(exprNode, code, blockSettings, context) {
-  if (isJsxNodePhp(exprNode)) return emitPhpNode(exprNode, code, blockSettings, context);
+  if (isJsxNodePhp(exprNode))
+    return emitPhpNode(exprNode, code, blockSettings, context);
 
   if (exprNode.type === 'ConditionalExpression') {
     const condText = code.slice(exprNode.test.start, exprNode.test.end);
-    const phpCond = translateJsExpressionToPhp(condText, context.attrKeys, context.localVars, context.freeFunctions);
-    const trueContent = emitPhpBranch(exprNode.consequent, code, blockSettings, context);
-    const falseContent = emitPhpBranch(exprNode.alternate, code, blockSettings, context);
+    const phpCond = translateJsExpressionToPhp(
+      condText,
+      context.attrKeys,
+      context.localVars,
+      context.freeFunctions,
+    );
+    const trueContent = emitPhpBranch(
+      exprNode.consequent,
+      code,
+      blockSettings,
+      context,
+    );
+    const falseContent = emitPhpBranch(
+      exprNode.alternate,
+      code,
+      blockSettings,
+      context,
+    );
     return `<?php if (${phpCond}): ?>\n${trueContent}\n<?php else: ?>\n${falseContent}\n<?php endif; ?>`;
   }
 
@@ -2778,7 +3392,12 @@ function emitPhpExpression(exprNode, code, blockSettings, context) {
       return `{${code.slice(exprNode.start, exprNode.end)}}`;
     }
     const condText = code.slice(exprNode.left.start, exprNode.left.end);
-    const phpCond = translateJsExpressionToPhp(condText, context.attrKeys, context.localVars, context.freeFunctions);
+    const phpCond = translateJsExpressionToPhp(
+      condText,
+      context.attrKeys,
+      context.localVars,
+      context.freeFunctions,
+    );
     const content = emitPhpBranch(exprNode.right, code, blockSettings, context);
     return `<?php if (${phpCond}): ?>\n${content}\n<?php endif; ?>`;
   }
@@ -2796,25 +3415,42 @@ function emitPhpExpression(exprNode, code, blockSettings, context) {
   }
 
   // i18n: {__('Text', 'domain')}
-  if (exprNode.type === 'CallExpression' && exprNode.callee.type === 'Identifier' && exprNode.callee.name === '__') {
+  if (
+    exprNode.type === 'CallExpression' &&
+    exprNode.callee.type === 'Identifier' &&
+    exprNode.callee.name === '__'
+  ) {
     const arg0 = exprNode.arguments[0];
     if (arg0 && arg0.type === 'StringLiteral') {
-      const escaped = arg0.value.replace(/'/g, "\\'").trim().replace(/\s+/g, ' ');
+      const escaped = arg0.value
+        .replace(/'/g, "\\'")
+        .trim()
+        .replace(/\s+/g, ' ');
       return `<?php echo esc_html( __('${escaped}', '${context.textDomain}') ); ?>`;
     }
   }
 
   if (exprNode.type === 'Identifier') {
     const varName = exprNode.name;
-    const attrConfig = blockSettings && blockSettings.attributes && blockSettings.attributes[varName];
-    const escFunc = attrConfig && attrConfig.control === 'richText' ? 'wp_kses_post' : 'esc_html';
-    const prefix = context.localVars.has(varName) ? `$${varName}` : `$attributes['${varName}']`;
+    const attrConfig =
+      blockSettings &&
+      blockSettings.attributes &&
+      blockSettings.attributes[varName];
+    const escFunc =
+      attrConfig && attrConfig.control === 'richText'
+        ? 'wp_kses_post'
+        : 'esc_html';
+    const prefix = context.localVars.has(varName)
+      ? `$${varName}`
+      : `$attributes['${varName}']`;
     return `<?php echo ${escFunc}( ${prefix} ?? '' ); ?>`;
   }
 
   if (
-    exprNode.type === 'MemberExpression' && !exprNode.computed &&
-    exprNode.object.type === 'Identifier' && exprNode.property.type === 'Identifier'
+    exprNode.type === 'MemberExpression' &&
+    !exprNode.computed &&
+    exprNode.object.type === 'Identifier' &&
+    exprNode.property.type === 'Identifier'
   ) {
     const objName = exprNode.object.name;
     if (objName === 'attributes' || objName === 'props') {
@@ -2824,12 +3460,22 @@ function emitPhpExpression(exprNode, code, blockSettings, context) {
       // over the raw block attribute — the local carries the dual-host
       // meta-fallback resolution). Match that exactly.
       const varName = exprNode.property.name;
-      const attrConfig = blockSettings && blockSettings.attributes && blockSettings.attributes[varName];
-      const escFunc = attrConfig && attrConfig.control === 'richText' ? 'wp_kses_post' : 'esc_html';
-      const prefix = context.localVars.has(varName) ? `$${varName}` : `$attributes['${varName}']`;
+      const attrConfig =
+        blockSettings &&
+        blockSettings.attributes &&
+        blockSettings.attributes[varName];
+      const escFunc =
+        attrConfig && attrConfig.control === 'richText'
+          ? 'wp_kses_post'
+          : 'esc_html';
+      const prefix = context.localVars.has(varName)
+        ? `$${varName}`
+        : `$attributes['${varName}']`;
       return `<?php echo ${escFunc}( ${prefix} ?? '' ); ?>`;
     }
-    const prefix = context.localVars.has(objName) ? `$${objName}` : `$attributes['${objName}']`;
+    const prefix = context.localVars.has(objName)
+      ? `$${objName}`
+      : `$attributes['${objName}']`;
     return `<?php echo esc_html( ${prefix}['${exprNode.property.name}'] ?? '' ); ?>`;
   }
 
@@ -2856,10 +3502,18 @@ function emitPhpStyleAttr(objExpr, code, context) {
   const parts = [];
   for (const prop of objExpr.properties) {
     if (prop.type !== 'ObjectProperty') continue;
-    const propName = prop.key.type === 'Identifier' ? prop.key.name : prop.key.value;
-    const kebabProp = propName.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
+    const propName =
+      prop.key.type === 'Identifier' ? prop.key.name : prop.key.value;
+    const kebabProp = propName
+      .replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2')
+      .toLowerCase();
     const valText = code.slice(prop.value.start, prop.value.end);
-    const phpExpr = translateJsExpressionToPhp(valText, context.attrKeys, context.localVars, context.freeFunctions);
+    const phpExpr = translateJsExpressionToPhp(
+      valText,
+      context.attrKeys,
+      context.localVars,
+      context.freeFunctions,
+    );
     parts.push(`${kebabProp}: <?php echo esc_attr( ${phpExpr} ); ?>;`);
   }
   return `style="${parts.join(' ')}"`;
@@ -2873,8 +3527,14 @@ function emitPhpSingleAttr(name, valueNode, hasValue, code, context) {
     return `${name}="${valueNode.value}"`;
   }
   // {'literal'} written with braces instead of the natural JSX shorthand.
-  if (valueNode.type === 'StringLiteral' || (valueNode.type === 'TemplateLiteral' && valueNode.expressions.length === 0)) {
-    const text = valueNode.type === 'StringLiteral' ? valueNode.value : valueNode.quasis[0].value.cooked;
+  if (
+    valueNode.type === 'StringLiteral' ||
+    (valueNode.type === 'TemplateLiteral' && valueNode.expressions.length === 0)
+  ) {
+    const text =
+      valueNode.type === 'StringLiteral'
+        ? valueNode.value
+        : valueNode.quasis[0].value.cooked;
     return `${name}="${text}"`;
   }
   const escFunc = name === 'href' || name === 'src' ? 'esc_url' : 'esc_attr';
@@ -2885,22 +3545,30 @@ function emitPhpSingleAttr(name, valueNode, hasValue, code, context) {
   // which is semantically equivalent PHP but a needless divergence.
   if (valueNode.type === 'Identifier') {
     const varName = valueNode.name;
-    const prefix = context.localVars.has(varName) ? `$${varName}` : `$attributes['${varName}']`;
+    const prefix = context.localVars.has(varName)
+      ? `$${varName}`
+      : `$attributes['${varName}']`;
     return `${name}="<?php echo ${escFunc}( ${prefix} ?? '' ); ?>"`;
   }
   if (
-    valueNode.type === 'MemberExpression' && !valueNode.computed &&
-    valueNode.object.type === 'Identifier' && valueNode.property.type === 'Identifier'
+    valueNode.type === 'MemberExpression' &&
+    !valueNode.computed &&
+    valueNode.object.type === 'Identifier' &&
+    valueNode.property.type === 'Identifier'
   ) {
     const objName = valueNode.object.name;
     if (objName === 'attributes' || objName === 'props') {
       // Same prefix-strip-then-prefer-local resolution as the child-position
       // `{attributes.X}` case — see emitPhpExpression's comment.
       const varName = valueNode.property.name;
-      const prefix = context.localVars.has(varName) ? `$${varName}` : `$attributes['${varName}']`;
+      const prefix = context.localVars.has(varName)
+        ? `$${varName}`
+        : `$attributes['${varName}']`;
       return `${name}="<?php echo ${escFunc}( ${prefix} ?? '' ); ?>"`;
     }
-    const prefix = context.localVars.has(objName) ? `$${objName}` : `$attributes['${objName}']`;
+    const prefix = context.localVars.has(objName)
+      ? `$${objName}`
+      : `$attributes['${objName}']`;
     return `${name}="<?php echo ${escFunc}( ${prefix}['${valueNode.property.name}'] ?? '' ); ?>"`;
   }
   // i18n: attr={__('Text')} — matches legacy's attr-position `__()` regex.
@@ -2908,11 +3576,16 @@ function emitPhpSingleAttr(name, valueNode, hasValue, code, context) {
   // to translateJsExpressionToPhp, whose neutralizeUnknownJsCalls pass would
   // blank the whole call (losing e.g. an image's alt text).
   if (
-    valueNode.type === 'CallExpression' && valueNode.callee.type === 'Identifier' &&
+    valueNode.type === 'CallExpression' &&
+    valueNode.callee.type === 'Identifier' &&
     valueNode.callee.name === '__' &&
-    valueNode.arguments[0] && valueNode.arguments[0].type === 'StringLiteral'
+    valueNode.arguments[0] &&
+    valueNode.arguments[0].type === 'StringLiteral'
   ) {
-    const escaped = valueNode.arguments[0].value.replace(/'/g, "\\'").trim().replace(/\s+/g, ' ');
+    const escaped = valueNode.arguments[0].value
+      .replace(/'/g, "\\'")
+      .trim()
+      .replace(/\s+/g, ' ');
     return `${name}="<?php echo esc_attr( __('${escaped}', '${context.textDomain}') ); ?>"`;
   }
   // class/className operands are always strings — safe to rewrite JS `+`
@@ -2921,8 +3594,18 @@ function emitPhpSingleAttr(name, valueNode, hasValue, code, context) {
   const isClassAttr = name === 'class';
   const translate = (text) =>
     isClassAttr
-      ? translateClassNameExpr(text, context.attrKeys, context.localVars, context.freeFunctions)
-      : translateJsExpressionToPhp(text, context.attrKeys, context.localVars, context.freeFunctions);
+      ? translateClassNameExpr(
+          text,
+          context.attrKeys,
+          context.localVars,
+          context.freeFunctions,
+        )
+      : translateJsExpressionToPhp(
+          text,
+          context.attrKeys,
+          context.localVars,
+          context.freeFunctions,
+        );
   if (valueNode.type === 'TemplateLiteral') {
     // Interpolated FRAGMENTS always use esc_attr, even for href/src — the
     // scheme/static part of the URL lives in the literal quasis (e.g.
@@ -2932,7 +3615,10 @@ function emitPhpSingleAttr(name, valueNode, hasValue, code, context) {
     for (let i = 0; i < valueNode.quasis.length; i++) {
       out += valueNode.quasis[i].value.cooked;
       if (i < valueNode.expressions.length) {
-        const exprText = code.slice(valueNode.expressions[i].start, valueNode.expressions[i].end);
+        const exprText = code.slice(
+          valueNode.expressions[i].start,
+          valueNode.expressions[i].end,
+        );
         out += `<?php echo esc_attr( ${translate(exprText)} ); ?>`;
       }
     }
@@ -2949,7 +3635,15 @@ function emitPhpAttrsExcluding(attrs, code, context, extraExclude) {
     if (name === 'className') continue; // handled by caller (renamed to class=)
     if (name === 'key') continue;
     if (isStrippedPhpAttrName(name) && hasValue) continue;
-    parts.push(emitPhpSingleAttr(name === 'className' ? 'class' : name, valueNode, hasValue, code, context));
+    parts.push(
+      emitPhpSingleAttr(
+        name === 'className' ? 'class' : name,
+        valueNode,
+        hasValue,
+        code,
+        context,
+      ),
+    );
   }
   return parts.length ? ' ' + parts.join(' ') : '';
 }
@@ -2960,40 +3654,67 @@ function emitPhpAttrsExcluding(attrs, code, context, extraExclude) {
 function resolvePhpIconNameExpr(expr, context) {
   if (/\$[a-zA-Z_]/.test(expr)) return expr;
   if (/^(?:attributes|props)\./.test(expr)) {
-    return translateJsExpressionToPhp(expr, context.attrKeys, context.localVars, context.freeFunctions);
+    return translateJsExpressionToPhp(
+      expr,
+      context.attrKeys,
+      context.localVars,
+      context.freeFunctions,
+    );
   }
   const dotted = expr.match(/^([a-zA-Z_][\w$]*)\.([a-zA-Z_][\w$]*)$/);
   if (dotted) return `($${dotted[1]}['${dotted[2]}'] ?? '')`;
   const dottedFallback = expr.match(
     /^([a-zA-Z_][\w$]*)\.([a-zA-Z_][\w$]*)\s*\|\|\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")$/,
   );
-  if (dottedFallback) return `($${dottedFallback[1]}['${dottedFallback[2]}'] ?: ${dottedFallback[3]})`;
+  if (dottedFallback)
+    return `($${dottedFallback[1]}['${dottedFallback[2]}'] ?: ${dottedFallback[3]})`;
   if (/^[a-zA-Z_][\w$]*$/.test(expr)) {
-    return context.localVars.has(expr) ? `($${expr} ?? '')` : `($attributes['${expr}'] ?? '')`;
+    return context.localVars.has(expr)
+      ? `($${expr} ?? '')`
+      : `($attributes['${expr}'] ?? '')`;
   }
-  return translateJsExpressionToPhp(expr, context.attrKeys, context.localVars, context.freeFunctions);
+  return translateJsExpressionToPhp(
+    expr,
+    context.attrKeys,
+    context.localVars,
+    context.freeFunctions,
+  );
 }
 
 function emitPhpWpIcon(attrs, code, context) {
   const nameAttr = findPhpAttr(attrs, 'name');
-  const classAttr = findPhpAttr(attrs, 'className') || findPhpAttr(attrs, 'class');
+  const classAttr =
+    findPhpAttr(attrs, 'className') || findPhpAttr(attrs, 'class');
   const providerAttr = findPhpAttr(attrs, 'provider');
 
   let namePhp = "''";
   if (nameAttr && nameAttr.valueNode) {
-    namePhp = nameAttr.valueNode.type === 'StringLiteral'
-      ? JSON.stringify(nameAttr.valueNode.value)
-      : resolvePhpIconNameExpr(code.slice(nameAttr.valueNode.start, nameAttr.valueNode.end), context);
+    namePhp =
+      nameAttr.valueNode.type === 'StringLiteral'
+        ? JSON.stringify(nameAttr.valueNode.value)
+        : resolvePhpIconNameExpr(
+            code.slice(nameAttr.valueNode.start, nameAttr.valueNode.end),
+            context,
+          );
   }
   let classPhp = "''";
   if (classAttr && classAttr.valueNode) {
-    classPhp = classAttr.valueNode.type === 'StringLiteral'
-      ? JSON.stringify(classAttr.valueNode.value)
-      : translateJsExpressionToPhp(code.slice(classAttr.valueNode.start, classAttr.valueNode.end), context.attrKeys, context.localVars, context.freeFunctions);
+    classPhp =
+      classAttr.valueNode.type === 'StringLiteral'
+        ? JSON.stringify(classAttr.valueNode.value)
+        : translateJsExpressionToPhp(
+            code.slice(classAttr.valueNode.start, classAttr.valueNode.end),
+            context.attrKeys,
+            context.localVars,
+            context.freeFunctions,
+          );
   }
-  const provider = (providerAttr && providerAttr.valueNode && providerAttr.valueNode.type === 'StringLiteral')
-    ? providerAttr.valueNode.value
-    : 'lucide';
+  const provider =
+    providerAttr &&
+    providerAttr.valueNode &&
+    providerAttr.valueNode.type === 'StringLiteral'
+      ? providerAttr.valueNode.value
+      : 'lucide';
   return `<?php forgewp_render_theme_icon( ${namePhp}, ${classPhp}, ${JSON.stringify(provider)} ); ?>`;
 }
 
@@ -3001,16 +3722,25 @@ function emitPhpWpShortcode(attrs, code, context) {
   const codeAttr = findPhpAttr(attrs, 'code');
   let codePhp = "''";
   if (codeAttr && codeAttr.valueNode) {
-    codePhp = codeAttr.valueNode.type === 'StringLiteral'
-      ? `'${codeAttr.valueNode.value.replace(/'/g, "\\'")}'`
-      : translateJsExpressionToPhp(code.slice(codeAttr.valueNode.start, codeAttr.valueNode.end), context.attrKeys, context.localVars, context.freeFunctions);
+    codePhp =
+      codeAttr.valueNode.type === 'StringLiteral'
+        ? `'${codeAttr.valueNode.value.replace(/'/g, "\\'")}'`
+        : translateJsExpressionToPhp(
+            code.slice(codeAttr.valueNode.start, codeAttr.valueNode.end),
+            context.attrKeys,
+            context.localVars,
+            context.freeFunctions,
+          );
   }
   return `<?php echo do_shortcode( ${codePhp} ); ?>`;
 }
 
 function emitPhpWpEditable(attrs, children, code, blockSettings, context) {
   const tagAttr = findPhpAttr(attrs, 'tagName');
-  const tag = (tagAttr && tagAttr.valueNode && tagAttr.valueNode.type === 'StringLiteral') ? tagAttr.valueNode.value : 'div';
+  const tag =
+    tagAttr && tagAttr.valueNode && tagAttr.valueNode.type === 'StringLiteral'
+      ? tagAttr.valueNode.value
+      : 'div';
 
   const valueAttr = findPhpAttr(attrs, 'value');
   let content;
@@ -3022,8 +3752,10 @@ function emitPhpWpEditable(attrs, children, code, blockSettings, context) {
     if (vn.type === 'Identifier') {
       bareVarName = vn.name;
     } else if (
-      vn.type === 'MemberExpression' && !vn.computed &&
-      vn.object.type === 'Identifier' && (vn.object.name === 'attributes' || vn.object.name === 'props') &&
+      vn.type === 'MemberExpression' &&
+      !vn.computed &&
+      vn.object.type === 'Identifier' &&
+      (vn.object.name === 'attributes' || vn.object.name === 'props') &&
       vn.property.type === 'Identifier'
     ) {
       bareVarName = vn.property.name;
@@ -3036,11 +3768,24 @@ function emitPhpWpEditable(attrs, children, code, blockSettings, context) {
       // dual-host local var when one shadows this name (e.g. `const badge =
       // badgeProp ?? badgeMeta`) for consistency with how a plain `{badge}`
       // child expression resolves elsewhere in this same emitter.
-      const attrConfig = blockSettings && blockSettings.attributes && blockSettings.attributes[bareVarName];
-      const escFunc = attrConfig && attrConfig.control === 'richText' ? 'wp_kses_post' : 'esc_html';
-      const prefix = context.localVars.has(bareVarName) ? `$${bareVarName}` : `$attributes['${bareVarName}']`;
+      const attrConfig =
+        blockSettings &&
+        blockSettings.attributes &&
+        blockSettings.attributes[bareVarName];
+      const escFunc =
+        attrConfig && attrConfig.control === 'richText'
+          ? 'wp_kses_post'
+          : 'esc_html';
+      const prefix = context.localVars.has(bareVarName)
+        ? `$${bareVarName}`
+        : `$attributes['${bareVarName}']`;
       content = `<?php echo ${escFunc}( ${prefix} ?? '' ); ?>`;
-    } else if (vn.type === 'MemberExpression' && !vn.computed && vn.object.type === 'Identifier' && vn.property.type === 'Identifier') {
+    } else if (
+      vn.type === 'MemberExpression' &&
+      !vn.computed &&
+      vn.object.type === 'Identifier' &&
+      vn.property.type === 'Identifier'
+    ) {
       content = `<?php echo esc_html( $${vn.object.name}['${vn.property.name}'] ?? '' ); ?>`;
     } else {
       content = emitPhpBranch(vn, code, blockSettings, context);
@@ -3049,46 +3794,92 @@ function emitPhpWpEditable(attrs, children, code, blockSettings, context) {
 
   // emitPhpAttrsExcluding always skips className (the generic-element caller
   // is expected to prepend it as class= — WpEditable is a caller too).
-  let attrsPhp = emitPhpAttrsExcluding(attrs, code, context, new Set(['tagName', 'value', 'onChange']));
+  let attrsPhp = emitPhpAttrsExcluding(
+    attrs,
+    code,
+    context,
+    new Set(['tagName', 'value', 'onChange']),
+  );
   const classAttr = findPhpAttr(attrs, 'className');
   if (classAttr) {
-    attrsPhp = ` ${emitPhpSingleAttr('class', classAttr.valueNode, classAttr.hasValue, code, context)}` + attrsPhp;
+    attrsPhp =
+      ` ${emitPhpSingleAttr('class', classAttr.valueNode, classAttr.hasValue, code, context)}` +
+      attrsPhp;
   }
   return `<${tag}${attrsPhp}>${content}</${tag}>`;
 }
 
-function emitPhpGenericElement(tagName, attrs, children, node, code, blockSettings, context) {
+function emitPhpGenericElement(
+  tagName,
+  attrs,
+  children,
+  node,
+  code,
+  blockSettings,
+  context,
+) {
   const dsetAttr = findPhpAttr(attrs, 'dangerouslySetInnerHTML');
   let contentOverride = null;
-  if (dsetAttr && dsetAttr.valueNode && dsetAttr.valueNode.type === 'ObjectExpression') {
+  if (
+    dsetAttr &&
+    dsetAttr.valueNode &&
+    dsetAttr.valueNode.type === 'ObjectExpression'
+  ) {
     const htmlProp = dsetAttr.valueNode.properties.find(
-      (p) => p.type === 'ObjectProperty' && (p.key.name === '__html' || p.key.value === '__html'),
+      (p) =>
+        p.type === 'ObjectProperty' &&
+        (p.key.name === '__html' || p.key.value === '__html'),
     );
     if (htmlProp) {
       if (htmlProp.value.type === 'Identifier') {
         const varName = htmlProp.value.name;
-        const prefix = context.localVars.has(varName) ? `$${varName}` : `$attributes['${varName}']`;
+        const prefix = context.localVars.has(varName)
+          ? `$${varName}`
+          : `$attributes['${varName}']`;
         contentOverride = `<?php echo wp_kses_post( ${prefix} ?? '' ); ?>`;
       } else {
         const exprText = code.slice(htmlProp.value.start, htmlProp.value.end);
-        const phpExpr = translateJsExpressionToPhp(exprText, context.attrKeys, context.localVars, context.freeFunctions);
+        const phpExpr = translateJsExpressionToPhp(
+          exprText,
+          context.attrKeys,
+          context.localVars,
+          context.freeFunctions,
+        );
         contentOverride = `<?php echo wp_kses_post( ${phpExpr} ); ?>`;
       }
     }
   }
 
   const styleAttr = findPhpAttr(attrs, 'style');
-  let attrsPhp = emitPhpAttrsExcluding(attrs, code, context, new Set(['dangerouslySetInnerHTML', 'style']));
+  let attrsPhp = emitPhpAttrsExcluding(
+    attrs,
+    code,
+    context,
+    new Set(['dangerouslySetInnerHTML', 'style']),
+  );
   const classAttr = findPhpAttr(attrs, 'className');
   if (classAttr) {
-    attrsPhp = ` ${emitPhpSingleAttr('class', classAttr.valueNode, classAttr.hasValue, code, context)}` + attrsPhp;
+    attrsPhp =
+      ` ${emitPhpSingleAttr('class', classAttr.valueNode, classAttr.hasValue, code, context)}` +
+      attrsPhp;
   }
-  if (styleAttr && styleAttr.valueNode && styleAttr.valueNode.type === 'ObjectExpression') {
+  if (
+    styleAttr &&
+    styleAttr.valueNode &&
+    styleAttr.valueNode.type === 'ObjectExpression'
+  ) {
     attrsPhp += ' ' + emitPhpStyleAttr(styleAttr.valueNode, code, context);
   }
 
-  const content = contentOverride !== null ? contentOverride : emitPhpChildren(children, code, blockSettings, context);
-  if (!content && node.openingElement.selfClosing && VOID_HTML_TAGS.has(tagName.toLowerCase())) {
+  const content =
+    contentOverride !== null
+      ? contentOverride
+      : emitPhpChildren(children, code, blockSettings, context);
+  if (
+    !content &&
+    node.openingElement.selfClosing &&
+    VOID_HTML_TAGS.has(tagName.toLowerCase())
+  ) {
     return `<${tagName}${attrsPhp} />`;
   }
   return `<${tagName}${attrsPhp}>${content}</${tagName}>`;
@@ -3103,24 +3894,41 @@ function emitPhpNode(node, code, blockSettings, context) {
   const attrs = readPhpJsxAttrs(node.openingElement);
 
   if (tagName === 'WpIcon') return emitPhpWpIcon(attrs, code, context);
-  if (tagName === 'WpShortcode') return emitPhpWpShortcode(attrs, code, context);
-  if (tagName === 'WpEditable') return emitPhpWpEditable(attrs, node.children, code, blockSettings, context);
+  if (tagName === 'WpShortcode')
+    return emitPhpWpShortcode(attrs, code, context);
+  if (tagName === 'WpEditable')
+    return emitPhpWpEditable(
+      attrs,
+      node.children,
+      code,
+      blockSettings,
+      context,
+    );
 
   const isPascalCase = /^[A-Z]/.test(tagName);
   if (isPascalCase && context.importMap[tagName] && context.themeRoot) {
     const classAttr = findPhpAttr(attrs, 'className');
     let classNameStr = '';
     if (classAttr && classAttr.valueNode) {
-      classNameStr = classAttr.valueNode.type === 'StringLiteral'
-        ? classAttr.valueNode.value
-        : `<?php echo esc_attr( ${translateJsExpressionToPhp(code.slice(classAttr.valueNode.start, classAttr.valueNode.end), context.attrKeys, context.localVars, context.freeFunctions)} ); ?>`;
+      classNameStr =
+        classAttr.valueNode.type === 'StringLiteral'
+          ? classAttr.valueNode.value
+          : `<?php echo esc_attr( ${translateJsExpressionToPhp(code.slice(classAttr.valueNode.start, classAttr.valueNode.end), context.attrKeys, context.localVars, context.freeFunctions)} ); ?>`;
     }
-    const svgHtml = resolveIconToSvgHtml(tagName, context.importMap[tagName], context.themeRoot, '');
+    const svgHtml = resolveIconToSvgHtml(
+      tagName,
+      context.importMap[tagName],
+      context.themeRoot,
+      '',
+    );
     if (svgHtml) {
       const classAttrRegex = /class="([^"]*)"/;
       const hasClassAttr = svgHtml.match(classAttrRegex);
       if (hasClassAttr) {
-        return svgHtml.replace(classAttrRegex, `class="${(hasClassAttr[1] + ' ' + classNameStr).trim()}"`);
+        return svgHtml.replace(
+          classAttrRegex,
+          `class="${(hasClassAttr[1] + ' ' + classNameStr).trim()}"`,
+        );
       }
       return svgHtml.replace('<svg', `<svg class="${classNameStr.trim()}"`);
     }
@@ -3129,17 +3937,40 @@ function emitPhpNode(node, code, blockSettings, context) {
   if (tagName === 'WpLink') {
     const hrefAttr = findPhpAttr(attrs, 'href');
     const classAttr = findPhpAttr(attrs, 'className');
-    const href = hrefAttr && hrefAttr.valueNode
-      ? (hrefAttr.valueNode.type === 'StringLiteral' ? hrefAttr.valueNode.value : emitPhpSingleAttr('href', hrefAttr.valueNode, true, code, context).match(/="([\s\S]*)"$/)[1])
-      : '#';
-    const cls = classAttr ? ` class='${classAttr.valueNode && classAttr.valueNode.type === 'StringLiteral' ? classAttr.valueNode.value : ''}'` : '';
-    const content = emitPhpChildren(node.children, code, blockSettings, context);
+    const href =
+      hrefAttr && hrefAttr.valueNode
+        ? hrefAttr.valueNode.type === 'StringLiteral'
+          ? hrefAttr.valueNode.value
+          : emitPhpSingleAttr(
+              'href',
+              hrefAttr.valueNode,
+              true,
+              code,
+              context,
+            ).match(/="([\s\S]*)"$/)[1]
+        : '#';
+    const cls = classAttr
+      ? ` class='${classAttr.valueNode && classAttr.valueNode.type === 'StringLiteral' ? classAttr.valueNode.value : ''}'`
+      : '';
+    const content = emitPhpChildren(
+      node.children,
+      code,
+      blockSettings,
+      context,
+    );
     return `<a href="${href}"${cls}>${content}</a>`;
   }
   if (tagName === 'Button') {
     const classAttr = findPhpAttr(attrs, 'className');
-    const cls = classAttr ? ` class='${classAttr.valueNode && classAttr.valueNode.type === 'StringLiteral' ? classAttr.valueNode.value : ''}'` : '';
-    const content = emitPhpChildren(node.children, code, blockSettings, context);
+    const cls = classAttr
+      ? ` class='${classAttr.valueNode && classAttr.valueNode.type === 'StringLiteral' ? classAttr.valueNode.value : ''}'`
+      : '';
+    const content = emitPhpChildren(
+      node.children,
+      code,
+      blockSettings,
+      context,
+    );
     return `<button${cls}>${content}</button>`;
   }
 
@@ -3148,9 +3979,18 @@ function emitPhpNode(node, code, blockSettings, context) {
   // paired instances to just their children — a component with no PHP/HTML
   // equivalent contributes nothing of its own to the rendered page.
   if (isPascalCase) {
-    if (node.openingElement.selfClosing || node.children.length === 0) return '';
+    if (node.openingElement.selfClosing || node.children.length === 0)
+      return '';
     return emitPhpChildren(node.children, code, blockSettings, context);
   }
 
-  return emitPhpGenericElement(tagName, attrs, node.children, node, code, blockSettings, context);
+  return emitPhpGenericElement(
+    tagName,
+    attrs,
+    node.children,
+    node,
+    code,
+    blockSettings,
+    context,
+  );
 }

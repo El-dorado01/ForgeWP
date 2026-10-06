@@ -99,6 +99,7 @@ export {
   defineTheme,
   useWpMeta,
   submitWpForm,
+  useWpForm,
   resolveDualHost,
   WpBlockContext,
   defineEditable,
@@ -164,6 +165,8 @@ export type {
   WpOptionField,
   WpOptionsSchema,
   WpFormResult,
+  WpFormState,
+  WpFormStatus,
 } from './hooks';
 
 // Types

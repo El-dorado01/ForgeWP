@@ -215,6 +215,8 @@ Detailed WordPress-first implementation phases and acceptance gates are maintain
 - The React `submitWpForm()` local path logs the payload, waits, and simulates success. A field value equal to the `__fail__` sentinel exercises its simulated error response. It does not exercise PHP validation, persistence, or mail delivery.
 - `WpFormFields` reads `window._forgeWpMockForms` or `window.forgeWpHydration.forms`. The standard `forgewpVirtualPlugin` bridge injects posts, menus, translations, options, products, and optional auth globals, but no mock-form global. The WordPress hydration path does include form fields. This suggests client-owned fields may render empty in ordinary Vite preview; confirm with a minimal fixture before treating it as reproduced.
 - Native form definitions remain developer-owned. The generated Forms screen can edit only explicitly enabled `clientFields`; it is not a form catalog or plugin-form builder.
+- Interactive block components already use ForgeWP's hydration pipeline for visitor behavior. `useWpForm()` now provides reusable submission state over the existing `submitWpForm()` contract, and interactive blocks can opt into a separate inert `editorPreview`. A project-specific Builder form still needs a block component that renders its configured form fields; broader client-managed-field patterns remain to be evaluated. Relevant sources: `packages/compiler/lib/blocks/index.js`, `packages/react/src/hooks.ts`, and `packages/react/src/components/WpFormFields.tsx`.
+- Native confirmation subjects and bodies are plain-text strings in the developer-owned form config. The CLI provides `make:form`, but no mail-template scaffold or admin template editor. A CLI-generated source template would still require a code change and deployment; wp-admin editing is a separate ownership and persistence feature.
 - In staging, verify that the configured Forms capability maps to the intended WordPress roles. This screen can expose stored submission PII to anyone granted that capability.
 - Plugin-created forms have two distinct shortcode paths: developer-authored `<WpShortcode>` compiles to `do_shortcode()` and shows a placeholder in Vite, while a WordPress editor can insert the core Shortcode block into content rendered by `BlockArea`/`the_content()` without a `forms` config entry. The docs now describe both paths. `forms.mode: 'shortcode'` is a developer-authored contract; its `shortcode` config value is not automatically exposed as an editable setting in wp-admin. A developer can make it editable by explicitly sourcing it from page metadata, but that is separate wiring.
 
@@ -225,6 +227,9 @@ Detailed WordPress-first implementation phases and acceptance gates are maintain
 3. Verify the configured Forms capability against real WordPress roles on staging, including access to list, view, and export stored submissions.
 4. Keep plugin shortcode placement and shortcode configuration distinct. Editors can create a plugin form and insert its shortcode with the core Shortcode block in content rendered by `the_content()`. Do not add a ForgeWP shortcode registry/editor unless a demonstrated workflow requires it.
 5. For event registrations, evaluate a maintained plugin/add-on stack against capacity, approval/waitlist, confirmation, export, privacy/retention, and separate marketing consent before expanding the general-purpose native forms API.
+6. Evaluate an opt-in client-managed form mode for projects where a site editor must manage most or all visible questions. Keep developer-owned required fields and server-side validation explicit; do not let editable field definitions silently change mail routing, storage, or other submission behavior. Define field identity, removal/reordering behavior, permissions, and how changes affect existing submissions before expanding the current additive `clientFields` model.
+7. Add named, source-controlled mail templates with a `make:mail` scaffold and safe merge-tag interpolation for admin notifications and submitter confirmations. Keep this distinct from a separate opt-in WordPress admin editor for editable subject/body copy; the source template should remain a clear fallback, and neither path should execute arbitrary PHP or template code.
+8. Refine the reusable native-form Builder pattern for projects with client-managed fields. Preserve the existing interactive-block hydration and secure form endpoint; define how `WpFormFields` appears before and after hydration, and keep editor previews inert.
 
 **Acceptance criteria:**
 
@@ -233,6 +238,10 @@ Detailed WordPress-first implementation phases and acceptance gates are maintain
 - Verify role/capability behavior, stored-submission privacy access, and mail delivery semantics on a real WordPress staging site.
 - Verify CSV export, personal-data export/erasure, and WP-Cron retention behavior on a real WordPress staging site before enabling these tools for a client.
 - Forms docs distinguish plugin shortcodes authored by developers from shortcodes inserted by editors into WordPress content.
+- A client-managed form mode can edit only explicitly opted-in fields; developer-locked fields, server-side validation, permissions, and the effect of field changes on stored submissions are defined and tested.
+- `make:mail` scaffolds a named source template, form configuration can reference it, and tests verify allowed merge tags, escaping, and missing/unknown-tag behavior.
+- If wp-admin template editing is implemented, it is separately opt-in, capability-protected, limited to safe subject/body content and an allowlist of merge tags, and falls back predictably to the source template.
+- A Builder form using `useWpForm()` submits through the existing secure form contract and exposes field errors and response state. Projects that enable `clientFields` have a documented and tested authoring pattern that renders those fields predictably in the visitor output.
 
 ## Recommended Implementation Order
 
@@ -244,6 +253,7 @@ Detailed WordPress-first implementation phases and acceptance gates are maintain
 6. Add route collision/migration diagnostics and document rewrite ownership.
 7. Decide whether archive header promotion remains capped or becomes editor-configurable.
 8. Before implementing event registration, compare a plugin/add-on pilot with a scoped native extension; resolve capacity/approval, export, privacy, and retention requirements first.
+9. Define the ownership boundary for client-managed native form fields, then design source-controlled mail templates and any separate wp-admin copy overrides.
 
 ## Non-Goals and Guardrails
 

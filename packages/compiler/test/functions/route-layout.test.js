@@ -124,4 +124,17 @@ describe('shell contract is not a named-component special case', () => {
       'parent.hasAttribute("data-forgewp-hydrate")',
     );
   });
+
+  it('accepts wrapped React component exports in both hydration runtimes', () => {
+    const reactAdapter = readFileSync(
+      path.join(__dirname, '../../lib/react-adapter.js'),
+      'utf8',
+    );
+    for (const src of [generateTheme, reactAdapter]) {
+      expect(src).toContain('isReactComponentType(module.default)');
+      expect(src).toContain('Symbol.for("react.forward_ref")');
+      expect(src).toContain('Symbol.for("react.memo")');
+      expect(src).toContain('isReactComponentType(component)');
+    }
+  });
 });

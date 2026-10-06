@@ -1,6 +1,6 @@
 import { Eye } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
-import { pickEditable, useWpMeta, WpEditable } from '@forgewp/react';
+import { pickEditable, useWpMeta, WpEditable, WpImage } from '@forgewp/react';
 import { editable as pageEditable } from '../../../cms/editables/front-page';
 import { defaults as previewDefaults } from '../../../cms/editables/sections/preview';
 import LandingSection from './LandingSection';
@@ -107,7 +107,7 @@ export default function PreviewSection({
           >
             <div className='absolute -inset-5 translate-y-5 bg-brand/10 blur-2xl' />
             <div className='relative rotate-[-4deg] border border-white/80 bg-white p-3 shadow-[18px_24px_36px_rgba(15,23,42,0.18)] transition-transform duration-700 hover:rotate-[-1deg]'>
-              <img
+              <WpImage
                 src='/assets/hospitality-cover.png'
                 alt={coverAlt}
                 className='block aspect-[0.7] w-full object-cover'

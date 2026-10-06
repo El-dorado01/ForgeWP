@@ -1,97 +1,44 @@
 import {
+  buildLicenseInquiryFields,
   LicenseInquiryPage,
   type LicenseInquiryField,
 } from '../components/LicenseInquiryPage';
+import { useWpPageLink } from '@forgewp/react';
+import { form } from '../../../cms/forms/corporate-license-inquiry';
 
 export const pageConfig = { layout: 'default' };
 
-const fields: LicenseInquiryField[] = [
-  {
-    name: 'firstName',
-    label: 'Vorname',
-    autoComplete: 'given-name',
-    required: true,
-  },
-  {
-    name: 'lastName',
-    label: 'Nachname',
-    autoComplete: 'family-name',
-    required: true,
-  },
-  {
-    name: 'company',
-    label: 'Unternehmen / Hotelgruppe',
-    autoComplete: 'organization',
-    required: true,
-    wide: true,
-  },
-  {
-    name: 'street',
-    label: 'Straße und Hausnummer',
-    autoComplete: 'street-address',
-    required: true,
-    wide: true,
-  },
-  {
-    name: 'postalCode',
-    label: 'Postleitzahl',
-    autoComplete: 'postal-code',
-    required: true,
-  },
-  {
-    name: 'city',
-    label: 'Ort',
-    autoComplete: 'address-level2',
-    required: true,
-  },
-  {
-    name: 'country',
-    label: 'Land',
-    autoComplete: 'country-name',
-    required: true,
-  },
-  {
-    name: 'email',
-    label: 'Geschäftliche E-Mail-Adresse',
-    type: 'email',
-    autoComplete: 'email',
-    required: true,
-    wide: true,
-  },
-  {
-    name: 'phone',
-    label: 'Telefonnummer',
-    type: 'tel',
-    autoComplete: 'tel',
-    required: true,
-  },
-  {
-    name: 'userCount',
-    label: 'Geplante Nutzerzahl',
-    type: 'number',
-    min: 11,
-    required: true,
-  },
-  { name: 'locations', label: 'Anzahl der Standorte', type: 'number', min: 1 },
-  {
-    name: 'scope',
-    label: 'Gewünschter Nutzungsumfang',
-    type: 'textarea',
+const fieldPresentation: Record<
+  string,
+  Pick<
+    LicenseInquiryField,
+    'autoComplete' | 'min' | 'max' | 'placeholder' | 'wide'
+  >
+> = {
+  firstName: { autoComplete: 'given-name' },
+  lastName: { autoComplete: 'family-name' },
+  company: { autoComplete: 'organization', wide: true },
+  street: { autoComplete: 'street-address', wide: true },
+  postalCode: { autoComplete: 'postal-code' },
+  city: { autoComplete: 'address-level2' },
+  country: { autoComplete: 'country-name' },
+  email: { autoComplete: 'email', wide: true },
+  phone: { autoComplete: 'tel' },
+  userCount: { min: 11 },
+  locations: { min: 1 },
+  scope: {
     placeholder:
       'Zum Beispiel: mehrere Hotels, Unternehmensgruppe oder standortübergreifende Nutzung',
-    required: true,
     wide: true,
   },
-  {
-    name: 'message',
-    label: 'Weitere Informationen',
-    type: 'textarea',
-    placeholder: 'Optional',
-    wide: true,
-  },
-];
+  message: { placeholder: 'Optional', wide: true },
+};
+
+const fields = buildLicenseInquiryFields(form.fields ?? {}, fieldPresentation);
 
 export function UnternehmenslizenzPage() {
+  const teamLicenseHref = useWpPageLink('teamlizenz-page', '/lizenz/team');
+
   return (
     <LicenseInquiryPage
       title='Unternehmenslizenz'
@@ -109,7 +56,7 @@ export function UnternehmenslizenzPage() {
       ]}
       fields={fields}
       formName='corporate-license-inquiry'
-      otherLicense={{ label: 'Teamlizenz ansehen', href: '/lizenz/team' }}
+      otherLicense={{ label: 'Teamlizenz ansehen', href: teamLicenseHref }}
     />
   );
 }

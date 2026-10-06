@@ -103,3 +103,152 @@
 .editor-styles-wrapper {
   min-height: auto !important;
 }
+
+body.admin-bar header.fixed.top-0 {
+  top: 32px;
+}
+
+@media screen and (max-width: 782px) {
+  body.admin-bar header.fixed.top-0 {
+    top: 46px;
+  }
+}
+
+.edd-withdrawal,
+.edd-blocks-form {
+  color: #334155;
+  font-family: var(--font-sans, sans-serif);
+}
+
+.edd-withdrawal {
+  margin-block-start: 3rem;
+  border-block-start: 1px solid rgb(15 23 42 / 20%);
+  padding-block-start: 2rem;
+}
+
+.edd-withdrawal__title {
+  margin-block: 0 0.75rem;
+  color: #0f172a;
+  font-family: var(--font-heading, var(--font-sans, sans-serif));
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.edd-withdrawal__intro {
+  margin-block-end: 1.5rem;
+  color: #475569;
+  line-height: 1.65;
+}
+
+.edd-blocks-form__group {
+  margin-block: 1.25rem;
+}
+
+.edd-blocks-form :is(.edd-label, label) {
+  display: block;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.edd-blocks-form
+  .edd-input:not([type='hidden']):not([type='checkbox']):not(
+    [type='radio']
+  ):not([type='submit']) {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 3rem;
+  margin-block-start: 0.5rem;
+  border: 1px solid rgb(15 23 42 / 20%);
+  border-radius: 0;
+  background: #fff;
+  padding: 0.75rem;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.875rem;
+  text-transform: none;
+}
+
+.edd-blocks-form .edd-input:focus {
+  border-color: #e11d48;
+  outline: 1px solid #e11d48;
+  outline-offset: 1px;
+}
+
+.edd-blocks-form :is(input[type='checkbox'], input[type='radio']) {
+  accent-color: #e11d48;
+}
+
+.edd-withdrawal__actions {
+  margin-block: 1.5rem 0;
+}
+
+.edd-blocks-form
+  :is(
+    .edd-submit,
+    .edd-withdrawal__submit,
+    button[type='submit'],
+    input[type='submit']
+  ) {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #0f172a;
+  border-radius: 0;
+  background: #0f172a;
+  padding: 0.75rem 1.25rem;
+  color: #fff;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.edd-blocks-form
+  :is(
+    .edd-submit,
+    .edd-withdrawal__submit,
+    button[type='submit'],
+    input[type='submit']
+  ):hover {
+  border-color: #e11d48;
+  background: #e11d48;
+}
+
+.edd-withdrawal a,
+.edd-blocks-form a {
+  color: #0f172a;
+  text-decoration-color: #e11d48;
+  text-underline-offset: 0.2em;
+}
+
+.edd-withdrawal :is(a, button, input, select, textarea):focus-visible,
+.edd-blocks-form :is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid #e11d48;
+  outline-offset: 3px;
+}
+
+.edd-system-page__content {
+  box-sizing: border-box;
+  width: min(100% - 2.5rem, 80rem);
+  margin-inline: auto;
+  padding-block: clamp(3rem, 8vw, 6rem);
+}
+
+.edd-system-page__surface {
+  min-width: 0;
+  border: 1px solid rgb(15 23 42 / 12%);
+  background: #fff;
+  padding: clamp(1.25rem, 4vw, 3rem);
+}
+
+.edd-system-page__surface > :first-child {
+  margin-block-start: 0;
+}

@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import {
   WpHead,
+  WpImage,
+  WpLink,
   WpQueryLoop,
   useWpCustomField,
   useWpExcerpt,
@@ -23,11 +25,11 @@ function EventFeatureTile() {
   const permalink = useWpPermalink();
 
   return (
-    <a
+    <WpLink
       href={permalink}
       className='event-reveal event-reveal-delay-1 group relative min-h-[360px] overflow-hidden sm:min-h-[460px] lg:min-h-full'
     >
-      <img
+      <WpImage
         src={image}
         alt={cityLabel}
         className='absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]'
@@ -40,7 +42,7 @@ function EventFeatureTile() {
           aria-hidden='true'
         />
       </span>
-    </a>
+    </WpLink>
   );
 }
 
@@ -52,7 +54,7 @@ function EventListing() {
 
   return (
     <article className='event-reveal event-reveal-delay-2 grid gap-6 border-b border-brand/20 py-8 last:border-b-0 sm:grid-cols-[220px_0.34fr_0.66fr] sm:gap-8 sm:py-10'>
-      <img
+      <WpImage
         src={image}
         alt={title}
         className='aspect-[16/9] w-full object-cover sm:aspect-[4/3]'
@@ -83,7 +85,7 @@ function EventListing() {
         <p className='mt-3 max-w-2xl text-base leading-relaxed text-slate-600'>
           {useWpExcerpt()}
         </p>
-        <a
+        <WpLink
           href={permalink}
           className='mt-6 inline-flex items-center gap-2 border-b border-brand pb-2 text-xs font-bold uppercase tracking-[0.08em] text-brand transition-colors hover:border-accent hover:text-accent'
         >
@@ -92,7 +94,7 @@ function EventListing() {
             size={16}
             aria-hidden='true'
           />
-        </a>
+        </WpLink>
       </div>
     </article>
   );

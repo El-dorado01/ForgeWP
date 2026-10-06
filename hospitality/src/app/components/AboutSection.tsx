@@ -1,5 +1,5 @@
 import { motion, type Variants } from 'framer-motion';
-import { pickEditable, useWpMeta, WpEditable } from '@forgewp/react';
+import { pickEditable, useWpMeta, WpEditable, WpImage } from '@forgewp/react';
 import { editable as pageEditable } from '../../../cms/editables/front-page';
 import { defaults as aboutDefaults } from '../../../cms/editables/sections/about';
 import LandingSection from './LandingSection';
@@ -149,7 +149,7 @@ export default function AboutSection({
             variants={revealVariants}
           >
             <div>
-              <img
+              <WpImage
                 src='/assets/client-assets/dicon-brand/dicon-logo.jpg'
                 alt='DICON Marketing- und Beratungsgesellschaft mbH'
                 className='h-auto w-[min(75vw,360px)] bg-white p-3'

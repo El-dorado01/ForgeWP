@@ -1,3 +1,5 @@
+import { parse } from '@babel/parser';
+
 /**
  * Collects local page routes that exist in the React app (menus + routes.tsx)
  * but have no compiled custom template yet. These must still become WordPress
@@ -74,6 +76,74 @@ function walkMenuItems(items, seen, out) {
   }
 }
 
+export function collectStaticRouteDefinitions(routesSource = '') {
+  if (!routesSource) return [];
+
+  const routes = [];
+  try {
+    const ast = parse(routesSource, {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript'],
+    });
+
+    const visit = (node) => {
+      if (!node || typeof node !== 'object') return;
+
+      if (node.type === 'JSXElement') {
+        const opening = node.openingElement;
+        if (
+          opening.name.type === 'JSXIdentifier' &&
+          opening.name.name === 'Route'
+        ) {
+          const pathAttribute = opening.attributes.find(
+            (attribute) =>
+              attribute.type === 'JSXAttribute' &&
+              attribute.name.type === 'JSXIdentifier' &&
+              attribute.name.name === 'path',
+          );
+          const pathValue = pathAttribute?.value;
+          const routePath =
+            pathValue?.type === 'StringLiteral'
+              ? pathValue.value
+              : pathValue?.type === 'JSXExpressionContainer' &&
+                  pathValue.expression.type === 'StringLiteral'
+                ? pathValue.expression.value
+                : '';
+
+          if (routePath.startsWith('/')) {
+            const block = routesSource.slice(node.start, node.end);
+            const titleMatch = block.match(
+              /\btitle\s*[:=]\s*['"`]([^'"`]+)['"`]/i,
+            );
+            const descMatch = block.match(
+              /\bdescription\s*[:=]\s*['"`]([^'"`]+)['"`]/i,
+            );
+            routes.push({
+              path: routePath,
+              title: titleMatch ? titleMatch[1] : null,
+              description: descMatch ? descMatch[1] : null,
+            });
+          }
+        }
+      }
+
+      for (const value of Object.values(node)) {
+        if (Array.isArray(value)) {
+          for (const child of value) visit(child);
+        } else if (value && typeof value === 'object') {
+          visit(value);
+        }
+      }
+    };
+
+    visit(ast);
+  } catch {
+    return [];
+  }
+
+  return routes;
+}
+
 /**
  * @param {{ menus?: Record<string, any>, routesSource?: string, existingSlugs?: string[] }} opts
  * @returns {Array<{ slug: string, title: string, description?: string, template: string }>}
@@ -91,26 +161,8 @@ export function collectFallbackPageRoutes({
   const out = [];
 
   if (routesSource) {
-    // Match either <Route ...>...</Route> blocks or self-closing <Route ... />
-    const routeBlockRegex = /<Route\b([\s\S]*?)(?:<\/Route>|\/>)/gi;
-    let match;
-    while ((match = routeBlockRegex.exec(routesSource)) !== null) {
-      const block = match[1];
-      const pathMatch = block.match(/path\s*=\s*['"]\/([^'"`]+)['"]/i);
-      if (pathMatch) {
-        const titleMatch = block.match(/\btitle\s*[:=]\s*['"`]([^'"`]+)['"`]/i);
-        const descMatch = block.match(
-          /\bdescription\s*[:=]\s*['"`]([^'"`]+)['"`]/i,
-        );
-        const title = titleMatch ? titleMatch[1] : null;
-        const desc = descMatch ? descMatch[1] : null;
-        consider('/' + pathMatch[1], title, desc, seen, out);
-      }
-    }
-
-    // Fallback: any standalone path="/..." in routesSource not caught by block regex
-    for (const m of routesSource.matchAll(/path\s*=\s*['"]\/([^'"`]+)['"]/g)) {
-      consider('/' + m[1], null, null, seen, out);
+    for (const route of collectStaticRouteDefinitions(routesSource)) {
+      consider(route.path, route.title, route.description, seen, out);
     }
   }
 

@@ -497,10 +497,10 @@ export function generateHydrationRuntime(
     import(scriptUrl)
       .then((module) => {
         const Component = resolveExport(module, islandName);
-        if (typeof Component !== "function") {
+        if (!isReactComponentType(Component)) {
           const exportsList = Object.keys(module).join(", ");
           console.error(
-            "[ForgeWP Hydrator] Chunk for " + islandName + " does not export a valid React component. " +
+            "[ForgeWP Hydrator] Chunk for " + islandName + " does not export a valid React component type. " +
             "Available exports: " + exportsList
           );
           return;
@@ -559,6 +559,17 @@ export function generateHydrationRuntime(
       });
   }
 
+  function isReactComponentType(value) {
+    if (typeof value === "function" || typeof value === "string") return true;
+    if (!value || typeof value !== "object") return false;
+    const type = value.$$typeof;
+    return type === Symbol.for("react.forward_ref") ||
+      type === Symbol.for("react.memo") ||
+      type === Symbol.for("react.lazy") ||
+      type === Symbol.for("react.provider") ||
+      type === Symbol.for("react.context");
+  }
+
   function resolveExport(module, islandName) {
     if (!module || typeof module !== "object") return undefined;
     const pascalName = islandName
@@ -567,49 +578,50 @@ export function generateHydrationRuntime(
       .join("");
     const camelName = pascalName.charAt(0).toLowerCase() + pascalName.slice(1);
 
-    if (typeof module[pascalName] === "function") return module[pascalName];
-    if (typeof module[camelName] === "function") return module[camelName];
-    if (typeof module.default === "function") return module.default;
+    if (isReactComponentType(module[pascalName])) return module[pascalName];
+    if (isReactComponentType(module[camelName])) return module[camelName];
+    if (isReactComponentType(module.default)) return module.default;
 
     const keys = Object.keys(module);
     for (let i = 0; i < keys.length; i++) {
       const val = module[keys[i]];
-      if (typeof val === "function") {
-        if (val.displayName === pascalName || val.name === pascalName) return val;
-        if (val.displayName === camelName || val.name === camelName) return val;
+      if (isReactComponentType(val)) {
+        const componentName = val.displayName || val.name || (val.render && val.render.name);
+        if (componentName === pascalName || componentName === camelName) return val;
       }
     }
 
     const cleanIsland = islandName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
     for (let i = 0; i < keys.length; i++) {
       const k = keys[i];
-      if (k.toLowerCase() === cleanIsland && typeof module[k] === "function") {
+      if (k.toLowerCase() === cleanIsland && isReactComponentType(module[k])) {
         return module[k];
       }
     }
 
-    const fnKeys = keys.filter(function (k) {
-      return typeof module[k] === "function";
+    const componentKeys = keys.filter(function (k) {
+      return isReactComponentType(module[k]);
     });
-    if (fnKeys.length === 1) return module[fnKeys[0]];
+    if (componentKeys.length === 1) return module[componentKeys[0]];
 
-    const nonHooks = fnKeys.filter(function (k) {
-      const fn = module[k];
-      const fnName = fn.displayName || fn.name || k;
-      return !/^use[A-Z]/.test(fnName);
+    const nonHooks = componentKeys.filter(function (k) {
+      const component = module[k];
+      const componentName = component.displayName || component.name || (component.render && component.render.name) || k;
+      return !/^use[A-Z]/.test(componentName);
     });
     if (nonHooks.length === 1) return module[nonHooks[0]];
 
     if (islandName.endsWith("-provider") || islandName.includes("provider")) {
-      const provMatch = fnKeys.find(function (k) {
-        const fnName = module[k].displayName || module[k].name || k;
-        return /Provider$/i.test(fnName);
+      const provMatch = componentKeys.find(function (k) {
+        const component = module[k];
+        const componentName = component.displayName || component.name || (component.render && component.render.name) || k;
+        return /Provider$/i.test(componentName);
       });
       if (provMatch) return module[provMatch];
     }
 
     if (nonHooks.length > 0) return module[nonHooks[0]];
-    if (fnKeys.length > 0) return module[fnKeys[0]];
+    if (componentKeys.length > 0) return module[componentKeys[0]];
     return undefined;
   }
 
@@ -632,7 +644,7 @@ export function generateHydrationRuntime(
         return null;
       });
     })).then(function (list) {
-      return list.filter(function (fn) { return typeof fn === "function"; });
+      return list.filter(function (component) { return isReactComponentType(component); });
     });
     return providerComponentsPromise;
   }

@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from 'react';
 import { useEffect } from 'react';
-import { Route, Switch } from '@forgewp/react';
+import { Route, Switch, useWpPageLink, WpLink } from '@forgewp/react';
 import * as HomePage from './page';
 
 /**
@@ -109,6 +109,8 @@ function StudyRedirect() {
 }
 
 export default function AppRoutes() {
+  const homeHref = useWpPageLink('front-page', '/');
+
   return (
     <Switch>
       {/* Home preview */}
@@ -194,12 +196,12 @@ export default function AppRoutes() {
             <h1 className='text-4xl font-bold font-serif text-zinc-950'>404</h1>
             <p className='mt-2 text-zinc-600'>Page not found locally.</p>
             <div className='mt-4 flex flex-col items-center gap-2 text-sm'>
-              <a
-                href='/'
+              <WpLink
+                href={homeHref}
                 className='text-brand font-semibold hover:underline'
               >
                 ← Go back home
-              </a>
+              </WpLink>
             </div>
           </div>
         ))}

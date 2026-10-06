@@ -1,5 +1,5 @@
 import { motion, type Variants } from 'framer-motion';
-import { pickEditable, useWpMeta, WpEditable } from '@forgewp/react';
+import { pickEditable, useWpMeta, WpEditable, WpImage } from '@forgewp/react';
 import { editable as pageEditable } from '../../../cms/editables/front-page';
 import { defaults as automationDefaults } from '../../../cms/editables/sections/automation';
 import LandingSection from './LandingSection';
@@ -158,7 +158,7 @@ export default function AutomationSection({
           viewport={{ once: true, amount: 0.25 }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
         >
-          <img
+          <WpImage
             src='/assets/editorial-images/robotic-hotel-lobby-01.png'
             alt={imageAlt}
             className='block aspect-[3/1] w-full object-cover'
@@ -262,7 +262,7 @@ export default function AutomationSection({
           viewport={{ once: true, amount: 0.2 }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
         >
-          <img
+          <WpImage
             src='/assets/editorial-images/robotic-hotel-lobby-02.png'
             alt={secondImageAlt}
             className='block aspect-[3/1] w-full object-cover'

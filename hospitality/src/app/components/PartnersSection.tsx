@@ -1,4 +1,4 @@
-import { pickEditable, useWpMeta, WpEditable } from '@forgewp/react';
+import { pickEditable, useWpMeta, WpEditable, WpImage } from '@forgewp/react';
 import { motion, type Variants } from 'framer-motion';
 import { editable as pageEditable } from '../../../cms/editables/front-page';
 import { defaults as partnerDefaults } from '../../../cms/editables/sections/partners';
@@ -217,7 +217,7 @@ export default function PartnersSection({
             </p>
             <div className='mt-10 grid gap-5 sm:grid-cols-3 sm:items-center'>
               <div className='flex min-h-36 flex-col items-center justify-center bg-white p-4'>
-                <img
+                <WpImage
                   src='/assets/client-assets/partner-assets/iha-logo.png'
                   alt='Hotelverband Deutschland IHA logo'
                   className='h-20 w-full object-contain'
@@ -235,7 +235,7 @@ export default function PartnersSection({
                       className='flex min-h-36 flex-col items-center justify-center bg-white p-4'
                     >
                       {logo && (
-                        <img
+                        <WpImage
                           src={logo.src}
                           alt={logo.alt}
                           className='h-20 w-full object-contain'
@@ -299,7 +299,7 @@ export default function PartnersSection({
                     <div className='flex min-w-0 items-center gap-4'>
                       {logo && (
                         <div className='flex h-14 w-28 shrink-0 items-center justify-center bg-white px-3 py-2'>
-                          <img
+                          <WpImage
                             src={logo.src}
                             alt={logo.alt}
                             className='max-h-full max-w-full object-contain'

@@ -4,6 +4,7 @@ import {
   useWpExcerpt,
   useWpTitle,
   useWpPermalink,
+  WpLink,
 } from '@forgewp/react';
 
 type EventRecordProps = {
@@ -44,12 +45,12 @@ function EventCard({ tone = 'light' }: EventRecordProps) {
         >
           {useWpExcerpt()}
         </p>
-        <a
+        <WpLink
           href={permalink}
           className={`mt-5 inline-flex border px-4 py-3 text-[10px] font-bold uppercase ${isDark ? 'border-accent text-white hover:bg-accent' : 'border-brand text-brand hover:bg-brand hover:text-white'}`}
         >
           Veranstaltungsdetails
-        </a>
+        </WpLink>
       </div>
     </article>
   );

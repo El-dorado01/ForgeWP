@@ -2,9 +2,56 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { buildPhpIconSvgMapLiteral } from '../icon-registry.js';
 
-export function buildRoutingPhp(config, pagesPhpArray, schemaDefaultsPhp, menuItemsPhpArray, socialSettingsPhp, postTypes) {
+export function buildRoutingPhp(
+  config,
+  pagesPhpArray,
+  schemaDefaultsPhp,
+  menuItemsPhpArray,
+  socialSettingsPhp,
+  postTypes,
+) {
   const iconSvgMapPhp = buildPhpIconSvgMapLiteral();
   const autoCreationPhp = `
+if (!function_exists('forgewp_ensure_route_parent_page')) {
+    function forgewp_ensure_route_parent_page(string $path): int {
+        $path = trim($path, '/');
+        if ($path === '') {
+            return 0;
+        }
+
+        $existing_page = get_page_by_path($path, OBJECT, 'page');
+        if ($existing_page) {
+            return (int) $existing_page->ID;
+        }
+
+        $parts = explode('/', $path);
+        $post_name = sanitize_title(array_pop($parts));
+        $parent_id = !empty($parts)
+            ? forgewp_ensure_route_parent_page(implode('/', $parts))
+            : 0;
+        if (!empty($parts) && $parent_id <= 0) {
+            return 0;
+        }
+
+        $post_title = ucwords(str_replace(array('-', '_'), ' ', $post_name));
+        $page_id = wp_insert_post(array(
+            'post_title'  => $post_title,
+            'post_name'   => $post_name,
+            'post_parent' => $parent_id,
+            'post_status' => 'publish',
+            'post_type'   => 'page',
+        ), true);
+        if (is_wp_error($page_id) || $page_id <= 0) {
+            return 0;
+        }
+
+        update_post_meta($page_id, '_wp_page_template', 'page-placeholder.php');
+        update_post_meta($page_id, 'forgewp_route_parent', '1');
+
+        return (int) $page_id;
+    }
+}
+
 /**
  * Automatically create routes defined in menus.json and assign custom page templates upon theme activation.
  */
@@ -28,13 +75,14 @@ ${pagesPhpArray}
             $parts = explode('/', $slug_path);
             $post_name = array_pop($parts);
             $parent_path = implode('/', $parts);
-            $parent_page = get_page_by_path($parent_path);
-            if ($parent_page) {
-                $parent_id = $parent_page->ID;
+            $parent_id = forgewp_ensure_route_parent_page($parent_path);
+            if ($parent_id <= 0) {
+                error_log('[ForgeWP] Could not provision parent path for route: ' . $slug_path);
+                continue;
             }
         }
 
-        $existing_page = get_page_by_path($slug_path);
+        $existing_page = get_page_by_path($slug_path, OBJECT, 'page');
         $page_id = 0;
         if (!$existing_page) {
             $page_args = array(

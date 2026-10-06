@@ -1,5 +1,11 @@
-import { ArrowLeft, LockKeyhole } from 'lucide-react';
-import { WpHead } from '@forgewp/react';
+import { ArrowLeft } from 'lucide-react';
+import {
+  BlockArea,
+  useWpPageLink,
+  WpHead,
+  WpImage,
+  WpLink,
+} from '@forgewp/react';
 import { motion, useReducedMotion } from 'framer-motion';
 
 export const pageConfig = { layout: 'default' };
@@ -7,6 +13,15 @@ export const pageConfig = { layout: 'default' };
 export function EinzellizenzPage() {
   const reduceMotion = useReducedMotion();
   const revealInitial = reduceMotion ? false : { opacity: 0, y: 24 };
+  const licensesHref = useWpPageLink('lizenzen-page', '/lizenzen');
+  const termsHref = useWpPageLink(
+    'agb-lizenzbedingungen-page',
+    '/agb-lizenzbedingungen',
+  );
+  const withdrawalHref = useWpPageLink(
+    'widerrufsbelehrung-page',
+    '/widerrufsbelehrung',
+  );
 
   return (
     <main className='min-h-screen bg-[#f5f3ee] text-brand'>
@@ -23,8 +38,8 @@ export function EinzellizenzPage() {
         transition={{ duration: 0.75, ease: 'easeOut' }}
       >
         <div className='mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-14 lg:px-12'>
-          <a
-            href='/lizenzen'
+          <WpLink
+            href={licensesHref}
             className='inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-slate-300 transition-colors hover:text-white'
           >
             <ArrowLeft
@@ -32,7 +47,7 @@ export function EinzellizenzPage() {
               aria-hidden='true'
             />{' '}
             Alle Lizenzen
-          </a>
+          </WpLink>
           <p className='mt-9 text-xs font-bold uppercase tracking-[0.18em] text-accent'>
             Hospitality 2035 <span className='px-2 text-white/40'>/</span>{' '}
             Einzellizenz
@@ -46,8 +61,8 @@ export function EinzellizenzPage() {
             </span>
           </h1>
           <p className='mt-4 max-w-2xl text-base leading-relaxed text-slate-300'>
-            Für Unternehmen und gewerbliche Nutzer. Prüfen Sie den Lizenzumfang
-            und die Bestelldaten vor dem zahlungspflichtigen Kauf.
+            Für Unternehmen und gewerbliche Nutzer. Prüfen Sie Lizenzumfang und
+            Preis; Rechnungs- und Zahlungsdaten erfassen Sie im EDD-Checkout.
           </p>
         </div>
       </motion.header>
@@ -61,106 +76,20 @@ export function EinzellizenzPage() {
         >
           <section aria-labelledby='billing-heading'>
             <p className='text-xs font-bold uppercase tracking-[0.16em] text-accent'>
-              01 / Rechnungsdaten
+              01 / Checkout
             </p>
             <h2
               id='billing-heading'
               className='mt-3 font-heading text-2xl font-bold text-brand sm:text-3xl'
             >
-              Angaben zum Unternehmen
+              Rechnungsdaten und Zahlung
             </h2>
             <p className='mt-3 max-w-2xl text-sm leading-relaxed text-slate-600'>
-              Der Bestellprozess wird für gewerbliche Käufer eingerichtet.
+              Der sichere Checkout wird von Easy Digital Downloads
+              bereitgestellt. Dort geben Sie die Rechnungsdaten ein und wählen
+              die angebotene Zahlungsart. Die Umsatzsteuer wird anhand der
+              Checkout-Einstellungen berechnet.
             </p>
-
-            <div className='mt-8 grid gap-x-6 gap-y-5 sm:grid-cols-2'>
-              <label className='text-xs font-bold uppercase tracking-[0.06em] text-slate-600'>
-                Unternehmen
-                <input
-                  type='text'
-                  autoComplete='organization'
-                  disabled
-                  className='mt-2 block w-full border border-brand/20 bg-white px-3 py-3 text-sm font-normal normal-case tracking-normal text-brand disabled:bg-white/60'
-                />
-              </label>
-              <label className='text-xs font-bold uppercase tracking-[0.06em] text-slate-600'>
-                Umsatzsteuer-ID{' '}
-                <span className='font-normal normal-case text-slate-400'>
-                  optional
-                </span>
-                <input
-                  type='text'
-                  autoComplete='off'
-                  disabled
-                  className='mt-2 block w-full border border-brand/20 bg-white px-3 py-3 text-sm font-normal normal-case tracking-normal text-brand disabled:bg-white/60'
-                />
-              </label>
-              <label className='text-xs font-bold uppercase tracking-[0.06em] text-slate-600'>
-                Vorname
-                <input
-                  type='text'
-                  autoComplete='given-name'
-                  disabled
-                  className='mt-2 block w-full border border-brand/20 bg-white px-3 py-3 text-sm font-normal normal-case tracking-normal text-brand disabled:bg-white/60'
-                />
-              </label>
-              <label className='text-xs font-bold uppercase tracking-[0.06em] text-slate-600'>
-                Nachname
-                <input
-                  type='text'
-                  autoComplete='family-name'
-                  disabled
-                  className='mt-2 block w-full border border-brand/20 bg-white px-3 py-3 text-sm font-normal normal-case tracking-normal text-brand disabled:bg-white/60'
-                />
-              </label>
-              <label className='text-xs font-bold uppercase tracking-[0.06em] text-slate-600 sm:col-span-2'>
-                Geschäftliche E-Mail-Adresse
-                <input
-                  type='email'
-                  autoComplete='email'
-                  disabled
-                  className='mt-2 block w-full border border-brand/20 bg-white px-3 py-3 text-sm font-normal normal-case tracking-normal text-brand disabled:bg-white/60'
-                />
-              </label>
-              <label className='text-xs font-bold uppercase tracking-[0.06em] text-slate-600 sm:col-span-2'>
-                Straße und Hausnummer
-                <input
-                  type='text'
-                  autoComplete='street-address'
-                  disabled
-                  className='mt-2 block w-full border border-brand/20 bg-white px-3 py-3 text-sm font-normal normal-case tracking-normal text-brand disabled:bg-white/60'
-                />
-              </label>
-              <label className='text-xs font-bold uppercase tracking-[0.06em] text-slate-600'>
-                Postleitzahl
-                <input
-                  type='text'
-                  autoComplete='postal-code'
-                  disabled
-                  className='mt-2 block w-full border border-brand/20 bg-white px-3 py-3 text-sm font-normal normal-case tracking-normal text-brand disabled:bg-white/60'
-                />
-              </label>
-              <label className='text-xs font-bold uppercase tracking-[0.06em] text-slate-600'>
-                Ort
-                <input
-                  type='text'
-                  autoComplete='address-level2'
-                  disabled
-                  className='mt-2 block w-full border border-brand/20 bg-white px-3 py-3 text-sm font-normal normal-case tracking-normal text-brand disabled:bg-white/60'
-                />
-              </label>
-              <label className='text-xs font-bold uppercase tracking-[0.06em] text-slate-600 sm:col-span-2'>
-                Land
-                <select
-                  autoComplete='country-name'
-                  disabled
-                  className='mt-2 block w-full border border-brand/20 bg-white px-3 py-3 text-sm font-normal normal-case tracking-normal text-brand disabled:bg-white/60'
-                  defaultValue=''
-                >
-                  <option value=''>Land auswählen</option>
-                </select>
-              </label>
-            </div>
           </section>
 
           <section
@@ -168,62 +97,33 @@ export function EinzellizenzPage() {
             className='mt-14 border-t border-brand/20 pt-10'
           >
             <p className='text-xs font-bold uppercase tracking-[0.16em] text-accent'>
-              02 / Vereinbarungen
+              02 / Unterlagen
             </p>
             <h2
               id='consent-heading'
               className='mt-3 font-heading text-2xl font-bold text-brand sm:text-3xl'
             >
-              Vor dem Kauf
+              Lizenzbedingungen
             </h2>
-            <div className='mt-7 space-y-6'>
-              <label className='flex items-start gap-3 text-sm leading-relaxed text-slate-600'>
-                <input
-                  type='checkbox'
-                  disabled
-                  className='mt-1 size-4 shrink-0 accent-accent'
-                  aria-describedby='digital-consent-note'
-                />
-                <span>
-                  Ich stimme ausdrücklich zu, dass DICON vor Ablauf der
-                  Widerrufsfrist mit der Bereitstellung der digitalen Studie
-                  beginnt. Mir ist bekannt, dass ich mit Beginn der
-                  Bereitstellung mein Widerrufsrecht verliere.
-                </span>
-              </label>
-              <p
-                id='digital-consent-note'
-                className='ml-7 border-l-2 border-accent pl-4 text-xs leading-relaxed text-slate-500'
+            <p className='mt-4 text-sm leading-relaxed text-slate-600'>
+              Bitte lesen Sie vor dem Kauf die{' '}
+              <WpLink
+                href={termsHref}
+                className='font-semibold text-brand underline decoration-accent underline-offset-4'
               >
-                Die finale Formulierung ist noch rechtlich zu prüfen. Im live
-                Checkout müssen Zustimmung und Zeitstempel dokumentiert und in
-                der Bestellbestätigung ausgewiesen werden.
-              </p>
-              <label className='flex items-start gap-3 text-sm leading-relaxed text-slate-600'>
-                <input
-                  type='checkbox'
-                  disabled
-                  className='mt-1 size-4 shrink-0 accent-accent'
-                />
-                <span>
-                  Ich akzeptiere die{' '}
-                  <a
-                    href='/agb-lizenzbedingungen'
-                    className='font-semibold text-brand underline decoration-accent underline-offset-4'
-                  >
-                    AGB & Lizenzbedingungen
-                  </a>{' '}
-                  und habe die{' '}
-                  <a
-                    href='/widerrufsbelehrung'
-                    className='font-semibold text-brand underline decoration-accent underline-offset-4'
-                  >
-                    Widerrufsbelehrung
-                  </a>{' '}
-                  zur Kenntnis genommen.
-                </span>
-              </label>
-            </div>
+                AGB & Lizenzbedingungen
+              </WpLink>{' '}
+              und die{' '}
+              <WpLink
+                href={withdrawalHref}
+                className='font-semibold text-brand underline decoration-accent underline-offset-4'
+              >
+                Widerrufsbelehrung
+              </WpLink>
+              . Die erforderlichen Vertragsbestätigungen und eine gegebenenfalls
+              notwendige Zustimmung zur sofortigen Bereitstellung müssen im EDD-
+              Checkout eingerichtet und vor dem Live-Verkauf geprüft werden.
+            </p>
           </section>
         </motion.div>
 
@@ -238,7 +138,7 @@ export function EinzellizenzPage() {
             Ihre Bestellung
           </p>
           <div className='mt-5 flex gap-4 border-b border-brand/15 pb-5'>
-            <img
+            <WpImage
               src='/assets/hospitality-cover.png'
               alt='Cover der Studie Hospitality 2035'
               className='h-28 w-20 shrink-0 object-cover object-top'
@@ -275,25 +175,11 @@ export function EinzellizenzPage() {
             Die anfallende Umsatzsteuer wird im finalen Checkout ausgewiesen.
             Die digitale Bereitstellung erfolgt nach erfolgreicher Zahlung.
           </p>
-          <button
-            type='button'
-            disabled
-            className='mt-7 inline-flex w-full cursor-not-allowed items-center justify-center gap-1 whitespace-nowrap bg-brand px-2 py-4 text-[9px] font-bold uppercase tracking-normal text-white opacity-55 sm:gap-3 sm:px-4 sm:text-xs sm:tracking-[0.1em]'
-          >
-            <LockKeyhole
-              size={16}
-              className='hidden shrink-0 sm:block'
-              aria-hidden='true'
-            />
-            <span className='whitespace-nowrap'>
-              Zahlungspflichtig bestellen – 249,00 €
-            </span>
-          </button>
-          <p className='mt-3 text-center text-xs leading-relaxed text-slate-500'>
-            Online-Bestellung noch nicht freigeschaltet.
-          </p>
-          <a
-            href='/lizenzen'
+          <div className='hospitality-edd-purchase-wrap mt-7'>
+            <BlockArea name='single-license-edd-purchase-button' />
+          </div>
+          <WpLink
+            href={licensesHref}
             className='mt-6 inline-flex w-full items-center justify-center gap-2 text-xs font-semibold text-slate-600 transition-colors hover:text-accent'
           >
             <ArrowLeft
@@ -301,7 +187,7 @@ export function EinzellizenzPage() {
               aria-hidden='true'
             />{' '}
             Zur Lizenzübersicht
-          </a>
+          </WpLink>
         </motion.aside>
       </div>
     </main>

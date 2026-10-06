@@ -1,4 +1,11 @@
-import { useWpMenu, useLocation, type WpMenuItem } from '@forgewp/react';
+import {
+  useWpMenu,
+  useLocation,
+  useWpPageLink,
+  WpImage,
+  WpLink,
+  type WpMenuItem,
+} from '@forgewp/react';
 import { ArrowUpRight, Plus } from 'lucide-react';
 import {
   AnimatePresence,
@@ -28,6 +35,54 @@ function resolveLandingUrl(url: string, pathname: string) {
   return url.startsWith('#') && pathname !== '/' ? `/${url}` : url;
 }
 
+function scrollToMenuHash(href: string, reduceMotion: boolean | null) {
+  let destination: URL;
+  try {
+    destination = new URL(href, window.location.href);
+  } catch {
+    return;
+  }
+  if (!destination.hash || destination.origin !== window.location.origin)
+    return;
+
+  const targetId = decodeURIComponent(destination.hash.slice(1));
+  const normalizePath = (path: string) =>
+    path.length > 1 ? path.replace(/\/+$/, '') : path;
+  let framesRemaining = 30;
+
+  const scrollWhenReady = () => {
+    if (
+      normalizePath(window.location.pathname) ===
+      normalizePath(destination.pathname)
+    ) {
+      const target = document.getElementById(targetId);
+      if (target) {
+        const headerHeight =
+          document.querySelector('header')?.getBoundingClientRect().height ?? 0;
+        const top =
+          target.getBoundingClientRect().top +
+          window.scrollY -
+          headerHeight -
+          24;
+
+        window.scrollTo({
+          top,
+          behavior: reduceMotion ? 'auto' : 'smooth',
+        });
+        return;
+      }
+    }
+
+    if (framesRemaining-- > 0) {
+      window.requestAnimationFrame(scrollWhenReady);
+    }
+  };
+
+  window.setTimeout(() => {
+    window.requestAnimationFrame(scrollWhenReady);
+  }, 80);
+}
+
 function matchesMenuRoute(url: string, pathname: string) {
   if (url.startsWith('#') || url.includes('#')) return false;
 
@@ -44,12 +99,17 @@ function matchesMenuRoute(url: string, pathname: string) {
   );
 }
 
+function hasActiveMenuRoute(item: WpMenuItem, pathname: string): boolean {
+  return (
+    matchesMenuRoute(item.url, pathname) ||
+    Boolean(item.children?.some((child) => hasActiveMenuRoute(child, pathname)))
+  );
+}
+
 function getActiveExpandedItems(items: WpMenuItem[], pathname: string) {
   return items.reduce<Record<string, boolean>>((expanded, item) => {
     if (item.children?.length) {
-      expanded[item.id ?? item.url] =
-        matchesMenuRoute(item.url, pathname) ||
-        item.children.some((child) => matchesMenuRoute(child.url, pathname));
+      expanded[item.id ?? item.url] = hasActiveMenuRoute(item, pathname);
     }
     return expanded;
   }, {});
@@ -57,28 +117,47 @@ function getActiveExpandedItems(items: WpMenuItem[], pathname: string) {
 
 function MenuLink({
   item,
-  href,
   onSelect,
   className,
   isActive,
+  pathname,
+  depth = 0,
 }: {
   item: WpMenuItem;
-  href: string;
-  onSelect: () => void;
+  pathname: string;
+  onSelect: (href: string) => void;
   className: string;
   isActive: boolean;
+  depth?: number;
 }) {
   return (
-    <a
-      href={href}
-      onClick={onSelect}
-      className={`${className} ${isActive ? '!text-accent' : ''}`}
-      aria-current={isActive ? 'page' : undefined}
-      target={item.target || undefined}
-      rel={item.target === '_blank' ? 'noopener noreferrer' : undefined}
-    >
-      {item.title}
-    </a>
+    <div className='min-w-0'>
+      <WpLink
+        href={resolveLandingUrl(item.url, pathname)}
+        onClick={() => onSelect(resolveLandingUrl(item.url, pathname))}
+        className={`${depth === 0 ? className : 'flex min-h-14 w-full items-center border-b border-white/10 px-4 py-3 text-base font-semibold text-slate-300 transition-colors hover:text-accent'} ${isActive ? 'text-accent!' : ''}`}
+        aria-current={isActive ? 'page' : undefined}
+        target={item.target || undefined}
+        rel={item.target === '_blank' ? 'noopener noreferrer' : undefined}
+      >
+        {item.title}
+      </WpLink>
+      {item.children?.length ? (
+        <div className='ml-4 border-l border-white/10 pl-3'>
+          {item.children.map((child) => (
+            <MenuLink
+              key={child.id ?? child.url}
+              item={child}
+              pathname={pathname}
+              onSelect={onSelect}
+              className={className}
+              isActive={hasActiveMenuRoute(child, pathname)}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -92,6 +171,7 @@ export default function SiteNavigation({
   const reduceMotion = reduceMotionProp ?? preferredReduceMotion;
   const revealInitial = revealInitialProp ?? (reduceMotion ? false : 'hidden');
   const revealVariants = revealVariantsProp ?? defaultRevealVariants;
+  const homeHref = useWpPageLink('front-page', '/');
   const [pathname] = useLocation();
   const { items: primaryItems } = useWpMenu('primary');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -113,6 +193,10 @@ export default function SiteNavigation({
   }, [pathname, primaryItems]);
 
   const closeMenu = () => setMenuOpen(false);
+  const handleMenuSelect = (href: string) => {
+    closeMenu();
+    scrollToMenuHash(href, reduceMotion);
+  };
   const toggleExpanded = (item: WpMenuItem) => {
     const key = item.id ?? item.url;
     setExpandedItems((current) => {
@@ -151,20 +235,24 @@ export default function SiteNavigation({
       <header
         className={`mx-auto flex w-full items-center justify-between px-5 py-5 transition-all duration-500 sm:px-8 lg:px-12 ${menuOpen ? 'fixed inset-x-0 top-0 z-[60] max-w-none text-white' : heroPassed ? 'fixed inset-x-0 top-0 z-50 max-w-none border-b border-slate-200/80 bg-[#f8fafc]/90 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md' : 'relative z-30 max-w-[1440px]'}`}
       >
-        <motion.a
-          href='/'
-          className='relative block h-9 w-28'
-          aria-label='DICON home'
+        <motion.div
+          className='relative h-9 w-28'
           initial={revealInitial}
           animate='visible'
           variants={revealVariants}
         >
-          <img
-            src='/Logo_DICON-removebg-preview.png'
-            alt='DICON Beratung'
-            className='h-full w-full object-contain object-left'
-          />
-        </motion.a>
+          <WpLink
+            href={homeHref}
+            className='relative block h-full w-full'
+            aria-label='DICON home'
+          >
+            <WpImage
+              src='/Logo_DICON-removebg-preview.png'
+              alt='DICON Beratung'
+              className='h-full w-full object-contain object-left'
+            />
+          </WpLink>
+        </motion.div>
 
         <motion.button
           type='button'
@@ -203,13 +291,7 @@ export default function SiteNavigation({
                     const itemKey = item.id ?? item.url;
                     const hasChildren = Boolean(item.children?.length);
                     const isExpanded = expandedItems[itemKey];
-                    const isActive =
-                      matchesMenuRoute(item.url, pathname) ||
-                      Boolean(
-                        item.children?.some((child) =>
-                          matchesMenuRoute(child.url, pathname),
-                        ),
-                      );
+                    const isActive = hasActiveMenuRoute(item, pathname);
                     const hasActiveItem =
                       Object.values(expandedItems).some(Boolean);
                     const isInactive = hasActiveItem && !isExpanded;
@@ -245,29 +327,42 @@ export default function SiteNavigation({
                             </motion.span>
                           </button>
                         ) : (
-                          <motion.a
-                            href={resolveLandingUrl(item.url, pathname)}
-                            onClick={closeMenu}
-                            className={`${itemClassName} justify-between`}
-                            aria-current={isActive ? 'page' : undefined}
+                          <motion.div
                             initial={
                               reduceMotion ? false : { opacity: 0, y: 24 }
                             }
-                            animate={{ opacity: isInactive ? 0.3 : 1, y: 0 }}
+                            animate={{ opacity: 1, y: 0 }}
                             transition={{
                               delay: 0.28 + index * 0.07,
                               duration: 0.55,
                               ease: 'easeOut',
                             }}
                           >
-                            <span className='font-mono text-[10px] font-normal tracking-[0.12em] text-accent sm:text-xs'>
-                              {String(index + 1).padStart(2, '0')}
-                            </span>
-                            <span className='flex-1'>{item.title}</span>
-                            <span className='flex size-9 shrink-0 items-center justify-center sm:size-10'>
-                              <ArrowUpRight className='size-6 text-accent transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1 sm:size-7' />
-                            </span>
-                          </motion.a>
+                            <WpLink
+                              href={resolveLandingUrl(item.url, pathname)}
+                              onClick={() =>
+                                handleMenuSelect(
+                                  resolveLandingUrl(item.url, pathname),
+                                )
+                              }
+                              className={`${itemClassName} justify-between`}
+                              aria-current={isActive ? 'page' : undefined}
+                              target={item.target || undefined}
+                              rel={
+                                item.target === '_blank'
+                                  ? 'noopener noreferrer'
+                                  : undefined
+                              }
+                            >
+                              <span className='font-mono text-[10px] font-normal tracking-[0.12em] text-accent sm:text-xs'>
+                                {String(index + 1).padStart(2, '0')}
+                              </span>
+                              <span className='flex-1'>{item.title}</span>
+                              <span className='flex size-9 shrink-0 items-center justify-center sm:size-10'>
+                                <ArrowUpRight className='size-6 text-accent transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1 sm:size-7' />
+                              </span>
+                            </WpLink>
+                          </motion.div>
                         )}
                         {hasChildren && isExpanded && (
                           <motion.div
@@ -286,10 +381,10 @@ export default function SiteNavigation({
                               <MenuLink
                                 key={child.id ?? child.url}
                                 item={child}
-                                href={resolveLandingUrl(child.url, pathname)}
-                                onSelect={closeMenu}
-                                className='border-b border-white/10 px-2 py-3 text-base font-semibold text-slate-300 transition-colors hover:text-accent sm:border-0 sm:text-lg'
-                                isActive={matchesMenuRoute(child.url, pathname)}
+                                pathname={pathname}
+                                onSelect={handleMenuSelect}
+                                className='flex min-h-14 w-full items-center border-b border-white/10 px-2 py-3 text-base font-semibold text-slate-300 transition-colors hover:text-accent sm:border-0 sm:text-lg'
+                                isActive={hasActiveMenuRoute(child, pathname)}
                               />
                             ))}
                           </motion.div>
@@ -298,7 +393,6 @@ export default function SiteNavigation({
                     );
                   })}
                 </div>
-
                 {primaryItems.map((item, index) => {
                   const itemKey = item.id ?? item.url;
                   if (!item.children?.length || !expandedItems[itemKey]) {
@@ -330,10 +424,10 @@ export default function SiteNavigation({
                           >
                             <MenuLink
                               item={child}
-                              href={resolveLandingUrl(child.url, pathname)}
-                              onSelect={closeMenu}
+                              pathname={pathname}
+                              onSelect={handleMenuSelect}
                               className='flex min-h-24 items-center border-b border-white/10 px-4 py-5 text-xl font-semibold text-slate-300 transition-colors hover:text-accent'
-                              isActive={matchesMenuRoute(child.url, pathname)}
+                              isActive={hasActiveMenuRoute(child, pathname)}
                             />
                           </motion.div>
                         ))}

@@ -1,4 +1,4 @@
-import { BlockArea, useWpContent, WpHead } from '@forgewp/react';
+import { BlockArea, useWpContent, WpHead, WpLink } from '@forgewp/react';
 import type { ReactNode } from 'react';
 
 export type LegalSection = {
@@ -108,13 +108,13 @@ export function LegalPageTemplate({
             </p>
             <div className='mt-4 flex flex-col items-start gap-3'>
               {links.map((link) => (
-                <a
+                <WpLink
                   key={link.href}
                   href={link.href}
                   className='text-sm font-semibold text-brand underline decoration-accent underline-offset-4 transition-colors hover:text-accent'
                 >
                   {link.label}
-                </a>
+                </WpLink>
               ))}
             </div>
           </nav>
