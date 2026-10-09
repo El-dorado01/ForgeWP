@@ -17,8 +17,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <meta> tags into your WordPress theme's <head> automatically.
         ─────────────────────────────────────────────────────────────────────── */}
       <WpHead
-        description="A WordPress theme built with ForgeWP - React & Tailwind CSS"
-        keywords="WordPress, React, Tailwind, ForgeWP"
+        title="Hospitality 2035 | Wie sich die wirtschaftliche Logik der Hotellerie verändert"
+        description="Strategische Analyse zum Wandel der Hotellerie bis 2035: Kosten, KI, Automatisierung, Hotelkonzepte und Geschäftsmodelle."
+        keywords="Hospitality 2035, Hotellerie, Hotelwirtschaft, KI, Automatisierung, Hotelstrategie"
+        ogTitle="Hospitality 2035 | Wie sich die wirtschaftliche Logik der Hotellerie verändert"
+        ogDescription="Eine strategische Analyse der Hotellerie bis 2035 – mit Erkenntnissen zu Kosten, KI, Automatisierung, Flächen und Geschäftsmodellen."
         ogType="website"
         twitterCard="summary_large_image"
       />

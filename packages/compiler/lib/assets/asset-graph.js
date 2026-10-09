@@ -265,7 +265,23 @@ function scanAst(sourceFile, relFile, themeRoot, graph, ts) {
       if (ts.isNumericLiteral(expr)) return Number(expr.text);
       if (expr.kind === ts.SyntaxKind.TrueKeyword) return true;
       if (expr.kind === ts.SyntaxKind.FalseKeyword) return false;
-      if (ts.isIdentifier(expr)) return expr.text;
+    }
+    return null;
+  }
+
+  function getStaticFallbackSource(expr) {
+    if (
+      ts.isStringLiteral(expr) ||
+      ts.isNoSubstitutionTemplateLiteral(expr)
+    ) {
+      return expr.text;
+    }
+    if (
+      ts.isBinaryExpression(expr) &&
+      (expr.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+        expr.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
+    ) {
+      return getStaticFallbackSource(expr.right);
     }
     return null;
   }
@@ -299,10 +315,21 @@ function scanAst(sourceFile, relFile, themeRoot, graph, ts) {
 
       if (tagName === 'WpImage' || tagName === 'img') {
         const attributes = {};
+        let srcIsFallback = false;
         for (const prop of node.attributes.properties) {
           if (ts.isJsxAttribute(prop) && prop.name) {
             const attrName = prop.name.getText(sourceFile);
-            attributes[attrName] = getAttrValue(prop);
+            let value = getAttrValue(prop);
+            if (
+              attrName === 'src' &&
+              value == null &&
+              ts.isJsxExpression(prop.initializer) &&
+              prop.initializer.expression
+            ) {
+              value = getStaticFallbackSource(prop.initializer.expression);
+              srcIsFallback = value != null;
+            }
+            attributes[attrName] = value;
           }
         }
 
@@ -325,7 +352,11 @@ function scanAst(sourceFile, relFile, themeRoot, graph, ts) {
             source: rawSource,
             width: attributes.width,
             height: attributes.height,
-            priority: attributes.priority === true || attributes.fetchpriority === 'high' || attributes.fetchPriority === 'high',
+            priority:
+              !srcIsFallback &&
+              (attributes.priority === true ||
+                attributes.fetchpriority === 'high' ||
+                attributes.fetchPriority === 'high'),
             loading: attributes.loading,
             decoding: attributes.decoding || 'async',
             sizes: attributes.sizes,

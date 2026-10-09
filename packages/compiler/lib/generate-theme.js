@@ -80,6 +80,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * @param {string} [options.archiveHtml]
  * @param {import('./types.js').ForgeWPBuildAssets} options.assets
  * @param {boolean} [options.strict] Fail export on editable from/pick issues
+ * @param {boolean} [options.preserveOutDir] Keep assets already generated in the output directory
  */
 export async function generateTheme({
   themeRoot,
@@ -95,13 +96,15 @@ export async function generateTheme({
   archiveHtml = '',
   assets,
   assetGraph,
+  preserveOutDir = false,
   strict = false,
 }) {
-  if (existsSync(outDir)) {
+  if (!preserveOutDir && existsSync(outDir)) {
     rmSync(outDir, { recursive: true, force: true });
   }
 
   mkdirSync(outDir, { recursive: true });
+  const effectiveAssetGraph = assetGraph || scanAssetGraph(themeRoot);
 
   // Pre-warm the icon library cache asynchronously to speed up block transpilation
   await warmupIconCache(themeRoot);
@@ -848,13 +851,24 @@ export async function generateTheme({
       appHtml,
       config.textDomain,
       getRichTextKeysForSlug('front-page'),
+      effectiveAssetGraph,
     ),
   );
   const processedHeader = injectAutoHydrationMarkers(
-    processMarkup(headerHtml, config.textDomain, richTextFieldKeys),
+    processMarkup(
+      headerHtml,
+      config.textDomain,
+      richTextFieldKeys,
+      effectiveAssetGraph,
+    ),
   );
   const processedFooter = injectAutoHydrationMarkers(
-    processMarkup(footerHtml, config.textDomain, richTextFieldKeys),
+    processMarkup(
+      footerHtml,
+      config.textDomain,
+      richTextFieldKeys,
+      effectiveAssetGraph,
+    ),
   );
 
   // Extract content (App markup minus Header/Footer, unless the page owns its shell)
@@ -885,7 +899,12 @@ export async function generateTheme({
   let processedSingle = '';
   if (singleHtml) {
     processedSingle = injectAutoHydrationMarkers(
-      processMarkup(singleHtml, config.textDomain, richTextFieldKeys),
+      processMarkup(
+        singleHtml,
+        config.textDomain,
+        richTextFieldKeys,
+        effectiveAssetGraph,
+      ),
     );
     processedSingle = extractTemplateContent(
       processedSingle,
@@ -906,7 +925,12 @@ export async function generateTheme({
   let processedNotFound = '';
   if (notFoundHtml) {
     processedNotFound = injectAutoHydrationMarkers(
-      processMarkup(notFoundHtml, config.textDomain, richTextFieldKeys),
+      processMarkup(
+        notFoundHtml,
+        config.textDomain,
+        richTextFieldKeys,
+        effectiveAssetGraph,
+      ),
     );
     processedNotFound = extractTemplateContent(
       processedNotFound,
@@ -973,7 +997,12 @@ export async function generateTheme({
   let processedArchive = '';
   if (archiveHtml) {
     processedArchive = injectAutoHydrationMarkers(
-      processMarkup(archiveHtml, config.textDomain, richTextFieldKeys),
+      processMarkup(
+        archiveHtml,
+        config.textDomain,
+        richTextFieldKeys,
+        effectiveAssetGraph,
+      ),
     );
     processedArchive = extractTemplateContent(
       processedArchive,
@@ -1008,6 +1037,18 @@ const { createElement, useState, Fragment } = wp.element;
 const { InspectorControls, useBlockProps, MediaUpload, URLInput, InnerBlocks, useInnerBlocksProps } = wp.blockEditor;
 const { PanelBody, TextControl, ToggleControl, SelectControl, RangeControl, Placeholder, Spinner, Button, ColorPalette, BaseControl } = wp.components;
 const ServerSideRender = wp.serverSideRender?.default || wp.serverSideRender;
+function forgeWpResolveEditorImage(source) {
+  if (source && typeof source === 'object') source = source.url || source.src || '';
+  if (typeof source !== 'string' || !source || source.startsWith('//') || /^(?:[a-z]+:|data:|blob:)/i.test(source)) return source;
+  if (source.charAt(0) === '/') {
+    const themeUri = window.forgeWpEditorConfig && window.forgeWpEditorConfig.themeUri;
+    return themeUri ? themeUri.replace(/\\/$/, '') + source : source;
+  }
+  return source;
+}
+function forgeWpEditorImageAlt(source, fallback) {
+  return source && typeof source === 'object' && source.alt ? source.alt : (fallback || '');
+}
 
 // Set only inside the block editor's customEditJsx preview environment — never true on
 // the real frontend. Components can check this to distinguish "genuinely no results" from
@@ -1169,6 +1210,59 @@ const WpLink = (props) => {
     }
     return createElement('a', props);
 };
+
+/**
+ * Canvas-safe link used for every <a>/<WpLink> in customEditJsx.
+ * - Never navigates inside the editor (link text stays clickable for RichText).
+ * - When the compiler detected an href bound to a block attribute it passes
+ *   forgeWpUrl/forgeWpOnUrlChange, and clicking the link opens a small URL
+ *   popover so the URL is editable inline (the sidebar field still works too).
+ */
+function ForgeWpEditorLink(props) {
+    const forgeWpUrl = props.forgeWpUrl;
+    const onUrlChange = props.forgeWpOnUrlChange;
+    const urlLabel = props.forgeWpUrlLabel;
+    const rest = Object.assign({}, props);
+    delete rest.forgeWpUrl;
+    delete rest.forgeWpOnUrlChange;
+    delete rest.forgeWpUrlLabel;
+    delete rest.children;
+    const editable = typeof onUrlChange === 'function';
+    const anchorState = useState(null);
+    const openState = useState(false);
+    const anchor = anchorState[0];
+    const open = openState[0];
+    const setOpen = openState[1];
+    const Popover = wp.components.Popover;
+    const linkProps = Object.assign({}, rest, {
+        onClickCapture: function (event) { event.preventDefault(); },
+        onClick: function (event) {
+            event.preventDefault();
+            if (editable) setOpen(true);
+        },
+    });
+    if (editable) linkProps.ref = anchorState[1];
+    const popover = editable && open && anchor && Popover
+        ? createElement(Popover, {
+            anchor: anchor,
+            placement: 'bottom-start',
+            focusOnMount: false,
+            onClose: function () { setOpen(false); },
+            className: 'forgewp-link-url-popover',
+        },
+            createElement('div', { style: { padding: '12px', minWidth: '280px' } },
+                createElement(TextControl, {
+                    label: urlLabel || 'Link URL',
+                    type: 'url',
+                    value: forgeWpUrl == null ? '' : String(forgeWpUrl),
+                    onChange: onUrlChange,
+                    __nextHasNoMarginBottom: true,
+                })
+            )
+        )
+        : null;
+    return createElement(Fragment, null, createElement('a', linkProps, props.children), popover);
+}
 
 /**
  * Build a blank row object from a repeater field schema (editor metadata).
@@ -1646,7 +1740,8 @@ if (window.forgeWpBlocks) {
                             'useWpThemeMod', 'useWpThemeUri', 'useWpSearch', 'useWpSearchParams', 'useWpTitle', 'useWpContent', 'useWpExcerpt',
                             'useWpPermalink', 'useWpDate', 'useWpModifiedDate', 'useWpAuthor', 'useWpFeaturedImage', 'useWpCustomField', 'useWpField',
                             'useWpArchiveTitle', 'useWpCategories', 'useWpTaxonomyList', 'useWpMenu', 'useWpPrefetch', 'useWpLanguage', 'WpLink',
-                            'isEditorPreview', 'useIsEditorPreview', 'forgeWpRenderIcon', 'WpIcon'
+                            'isEditorPreview', 'useIsEditorPreview', 'forgeWpRenderIcon', 'WpIcon',
+                            'forgeWpResolveEditorImage', 'forgeWpEditorImageAlt', 'ForgeWpEditorLink'
                         ];
                         // Never shadow the fixed hook/param names.
                         const baseParamSet = {};
@@ -1673,6 +1768,7 @@ if (window.forgeWpBlocks) {
                             useWpPermalink, useWpDate, useWpModifiedDate, useWpAuthor, useWpFeaturedImage, useWpCustomField, useWpField,
                             useWpArchiveTitle, useWpCategories, useWpTaxonomyList, useWpMenu, useWpPrefetch, useWpLanguage, WpLink,
                             isEditorPreview, useIsEditorPreview, forgeWpRenderIcon, WpIcon,
+                            forgeWpResolveEditorImage, forgeWpEditorImageAlt, ForgeWpEditorLink,
                             ...scopeVals
                         );
                         return createElement('div', blockProps,
@@ -1963,7 +2059,6 @@ if (window.forgeWpBlocks) {
     );
   }
   // Generate priority preloads for <head> in header.php
-  const effectiveAssetGraph = assetGraph || scanAssetGraph(themeRoot);
   const preloadTags = generatePreloadTags(effectiveAssetGraph, { isPhp: true });
 
   writeFileSync(
@@ -2020,6 +2115,7 @@ if (window.forgeWpBlocks) {
             rawHtml,
             config.textDomain,
             getRichTextKeysForSlug(`${name}-page`),
+            effectiveAssetGraph,
           ),
         );
         processedHtml = extractTemplateContent(
@@ -2303,6 +2399,7 @@ if ( ! current_user_can( '${allowed}' ) ) {
             cleanedRawHtml,
             config.textDomain,
             getRichTextKeysForSlug(slug.replace('template-', '')),
+            effectiveAssetGraph,
           ),
         );
         const layoutIsBlank =

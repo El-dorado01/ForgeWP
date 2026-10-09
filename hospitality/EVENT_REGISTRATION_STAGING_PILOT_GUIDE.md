@@ -1,6 +1,8 @@
 # Hospitality 2035 Event Registration: Staging Pilot Guide
 
-**Purpose:** Pilot plugin-managed registration for the existing Berlin and Zürich `hospitality_event` CPT posts without changing production data or replacing the current event content model.
+> **Status: historical and retired.** The current theme no longer registers the `hospitality_event` content type. Events Manager is the site's only event system; follow the [Events Manager setup guide](./EVENTS_MANAGER_SETUP_GUIDE.md). This older Gravity Forms pilot does not describe the current event setup.
+
+**Historical purpose:** Pilot plugin-managed registration for the old theme-owned Berlin and Zürich event posts.
 
 **Recommended pilot stack:** Gravity Forms + Gravity Flow + Gravity Wiz GP Inventory. Treat this as a candidate stack, not an approved purchase or a guarantee that every workflow is available without an add-on/snippet. Confirm current licenses, versions, and compatibility on staging first.
 

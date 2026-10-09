@@ -1,9 +1,11 @@
 import {
   defineEditable,
   getEditableDefaults,
+  image,
   repeater,
   richText,
   text,
+  url,
 } from '@forgewp/react';
 
 export const editable = defineEditable({
@@ -33,8 +35,15 @@ export const editable = defineEditable({
   associations: repeater({
     label: 'Association Partners',
     mode: 'dynamic',
-    fields: { name: text({ label: 'Name', default: 'KNX Deutschland' }) },
-    default: [{ name: 'KNX Deutschland' }, { name: 'HotellerieSuisse' }],
+    fields: {
+      name: text({ label: 'Name', default: 'KNX Deutschland' }),
+      logo: image({ label: 'Partner Logo' }),
+      url: url({ label: 'Partner Website URL' }),
+    },
+    default: [
+      { name: 'KNX Deutschland', logo: null, url: '' },
+      { name: 'HotellerieSuisse', logo: null, url: '' },
+    ],
   }),
   strategicLabel: text({
     label: 'Strategic Label',
@@ -46,16 +55,21 @@ export const editable = defineEditable({
     fields: {
       name: text({ label: 'Name', default: 'Accor' }),
       role: text({ label: 'Role', default: 'Hospitality / Operator Partner' }),
+      logo: image({ label: 'Partner Logo' }),
+      url: url({ label: 'Partner Website URL' }),
     },
     default: [
-      { name: 'Accor', role: 'Hospitality / Operator Partner' },
       {
-        name: 'Terra Robotics / UBTECH',
-        role: 'Robotics & Automation Partner',
+        name: 'Accor',
+        role: 'Hospitality / Operator Partner',
+        logo: null,
+        url: '',
       },
       {
         name: 'Oracle Hospitality',
         role: 'Technology & Software Partner',
+        logo: null,
+        url: '',
       },
     ],
   }),
@@ -66,15 +80,24 @@ export const editable = defineEditable({
   innovationPartners: repeater({
     label: 'Innovation Partners',
     mode: 'dynamic',
-    fields: { name: text({ label: 'Name', default: 'Häfele' }) },
-    default: [{ name: 'Häfele' }, { name: 'DreamBoks' }],
+    fields: {
+      name: text({ label: 'Name', default: '' }),
+      url: url({ label: 'Partner Website URL' }),
+    },
+    default: [],
   }),
   mediaLabel: text({ label: 'Media Label', default: 'Media Partner' }),
+  mediaLogo: image({
+    label: 'Media Partner Logo',
+    default: '/assets/client-assets/partner-assets/hotel-inside.jpg',
+  }),
   mediaName: text({ label: 'Media Name', default: 'hotelinside' }),
   mediaDescription: richText({
     label: 'Media Description',
     default: 'Eventmoderation und redaktionelle Berichterstattung.',
   }),
+  ihaLogo: image({ label: 'IHA Logo' }),
+  ihaUrl: url({ label: 'IHA Website URL' }),
 });
 
 export const defaults = getEditableDefaults(editable);

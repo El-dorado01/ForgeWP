@@ -30,10 +30,16 @@ export function buildEditorScopeInjections(sourceCode, filePath, themeRoot, iife
   const used = (name) => new RegExp(`\\b${name}\\b`).test(iifeBody);
 
   // ── defaults from cms/editables (or any defineEditable module) ───────────
+  // Supports aliased imports such as `import { defaults as heroDefaults }`.
+  const importedDefaults = resolveImportedDefaults(sourceCode, filePath, themeRoot);
+  for (const [local, obj] of Object.entries(importedDefaults)) {
+    if (local === "defaults" || !used(local)) continue;
+    scope[local] = obj;
+    chunks.push(`var ${local} = ${JSON.stringify(obj)};`);
+  }
   if (used("defaults")) {
-    const defaultsObj = resolveImportedDefaults(sourceCode, filePath, themeRoot);
     // Always define — empty bag still prevents "defaults is not defined"
-    const bag = defaultsObj && typeof defaultsObj === "object" ? defaultsObj : {};
+    const bag = importedDefaults.defaults || {};
     scope.defaults = bag;
     chunks.push(`var defaults = ${JSON.stringify(bag)};`);
   }
@@ -191,13 +197,16 @@ function buildIconMapInjections(sourceCode, iifeBody) {
 }
 
 /**
- * Resolve `import { defaults } from '…'` / `import { defaults as X }` to a plain object.
+ * Resolve `import { defaults } from '…'` / `import { defaults as X }` to plain objects.
+ * @returns {Record<string, Record<string, unknown>>} local binding name → defaults bag
  */
 function resolveImportedDefaults(sourceCode, filePath, themeRoot) {
   // import { editable as frontPageEditable, defaults } from '…'
-  // import { defaults } from '…'
+  // import { defaults as heroDefaults } from '…'
   const importRe =
     /import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/g;
+  /** @type {Record<string, Record<string, unknown>>} */
+  const out = {};
   let im;
   while ((im = importRe.exec(sourceCode)) !== null) {
     const names = im[1].split(",").map((p) => p.trim());
@@ -211,7 +220,7 @@ function resolveImportedDefaults(sourceCode, filePath, themeRoot) {
         break;
       }
     }
-    if (!localDefaultsName) continue;
+    if (!localDefaultsName || localDefaultsName in out) continue;
 
     const resolved = resolveModuleFile(path.dirname(filePath), im[2], themeRoot);
     if (!resolved) continue;
@@ -226,9 +235,9 @@ function resolveImportedDefaults(sourceCode, filePath, themeRoot) {
         defaultsObj[key] = field.default;
       }
     }
-    return defaultsObj;
+    out[localDefaultsName] = defaultsObj;
   }
-  return null;
+  return out;
 }
 
 /**

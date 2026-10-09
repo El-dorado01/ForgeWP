@@ -10,16 +10,35 @@ export const editable = defineEditable({
   eyebrow: text({ label: 'Checkout Eyebrow', default: '09 / Checkout' }),
   intro: text({
     label: 'Checkout Intro',
-    default: 'Klarer Kauf. Digitale Bereitstellung. Dokumentierte Zustimmung.',
+    default: 'Die Studie für Entscheiderinnen und Entscheider',
   }),
   title: text({
     label: 'Checkout Title',
-    default: 'Ein digitaler Kaufprozess mit klaren Regeln.',
+    default: 'Hospitality 2035',
   }),
   description: richText({
     label: 'Checkout Description',
     default:
-      'Die Single License wird nach erfolgreicher Zahlung digital bereitgestellt. Alle erforderlichen Informationen und Zustimmungen werden vor dem Kauf eindeutig dokumentiert.',
+      'Wie sich die wirtschaftliche Logik der Hotellerie verändert. Eine strategische Analyse für Entscheiderinnen und Entscheider aus Hotellerie, Immobilien-, Finanz- und Technologiebranche – auf rund 90 Seiten.',
+  }),
+  takeawaysTitle: text({
+    label: 'Study Benefits Title',
+    default: 'Was Sie aus Hospitality 2035 mitnehmen',
+  }),
+  takeaways: repeater({
+    label: 'Study Benefits',
+    mode: 'dynamic',
+    fields: {
+      text: text({ label: 'Benefit', default: 'Strategische Erkenntnisse' }),
+    },
+    default: [
+      { text: 'Welche Kosten- und Betriebsstrukturen bis 2035 unter Druck geraten' },
+      { text: 'Wo KI und Automatisierung tatsächlich wirtschaftliche Wirkung entfalten können' },
+      { text: 'Wie sich Hotelkonzepte und Flächenbedarfe verändern' },
+      { text: 'Welche Geschäftsmodelle an Bedeutung gewinnen' },
+      { text: 'Wie sich Hotels auf zunehmende Automatisierung vorbereiten können' },
+      { text: 'Welche strategischen Konsequenzen sich für Betreiber, Eigentümer und Investoren ergeben' },
+    ],
   }),
   consentText: richText({
     label: 'Consent Text',
@@ -35,7 +54,11 @@ export const editable = defineEditable({
   productName: text({ label: 'Product Name', default: 'Hospitality 2035' }),
   orderButtonLabel: text({
     label: 'Order Button Label',
-    default: 'Zahlungspflichtig bestellen – 249,00 €',
+    default: 'Studie kaufen',
+  }),
+  previewButtonLabel: text({
+    label: 'Preview Button Label',
+    default: 'Vorschau ansehen',
   }),
   integrationNote: text({
     label: 'Integration Note',

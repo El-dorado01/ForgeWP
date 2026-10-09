@@ -96,6 +96,34 @@ describe('Asset Graph — Model & Querying', () => {
 });
 
 describe('Asset Graph — AST Code Scanner', () => {
+  it('does not treat runtime image variables as literal assets or preload fallbacks', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgewp-asset-dynamic-'));
+    const srcDir = path.join(tmpDir, 'src', 'components');
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(srcDir, 'DynamicHero.tsx'),
+      `
+const image = useWpFeaturedImage();
+export function DynamicHero() {
+  return <>
+    <WpImage src={image} priority />
+    <WpImage src={image || '/assets/fallback.jpg'} priority />
+  </>;
+}
+`,
+      'utf8',
+    );
+
+    const graph = scanAssetGraph(tmpDir);
+
+    expect(graph.getAsset('image')).toBeNull();
+    const fallback = graph.getAsset('/assets/fallback.jpg');
+    expect(fallback).toBeDefined();
+    expect(fallback.priority).toBe(false);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('scans TSX source files and discovers <WpImage>, <img>, and static imports', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgewp-asset-test-'));
     const srcDir = path.join(tmpDir, 'src', 'components');

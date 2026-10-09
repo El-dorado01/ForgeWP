@@ -35,6 +35,43 @@ describe('Markup Processor — WpImage Transpilation', () => {
     expect(output).toContain('height="50"');
   });
 
+  it('attaches optimized responsive variants and intrinsic dimensions to local images', () => {
+    const assetGraph = {
+      getAsset: (src) =>
+        src === '/assets/images/hero.png'
+          ? {
+              classification: 'local-static',
+              variants: [
+                {
+                  width: 480,
+                  publicUrl: 'assets/images/hero-480w.webp',
+                },
+                {
+                  width: 960,
+                  publicUrl: 'assets/images/hero-960w.webp',
+                },
+              ],
+              sizes: '(max-width: 1024px) 100vw, 50vw',
+              width: 1200,
+              height: 800,
+            }
+          : null,
+    };
+
+    const output = processMarkup(
+      '<forgewp-image data-src="/assets/images/hero.png" data-alt="Hero" />',
+      'theme',
+      null,
+      assetGraph,
+    );
+
+    expect(output).toContain('srcset="<?php echo esc_url( get_theme_file_uri( \'assets/images/hero-480w.webp\' ) ); ?> 480w,');
+    expect(output).toContain("get_theme_file_uri( 'assets/images/hero-960w.webp' )");
+    expect(output).toContain('sizes="(max-width: 1024px) 100vw, 50vw"');
+    expect(output).toContain('width="1200"');
+    expect(output).toContain('height="800"');
+  });
+
   it('rewrites local img and preload-link urls to the theme file, and leaves routes alone', () => {
     const output = processMarkup(
       '<img src="/Logo_DICON-removebg-preview.png" alt="DICON"><link rel="preload" href="/Logo_DICON-removebg-preview.png" as="image"><a href="/events">Events</a><link rel="stylesheet" href="/assets/app.css">',
@@ -45,6 +82,17 @@ describe('Markup Processor — WpImage Transpilation', () => {
     expect(output).toContain('href="/events"');
     expect(output).toContain('href="/assets/app.css"');
     expect(output).not.toContain('src="/Logo_DICON-removebg-preview.png"');
+  });
+
+  it('rewrites public PDF asset links to the theme file but leaves media-library URLs alone', () => {
+    const output = processMarkup(
+      '<a href="/assets/client-assets/preview.pdf">Preview</a><a href="/wp-content/uploads/preview.pdf">Uploaded preview</a>',
+    );
+
+    expect(output).toContain(
+      "href=\"<?php echo esc_url( get_theme_file_uri( 'assets/client-assets/preview.pdf' ) ); ?>\"",
+    );
+    expect(output).toContain('href="/wp-content/uploads/preview.pdf"');
   });
 
   it('transpiles external URLs with decoding="async"', () => {

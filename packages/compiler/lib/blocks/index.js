@@ -55,6 +55,7 @@ import { buildEditorScopeInjections } from './editor-scope.js';
 import { markLegacyFallback } from './ast-parser.js';
 import {
   isComponentInteractive,
+  isComponentEditorUnsafe,
   readComponentSource,
 } from '../hydration/is-interactive.js';
 import { splitInteractiveIslands } from '../hydration/island-split.js';
@@ -967,9 +968,9 @@ $grid_class  = ${JSON.stringify(gridClass ? `forgewp-block-shell__grid ${gridCla
           // hooks cannot be safely executed in the editor's generated IIFE. Let
           // WordPress render its PHP output instead; authors can provide editorPreview
           // when an interactive or live-data block needs a more representative view.
-          const isTopLevelLiveDataBlock = isComponentInteractive(
-            jsxSourceFile,
-          );
+          const isTopLevelLiveDataBlock =
+            isComponentInteractive(jsxSourceFile) &&
+            isComponentEditorUnsafe(jsxSourceFile);
           const explicitEditorPreview = Object.prototype.hasOwnProperty.call(
             settings,
             'editorPreview',
@@ -977,23 +978,30 @@ $grid_class  = ${JSON.stringify(gridClass ? `forgewp-block-shell__grid ${gridCla
             ? extractJsx(code, 'editorPreview')
             : '';
           const hasExplicitEditorPreview = Boolean(explicitEditorPreview);
+          const forceEditorPreview =
+            settings.editorPreviewMode === 'override' &&
+            hasExplicitEditorPreview;
+          let usesExplicitEditorPreview = false;
           if (isTopLevelLiveDataBlock && !explicitEditorPreview) {
             // Let WordPress render the generated PHP preview. React hooks,
             // event handlers, and live data are not safe to execute in this
             // compiler-generated editor component.
           } else {
-            let editJsx = explicitEditorPreview;
+            let editJsx = forceEditorPreview ? explicitEditorPreview : '';
+            usesExplicitEditorPreview = forceEditorPreview;
             // paddingY/paddingX are excluded here — they're on every block by
             // default and shouldn't by themselves flip a simple/static block from
             // ServerSideRender (which just runs the real render.php for its editor
             // preview) into the live customEditJsx canvas.
-            const hasCustomAttrs =
-              settings.attributes &&
-              Object.keys(settings.attributes).filter(
-                (k) => k !== 'align' && k !== 'paddingY' && k !== 'paddingX',
-              ).length > 0;
-            if (!editJsx && code.includes('edit:') && hasCustomAttrs) {
-              editJsx = extractJsx(code, 'edit');
+            if (!editJsx && code.includes('edit:')) {
+              const sharedEdit = extractJsx(code, 'edit');
+              if (sharedEdit && sharedEdit.trim() !== 'null') {
+                editJsx = sharedEdit;
+              }
+            }
+            if (!editJsx && hasExplicitEditorPreview) {
+              editJsx = explicitEditorPreview;
+              usesExplicitEditorPreview = true;
             }
             if (editJsx) {
               try {
@@ -1005,6 +1013,21 @@ $grid_class  = ${JSON.stringify(gridClass ? `forgewp-block-shell__grid ${gridCla
                   0,
                   'editor',
                 );
+                if (
+                  !usesExplicitEditorPreview &&
+                  hasExplicitEditorPreview &&
+                  editJsx.includes('forgewp-editor-island-placeholder')
+                ) {
+                  editJsx = expandNestedComponentTags(
+                    explicitEditorPreview,
+                    code,
+                    blockFile,
+                    themeRoot,
+                    0,
+                    'editor',
+                  );
+                  usesExplicitEditorPreview = true;
+                }
                 // Strip TS casts / annotations before AST → plain JS for new Function()
                 editJsx = stripTypeScriptSyntax(editJsx);
 
@@ -1120,7 +1143,7 @@ $grid_class  = ${JSON.stringify(gridClass ? `forgewp-block-shell__grid ${gridCla
                 /(?:export\s+default\s+function|export\s+function|function)\s+([a-zA-Z0-9_$]+)/,
               ) ||
               jsxSourceCode.match(
-                /(?:export\s+const|const)\s+([a-zA-Z0-9_$]+)/,
+                /(?:export\s+const|const)\s+([A-Z][a-zA-Z0-9_$]*)/,
               );
             if (funcMatch && funcMatch[1] !== 'editable') {
               resolvedComponentName = funcMatch[1];
@@ -1702,7 +1725,7 @@ $grid_class  = ${JSON.stringify(gridClass ? `forgewp-block-shell__grid ${gridCla
             settings.customEditJsx &&
             (!isTopLevelLiveDataBlock || hasExplicitEditorPreview)
           ) {
-            let preamble = hasExplicitEditorPreview
+            let preamble = usesExplicitEditorPreview
               ? ''
               : [hoistedHelperJs, jsVarDefinitions]
               .filter(Boolean)
@@ -1721,8 +1744,8 @@ $grid_class  = ${JSON.stringify(gridClass ? `forgewp-block-shell__grid ${gridCla
             // Also attach settings.editorScope for a runtime second line of defense.
             const iifeProbe = `${preamble}\n${settings.customEditJsx}`;
             const scopeResult = buildEditorScopeInjections(
-              hasExplicitEditorPreview ? code : jsxSourceCode || code,
-              hasExplicitEditorPreview ? blockFile : jsxSourceFile || blockFile,
+              usesExplicitEditorPreview ? code : jsxSourceCode || code,
+              usesExplicitEditorPreview ? blockFile : jsxSourceFile || blockFile,
               themeRoot,
               iifeProbe,
             );
@@ -1752,10 +1775,10 @@ $grid_class  = ${JSON.stringify(gridClass ? `forgewp-block-shell__grid ${gridCla
             }
           }
 
-          // Older nested-island expansion can synthesize a text notice; only an
-          // explicitly authored editorPreview should opt into a custom editor view.
+          // Older nested-island expansion can synthesize a text notice; require an
+          // authored editorPreview when the shared edit component cannot be expanded.
           if (
-            !hasExplicitEditorPreview &&
+            !usesExplicitEditorPreview &&
             settings.customEditJsx?.includes(
               'forgewp-editor-island-placeholder',
             )
@@ -2751,6 +2774,7 @@ ${hydrationWrapperOpen}${phpMarkup}${hydrationWrapperClose}`;
             edit: _edit,
             save: _save,
             editorPreview: _editorPreview,
+            editorPreviewMode: _editorPreviewMode,
             customEditJsx: _customEditJsx,
             editorScope: _editorScope,
             dualHostMeta: _dualHostMeta,

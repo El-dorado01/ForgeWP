@@ -14,8 +14,12 @@ export const editable = pickEditable(pageEditable, {
   summary: 'hero_summary',
   subtitle: 'hero_subtitle',
   previewLabel: 'hero_preview_label',
+  previewUrl: 'hero_preview_url',
   buyLabel: 'hero_buy_label',
+  buyUrl: 'hero_buy_url',
   scrollLabel: 'hero_scroll_label',
+  scrollUrl: 'hero_scroll_url',
+  coverImage: 'hero_cover_image',
   coverAlt: 'hero_cover_alt',
 });
 
@@ -30,8 +34,12 @@ export type HeroSectionProps = {
   summary?: string;
   subtitle?: string;
   previewLabel?: string;
+  previewUrl?: string;
   buyLabel?: string;
+  buyUrl?: string;
   scrollLabel?: string;
+  scrollUrl?: string;
+  coverImage?: string | number | { id?: number; url?: string; alt?: string };
   coverAlt?: string;
   setAttributes?: (attributes: Partial<HeroSectionProps>) => void;
 };
@@ -49,8 +57,12 @@ const HeroSection = forwardRef<HTMLElement, HeroSectionProps>(
       summary: summaryProp,
       subtitle: subtitleProp,
       previewLabel: previewLabelProp,
+      previewUrl: previewUrlProp,
       buyLabel: buyLabelProp,
+      buyUrl: buyUrlProp,
       scrollLabel: scrollLabelProp,
+      scrollUrl: scrollUrlProp,
+      coverImage: coverImageProp,
       coverAlt: coverAltProp,
       setAttributes,
     },
@@ -66,11 +78,19 @@ const HeroSection = forwardRef<HTMLElement, HeroSectionProps>(
       'hero_preview_label',
       heroDefaults.previewLabel,
     );
+    const previewUrl =
+      previewUrlProp ?? useWpMeta('hero_preview_url', heroDefaults.previewUrl);
     const buyLabelMeta = useWpMeta('hero_buy_label', heroDefaults.buyLabel);
+    const buyUrl = buyUrlProp ?? useWpMeta('hero_buy_url', heroDefaults.buyUrl);
     const scrollLabelMeta = useWpMeta(
       'hero_scroll_label',
       heroDefaults.scrollLabel,
     );
+    const scrollUrl =
+      scrollUrlProp ?? useWpMeta('hero_scroll_url', heroDefaults.scrollUrl);
+    const coverImage =
+      coverImageProp ??
+      useWpMeta('hero_cover_image', heroDefaults.coverImage);
     const coverAltMeta = useWpMeta('hero_cover_alt', heroDefaults.coverAlt);
 
     const eyebrow = eyebrowProp ?? eyebrowMeta;
@@ -151,8 +171,9 @@ const HeroSection = forwardRef<HTMLElement, HeroSectionProps>(
               <div className='absolute -right-3 top-2 bottom-2 w-3 origin-left skew-y-[2deg] bg-slate-300 shadow-inner' />
               <div className='absolute -left-1 top-2 bottom-2 w-1 bg-white/40 blur-[1px]' />
               <WpImage
-                src='/assets/hospitality-cover.png'
+                src={coverImage || '/assets/hospitality-cover.png'}
                 alt={coverAlt}
+                priority
                 className='relative block aspect-[0.7] w-full object-cover shadow-[20px_28px_30px_rgba(15,23,42,0.25),3px_4px_0_rgba(15,23,42,0.12)]'
               />
               <div className='pointer-events-none absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-brand/10 mix-blend-screen' />
@@ -209,7 +230,7 @@ const HeroSection = forwardRef<HTMLElement, HeroSectionProps>(
             </p>
             <div className='flex flex-wrap items-center justify-end gap-3'>
               <a
-                href='#preview'
+                href={previewUrl || '#preview'}
                 className='inline-flex items-center gap-2 border border-slate-300 px-4 py-3.5 text-[10px] font-bold uppercase tracking-[0.16em] text-brand transition-colors hover:border-brand hover:bg-white hover:text-accent'
               >
                 <Eye className='size-4' />
@@ -224,7 +245,7 @@ const HeroSection = forwardRef<HTMLElement, HeroSectionProps>(
                 )}
               </a>
               <a
-                href='#buy'
+                href={buyUrl || '#buy'}
                 className='inline-flex items-center gap-2 border border-accent bg-accent px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_10px_24px_rgba(225,29,72,0.2)] transition-all hover:-translate-y-0.5 hover:bg-transparent  hover:border-slate-300 hover:text-brand hover:shadow-[0_12px_26px_rgba(15,23,42,0.2)]'
               >
                 <ShoppingBag className='size-4' />
@@ -243,7 +264,7 @@ const HeroSection = forwardRef<HTMLElement, HeroSectionProps>(
         </motion.div>
 
         <a
-          href='#study'
+          href={scrollUrl || '#study'}
           className='absolute bottom-12 left-1/2 hidden -translate-x-1/2 items-center gap-2 text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400 lg:flex'
         >
           {setAttributes ? (

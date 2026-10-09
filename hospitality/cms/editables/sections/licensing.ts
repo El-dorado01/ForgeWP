@@ -4,6 +4,7 @@ import {
   repeater,
   richText,
   text,
+  url,
 } from '@forgewp/react';
 
 export const editable = defineEditable({
@@ -61,6 +62,9 @@ export const editable = defineEditable({
       },
     ],
   }),
+  singleLicenseUrl: url({ label: 'Single License URL', default: '' }),
+  teamLicenseUrl: url({ label: 'Team License URL', default: '' }),
+  companyLicenseUrl: url({ label: 'Company License URL', default: '' }),
   vatNote: text({
     label: 'VAT Note',
     default:

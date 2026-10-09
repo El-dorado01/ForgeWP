@@ -12,7 +12,19 @@ export interface WpImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElem
    * - A WordPress attachment object ({ id, url, alt, ... })
    * - A WordPress attachment ID (number)
    */
-  src?: string | StaticImageData | WpAttachment | number;
+  src?:
+    | string
+    | StaticImageData
+    | WpAttachment
+    | {
+        id?: number;
+        url?: string;
+        alt?: string;
+        width?: number;
+        height?: number;
+        sizes?: WpAttachment['sizes'];
+      }
+    | number;
   /**
    * Alternative text description for accessibility and SEO.
    */

@@ -12,8 +12,46 @@ export function buildHydrationEnqueuerPhp(config, assets, mainJs, uniqueMetaKeys
     ? `
                 'restUrl' => esc_url_raw( rest_url( 'forgewp/v1' ) ),
                 'restNonce' => is_user_logged_in() ? wp_create_nonce( 'wp_rest' ) : '',
-                'forms' => forgewp_forms_hydration_payload(),`
+                'forms' => forgewp_forms_hydration_payload($current_lang),`
     : '';
+  const phpStringLiteral = (value) =>
+    `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+  const usesLocalFormsProvider =
+    hasForms && config.i18n?.provider === 'local';
+  const localLanguageFallbackPhp =
+    usesLocalFormsProvider
+      ? `
+            $forgewp_locales = array(${(config.i18n.locales || []).map(phpStringLiteral).join(', ')});
+            $forgewp_request_path = isset($_SERVER['REQUEST_URI']) ? parse_url(wp_unslash($_SERVER['REQUEST_URI']), PHP_URL_PATH) : '';
+            $forgewp_home_path = rtrim((string) parse_url(home_url('/'), PHP_URL_PATH), '/');
+            if ($forgewp_home_path !== '' && strpos($forgewp_request_path, $forgewp_home_path . '/') === 0) {
+                $forgewp_request_path = substr($forgewp_request_path, strlen($forgewp_home_path));
+            }
+            $forgewp_path_segments = explode('/', trim((string) $forgewp_request_path, '/'));
+            $forgewp_path_locale = sanitize_key(reset($forgewp_path_segments));
+            if (in_array($forgewp_path_locale, $forgewp_locales, true)) {
+                $current_lang = $forgewp_path_locale;
+            } else {
+                $current_lang = ${phpStringLiteral(config.i18n.defaultLocale || config.i18n.locales?.[0] || 'en')};
+            }`
+      : `
+            $current_lang = get_locale();
+            if (strpos($current_lang, '_') !== false) {
+                $parts = explode('_', $current_lang);
+                $current_lang = $parts[0];
+            }`;
+  const currentLanguageSetupPhp = hasForms
+    ? `        if (function_exists('pll_current_language')) {
+            $current_lang = pll_current_language();
+        }
+        if (empty($current_lang) && defined('ICL_LANGUAGE_CODE')) {
+            $current_lang = ICL_LANGUAGE_CODE;
+        }`
+    : `        if (function_exists('pll_current_language')) {
+            $current_lang = pll_current_language();
+        } elseif (defined('ICL_LANGUAGE_CODE')) {
+            $current_lang = ICL_LANGUAGE_CODE;
+        }`;
 
   let hydrationEnqueue = '';
   if (mainJs) {
@@ -35,20 +73,12 @@ ${headlessScript}
         $registered_nav_menus = get_registered_nav_menus();
         $registered_locations = is_array($registered_nav_menus) ? array_keys($registered_nav_menus) : array();
         $current_lang = '';
-        if (function_exists('pll_current_language')) {
-            $current_lang = pll_current_language();
-        } elseif (defined('ICL_LANGUAGE_CODE')) {
-            $current_lang = ICL_LANGUAGE_CODE;
-        }
+${currentLanguageSetupPhp}
         if (empty($current_lang)) {
-            if (function_exists('pll_default_language')) {
+            if (function_exists('pll_default_language') && pll_default_language()) {
                 $current_lang = pll_default_language();
             } else {
-                $current_lang = get_locale();
-                if (strpos($current_lang, '_') !== false) {
-                    $parts = explode('_', $current_lang);
-                    $current_lang = $parts[0];
-                }
+${localLanguageFallbackPhp}
             }
         }
         if (!function_exists('forgewp_build_menu_tree')) {
@@ -164,13 +194,14 @@ ${i18nKeysPhp}
                 pll_register_string($key, $key, '${config.textDomain}');
             }
         }
-        $current_lang = '';
+${hasForms ? `        $current_lang = forgewp_forms_resolve_lang($current_lang);\n` : `        $current_lang = '';
         if (function_exists('pll_current_language')) {
             $current_lang = pll_current_language();
         }
         if (empty($current_lang)) {
             $current_lang = get_locale();
         }
+`}
 
         $json_dict = array();
         $translations_file = get_template_directory() . '/translations.json';

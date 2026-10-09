@@ -862,7 +862,9 @@ FORGEWP_BLOCKS
     }
     wp_add_inline_script(
         'forgewp-editor-script',
-        'window.forgeWpEditorCss = ' . wp_json_encode($editor_css) . ';',
+        'window.forgeWpEditorCss = ' . wp_json_encode($editor_css) . '; ' .
+        'window.forgeWpEditorConfig = Object.assign(window.forgeWpEditorConfig || {}, ' .
+        wp_json_encode(array('themeUri' => get_template_directory_uri())) . ');',
         'before'
     );
 }
@@ -1491,9 +1493,64 @@ function forgewp_padding_classes($attributes) {
 }
 
 /**
+ * Resolve ForgeWP image sources consistently for server-rendered blocks.
+ */
+function forgewp_resolve_image_source($source, $size = 'full') {
+    $size = is_string($size) ? sanitize_key($size) : 'full';
+    if ($size === '') {
+        $size = 'full';
+    }
+
+    if (is_array($source)) {
+        if (isset($source['sizes'][$size]['url'])) {
+            $source = $source['sizes'][$size]['url'];
+        } elseif (isset($source['url'])) {
+            $source = $source['url'];
+        } elseif (isset($source['src'])) {
+            $source = $source['src'];
+        } elseif (isset($source['id'])) {
+            $source = $source['id'];
+        } else {
+            $source = '';
+        }
+    } elseif (is_object($source)) {
+        if (isset($source->sizes->$size->url)) {
+            $source = $source->sizes->$size->url;
+        } elseif (isset($source->url)) {
+            $source = $source->url;
+        } elseif (isset($source->src)) {
+            $source = $source->src;
+        } elseif (isset($source->id)) {
+            $source = $source->id;
+        } else {
+            $source = '';
+        }
+    }
+
+    if (is_numeric($source) && intval($source) > 0 && get_post_type(intval($source)) === 'attachment') {
+        $attachment_url = wp_get_attachment_image_url(intval($source), sanitize_key($size));
+        return $attachment_url ? $attachment_url : '';
+    }
+    if (!is_string($source)) {
+        return '';
+    }
+
+    $source = trim($source);
+    if ($source === '') {
+        return '';
+    }
+    if (preg_match('#^(?:https?:)?//#i', $source) || preg_match('#^(?:data|blob):#i', $source)) {
+        return $source;
+    }
+
+    $asset_path = preg_replace('#^(?:/|\\./|@/)+#', '', $source);
+    return get_theme_file_uri($asset_path);
+}
+
+/**
  * Helper to fetch and format page/post meta fields, resolving ACF formatting and attachments.
  */
-function forgewp_get_meta_value($key, $default_val = '', $is_rich_text = false, $post_id = null) {
+function forgewp_get_meta_value($key, $default_val = '', $is_rich_text = false, $post_id = null, $escape = true) {
     if ($post_id === null || $post_id === false || $post_id === '') {
         $post_id = get_the_ID();
     }
@@ -1534,7 +1591,7 @@ function forgewp_get_meta_value($key, $default_val = '', $is_rich_text = false, 
     if ($is_rich_text) {
         return wpautop($val);
     } else {
-        return esc_html($val);
+        return $escape ? esc_html($val) : $val;
     }
 }
 

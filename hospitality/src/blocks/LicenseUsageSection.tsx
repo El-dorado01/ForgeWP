@@ -7,6 +7,7 @@ type LicenseUsageSectionAttributes = {
   description?: string;
   actionLabel?: string;
   actionHref?: string;
+  showActionIcon?: boolean;
   setAttributes?: (attributes: Partial<LicenseUsageSectionAttributes>) => void;
 };
 
@@ -16,6 +17,7 @@ function LicenseUsageSection({
   description = 'Die passende Lizenz richtet sich danach, wie viele Personen die Studie innerhalb Ihres Unternehmens nutzen. Nutzungsrechte und Lizenzbedingungen gelten gemäß den vereinbarten Konditionen.',
   actionLabel = 'AGB & Lizenzbedingungen',
   actionHref = '/agb-lizenzbedingungen',
+  showActionIcon = true,
   setAttributes,
 }: LicenseUsageSectionAttributes) {
   const termsPageHref = useWpPageLink(
@@ -58,10 +60,12 @@ function LicenseUsageSection({
               value={actionLabel}
               onChange={(value) => setAttributes?.({ actionLabel: value })}
             />
-            <ArrowRight
-              size={15}
-              aria-hidden='true'
-            />
+            {showActionIcon && (
+              <ArrowRight
+                size={15}
+                aria-hidden='true'
+              />
+            )}
           </WpLink>
         </div>
       </div>
@@ -84,7 +88,18 @@ export default defineBlock({
         'Die passende Lizenz richtet sich danach, wie viele Personen die Studie innerhalb Ihres Unternehmens nutzen. Nutzungsrechte und Lizenzbedingungen gelten gemäß den vereinbarten Konditionen.',
     },
     actionLabel: { type: 'string', default: 'AGB & Lizenzbedingungen' },
-    actionHref: { type: 'string', default: '/agb-lizenzbedingungen' },
+    actionHref: {
+      type: 'string',
+      control: 'url',
+      label: 'Terms URL',
+      default: '/agb-lizenzbedingungen',
+    },
+    showActionIcon: {
+      type: 'boolean',
+      control: 'toggle',
+      label: 'Show action icon',
+      default: true,
+    },
   },
   edit: ({ attributes, setAttributes }) => (
     <LicenseUsageSection

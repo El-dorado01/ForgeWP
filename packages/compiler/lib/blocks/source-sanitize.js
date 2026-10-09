@@ -1005,6 +1005,9 @@ export function jsHelperToPhpFunction(phpName, jsHelperCode) {
     // Reject helpers that clearly need a JS runtime / DOM / React event model.
     // (Emitting them as PHP causes fatals like "Value of type null is not callable".)
     if (
+      /\?\./.test(body) ||
+      /=>/.test(body) ||
+      /\.\.\./.test(body) ||
       /use[A-Z]|window\.|document\.|React\.|fetch\s*\(|await\s|import\s|require\s*\(/.test(body) ||
       /\.contains\b|addEventListener|removeEventListener|preventDefault|stopPropagation/.test(body) ||
       /\bset[A-Z][A-Za-z0-9_]*\s*\(/.test(body) || // setCategoryOpen(false)
@@ -1062,7 +1065,7 @@ export function jsHelperToPhpFunction(phpName, jsHelperCode) {
     // function just correctly translated. Only a bare `catch {` proves
     // translateTryCatch didn't run/match — PHP has no parameterless catch.
     if (
-      /\.(slice|trim|includes|indexOf|lastIndexOf|join|push|pop|shift|unshift|concat|toLowerCase|toUpperCase|charAt|charCodeAt|substring|substr|padStart|padEnd|repeat|startsWith|endsWith|match|matchAll|search|test|exec|toFixed|filter|reduce|some|every|find|findIndex|flat|flatMap|sort|reverse)\s*\(/.test(preprocessedBody) ||
+      /\.(map|slice|trim|includes|indexOf|lastIndexOf|join|push|pop|shift|unshift|concat|toLowerCase|toUpperCase|charAt|charCodeAt|substring|substr|padStart|padEnd|repeat|startsWith|endsWith|match|matchAll|search|test|exec|toFixed|filter|reduce|some|every|find|findIndex|flat|flatMap|sort|reverse)\s*\(/.test(preprocessedBody) ||
       /\.length\b/.test(preprocessedBody) ||
       /\bcatch\s*\{/.test(preprocessedBody)
     ) {

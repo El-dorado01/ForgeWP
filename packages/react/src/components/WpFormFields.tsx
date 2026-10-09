@@ -12,6 +12,8 @@ export interface WpFormFieldDescriptor {
 export interface WpFormFieldsProps {
   /** The form name declared in wp.config.ts's `forms` key. */
   form: string;
+  /** Initial client-owned fields for local preview before runtime data exists. */
+  fallback?: WpFormFieldDescriptor[];
   /** Renders one client-owned field. Called once per field, in stored order. */
   render: (field: WpFormFieldDescriptor) => React.ReactNode;
 }
@@ -25,11 +27,11 @@ function getClientFields(form: string): WpFormFieldDescriptor[] | null {
   // compile-time "loading" precedent in the wordpress.tsx template.
   if (win._forgeWpCompileTime) return null;
 
-  const mockFields = win._forgeWpMockForms?.[form]?.fields;
-  if (Array.isArray(mockFields)) return mockFields;
-
   const hydratedFields = win.forgeWpHydration?.forms?.[form]?.fields;
   if (Array.isArray(hydratedFields)) return hydratedFields;
+
+  const mockFields = win._forgeWpMockForms?.[form]?.fields;
+  if (Array.isArray(mockFields)) return mockFields;
 
   return null;
 }
@@ -43,8 +45,8 @@ function getClientFields(form: string): WpFormFieldDescriptor[] | null {
  * The dev owns 100% of the visible markup — this component contributes no
  * styling and no wrapper element of its own.
  */
-export function WpFormFields({ form, render }: WpFormFieldsProps) {
-  const fields = getClientFields(form);
+export function WpFormFields({ form, fallback, render }: WpFormFieldsProps) {
+  const fields = getClientFields(form) ?? fallback ?? null;
 
   if (!fields) {
     if (typeof window !== 'undefined' && !(window as any)._forgeWpCompileTime) {

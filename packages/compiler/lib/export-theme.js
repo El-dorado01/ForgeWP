@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import pc from 'picocolors';
 import { buildAssets } from './build-assets.js';
 import { generateTheme } from './generate-theme.js';
@@ -97,25 +98,12 @@ export async function exportTheme(options) {
 
   const outDir = path.join(themeRoot, '.forgewp', 'out', config.slug);
   const zipPath = path.join(themeRoot, '.forgewp', `${config.slug}.zip`);
+  if (existsSync(outDir)) {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+  mkdirSync(outDir, { recursive: true });
 
-  report('generate', 'Generating WordPress theme files…');
-  await generateTheme({
-    themeRoot,
-    outDir,
-    config,
-    appHtml: markup.appHtml,
-    headerHtml: markup.headerHtml,
-    footerHtml: markup.footerHtml,
-    headHtml: markup.headHtml,
-    singleHeadHtml: markup.singleHeadHtml,
-    singleHtml: markup.singleHtml,
-    notFoundHtml: markup.notFoundHtml,
-    archiveHtml: markup.archiveHtml,
-    assets,
-    strict,
-  });
-
-  // Optimize static assets with Sharp & generate responsive variants
+  // Generate image variants before rendering markup so srcset and preload URLs match.
   report('assets', 'Optimizing static image assets with Sharp…');
   const assetGraph = scanAssetGraph(themeRoot);
   const assetResults = await runAssetPipeline(themeRoot, assetGraph, {
@@ -141,6 +129,25 @@ export async function exportTheme(options) {
       'green',
     );
   }
+
+  report('generate', 'Generating WordPress theme files…');
+  await generateTheme({
+    themeRoot,
+    outDir,
+    config,
+    appHtml: markup.appHtml,
+    headerHtml: markup.headerHtml,
+    footerHtml: markup.footerHtml,
+    headHtml: markup.headHtml,
+    singleHeadHtml: markup.singleHeadHtml,
+    notFoundHtml: markup.notFoundHtml,
+    archiveHtml: markup.archiveHtml,
+    singleHtml: markup.singleHtml,
+    assets,
+    assetGraph,
+    preserveOutDir: true,
+    strict,
+  });
 
   // Asset Manifest & Performance Diagnostics CLI Report
   const assetManifest = generateAssetManifest(themeRoot, assetGraph, {

@@ -362,10 +362,30 @@ export interface WpFormState {
 }
 
 /**
+ * Reads administrator-overridden labels for developer-owned fields from the
+ * WordPress hydration payload. The field names and validation rules remain
+ * part of the developer-owned form contract.
+ */
+export function useWpFormFieldLabels(form: string): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  const win = window as any;
+  const labels = win.forgeWpHydration?.forms?.[form]?.fieldLabels;
+  return labels && typeof labels === 'object' ? labels : {};
+}
+
+/**
  * Provides accessible submission state for a native ForgeWP form while
  * delegating transport and server behavior to submitWpForm().
  */
-export function useWpForm(name: string): WpFormState {
+export interface UseWpFormOptions {
+  /** Clear the form controls after a successful submission. */
+  resetOnSuccess?: boolean;
+}
+
+export function useWpForm(
+  name: string,
+  options: UseWpFormOptions = {},
+): WpFormState {
   const [status, setStatus] = useState<WpFormStatus>('idle');
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -374,7 +394,8 @@ export function useWpForm(name: string): WpFormState {
     event: FormEvent<HTMLFormElement>,
   ): Promise<WpFormResult> {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const data = new FormData(formElement);
     setStatus('submitting');
     setMessage('');
     setErrors({});
@@ -383,6 +404,7 @@ export function useWpForm(name: string): WpFormState {
     setStatus(result.ok ? 'success' : 'error');
     setMessage(result.message || '');
     setErrors(result.errors || {});
+    if (result.ok && options.resetOnSuccess) formElement.reset();
     return result;
   }
 
@@ -1026,6 +1048,22 @@ export function useWpPrefetch() {
 
 export interface BlockAttributeDefinition {
   type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  control?:
+    | 'text'
+    | 'richText'
+    | 'image'
+    | 'url'
+    | 'color'
+    | 'toggle'
+    | 'select'
+    | 'number'
+    | 'icon'
+    | 'repeater';
+  label?: string;
+  options?: Array<string | { label: string; value: string }>;
+  min?: number;
+  max?: number;
+  step?: number;
   default?: any;
 }
 
@@ -1072,13 +1110,19 @@ export interface BlockDefinition<TAttrs = Record<string, any>> {
     setAttributes: (attrs: Partial<TAttrs>) => void;
   }>;
   /**
-   * Optional editor-only canvas view for blocks whose visitor renderer is interactive.
-   * Keep this view safe for editing: it should not submit forms or depend on live data.
+   * Optional editor-only canvas view for blocks whose edit implementation cannot safely
+   * render in Gutenberg. By default, a renderable `edit` implementation is shared with
+   * the editor canvas and this view is used as its fallback.
    */
   editorPreview?: ComponentType<{
     attributes: TAttrs;
     setAttributes: (attrs: Partial<TAttrs>) => void;
   }>;
+  /**
+   * Set to `override` only when `editorPreview` must replace a renderable `edit` view.
+   * The default (`fallback`) prefers `edit` so editor and visitor markup can share a source.
+   */
+  editorPreviewMode?: 'fallback' | 'override';
   save?: ComponentType<{
     attributes: TAttrs;
   }>;

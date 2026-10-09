@@ -1,6 +1,12 @@
 import { Eye } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
-import { pickEditable, useWpMeta, WpEditable, WpImage } from '@forgewp/react';
+import {
+  pickEditable,
+  resolveWpAsset,
+  useWpMeta,
+  WpEditable,
+  WpImage,
+} from '@forgewp/react';
 import { editable as pageEditable } from '../../../cms/editables/front-page';
 import { defaults as previewDefaults } from '../../../cms/editables/sections/preview';
 import LandingSection from './LandingSection';
@@ -17,7 +23,9 @@ export const editable = pickEditable(pageEditable, {
   sampleLabel: 'preview_sample_label',
   sampleValue: 'preview_sample_value',
   previewLabel: 'preview_preview_label',
+  downloadUrl: 'preview_download_url',
   pendingNote: 'preview_pending_note',
+  previewImage: 'preview_image',
   coverAlt: 'preview_cover_alt',
 });
 
@@ -35,7 +43,9 @@ export type PreviewSectionProps = {
   sampleLabel?: string;
   sampleValue?: string;
   previewLabel?: string;
+  downloadUrl?: string;
   pendingNote?: string;
+  previewImage?: string | number | { id?: number; url?: string; alt?: string };
   coverAlt?: string;
   setAttributes?: (attributes: Partial<PreviewSectionProps>) => void;
 };
@@ -54,7 +64,9 @@ export default function PreviewSection({
   sampleLabel: sampleLabelProp,
   sampleValue: sampleValueProp,
   previewLabel: previewLabelProp,
+  downloadUrl: downloadUrlProp,
   pendingNote: pendingNoteProp,
+  previewImage: previewImageProp,
   coverAlt: coverAltProp,
   setAttributes,
 }: PreviewSectionProps) {
@@ -88,6 +100,12 @@ export default function PreviewSection({
   const pendingNote =
     pendingNoteProp ??
     useWpMeta('preview_pending_note', previewDefaults.pendingNote);
+  const downloadUrl =
+    downloadUrlProp ??
+    useWpMeta('preview_download_url', previewDefaults.downloadUrl);
+  const previewImage =
+    previewImageProp ??
+    useWpMeta('preview_image', previewDefaults.previewImage);
   const coverAlt =
     coverAltProp ?? useWpMeta('preview_cover_alt', previewDefaults.coverAlt);
 
@@ -108,7 +126,7 @@ export default function PreviewSection({
             <div className='absolute -inset-5 translate-y-5 bg-brand/10 blur-2xl' />
             <div className='relative rotate-[-4deg] border border-white/80 bg-white p-3 shadow-[18px_24px_36px_rgba(15,23,42,0.18)] transition-transform duration-700 hover:rotate-[-1deg]'>
               <WpImage
-                src='/assets/hospitality-cover.png'
+                src={previewImage || '/assets/hospitality-cover.png'}
                 alt={coverAlt}
                 className='block aspect-[0.7] w-full object-cover'
               />
@@ -136,17 +154,33 @@ export default function PreviewSection({
               )}
             </p>
             <h2 className='mt-8 max-w-3xl font-heading text-5xl font-black leading-[0.88] tracking-[-0.07em] text-brand sm:text-7xl lg:text-8xl'>
-              <WordReveal
-                text={title}
-                reduceMotion={reduceMotion}
-              />
+              {setAttributes ? (
+                <WpEditable
+                  tagName='span'
+                  value={title}
+                  onChange={(value) => setAttributes({ title: value })}
+                />
+              ) : (
+                <WordReveal
+                  text={title}
+                  reduceMotion={reduceMotion}
+                />
+              )}
             </h2>
             <p className='mt-8 max-w-2xl text-lg leading-relaxed text-slate-600'>
-              <WordReveal
-                text={description}
-                reduceMotion={reduceMotion}
-                delay={0.12}
-              />
+              {setAttributes ? (
+                <WpEditable
+                  tagName='span'
+                  value={description}
+                  onChange={(value) => setAttributes({ description: value })}
+                />
+              ) : (
+                <WordReveal
+                  text={description}
+                  reduceMotion={reduceMotion}
+                  delay={0.12}
+                />
+              )}
             </p>
 
             <div className='mt-10 grid max-w-xl gap-4 border-y border-slate-300 py-5 sm:grid-cols-3'>
@@ -234,7 +268,12 @@ export default function PreviewSection({
 
             <div className='mt-8 flex flex-wrap items-center gap-4'>
               <a
-                href='/assets/hospitality-preview.pdf'
+                href={resolveWpAsset(
+                  downloadUrl ||
+                    '/assets/client-assets/Studie_Hospitality_2035_08102026_Kurz.pdf',
+                )}
+                target='_blank'
+                rel='noopener noreferrer'
                 className='group relative inline-flex items-center gap-2 overflow-hidden border border-accent bg-accent px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_10px_24px_rgba(225,29,72,0.2)] transition-all duration-300 hover:-translate-y-1 hover:border-brand hover:shadow-[0_14px_28px_rgba(15,23,42,0.2)]'
               >
                 <span

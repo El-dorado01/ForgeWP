@@ -25,6 +25,7 @@ const SAMPLE_CONFIG = {
     contact: {
       mailTo: 'admin',
       subject: 'New — {subject}',
+      submissionTitle: 'Contact — {name} ({email})',
       fields: {
         name: { type: 'text', label: 'Name', required: true },
         email: { type: 'email', label: 'Email', required: true },
@@ -127,13 +128,65 @@ describe('buildFormsPhp — representative config', () => {
     );
   });
 
-  it('separates read-only developer fields from editable client fields and shows storage status', () => {
+  it('keeps core field keys fixed while allowing label edits and client-managed fields', () => {
     expect(php).toContain('class="forgewp-form-panel"');
-    expect(php).toContain('Developer-owned fields');
+    expect(php).toContain('fixed keys and validation');
+    expect(php).toContain('forgewp_field_labels[name]');
     expect(php).toContain('Client-managed fields');
-    expect(php).toContain('read-only');
     expect(php).toContain('Submissions saved in WordPress');
     expect(php).toContain('Field key: ');
+  });
+
+  it('renders admin editors for success copy and email templates', () => {
+    expect(php).toContain('forgewp_forms_save_settings');
+    expect(php).toContain('forgewp_success_message');
+    expect(php).toContain('forgewp_notification_subject');
+    expect(php).toContain('forgewp_notification_body');
+    expect(php).toContain('forgewp_confirmation_subject');
+    expect(php).toContain('forgewp_confirmation_body');
+    expect(php).toContain('sanitize_textarea_field');
+    expect(php).toContain('check_admin_referer');
+  });
+
+  it('shows forms as individual child pages under a compact Forms overview', () => {
+    expect(php).toContain("add_submenu_page(\n            'forgewp-forms'");
+    expect(php).toContain("'forgewp-form-contact'");
+    expect(php).toContain('class="forgewp-form-index-card"');
+    expect(php).toContain("$active_form === 'contact'");
+    expect(php).toContain("'page' => 'forgewp-form-' . $form_name");
+    expect(php).toContain('Contact');
+  });
+
+  it('uses the available width on individual form settings pages', () => {
+    expect(php).toContain('.forgewp-form-panel { max-width: 1440px;');
+    expect(php).toContain('.forgewp-form-settings { max-width:none;');
+    expect(php).toContain(
+      '.forgewp-form-settings form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr));',
+    );
+    expect(php).toContain('forgewp-message-control--wide');
+    expect(php).toContain('@media (max-width: 782px)');
+    expect(php).toContain('<details class="forgewp-dev-fields">');
+  });
+
+  it('limits admin label changes to fixed developer-owned field keys', () => {
+    expect(php).toContain("'name', 'email'");
+    expect(php).toContain("$field_keys[$form_name] as $field_name");
+    expect(php).toContain("'fieldLabels' => $labels");
+    expect(php).toContain("'fieldLabels' => isset($forgewp_form_settings['fieldLabels'])");
+  });
+
+  it('uses safe text-only merge-tag interpolation for editable mail templates', () => {
+    expect(php).toContain('preg_replace_callback');
+    expect(php).toContain('[a-zA-Z0-9_-]+');
+    expect(php).toContain("array_key_exists($match[1], $values)");
+    expect(php).toContain('forgewp_forms_interpolate_template($subject_template, $values)');
+  });
+
+  it('styles the CSV field selector as a responsive grouped form', () => {
+    expect(php).toContain('class="wrap forgewp-export-page"');
+    expect(php).toContain('.forgewp-export-form-fields { display: grid;');
+    expect(php).toContain('.forgewp-export-form-fields[hidden] { display: none !important; }');
+    expect(php).toContain('.forgewp-export-field { display: flex;');
   });
 
   it('keeps generated field keys stable after a successful save and announces status', () => {
@@ -185,6 +238,18 @@ describe('buildFormsPhp — representative config', () => {
         formsAdminCapability: 'manage options',
       }),
     ).toThrow(/Invalid formsAdminCapability/);
+  });
+
+  it('rejects non-string admin message templates', () => {
+    expect(() =>
+      validateFormsConfig({
+        contact: {
+          mailTo: 'admin',
+          fields: { email: { type: 'email', required: true } },
+          successMessage: { invalid: true },
+        },
+      }),
+    ).toThrow(/successMessage must be a string/);
   });
 
   it('omits the CPT registration when storeSubmissions is false for every form', () => {
@@ -284,11 +349,13 @@ describe('buildFormsPhp — representative config', () => {
   });
 
   it('emits the hydration payload function returning only client-owned fields', () => {
-    expect(php).toContain('function forgewp_forms_hydration_payload()');
+    expect(php).toContain(
+      'function forgewp_forms_hydration_payload($requested_lang = null)',
+    );
     expect(php).toContain("forgewp_forms_get_client_fields('contact'");
     // mailTo must never appear in the hydration payload function body.
     const payloadFnStart = php.indexOf(
-      'function forgewp_forms_hydration_payload()',
+      'function forgewp_forms_hydration_payload($requested_lang = null)',
     );
     const payloadFnBody = php.slice(payloadFnStart);
     expect(payloadFnBody).not.toContain('admin_email');
@@ -315,17 +382,25 @@ describe('buildFormsPhp — representative config', () => {
 
   it('does not claim notification email was sent when storage succeeded but wp_mail failed', () => {
     expect(php).toContain('if (!$mail_sent && $stored)');
-    expect(php).toContain("'message' => __('Your submission was received.'");
+    expect(php).toContain("$form_settings['successMessage']");
     expect(php).toContain(
       'Submission was stored but its notification email failed',
     );
   });
 
+  it('uses a configured safe title template for stored submissions', () => {
+    expect(php).toContain(
+      "forgewp_store_submission('contact', $values, $field_defs, forgewp_forms_resolve_lang($submitted_lang), 'Contact — {name} ({email})')",
+    );
+    expect(php).toContain(
+      'sanitize_text_field(forgewp_forms_interpolate_template($title_template, $values))',
+    );
+    expect(php).toContain("'post_title'  => $title");
+  });
+
   it('uses the same public success message for successful mail and stored fallback', () => {
-    expect(
-      php.match(/'message'\s*=>\s*__\('Your submission was received\.'/g),
-    ).toHaveLength(2);
-    expect(php).not.toContain('Thank you — your message has been sent.');
+    expect(php.match(/'message'\s*=>\s*isset\(\$form_settings\['successMessage'\]/g)).toHaveLength(2);
+    expect(php).toContain("'Your submission was received.'");
   });
 
   it('logs when mail succeeds but configured submission storage fails', () => {
@@ -400,7 +475,7 @@ describe('submitter confirmation', () => {
       '$confirmation_subject = forgewp_forms_strip_header_injection(',
     );
     expect(php).toContain(
-      "$confirmation_body = 'Hello ' . (isset($values['name'])",
+      "$confirmation_body = forgewp_forms_interpolate_template(isset($form_settings['confirmationBody'])",
     );
     expect(php).toContain(
       'wp_mail($confirmation_to, $confirmation_subject, $confirmation_body, array())',
@@ -471,7 +546,7 @@ describe('submitter confirmation', () => {
       '$confirmation_subject = forgewp_forms_strip_header_injection(',
     );
     expect(php).toContain(
-      "$confirmation_body = 'Hello ' . (isset($values['name'])",
+      "$confirmation_body = forgewp_forms_interpolate_template(isset($form_settings['confirmationBody'])",
     );
     expect(php).toContain(
       'wp_mail($confirmation_to, $confirmation_subject, $confirmation_body, array())',
@@ -654,6 +729,30 @@ describe('validateFormsConfig', () => {
         },
       }),
     ).toThrow(/collides with a dev-owned field/);
+  });
+
+  it('rejects submission-title merge tags outside the developer-owned field allowlist', () => {
+    expect(() =>
+      validateFormsConfig({
+        contact: {
+          mailTo: 'admin',
+          fields: { email: { type: 'email' } },
+          submissionTitle: 'Contact — {unknown}',
+        },
+      }),
+    ).toThrow(/submissionTitle references undeclared developer-owned field/);
+  });
+
+  it('requires submissionTitle to be a string when configured', () => {
+    expect(() =>
+      validateFormsConfig({
+        contact: {
+          mailTo: 'admin',
+          fields: { email: { type: 'email' } },
+          submissionTitle: { invalid: true },
+        },
+      }),
+    ).toThrow(/submissionTitle must be a string/);
   });
 
   it('does not throw for a valid config', () => {
@@ -1048,9 +1147,12 @@ describe('multilingual client fields', () => {
   it('resolves the current page language in the hydration payload', () => {
     const php = buildFormsPhp(MULTI_CONFIG);
     expect(php).toContain(
-      '$forgewp_forms_current_lang = forgewp_forms_resolve_lang();',
+      'function forgewp_forms_hydration_payload($requested_lang = null)',
     );
-    expect(php).toContain('$forgewp_forms_current_lang));');
+    expect(php).toContain(
+      '$forgewp_forms_current_lang = forgewp_forms_resolve_lang($requested_lang);',
+    );
+    expect(php).toContain('$forgewp_forms_current_lang),');
   });
 
   it('renders a language tab per locale in the admin page', () => {

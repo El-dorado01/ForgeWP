@@ -2,7 +2,7 @@
 
 exports[`editor-transpiler: .map() over a destructured-and-renamed icon object > compiles a bound-variable .map(({ icon: Icon, ... }) => ...) ("socialList" style) 1`] = `
 "createElement("div", null, socialList.map(({ icon: Icon, label, handle, href }) => (
-  createElement("a", { key: label, href: href }, createElement(Icon, { className: "i" }), handle)
+  createElement(ForgeWpEditorLink, { key: label, href: href }, createElement(Icon, { className: "i" }), handle)
 )))"
 `;
 
@@ -54,7 +54,7 @@ exports[`editor-transpiler: ImpressumContent.tsx return JSX > compiles cleanly w
         className: "text-sm font-bold text-slate-800 block",
         disableLineBreaks: true,
         allowedFormats: []
-      })) : (createElement("a", { href: \`mailto:\${contactEmail}\`, className: "text-sm font-bold text-slate-800 hover:text-primary transition-colors" }, contactEmail)), createElement("p", { className: "text-xs font-semibold text-slate-500 mt-1" }, setAttributes ? (createElement(wp.element.Fragment, null, createElement(wp.blockEditor.RichText, {
+      })) : (createElement(ForgeWpEditorLink, { href: \`mailto:\${contactEmail}\`, className: "text-sm font-bold text-slate-800 hover:text-primary transition-colors" }, contactEmail)), createElement("p", { className: "text-xs font-semibold text-slate-500 mt-1" }, setAttributes ? (createElement(wp.element.Fragment, null, createElement(wp.blockEditor.RichText, {
         tagName: "span",
         value: (function(){ var __v = (attributes.contactWebsiteLabel); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ contactWebsiteLabel: val }),
@@ -68,7 +68,7 @@ exports[`editor-transpiler: ImpressumContent.tsx return JSX > compiles cleanly w
         className: "underline",
         disableLineBreaks: true,
         allowedFormats: []
-      }))) : (createElement(wp.element.Fragment, null, contactWebsiteLabel, ' ', createElement("a", { href: contactWebsiteUrl, target: "_blank", rel: "noopener noreferrer", className: "underline hover:text-primary" }, contactWebsiteDisplay)))))), createElement("div", { className: "h-px bg-slate-100" }), createElement("div", { className: "flex gap-4" }, createElement("div", { className: "w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 text-slate-600" }, createElement(Landmark, { className: "w-4 h-4" })), createElement("div", { className: "space-y-2 w-full" }, editText(
+      }))) : (createElement(wp.element.Fragment, null, contactWebsiteLabel, ' ', createElement(ForgeWpEditorLink, { href: contactWebsiteUrl, target: "_blank", rel: "noopener noreferrer", className: "underline hover:text-primary" }, contactWebsiteDisplay)))))), createElement("div", { className: "h-px bg-slate-100" }), createElement("div", { className: "flex gap-4" }, createElement("div", { className: "w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 text-slate-600" }, createElement(Landmark, { className: "w-4 h-4" })), createElement("div", { className: "space-y-2 w-full" }, editText(
                 registerHeading,
                 'registerHeading',
                 'text-xs font-mono font-bold uppercase tracking-widest text-slate-400 mb-1 block',
@@ -161,7 +161,7 @@ exports[`editor-transpiler: contact-email dual-host ternary (WpEditable vs. <a>)
         className: "text-sm font-bold text-slate-800 block",
         disableLineBreaks: true,
         allowedFormats: []
-      })) : (createElement("a", { href: \`mailto:\${contactEmail}\`, className: "text-sm font-bold text-slate-800 hover:text-primary transition-colors" }, contactEmail)))"
+      })) : (createElement(ForgeWpEditorLink, { href: \`mailto:\${contactEmail}\`, className: "text-sm font-bold text-slate-800 hover:text-primary transition-colors" }, contactEmail)))"
 `;
 
 exports[`editor-transpiler: editText helper preamble (ImpressumContent.tsx) > transpiles the editText helper to createElement calls with no raw JSX left over 1`] = `
@@ -208,7 +208,7 @@ exports[`editor-transpiler: nested-fragment / dangerouslySetInnerHTML / array-of
         className: "",
         disableLineBreaks: true,
         allowedFormats: []
-      }))) : (createElement(wp.element.Fragment, null, a, ' ', createElement("a", { href: url }, b))))"
+      }))) : (createElement(wp.element.Fragment, null, a, ' ', createElement(ForgeWpEditorLink, { href: url }, b))))"
 `;
 
 exports[`editor-transpiler: nested-fragment / dangerouslySetInnerHTML / array-of-editText ternaries > compiles the "nestedHtml" ternary shape without mangling 1`] = `

@@ -1,8 +1,14 @@
-import { pickEditable, useWpMeta, WpEditable } from '@forgewp/react';
+import {
+  pickEditable,
+  useWpPageLink,
+  useWpMeta,
+  WpEditable,
+  WpLink,
+} from '@forgewp/react';
+import { ArrowRight } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
 import { editable as pageEditable } from '../../../cms/editables/front-page';
 import { defaults as eventDefaults } from '../../../cms/editables/sections/events';
-import { EventArchive } from './EventRecords';
 import LandingSection from './LandingSection';
 import WordReveal from './WordReveal';
 
@@ -41,6 +47,7 @@ export default function EventsSection({
   const description =
     descriptionProp ??
     useWpMeta('events_description', eventDefaults.description);
+  const eventsHref = useWpPageLink('events-page', '/events');
 
   return (
     <LandingSection
@@ -117,8 +124,17 @@ export default function EventsSection({
           </motion.div>
         </div>
 
-        <div className='mt-20 border-y border-white/20'>
-          <EventArchive tone='dark' />
+        <div className='mt-20 border-t border-white/20 pt-8'>
+          <WpLink
+            href={eventsHref}
+            className='inline-flex min-h-14 items-center justify-center gap-3 bg-accent px-7 py-4 text-xs font-bold uppercase tracking-[0.14em] text-white transition-colors hover:bg-white hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white'
+          >
+            Alle Veranstaltungen
+            <ArrowRight
+              size={16}
+              aria-hidden='true'
+            />
+          </WpLink>
         </div>
       </div>
     </LandingSection>

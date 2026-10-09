@@ -6,7 +6,8 @@
  *
  * Public API surface (intentionally minimal):
  *
- *   Components:    WpQueryLoop, WpMenu, WpShortcode, WpFormFields
+ *   Components:    WpQueryLoop, WpMenu, WpShortcode, WpFormFields,
+ *                  WpFormSubmitButton
  *   Hooks:         useWpTitle, useWpContent, useWpExcerpt, useWpPermalink,
  *                  useWpDate, useWpAuthor, useWpFeaturedImage, useWpCustomField
  *   Functions:     submitWpForm
@@ -57,6 +58,9 @@ export type {
   WpFormFieldDescriptor,
 } from './components/WpFormFields';
 
+export { WpFormSubmitButton } from './components/WpFormSubmitButton';
+export type { WpFormSubmitButtonProps } from './components/WpFormSubmitButton';
+
 export { WpLink, Link } from './components/Link';
 export type { LinkProps } from './components/Link';
 
@@ -100,6 +104,8 @@ export {
   useWpMeta,
   submitWpForm,
   useWpForm,
+  useWpFormFieldLabels,
+  type UseWpFormOptions,
   resolveDualHost,
   WpBlockContext,
   defineEditable,

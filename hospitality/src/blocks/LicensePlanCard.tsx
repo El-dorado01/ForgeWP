@@ -10,6 +10,7 @@ type LicensePlanCardAttributes = {
   featureTwo?: string;
   actionLabel?: string;
   actionHref?: string;
+  showActionIcon?: boolean;
   featured?: boolean;
   setAttributes?: (attributes: Partial<LicensePlanCardAttributes>) => void;
 };
@@ -23,6 +24,7 @@ function LicensePlanCard({
   featureTwo = 'Für einzelne Entscheider und Fachverantwortliche',
   actionLabel = 'Lizenz auswählen',
   actionHref = '/checkout/single-license',
+  showActionIcon = true,
   featured = false,
   setAttributes,
 }: LicensePlanCardAttributes) {
@@ -43,16 +45,16 @@ function LicensePlanCard({
         : actionHref === '/lizenz/unternehmen'
           ? companyLicenseHref
           : actionHref;
-  const surfaceClass = featured ? 'bg-brand text-white' : 'bg-white text-brand';
+  const surfaceClass = featured
+    ? 'bg-brand p-6 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)]'
+    : 'bg-white p-6 text-brand sm:p-8';
   const mutedClass = featured ? 'text-slate-300' : 'text-slate-500';
   const featureClass = featured
     ? 'border-white/20 text-slate-300'
     : 'border-brand/15 text-slate-600';
 
   return (
-    <article
-      className={`flex min-h-97.5 flex-col border border-brand/15 p-6 sm:p-8 ${surfaceClass}`}
-    >
+    <article className={`flex min-h-[390px] flex-col ${surfaceClass}`}>
       <WpEditable
         tagName='p'
         value={eyebrow}
@@ -60,7 +62,7 @@ function LicensePlanCard({
         className='text-xs font-bold uppercase tracking-[0.16em] text-accent'
       />
       <WpEditable
-        tagName='h2'
+        tagName='h3'
         value={title}
         onChange={(value) => setAttributes?.({ title: value })}
         className='mt-5 font-heading text-2xl font-bold'
@@ -103,17 +105,19 @@ function LicensePlanCard({
       </ul>
       <WpLink
         href={resolvedActionHref}
-        className={`mt-auto inline-flex items-center justify-between gap-3 border px-4 py-3.5 text-xs font-bold uppercase ${featured ? 'border-accent bg-accent text-white hover:bg-transparent' : 'border-brand text-brand hover:bg-brand hover:text-white'}`}
+        className={`mt-auto inline-flex items-center justify-between gap-2 whitespace-nowrap border px-3 py-3.5 text-[10px] font-bold uppercase tracking-[0.06em] transition-colors sm:gap-3 sm:px-4 sm:text-xs sm:tracking-[0.1em] ${featured ? 'border-accent bg-accent text-white hover:bg-transparent' : 'border-brand text-brand hover:bg-brand hover:text-white'}`}
       >
         <WpEditable
           tagName='span'
           value={actionLabel}
           onChange={(value) => setAttributes?.({ actionLabel: value })}
         />
-        <ArrowRight
-          size={16}
-          aria-hidden='true'
-        />
+        {showActionIcon && (
+          <ArrowRight
+            size={16}
+            aria-hidden='true'
+          />
+        )}
       </WpLink>
     </article>
   );
@@ -139,7 +143,18 @@ export default defineBlock({
       default: 'Für einzelne Entscheider und Fachverantwortliche',
     },
     actionLabel: { type: 'string', default: 'Lizenz auswählen' },
-    actionHref: { type: 'string', default: '/checkout/single-license' },
+    actionHref: {
+      type: 'string',
+      control: 'url',
+      label: 'Action URL',
+      default: '/checkout/single-license',
+    },
+    showActionIcon: {
+      type: 'boolean',
+      control: 'toggle',
+      label: 'Show action icon',
+      default: true,
+    },
     featured: { type: 'boolean', default: false },
   },
   edit: ({ attributes, setAttributes }) => (

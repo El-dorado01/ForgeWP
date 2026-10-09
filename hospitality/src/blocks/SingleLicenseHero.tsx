@@ -9,6 +9,8 @@ type SingleLicenseHeroAttributes = {
   mobileHeadingSecond?: string;
   description?: string;
   backLabel?: string;
+  backHref?: string;
+  showBackIcon?: boolean;
   setAttributes?: (attributes: Partial<SingleLicenseHeroAttributes>) => void;
 };
 
@@ -20,9 +22,12 @@ function SingleLicenseHero({
   mobileHeadingSecond = 'übersicht',
   description = 'Für Unternehmen und gewerbliche Nutzer. Prüfen Sie Lizenzumfang und Preis; Rechnungs- und Zahlungsdaten erfassen Sie im EDD-Checkout.',
   backLabel = 'Alle Lizenzen',
+  backHref = '/lizenzen',
+  showBackIcon = true,
   setAttributes,
 }: SingleLicenseHeroAttributes) {
-  const licensesHref = useWpPageLink('lizenzen-page', '/lizenzen');
+  const licensesPageHref = useWpPageLink('lizenzen-page', '/lizenzen');
+  const licensesHref = backHref === '/lizenzen' ? licensesPageHref : backHref;
 
   return (
     <header className='bg-brand text-white'>
@@ -31,10 +36,12 @@ function SingleLicenseHero({
           href={licensesHref}
           className='inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-slate-300 transition-colors hover:text-white'
         >
-          <ArrowLeft
-            size={15}
-            aria-hidden='true'
-          />
+          {showBackIcon && (
+            <ArrowLeft
+              size={15}
+              aria-hidden='true'
+            />
+          )}
           <WpEditable
             tagName='span'
             value={backLabel}
@@ -108,6 +115,18 @@ export default defineBlock({
         'Für Unternehmen und gewerbliche Nutzer. Prüfen Sie Lizenzumfang und Preis; Rechnungs- und Zahlungsdaten erfassen Sie im EDD-Checkout.',
     },
     backLabel: { type: 'string', default: 'Alle Lizenzen' },
+    backHref: {
+      type: 'string',
+      control: 'url',
+      default: '/lizenzen',
+      label: 'Back link URL',
+    },
+    showBackIcon: {
+      type: 'boolean',
+      control: 'toggle',
+      default: true,
+      label: 'Show back link icon',
+    },
   },
   edit: ({ attributes, setAttributes }) => (
     <SingleLicenseHero

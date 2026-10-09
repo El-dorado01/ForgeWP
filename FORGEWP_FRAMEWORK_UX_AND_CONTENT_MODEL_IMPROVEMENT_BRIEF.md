@@ -23,7 +23,7 @@ This document records behavior observed in the current codebase, proposes change
 
 The highest-value opportunities are:
 
-1. Improve local preview fidelity for serialized Gutenberg content. `BlockArea` currently inserts mock `post.content` as raw HTML; it does not parse Gutenberg block comments. Hospitality works around this by manually rendering the event sections from mock custom fields, which can drift from the actual saved block tree.
+1. Finish block preview fidelity across environments. Local `BlockArea` still inserts mock `post.content` as raw HTML instead of parsing Gutenberg block comments. Gutenberg now uses a renderable `edit` implementation by default, with `editorPreview` as a fallback and `editorPreviewMode: 'override'` for deliberate alternatives; live-data and interactive blocks still need an inert editor surface.
 2. Define one source of truth for content shared between CPT fields and block attributes. A value duplicated in both places can diverge when an editor changes only one copy.
 3. Make template discovery intent explicit. Root `single-<post-type>.tsx` files map to WordPress single templates, while files under `src/app/pages/` are also scanned as Page templates. A helper component placed in `pages/` can unintentionally create an additional Page template.
 4. Make block authoring choices easier to understand. `defineBlock()`, `@forgewp-block`, `make:block`, and `make:shell` solve different problems; generators and docs should guide authors to the right one.
@@ -99,21 +99,25 @@ Relevant source: `packages/compiler/bin/make-shell.js`, `packages/compiler/lib/b
 
 ## Proposed Improvements
 
-### 1. Add a Realistic Local Gutenberg Content Preview
+### 1. Add Source-Consistent Block Previews Across Environments
 
-**Problem:** Local `BlockArea` currently inserts serialized comments as raw HTML. Authors may believe they are seeing the saved Gutenberg blocks when they are actually seeing nothing, hidden comments, or a separate hand-built preview.
+**Status:** Partial. The Gutenberg shared-canvas path is implemented and covered by compiler tests and a Hospitality block audit. Local block-tree preview remains unresolved.
 
-**Proposal:** Investigate a local block-content renderer that parses WordPress block serialization and resolves registered ForgeWP blocks to their local preview renderer. Prefer the standard WordPress block serialization parser instead of writing a custom comment/JSON parser. Define behavior for core blocks, ForgeWP static blocks, dynamic blocks, nested `InnerBlocks`, and unknown/unregistered blocks.
+**Problem:** Local `BlockArea` currently inserts serialized comments as raw HTML, so it does not preview the saved Gutenberg block tree. Static Gutenberg blocks can now share their renderable `edit` implementation with the visitor component, including inline text, image, and link rendering. Live queries, forms, and other active interactions still need an explicit inert preview or WordPress server rendering. Hospitality also reported that an Inspector-edited License Hero value remains visible in the sidebar after save/reload while the block canvas shows older content. The current source routes Inspector controls and inline RichText through block attributes, and generated PHP renders those attributes; the editor persistence mismatch has not been reproduced outside the reported WordPress install.
 
-If full local rendering is not feasible, make the limitation explicit in the UI and provide a single source for the local preview component instead of silently presenting mock composition as saved block content.
+**Proposal:** Investigate a local block-content renderer that parses WordPress block serialization and resolves registered ForgeWP blocks to their local renderer. Prefer the standard WordPress block serialization parser instead of writing a custom comment/JSON parser. Preserve Gutenberg's `edit`-first canvas behavior, its `editorPreview` fallback, and the explicit `editorPreviewMode: 'override'` escape hatch. Define behavior for core blocks, ForgeWP static and dynamic blocks, nested `InnerBlocks`, and unknown/unregistered blocks. Keep theme-relative image resolution in the supported editor runtime path. Add a WordPress save/reload regression check for both InspectorControl and inline edits so the reported stale canvas can be localized to serialization, editor preview, or server rendering.
 
 **Acceptance criteria:**
 
-- A fixture containing sibling and nested ForgeWP blocks previews in the same order and hierarchy as WordPress.
-- Supported block attributes appear in local preview.
-- Unknown blocks produce a clear preview placeholder rather than raw serialized comments.
-- Tests cover nested shell/child blocks and malformed or unknown block content.
-- Docs clearly state any remaining Local Vite vs Gutenberg differences.
+- [ ] A fixture containing sibling and nested ForgeWP blocks previews in the same order and hierarchy as WordPress in local `BlockArea`.
+- [ ] Supported block attributes appear in local preview.
+- [ ] In WordPress, InspectorControl and inline edits both remain visible in the block after saving and reloading the page, and match the visitor renderer.
+- [x] A `defineBlock()` visitor renderer containing `WpQueryLoop` emits a real `WP_Query` loop in `render.php`; each result uses the current post's title, excerpt, featured image, permalink, and custom fields, and the supported query filters are preserved.
+- [x] A typical static block can use its renderable `edit` component for the Gutenberg canvas without duplicate `editorPreview` JSX; explicit fallback and override behavior are tested.
+- [x] Image and URL attributes have documented controls and render through the Gutenberg shared-canvas path; theme-relative images resolve against the active theme URL.
+- [ ] Unknown blocks produce a clear local preview placeholder rather than raw serialized comments.
+- [ ] Tests cover local nested shell/child blocks, malformed or unknown block content, and local attribute rendering; the Gutenberg shared-canvas, media/link, nested-component, and motion paths have focused coverage.
+- [x] Docs distinguish local Vite, Gutenberg, and visitor behavior and describe when `editorPreview` is appropriate.
 
 ### 2. Establish a Canonical Source for Shared CPT Content
 
@@ -213,47 +217,41 @@ Detailed WordPress-first implementation phases and acceptance gates are maintain
 - Native forms are declared inline in `wp.config.ts` or discovered from `cms/forms/<name>.ts`. `load-config.js` merges discovered contracts with inline forms; inline configuration wins on duplicate names.
 - Developer-owned fields are declared in the contract and are a fixed server allowlist. Optional client-owned fields are seeded in that contract, edited on the generated WordPress Forms admin page, hydrated to `WpFormFields`, and merged into server validation. `WpFormFields` provides developer-owned rendering markup plus the client-managed field list.
 - The React `submitWpForm()` local path logs the payload, waits, and simulates success. A field value equal to the `__fail__` sentinel exercises its simulated error response. It does not exercise PHP validation, persistence, or mail delivery.
-- `WpFormFields` reads `window._forgeWpMockForms` or `window.forgeWpHydration.forms`. The standard `forgewpVirtualPlugin` bridge injects posts, menus, translations, options, products, and optional auth globals, but no mock-form global. The WordPress hydration path does include form fields. This suggests client-owned fields may render empty in ordinary Vite preview; confirm with a minimal fixture before treating it as reproduced.
-- Native form definitions remain developer-owned. The generated Forms screen can edit only explicitly enabled `clientFields`; it is not a form catalog or plugin-form builder.
-- Interactive block components already use ForgeWP's hydration pipeline for visitor behavior. `useWpForm()` now provides reusable submission state over the existing `submitWpForm()` contract, and interactive blocks can opt into a separate inert `editorPreview`. A project-specific Builder form still needs a block component that renders its configured form fields; broader client-managed-field patterns remain to be evaluated. Relevant sources: `packages/compiler/lib/blocks/index.js`, `packages/react/src/hooks.ts`, and `packages/react/src/components/WpFormFields.tsx`.
-- Native confirmation subjects and bodies are plain-text strings in the developer-owned form config. The CLI provides `make:form`, but no mail-template scaffold or admin template editor. A CLI-generated source template would still require a code change and deployment; wp-admin editing is a separate ownership and persistence feature.
+- `WpFormFields` reads `window._forgeWpMockForms` or `window.forgeWpHydration.forms`; Vite does not automatically inject the form contract into a mock-form global. An optional `fallback` prop renders a provided seed in local preview; themes must pass that seed when they need local client-field previews.
+- Native form definitions and core field keys/types/validation remain developer-owned. For each form with `clientFields.enabled`, the generated Forms menu has an individual child page for editing optional fields, displayed labels, and capability-protected success-copy and plain-text notification/receipt templates; the Forms root is a compact index. It does not create forms or plugin forms. Saved WordPress settings use source-config values as fresh-install defaults.
+- Stored submissions remain an opt-in framework feature (`storeSubmissions`, default on for native forms). Developers can provide `submissionTitle` with merge tags restricted to declared developer-owned fields; stored entries include the resolved title and submission time. Without it, the existing form-name-and-time title remains the fallback.
+- `useWpForm()` provides reusable submission state over `submitWpForm()` and supports opt-in `resetOnSuccess`. Builder blocks can use a separate inert `editorPreview`; Hospitality now demonstrates a hero block followed by a parent shell containing the working form and summary blocks. `WpFormFields` renders provided fallback seeds before client hydration and the server-hydrated field set in WordPress.
+- Notification and optional receipt templates are plain text. `{field}` tags are interpolated from sanitized submitted values; recipients, core validation, and the server field allowlist remain developer-owned. The CLI has no named mail-template scaffold.
 - In staging, verify that the configured Forms capability maps to the intended WordPress roles. This screen can expose stored submission PII to anyone granted that capability.
 - Plugin-created forms have two distinct shortcode paths: developer-authored `<WpShortcode>` compiles to `do_shortcode()` and shows a placeholder in Vite, while a WordPress editor can insert the core Shortcode block into content rendered by `BlockArea`/`the_content()` without a `forms` config entry. The docs now describe both paths. `forms.mode: 'shortcode'` is a developer-authored contract; its `shortcode` config value is not automatically exposed as an editable setting in wp-admin. A developer can make it editable by explicitly sourcing it from page metadata, but that is separate wiring.
 
 **Suggested improvements:**
 
-1. Populate the Vite mock-form global from the same resolved form config used by `WpFormFields`, or provide an explicit local mock adapter. Test the Vite runtime bridge rather than only the component's fallback behavior.
+1. Consider automatically injecting the resolved form contract into the Vite mock-form global so themes that want local client-field previews do not have to pass `WpFormFields.fallback` at each use site. Keep the current fallback prop and simulated-submission boundary.
 2. Add an opt-in local validation mode that uses the form contract for required fields, email, and select options. Keep the current fast success simulation available, but make clear that it does not test backend behavior.
 3. Verify the configured Forms capability against real WordPress roles on staging, including access to list, view, and export stored submissions.
 4. Keep plugin shortcode placement and shortcode configuration distinct. Editors can create a plugin form and insert its shortcode with the core Shortcode block in content rendered by `the_content()`. Do not add a ForgeWP shortcode registry/editor unless a demonstrated workflow requires it.
 5. For event registrations, evaluate a maintained plugin/add-on stack against capacity, approval/waitlist, confirmation, export, privacy/retention, and separate marketing consent before expanding the general-purpose native forms API.
-6. Evaluate an opt-in client-managed form mode for projects where a site editor must manage most or all visible questions. Keep developer-owned required fields and server-side validation explicit; do not let editable field definitions silently change mail routing, storage, or other submission behavior. Define field identity, removal/reordering behavior, permissions, and how changes affect existing submissions before expanding the current additive `clientFields` model.
-7. Add named, source-controlled mail templates with a `make:mail` scaffold and safe merge-tag interpolation for admin notifications and submitter confirmations. Keep this distinct from a separate opt-in WordPress admin editor for editable subject/body copy; the source template should remain a clear fallback, and neither path should execute arbitrary PHP or template code.
-8. Refine the reusable native-form Builder pattern for projects with client-managed fields. Preserve the existing interactive-block hydration and secure form endpoint; define how `WpFormFields` appears before and after hydration, and keep editor previews inert.
+6. Add named, source-controlled mail-template files and a `make:mail` scaffold for reusable developer-authored templates. Admin-editable text is already a separate capability-protected override; source templates should remain the defaults, and neither path may execute arbitrary PHP or template code.
 
 **Acceptance criteria:**
 
-- A Vite preview with `clientFields.enabled` renders the seeded client fields, and the saved admin field list hydrates in WordPress.
+- If generic Vite form injection is added, local preview uses the same resolved client-field seed as WordPress without calling the real endpoint; `WpFormFields.fallback` continues to work for explicit per-component previews.
 - Local test behavior is clearly distinguished from real server validation, email delivery, and persistence.
 - Verify role/capability behavior, stored-submission privacy access, and mail delivery semantics on a real WordPress staging site.
 - Verify CSV export, personal-data export/erasure, and WP-Cron retention behavior on a real WordPress staging site before enabling these tools for a client.
-- Forms docs distinguish plugin shortcodes authored by developers from shortcodes inserted by editors into WordPress content.
-- A client-managed form mode can edit only explicitly opted-in fields; developer-locked fields, server-side validation, permissions, and the effect of field changes on stored submissions are defined and tested.
 - `make:mail` scaffolds a named source template, form configuration can reference it, and tests verify allowed merge tags, escaping, and missing/unknown-tag behavior.
-- If wp-admin template editing is implemented, it is separately opt-in, capability-protected, limited to safe subject/body content and an allowlist of merge tags, and falls back predictably to the source template.
-- A Builder form using `useWpForm()` submits through the existing secure form contract and exposes field errors and response state. Projects that enable `clientFields` have a documented and tested authoring pattern that renders those fields predictably in the visitor output.
 
 ## Recommended Implementation Order
 
 1. Resolve canonical ownership for event fields and update the fixture contract.
-2. Improve local block-content preview or make its limitation explicit and avoid duplicate rendering paths.
+2. Complete local block-tree rendering in `BlockArea`; preserve the verified Gutenberg shared-canvas and preview-fallback contract.
 3. Add template-discovery diagnostics/tests for Page helpers versus root CPT single templates.
 4. Improve seed dry-run/reporting without enabling production fixture import by default.
 5. Refine CLI/docs for annotation, block, shell, and `BlockArea` choices.
 6. Add route collision/migration diagnostics and document rewrite ownership.
 7. Decide whether archive header promotion remains capped or becomes editor-configurable.
 8. Before implementing event registration, compare a plugin/add-on pilot with a scoped native extension; resolve capacity/approval, export, privacy, and retention requirements first.
-9. Define the ownership boundary for client-managed native form fields, then design source-controlled mail templates and any separate wp-admin copy overrides.
 
 ## Non-Goals and Guardrails
 

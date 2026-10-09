@@ -1,8 +1,10 @@
 import {
   defineEditable,
   getEditableDefaults,
+  image,
   richText,
   text,
+  url,
 } from '@forgewp/react';
 
 export const editable = defineEditable({
@@ -35,14 +37,18 @@ export const editable = defineEditable({
     label: 'Preview Button Label',
     default: 'Vorschau ansehen',
   }),
+  previewUrl: url({ label: 'Preview Button URL', default: '#preview' }),
   buyLabel: text({
     label: 'Buy Button Label',
     default: 'Studie kaufen · 249 € netto',
   }),
+  buyUrl: url({ label: 'Purchase Button URL', default: '#buy' }),
   scrollLabel: text({
     label: 'Scroll Label',
     default: 'Scroll to explore',
   }),
+  scrollUrl: url({ label: 'Scroll Link URL', default: '#study' }),
+  coverImage: image({ label: 'Study Cover Image' }),
   coverAlt: text({
     label: 'Cover Image Alt Text',
     default: 'Hospitality 2035 study cover',

@@ -32,7 +32,7 @@ A form may be 100% dev-owned, 100% client-owned, or mixed. `<WpShortcode>` remai
 - No file uploads, no multi-step, no payment fields.
 - No reCAPTCHA/Turnstile (v2 opt-in; v1 ships honeypot + time-trap + rate-limit).
 - No PHP-side SSR of client-owned fields (v1 renders them in the island; v2 note in §10).
-- ~~No per-language client-field sets~~ — **added post-v1** (July 2026): client-owned field labels/options are runtime wp-admin content, not compiled strings, so they can't go through `__()`/translations.json. For a theme with `i18n.locales.length > 1`, `clientFields.seed` accepts a per-locale map (`{ en: [...], de: [...] }`, or a flat array to seed every locale with the same content); storage becomes a locale-keyed option (`forgewp_form_fields_{name}` = `{ en: [...], de: [...] }`) instead of a flat list. `forgewp_forms_resolve_lang()` mirrors the existing menu/translation `$current_lang` resolution order (explicit param → Polylang/WPML → site locale). The admin "Forms" page gets a language-tab switcher per form; `submitWpForm` sends the visitor's page language (`window.forgeWpTranslations.currentLanguage`) so submissions validate against the field set the visitor actually saw. Pre-existing flat-list data (saved before a form went multilingual) is detected and returned as-is for every locale until the client explicitly saves a specific language tab, at which point storage splits into the per-locale map. Also added: `ForgeWPFormField.placeholder`, threaded through dev-owned fields (wrapped in `__()` like `label`), client-owned field seeds, the admin editor (new column), and `WpFormFieldDescriptor`.
+- ~~No per-language client-field sets~~ — **added post-v1** (July 2026): client-owned field labels/options are runtime wp-admin content, not compiled strings, so they can't go through `__()`/translations.json. For a theme with `i18n.locales.length > 1`, `clientFields.seed` accepts a per-locale map (`{ en: [...], de: [...] }`, or a flat array to seed every locale with the same content); storage becomes a locale-keyed option (`forgewp_form_fields_{name}` = `{ en: [...], de: [...] }`) instead of a flat list. `forgewp_forms_resolve_lang()` resolves the active Polylang/WPML language or site locale. For forms using `i18n.provider: 'local'`, when no active Polylang/WPML language is available the hydration enqueuer resolves a configured locale from the first URL path segment and otherwise uses `defaultLocale`, then passes that same locale into form hydration and `forgeWpTranslations.currentLanguage`. The admin "Forms" page gets a language-tab switcher per form; `submitWpForm` sends the visitor's page language so submissions validate against the field set the visitor actually saw. Pre-existing flat-list data (saved before a form went multilingual) is detected and returned as-is for every locale until the client explicitly saves a specific language tab, at which point storage splits into the per-locale map. Also added: `ForgeWPFormField.placeholder`, threaded through dev-owned fields (wrapped in `__()` like `label`), client-owned field seeds, the admin editor (new column), and `WpFormFieldDescriptor`.
 
 ---
 
@@ -82,6 +82,8 @@ export interface ForgeWPFormConfig {
   mailTo?: string;
   /** Email subject line. Supports {field} interpolation from submitted values. */
   subject?: string;
+  /** Optional saved-entry title. Merge tags must reference developer-owned fields. */
+  submissionTitle?: string;
   /** Dev-owned fields — the fixed part of the server-side allowlist. */
   fields?: Record<string, ForgeWPFormField>;
   clientFields?: ForgeWPFormClientFieldsConfig;
@@ -222,14 +224,13 @@ export interface WpFormFieldsProps {
 
 Behavior:
 
-- **Field source, dev:** `window._forgeWpMockForms?.[form]?.fields` — injected by the compiler's Vite dev plugin from `wp.config.ts` (`clientFields.seed`), the same mechanism that provides `window._forgeWpMockSiteSettings` today. Fallback: render nothing + one console warning.
-- **Field source, production:** `window.forgeWpHydration.forms[form].fields` (localized server-side from the stored option — §4.5).
-- **Hydration-mismatch guard (required):** the compile-time SSR pass bakes the _seed_ fields into static HTML, but the live option may differ. To avoid React hydration mismatches, use the standard two-pass pattern: first client render returns the seed (matching SSR), then after mount (`useEffect`) re-render from `forgeWpHydration.forms`. Brief content swap is acceptable in v1; eliminated in v2 (§10).
+- **Field source:** `window.forgeWpHydration.forms[form].fields` takes precedence when present (localized from the saved wp-admin option — §4.5). An empty hydrated array is authoritative, so removing every client-owned field in wp-admin does not restore the seed. Local Vite preview falls back to `window._forgeWpMockForms?.[form]?.fields`, injected from `wp.config.ts`; a caller-supplied `fallback` is used only when neither runtime source exists.
+- **Rendering:** client-owned fields are not server-rendered in v1. They render when the containing interactive form island runs, directly from the runtime source above; there is no seed-to-hydration content swap.
 - Renders `render(field)` for each field **in the stored order**, wrapped in a `<React.Fragment key={field.name}>`.
 - Automatically appends the honeypot input (`_forgewp_hp`, visually hidden inline style, `tabIndex={-1}`, `autoComplete="off"`, `aria-hidden`).
 - Contains no markup of its own besides the honeypot — Principle 8 (dev owns 100% of visible HTML).
 
-`WpFormFields` uses `useState`/`useEffect`, so `is-interactive.js` island detection picks up any component containing it automatically — no `<Hydrate>` bookkeeping needed by the dev (their form already has `onSubmit` anyway).
+The containing form is already interactive through its submit handler, so it needs no additional `<Hydrate>` bookkeeping for `WpFormFields`.
 
 ---
 
@@ -269,7 +270,7 @@ add_action('rest_api_init', function () {
 - **Header-injection guard:** strip `\r`/`\n` from every value before any use in mail headers or subject.
 - Any `$errors` → `400 { ok:false, errors, message }`.
 
-7. **Store** (if `storeSubmissions`): `wp_insert_post` into `forgewp_submission` (post*title = form name + date; sanitized values as post meta `field*{name}`, plus `\_form_name`, `\_submitted_at`, `\_ip_hash`=`md5` of IP — no raw IP at rest).
+7. **Store** (if `storeSubmissions`): `wp_insert_post` into `forgewp_submission` (post title uses the optional `submissionTitle` plain-text template with developer-owned submitted values plus the submission time; without a template, it uses form name + date; sanitized values are saved as post meta `field_{name}`, plus `_form_name`, `_submitted_at`, and `_ip_hash` — no raw IP at rest).
 8. **Mail:** `wp_mail($to, $subject, $body, $headers)`
    - `$to` resolved from `mailTo` (`admin` → `get_option('admin_email')`; `option:key` → `get_option('key')`; else literal).
    - `$subject` = config subject with `{field}` interpolation (post-sanitization values).
@@ -290,7 +291,7 @@ All user-facing strings use `__('…', '${config.textDomain}')` and get added to
 ### 4.3 Client-fields storage + admin UI
 
 - Option per form: `forgewp_form_fields_{name}` = JSON array of `{name,label,type,required,options}`. Registered/seeded on `after_switch_theme` from the config seed **only if the option does not exist** (never clobber client edits on redeploy).
-- Admin UI: a **"Forms" submenu** added beside the generated Theme Options page. Each form is a panel with a collapsible read-only developer-field summary and a responsive client-field card list (label, type, required, placeholder, options, reorder/remove controls). Server side: the configured `formsAdminCapability` (default `manage_options`) is checked for both the Forms screen and submission CPT, plus a nonce and strict field-shape validation before `update_option`. Machine names are generated once and remain stable after saving.
+- Admin UI: a **"Forms" menu** with a compact overview and a child page for each form with `clientFields.enabled`. Each form page has a collapsible developer-field summary and responsive client-field cards (label, type, required, placeholder, options, reorder/remove controls), plus editable displayed labels and message templates. Server side: the configured `formsAdminCapability` (default `manage_options`) is checked for both the Forms screens and submission CPT, plus a nonce and strict field-shape validation before `update_option`. Machine names are generated once and remain stable after saving.
 - New fields added by the client get auto-generated `name` slugs — clients never type machine names.
 
 ### 4.4 Why the endpoint is anonymous (no hard nonce requirement)
@@ -304,10 +305,10 @@ Extend the `window.forgeWpHydration` inline script (built at hydration-enqueuer.
 ```php
 'restUrl'   => esc_url_raw( rest_url( 'forgewp/v1' ) ),
 'restNonce' => is_user_logged_in() ? wp_create_nonce( 'wp_rest' ) : '',
-'forms'     => forgewp_forms_hydration_payload(), // { contact: { fields: [...client fields from option...] } }
+'forms'     => forgewp_forms_hydration_payload($current_lang), // { contact: { fields: [...client fields from option...] } }
 ```
 
-`forgewp_forms_hydration_payload()` is emitted by `forms.js`: reads each form's option, falls back to the baked seed, returns only client-owned field descriptors (never mailTo or other config).
+`forgewp_forms_hydration_payload($current_lang)` is emitted by `forms.js`: reads each form's option for the same locale used by the frontend, falls back to the baked seed, and returns only client-owned field descriptors (never mailTo or other config). The language parameter is optional to preserve compatibility with direct callers.
 
 ### 4.6 CPT registration (once, if any form has `storeSubmissions`)
 

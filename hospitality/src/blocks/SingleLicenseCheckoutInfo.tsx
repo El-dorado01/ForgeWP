@@ -8,6 +8,8 @@ type SingleLicenseCheckoutInfoAttributes = {
   termsLabel?: string;
   termsBetweenLinks?: string;
   withdrawalLabel?: string;
+  termsHref?: string;
+  withdrawalHref?: string;
   termsSuffix?: string;
   setAttributes?: (
     attributes: Partial<SingleLicenseCheckoutInfoAttributes>,
@@ -22,17 +24,21 @@ function SingleLicenseCheckoutInfo({
   termsLabel = 'AGB & Lizenzbedingungen',
   termsBetweenLinks = ' und die ',
   withdrawalLabel = 'Widerrufsbelehrung',
+  termsHref: termsHrefProp,
+  withdrawalHref: withdrawalHrefProp,
   termsSuffix = '. Die erforderlichen Vertragsbestätigungen und eine gegebenenfalls notwendige Zustimmung zur sofortigen Bereitstellung müssen im EDD-Checkout eingerichtet und vor dem Live-Verkauf geprüft werden.',
   setAttributes,
 }: SingleLicenseCheckoutInfoAttributes) {
-  const termsHref = useWpPageLink(
+  const termsPageHref = useWpPageLink(
     'agb-lizenzbedingungen-page',
     '/agb-lizenzbedingungen',
   );
-  const withdrawalHref = useWpPageLink(
+  const withdrawalPageHref = useWpPageLink(
     'widerrufsbelehrung-page',
     '/widerrufsbelehrung',
   );
+  const termsHref = termsHrefProp || termsPageHref;
+  const withdrawalHref = withdrawalHrefProp || withdrawalPageHref;
 
   return (
     <section>
@@ -120,6 +126,18 @@ export default defineBlock({
     termsLabel: { type: 'string', default: 'AGB & Lizenzbedingungen' },
     termsBetweenLinks: { type: 'string', default: ' und die ' },
     withdrawalLabel: { type: 'string', default: 'Widerrufsbelehrung' },
+    termsHref: {
+      type: 'string',
+      control: 'url',
+      default: '',
+      label: 'Terms URL',
+    },
+    withdrawalHref: {
+      type: 'string',
+      control: 'url',
+      default: '',
+      label: 'Withdrawal information URL',
+    },
     termsSuffix: {
       type: 'string',
       default:

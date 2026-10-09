@@ -42,6 +42,22 @@ export function validateFormsConfig(forms) {
       );
     }
 
+    for (const settingName of [
+      'subject',
+      'submissionTitle',
+      'notificationBody',
+      'successMessage',
+    ]) {
+      if (
+        formConfig[settingName] !== undefined &&
+        typeof formConfig[settingName] !== 'string'
+      ) {
+        throw new Error(
+          `[ForgeWP Forms] forms.${name}.${settingName} must be a string when configured.`,
+        );
+      }
+    }
+
     if (isShortcodeModeForm(formConfig)) {
       if (!formConfig.shortcode || typeof formConfig.shortcode !== 'string') {
         throw new Error(
@@ -63,6 +79,20 @@ export function validateFormsConfig(forms) {
         `[ForgeWP Forms] forms.${name} is missing \`fields\` (required in 'native' mode — the default). ` +
           `Declare at least one dev-owned field, or set mode: 'shortcode' if this form is managed by a WordPress plugin instead.`,
       );
+    }
+
+    if (formConfig.submissionTitle) {
+      for (const [, mergeField] of formConfig.submissionTitle.matchAll(
+        /\{([a-zA-Z0-9_-]+)\}/g,
+      )) {
+        if (
+          !Object.prototype.hasOwnProperty.call(formConfig.fields, mergeField)
+        ) {
+          throw new Error(
+            `[ForgeWP Forms] forms.${name}.submissionTitle references undeclared developer-owned field "${mergeField}".`,
+          );
+        }
+      }
     }
 
     if (formConfig.confirmation?.enabled) {
@@ -309,20 +339,6 @@ function safeFormSlug(name) {
   return name.replace(/[^a-z0-9_]/gi, '_');
 }
 
-function templateToPhpExpression(template) {
-  const parts = template
-    .split(/(\{[a-zA-Z0-9_-]+\})/g)
-    .filter((part) => part !== '');
-  return parts
-    .map((part) => {
-      const match = part.match(/^\{([a-zA-Z0-9_-]+)\}$/);
-      return match
-        ? `(isset($values[${phpString(match[1])}]) ? $values[${phpString(match[1])}] : '')`
-        : phpString(part);
-    })
-    .join(' . ');
-}
-
 /**
  * @param {object} [opts]
  * @param {string} [opts.textDomain] - when set, the label is wrapped in
@@ -421,6 +437,20 @@ if (!function_exists('forgewp_forms_strip_header_injection')) {
     function forgewp_forms_strip_header_injection($value) {
         if (!is_string($value)) {
             return $value;
+        }
+
+        if (!function_exists('forgewp_forms_interpolate_template')) {
+            function forgewp_forms_interpolate_template($template, $values) {
+                if (!is_string($template)) {
+                    return '';
+                }
+                return preg_replace_callback('/\\{([a-zA-Z0-9_-]+)\\}/', function ($match) use ($values) {
+                    if (!array_key_exists($match[1], $values) || !is_scalar($values[$match[1]])) {
+                        return '';
+                    }
+                    return (string) $values[$match[1]];
+                }, $template);
+            }
         }
         return str_replace(array("\\r", "\\n"), '', $value);
     }
@@ -762,12 +792,20 @@ if (!function_exists('forgewp_submission_meta_box')) {
     }
 
     if (!function_exists('forgewp_store_submission')) {
-      function forgewp_store_submission($form_name, $values, $field_defs, $language = '') {
+      function forgewp_store_submission($form_name, $values, $field_defs, $language = '', $title_template = '') {
         $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
+        $title = trim((string) $title_template) !== ''
+            ? sanitize_text_field(forgewp_forms_interpolate_template($title_template, $values))
+            : '';
+        if ($title === '') {
+            $title = sprintf('%s — %s', $form_name, current_time('mysql'));
+        } else {
+            $title .= ' — ' . current_time('mysql');
+        }
         $post_id = wp_insert_post(array(
           'post_type'   => 'forgewp_submission',
           'post_status' => 'publish',
-          'post_title'  => sprintf('%s — %s', $form_name, current_time('mysql')),
+          'post_title'  => $title,
         ));
         if (is_wp_error($post_id) || !$post_id) {
           return false;
@@ -942,7 +980,17 @@ function buildSubmissionToolsPhp(forms, textDomain, adminCapability, locales) {
                 }
               }
             }
-            return $labels;
+        foreach (array(${Object.keys(forms).map(phpString).join(', ')}) as $form_name) {
+          $settings = get_option('forgewp_form_settings_' . $form_name, array());
+          if (isset($settings['fieldLabels']) && is_array($settings['fieldLabels'])) {
+            foreach ($settings['fieldLabels'] as $field_name => $label) {
+              if (isset($labels[$form_name][$field_name]) && is_string($label) && $label !== '') {
+                $labels[$form_name][$field_name] = $label;
+              }
+            }
+          }
+        }
+        return $labels;
           }
         }
 
@@ -965,9 +1013,9 @@ function buildSubmissionToolsPhp(forms, textDomain, adminCapability, locales) {
             $forms = ${storedNamesPhp};
             $field_labels = forgewp_forms_submission_field_labels();
             ?>
-            <div class="wrap">
+            <div class="wrap forgewp-export-page">
               <h1><?php esc_html_e('Export form submissions', '${textDomain}'); ?></h1>
-              <p><?php esc_html_e('Exports include submitted personal data. Store the file securely and delete it when it is no longer needed. IP hashes are never exported.', '${textDomain}'); ?></p>
+              <div class="notice notice-warning inline"><p><?php esc_html_e('CSV files contain submitted personal data. Store exports securely and delete them when they are no longer needed. IP hashes are never exported.', '${textDomain}'); ?></p></div>
               <form method="post" action="<?php echo esc_url( admin_url('admin-post.php') ); ?>">
                 <input type="hidden" name="action" value="forgewp_forms_export_csv" />
                 <?php wp_nonce_field('forgewp_forms_export_csv'); ?>
@@ -988,7 +1036,7 @@ function buildSubmissionToolsPhp(forms, textDomain, adminCapability, locales) {
                     <fieldset class="forgewp-export-form-fields" data-export-form="<?php echo esc_attr($form_name); ?>">
                       <legend><?php echo esc_html($form_name); ?></legend>
                       <?php foreach ($fields as $field_name => $field_label) : ?>
-                        <label><input type="checkbox" name="forgewp_fields[]" value="<?php echo esc_attr($form_name . '|' . $field_name); ?>" /> <?php echo esc_html($field_label); ?></label>
+                        <label class="forgewp-export-field"><input type="checkbox" name="forgewp_fields[]" value="<?php echo esc_attr($form_name . '|' . $field_name); ?>" /> <span><?php echo esc_html($field_label); ?></span></label>
                       <?php endforeach; ?>
                     </fieldset>
                   <?php endforeach; ?>
@@ -996,6 +1044,30 @@ function buildSubmissionToolsPhp(forms, textDomain, adminCapability, locales) {
                 <?php submit_button( __('Download CSV', '${textDomain}') ); ?>
               </form>
             </div>
+            <style>
+              .forgewp-export-page { max-width: 1160px; }
+              .forgewp-export-page > p, .forgewp-export-page .notice { max-width: 900px; }
+              .forgewp-export-page form { max-width: 1000px; }
+              .forgewp-export-page .form-table { max-width: 820px; margin: 18px 0 24px; }
+              .forgewp-export-page .form-table th { width: 190px; padding: 16px 18px 16px 0; }
+              .forgewp-export-page .form-table td { padding: 10px 0; }
+              .forgewp-export-fields { max-width: 1000px; margin: 20px 0; padding: 18px 20px 22px; border: 1px solid #c3c4c7; background: #fff; }
+              .forgewp-export-fields > legend { padding: 0 8px; font-size: 14px; font-weight: 600; }
+              .forgewp-export-fields > p { margin: 4px 0 18px; color: #646970; }
+              .forgewp-export-form-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px 18px; margin: 14px 0 0; padding: 16px; border: 1px solid #dcdcde; background: #f6f7f7; }
+              .forgewp-export-form-fields > legend { grid-column: 1 / -1; padding: 0 6px; font-weight: 600; }
+              .forgewp-export-form-fields[hidden] { display: none !important; }
+              .forgewp-export-field { display: flex; align-items: flex-start; gap: 8px; min-width: 0; line-height: 1.45; }
+              .forgewp-export-field input { flex: 0 0 auto; margin: 2px 0 0; }
+              .forgewp-export-field span { overflow-wrap: anywhere; }
+              @media (max-width: 782px) {
+                .forgewp-export-page .form-table, .forgewp-export-page .form-table tbody, .forgewp-export-page .form-table tr, .forgewp-export-page .form-table th, .forgewp-export-page .form-table td { display: block; width: auto; }
+                .forgewp-export-page .form-table th { padding: 12px 0 4px; }
+                .forgewp-export-page .form-table td { padding: 4px 0 8px; }
+                .forgewp-export-fields { padding: 14px; }
+                .forgewp-export-form-fields { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+              }
+            </style>
             <?php
           }
           add_action('admin_menu', function () {
@@ -1294,12 +1366,13 @@ function buildFormHandlerPhp(name, formConfig, textDomain, locales) {
   }
 
   const subjectTemplate = formConfig.subject || `New submission — ${name}`;
-  const subjectPhp = templateToPhpExpression(subjectTemplate);
+  const notificationBodyTemplate = formConfig.notificationBody || '';
+  const successMessage = formConfig.successMessage || 'Your submission was received.';
   const confirmationPhp = formConfig.confirmation?.enabled
     ? `
         $confirmation_to = $values[${phpString(formConfig.confirmation.emailField)}];
-        $confirmation_subject = forgewp_forms_strip_header_injection(${templateToPhpExpression(formConfig.confirmation.subject)});
-        $confirmation_body = ${templateToPhpExpression(formConfig.confirmation.body)};
+        $confirmation_subject = forgewp_forms_strip_header_injection(forgewp_forms_interpolate_template(isset($form_settings['confirmationSubject']) ? $form_settings['confirmationSubject'] : ${phpString(formConfig.confirmation.subject)}, $values));
+        $confirmation_body = forgewp_forms_interpolate_template(isset($form_settings['confirmationBody']) ? $form_settings['confirmationBody'] : ${phpString(formConfig.confirmation.body)}, $values);
         if (is_email($confirmation_to)) {
             $confirmation_sent = wp_mail($confirmation_to, $confirmation_subject, $confirmation_body, array());
             if (!$confirmation_sent) {
@@ -1360,12 +1433,16 @@ if (!function_exists('forgewp_handle_form_${slug}')) {
             ), 400);
         }
         $values = $result['values'];
+        $form_settings = get_option('forgewp_form_settings_${name}', array());
+        if (!is_array($form_settings)) {
+            $form_settings = array();
+        }
 
         $stored = false;
-${storeSubmissions ? `        $stored = forgewp_store_submission('${name}', $values, $field_defs, forgewp_forms_resolve_lang($submitted_lang));\n` : ''}
+${storeSubmissions ? `        $stored = forgewp_store_submission('${name}', $values, $field_defs, forgewp_forms_resolve_lang($submitted_lang), ${phpString(formConfig.submissionTitle || '')});\n` : ''}
         $to = ${mailToPhp};
-        $subject = ${subjectPhp || `'New submission'`};
-        $subject = forgewp_forms_strip_header_injection($subject);
+        $subject_template = isset($form_settings['notificationSubject']) ? $form_settings['notificationSubject'] : ${phpString(subjectTemplate)};
+        $subject = forgewp_forms_strip_header_injection(forgewp_forms_interpolate_template($subject_template, $values));
 
         $body_lines = array();
         foreach ($field_defs as $field_def) {
@@ -1375,7 +1452,11 @@ ${storeSubmissions ? `        $stored = forgewp_store_submission('${name}', $val
             }
             $body_lines[] = $field_def['label'] . ': ' . $values[$fname];
         }
-        $body = implode("\\n", $body_lines);
+        $default_body = implode("\\n", $body_lines);
+        $body_template = isset($form_settings['notificationBody']) ? $form_settings['notificationBody'] : ${phpString(notificationBodyTemplate)};
+        $body = trim($body_template) !== ''
+            ? forgewp_forms_interpolate_template($body_template, $values)
+            : $default_body;
 
         $headers = array();
 ${emailFieldName ? `        if (!empty($values[${phpString(emailFieldName)}])) {\n            $headers[] = 'Reply-To: ' . forgewp_forms_strip_header_injection($values[${phpString(emailFieldName)}]);\n        }\n` : ''}
@@ -1393,7 +1474,9 @@ ${emailFieldName ? `        if (!empty($values[${phpString(emailFieldName)}])) {
             error_log('[ForgeWP Forms] Submission was stored but its notification email failed (form: ${name}, submission: ' . (int) $stored . ').');
             return new WP_REST_Response(array(
                 'ok'      => true,
-                'message' => __('Your submission was received.', '${textDomain}'),
+                'message' => isset($form_settings['successMessage']) && $form_settings['successMessage'] !== ''
+                    ? $form_settings['successMessage']
+                    : ${phpString(successMessage)},
             ), 200);
         }
 
@@ -1409,7 +1492,9 @@ ${
 
         return new WP_REST_Response(array(
             'ok'      => true,
-          'message' => __('Your submission was received.', '${textDomain}'),
+          'message' => isset($form_settings['successMessage']) && $form_settings['successMessage'] !== ''
+              ? $form_settings['successMessage']
+              : ${phpString(successMessage)},
         ), 200);
     }
 }
@@ -1441,6 +1526,14 @@ if (!function_exists('forgewp_seed_form_fields_${slug}')) {
  * more than one configured locale, each form gets a language-tab switcher
  * and edits/saves one language's field set at a time.
  */
+function humanizeFormName(name) {
+  return name
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function buildFormsAdminPagePhp(forms, textDomain, locales, adminCapability) {
   const editableForms = Object.entries(forms).filter(
     ([, f]) => f.clientFields?.enabled,
@@ -1456,6 +1549,7 @@ function buildFormsAdminPagePhp(forms, textDomain, locales, adminCapability) {
       const rawSeed = formConfig.clientFields?.enabled
         ? formConfig.clientFields.seed
         : [];
+      const displayName = humanizeFormName(name);
       const seedPhp = isMultilingual
         ? seedByLocalePhpArray(rawSeed, locales)
         : seedFieldsPhpArray(rawSeed);
@@ -1486,25 +1580,64 @@ ${locales.map((l, i) => `                <button type="button" class="button for
           const label = field.label || fieldName.replace(/[_-]/g, ' ');
           const fieldType = field.type || 'text';
           const requiredLabel = field.required ? 'Required' : 'Optional';
-          return `                <li class="forgewp-dev-field"><span><strong><?php echo esc_html( ${phpString(label)} ); ?></strong><code><?php echo esc_html( ${phpString(fieldName)} ); ?></code></span><span class="forgewp-dev-field-meta"><?php echo esc_html( ${phpString(fieldType)} ); ?> · <?php echo esc_html( ${phpString(requiredLabel)} ); ?></span></li>`;
+          return `                <li class="forgewp-dev-field"><label class="forgewp-field-control"><span><?php esc_html_e( 'Displayed label', '${textDomain}' ); ?></span><input type="text" form="forgewp-settings-${name}" name="forgewp_field_labels[${fieldName}]" value="<?php echo esc_attr( isset($forgewp_settings_${safeFormSlug(name)}['fieldLabels'][${phpString(fieldName)}]) ? $forgewp_settings_${safeFormSlug(name)}['fieldLabels'][${phpString(fieldName)}] : ${phpString(label)} ); ?>" /></label><span class="forgewp-dev-field-meta"><code><?php echo esc_html( ${phpString(fieldName)} ); ?></code><br /><?php echo esc_html( ${phpString(fieldType)} ); ?> · <?php echo esc_html( ${phpString(requiredLabel)} ); ?></span></li>`;
         })
         .join('\n');
       const storageStatus =
         formConfig.storeSubmissions === false
           ? `<?php esc_html_e( 'Email delivery only', '${textDomain}' ); ?>`
           : `<?php esc_html_e( 'Submissions saved in WordPress', '${textDomain}' ); ?>`;
+      const confirmationSettings = formConfig.confirmation?.enabled
+        ? `
+              <label class="forgewp-message-control">
+                <span><?php esc_html_e( 'Receipt email subject', '${textDomain}' ); ?></span>
+                <input type="text" name="forgewp_confirmation_subject" value="<?php echo esc_attr( isset($forgewp_settings_${safeFormSlug(name)}['confirmationSubject']) ? $forgewp_settings_${safeFormSlug(name)}['confirmationSubject'] : ${phpString(formConfig.confirmation.subject)} ); ?>" />
+              </label>
+              <label class="forgewp-message-control forgewp-message-control--wide">
+                <span><?php esc_html_e( 'Receipt email message', '${textDomain}' ); ?></span>
+                <textarea name="forgewp_confirmation_body" rows="8"><?php echo esc_textarea( isset($forgewp_settings_${safeFormSlug(name)}['confirmationBody']) ? $forgewp_settings_${safeFormSlug(name)}['confirmationBody'] : ${phpString(formConfig.confirmation.body)} ); ?></textarea>
+                <small><?php esc_html_e( 'Plain text only. Use {field_name} for submitted values.', '${textDomain}' ); ?></small>
+              </label>`
+        : '';
+      const settingsSection = `
+          <section class="forgewp-form-settings">
+            <h3><?php esc_html_e( 'Form messages and labels', '${textDomain}' ); ?></h3>
+            <p><?php esc_html_e( 'Edit visitor-facing copy and email text. Field keys, validation, and delivery addresses stay managed by the theme.', '${textDomain}' ); ?></p>
+            <form id="forgewp-settings-${name}" method="post" action="<?php echo esc_url( admin_url('admin-post.php') ); ?>">
+              <input type="hidden" name="action" value="forgewp_forms_save_settings" />
+              <input type="hidden" name="forgewp_form" value="${name}" />
+              <?php wp_nonce_field('forgewp_forms_save_settings'); ?>
+              <label class="forgewp-message-control forgewp-message-control--wide">
+                <span><?php esc_html_e( 'Success message', '${textDomain}' ); ?></span>
+                <textarea name="forgewp_success_message" rows="3"><?php echo esc_textarea( isset($forgewp_settings_${safeFormSlug(name)}['successMessage']) ? $forgewp_settings_${safeFormSlug(name)}['successMessage'] : ${phpString(formConfig.successMessage || 'Your submission was received.')} ); ?></textarea>
+              </label>
+              <label class="forgewp-message-control">
+                <span><?php esc_html_e( 'Notification email subject', '${textDomain}' ); ?></span>
+                <input type="text" name="forgewp_notification_subject" value="<?php echo esc_attr( isset($forgewp_settings_${safeFormSlug(name)}['notificationSubject']) ? $forgewp_settings_${safeFormSlug(name)}['notificationSubject'] : ${phpString(formConfig.subject || `New submission — ${name}`)} ); ?>" />
+              </label>
+              <label class="forgewp-message-control forgewp-message-control--wide">
+                <span><?php esc_html_e( 'Notification email message', '${textDomain}' ); ?></span>
+                <textarea name="forgewp_notification_body" rows="6"><?php echo esc_textarea( isset($forgewp_settings_${safeFormSlug(name)}['notificationBody']) ? $forgewp_settings_${safeFormSlug(name)}['notificationBody'] : ${phpString(formConfig.notificationBody || '')} ); ?></textarea>
+                <small><?php esc_html_e( 'Leave blank to send the submitted fields as a list. Plain text only; use {field_name} for values.', '${textDomain}' ); ?></small>
+              </label>
+${confirmationSettings}
+              <?php submit_button( __('Save labels and messages', '${textDomain}') ); ?>
+            </form>
+          </section>`;
 
       return `
+        <?php $forgewp_settings_${safeFormSlug(name)} = get_option( 'forgewp_form_settings_${name}', array() ); if (!is_array($forgewp_settings_${safeFormSlug(name)})) { $forgewp_settings_${safeFormSlug(name)} = array(); } ?>
+        <?php if ($active_form === '${name}') : ?>
         <section class="forgewp-form-panel" aria-labelledby="forgewp-form-title-${name}">
           <header class="forgewp-form-panel-header">
             <div>
               <p class="forgewp-form-eyebrow"><?php esc_html_e( 'Native form', '${textDomain}' ); ?></p>
-              <h2 id="forgewp-form-title-${name}">${name.replace(/</g, '&lt;')}</h2>
+              <h2 id="forgewp-form-title-${name}"><?php esc_html_e( '${displayName}', '${textDomain}' ); ?></h2>
             </div>
             <span class="forgewp-form-storage-status">${storageStatus}</span>
           </header>
           <details class="forgewp-dev-fields">
-            <summary><?php esc_html_e( 'Developer-owned fields', '${textDomain}' ); ?> <span><?php echo (int) ${Object.keys(formConfig.fields || {}).length}; ?> · <?php esc_html_e( 'read-only', '${textDomain}' ); ?></span></summary>
+            <summary><?php esc_html_e( 'Core fields', '${textDomain}' ); ?> <span><?php echo (int) ${Object.keys(formConfig.fields || {}).length}; ?> · <?php esc_html_e( 'fixed keys and validation', '${textDomain}' ); ?></span></summary>
             <ul>${developerFields}</ul>
           </details>
           <div class="forgewp-forms-editor" data-form="${name}" data-multilingual="${isMultilingual ? 'true' : 'false'}" data-initial="${initialJsonPhp}">
@@ -1522,8 +1655,28 @@ ${locales.map((l, i) => `                <button type="button" class="button for
             </div>
             <div class="forgewp-forms-notice" style="display:none"></div>
           </div>
+${settingsSection}
         </section>
+        <?php endif; ?>
 `;
+    })
+    .join('\n');
+
+  const formIndexLinksPhp = editableForms
+    .map(([name, formConfig]) => {
+      const displayName = humanizeFormName(name);
+      const storageStatus =
+        formConfig.storeSubmissions === false
+          ? `<?php esc_html_e( 'Email delivery only', '${textDomain}' ); ?>`
+          : `<?php esc_html_e( 'Submissions saved in WordPress', '${textDomain}' ); ?>`;
+      return `
+          <a class="forgewp-form-index-card" href="<?php echo esc_url( admin_url( 'admin.php?page=forgewp-form-${name}' ) ); ?>">
+            <span>
+              <strong><?php esc_html_e( '${displayName}', '${textDomain}' ); ?></strong>
+              <small>${storageStatus}</small>
+            </span>
+            <span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>
+          </a>`;
     })
     .join('\n');
 
@@ -1539,6 +1692,19 @@ if (!function_exists('forgewp_forms_admin_menu')) {
             'dashicons-feedback',
             30
         );
+${editableForms
+  .map(([name]) => {
+    const displayName = humanizeFormName(name);
+    return `        add_submenu_page(
+            '${pageSlug}',
+            __('${displayName}', '${textDomain}'),
+            __('${displayName}', '${textDomain}'),
+            ${phpString(adminCapability)},
+            'forgewp-form-${name}',
+            'forgewp_render_forms_admin_page'
+        );`;
+  })
+  .join('\n')}
     }
     add_action('admin_menu', 'forgewp_forms_admin_menu');
 }
@@ -1650,22 +1816,104 @@ if (!function_exists('forgewp_forms_admin_save_handler')) {
     add_action('wp_ajax_forgewp_forms_admin_save', 'forgewp_forms_admin_save_handler');
 }
 
+if (!function_exists('forgewp_forms_admin_save_settings_handler')) {
+    function forgewp_forms_admin_save_settings_handler() {
+        if (!current_user_can(${phpString(adminCapability)})) {
+            wp_die(__('You do not have permission to edit form settings.', '${textDomain}'));
+        }
+        check_admin_referer('forgewp_forms_save_settings');
+
+        $form_name = isset($_POST['forgewp_form']) ? sanitize_key(wp_unslash($_POST['forgewp_form'])) : '';
+        $known_forms = array(${editableForms.map(([n]) => phpString(n)).join(', ')});
+        if (!in_array($form_name, $known_forms, true)) {
+            wp_die(__('Unknown form.', '${textDomain}'));
+        }
+
+        $form_defaults = array(
+${editableForms.map(([n, f]) => `            ${phpString(n)} => array(
+                'successMessage' => ${phpString(f.successMessage || 'Your submission was received.')},
+                'notificationSubject' => ${phpString(f.subject || `New submission — ${n}`)},
+${f.confirmation?.enabled ? `                'confirmationSubject' => ${phpString(f.confirmation.subject)},
+                'confirmationBody' => ${phpString(f.confirmation.body)},` : ''}
+            ),`).join('\n')}
+        );
+        $defaults = $form_defaults[$form_name];
+        $field_keys = array(
+${editableForms.map(([n, f]) => `            ${phpString(n)} => array(${Object.keys(f.fields || {}).map(phpString).join(', ')}),`).join('\n')}
+        );
+        $raw_labels = isset($_POST['forgewp_field_labels']) && is_array($_POST['forgewp_field_labels'])
+            ? wp_unslash($_POST['forgewp_field_labels'])
+            : array();
+        $labels = array();
+        foreach ($field_keys[$form_name] as $field_name) {
+            if (isset($raw_labels[$field_name])) {
+                $label = sanitize_text_field($raw_labels[$field_name]);
+                if ($label !== '') {
+                    $labels[$field_name] = $label;
+                }
+            }
+        }
+
+        $success_message = sanitize_textarea_field(isset($_POST['forgewp_success_message']) ? wp_unslash($_POST['forgewp_success_message']) : '');
+        if ($success_message === '') { $success_message = $defaults['successMessage']; }
+        $notification_subject = sanitize_text_field(isset($_POST['forgewp_notification_subject']) ? wp_unslash($_POST['forgewp_notification_subject']) : '');
+        if ($notification_subject === '') { $notification_subject = $defaults['notificationSubject']; }
+        $settings = array(
+            'fieldLabels' => $labels,
+            'successMessage' => $success_message,
+            'notificationSubject' => $notification_subject,
+            'notificationBody' => sanitize_textarea_field(isset($_POST['forgewp_notification_body']) ? wp_unslash($_POST['forgewp_notification_body']) : ''),
+        );
+        $confirmation_forms = array(${editableForms.filter(([, f]) => f.confirmation?.enabled).map(([n]) => phpString(n)).join(', ')});
+        if (in_array($form_name, $confirmation_forms, true)) {
+            $confirmation_subject = sanitize_text_field(isset($_POST['forgewp_confirmation_subject']) ? wp_unslash($_POST['forgewp_confirmation_subject']) : '');
+            $confirmation_body = sanitize_textarea_field(isset($_POST['forgewp_confirmation_body']) ? wp_unslash($_POST['forgewp_confirmation_body']) : '');
+            $settings['confirmationSubject'] = $confirmation_subject !== '' ? $confirmation_subject : $defaults['confirmationSubject'];
+            $settings['confirmationBody'] = $confirmation_body !== '' ? $confirmation_body : $defaults['confirmationBody'];
+        }
+
+        update_option('forgewp_form_settings_' . $form_name, $settings, false);
+        wp_safe_redirect(add_query_arg(
+            array(
+                'page' => 'forgewp-form-' . $form_name,
+                'forgewp-settings-saved' => '1',
+            ),
+            admin_url('admin.php')
+        ));
+        exit;
+    }
+    add_action('admin_post_forgewp_forms_save_settings', 'forgewp_forms_admin_save_settings_handler');
+}
+
 if (!function_exists('forgewp_render_forms_admin_page')) {
     function forgewp_render_forms_admin_page() {
         if (!current_user_can(${phpString(adminCapability)})) {
             wp_die(__('You do not have permission to access this page.', '${textDomain}'));
         }
+        $current_page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '${pageSlug}';
+        $active_form = $current_page === '${pageSlug}' ? '' : str_replace('forgewp-form-', '', $current_page);
+        $known_forms = array(${editableForms.map(([name]) => phpString(name)).join(', ')});
+        if ($active_form !== '' && !in_array($active_form, $known_forms, true)) {
+            wp_die(__('Unknown form.', '${textDomain}'));
+        }
         $nonce = wp_create_nonce('${nonceAction}');
         $ajax_url = admin_url('admin-ajax.php');
         ?>
         <div class="wrap">
-            <h1><?php esc_html_e('Forms', '${textDomain}'); ?></h1>
-            <p><?php esc_html_e('Add, remove, reorder, and configure the client-managed fields for each form below. Fields built directly into the theme are not shown here and cannot be changed.', '${textDomain}'); ?></p>
+            <h1><?php echo $active_form === '' ? esc_html__('Forms', '${textDomain}') : esc_html( ucwords( str_replace( '-', ' ', $active_form ) ) ); ?></h1>
+            <?php if (isset($_GET['forgewp-settings-saved'])) : ?><div class="notice notice-success is-dismissible"><p><?php esc_html_e('Form settings saved.', '${textDomain}'); ?></p></div><?php endif; ?>
+            <?php if ($active_form === '') : ?>
+                <p><?php esc_html_e('Choose a form to manage its labels, optional fields, and messages.', '${textDomain}'); ?></p>
+                <div class="forgewp-form-index">${formIndexLinksPhp}
+                </div>
+            <?php else : ?>
+                <p><?php esc_html_e('Core field keys and validation remain managed by the theme. You can change displayed labels, configure optional fields, and edit messages for this form.', '${textDomain}'); ?></p>
 ${formSectionsPhp}
+            <?php endif; ?>
         </div>
         <style>
             .forgewp-forms-lang-tabs .button.active { background: #2271b1; border-color: #2271b1; color: #fff; }
-            .forgewp-form-panel { max-width: 1100px; margin: 20px 0 28px; border: 1px solid #c3c4c7; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+            .forgewp-form-panel { max-width: 1440px; margin: 20px 0 28px; border: 1px solid #c3c4c7; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
             .forgewp-form-panel-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px 24px; border-bottom:1px solid #dcdcde; }
             .forgewp-form-panel-header h2 { margin:4px 0 0; font-size:20px; }
             .forgewp-form-eyebrow { margin:0; color:#646970; font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; }
@@ -1675,8 +1923,24 @@ ${formSectionsPhp}
             .forgewp-dev-fields summary span { margin-left:8px; color:#646970; font-size:12px; font-weight:400; }
             .forgewp-dev-fields ul { display:grid; gap:8px; margin:14px 0 0; }
             .forgewp-dev-field { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 16px; padding:8px 10px; border:1px solid #dcdcde; background:#fff; }
+            .forgewp-dev-field .forgewp-field-control { flex:1 1 240px; }
             .forgewp-dev-field code { margin-left:8px; color:#646970; }
             .forgewp-dev-field-meta { color:#646970; font-size:12px; }
+            .forgewp-form-settings { max-width:none; padding:28px 32px 32px; border-top:1px solid #dcdcde; background:#f6f7f7; }
+            .forgewp-form-settings h3 { margin:0; font-size:15px; }
+            .forgewp-form-settings > p { color:#646970; }
+            .forgewp-form-settings form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:28px; align-items:start; }
+            .forgewp-form-settings .forgewp-message-control { max-width:none; margin:16px 0; }
+            .forgewp-form-settings .forgewp-message-control--wide { grid-column:1 / -1; }
+            .forgewp-form-index { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:12px; max-width:1100px; margin-top:20px; }
+            .forgewp-form-index-card { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:76px; padding:16px 20px; border:1px solid #c3c4c7; background:#fff; color:#1d2327; text-decoration:none; }
+            .forgewp-form-index-card:hover, .forgewp-form-index-card:focus { border-color:#2271b1; box-shadow:0 0 0 1px #2271b1; color:#135e96; }
+            .forgewp-form-index-card strong, .forgewp-form-index-card small { display:block; }
+            .forgewp-form-index-card small { margin-top:5px; color:#646970; }
+            .forgewp-form-index-card > .dashicons { color:#646970; }
+            .forgewp-message-control { display:grid; gap:6px; max-width:720px; margin:16px 0; color:#50575e; font-weight:600; }
+            .forgewp-message-control input, .forgewp-message-control textarea { width:100%; max-width:100%; }
+            .forgewp-message-control small { color:#646970; font-weight:400; }
             .forgewp-forms-editor { padding:20px 24px 24px; }
             .forgewp-client-fields-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px; }
             .forgewp-client-fields-heading h3 { margin:0; font-size:15px; }
@@ -1697,6 +1961,12 @@ ${formSectionsPhp}
             .forgewp-field-option-chip { display: inline-flex; align-items: center; gap: 4px; background: #f0f0f1; border: 1px solid #dcdcde; border-radius: 4px; padding: 3px 4px 3px 10px; font-size: 12px; line-height: 1.4; }
             .forgewp-field-option-chip button { border: none; background: none; cursor: pointer; font-size: 14px; line-height: 1; color: #787c82; padding: 2px 4px; }
             .forgewp-field-option-chip button:hover { color: #b32d2e; }
+            @media (max-width: 782px) {
+                .forgewp-form-panel { max-width: none; }
+                .forgewp-form-settings { padding:20px 16px 24px; }
+                .forgewp-form-settings form { grid-template-columns:minmax(0,1fr); }
+                .forgewp-form-settings .forgewp-message-control--wide { grid-column:auto; }
+            }
             .forgewp-field-options-add { display: flex; gap: 6px; }
             .forgewp-field-options-add input { flex: 1; min-width: 0; }
             @media (max-width: 782px) { .forgewp-forms-row-grid { grid-template-columns:minmax(0, 1fr); } .forgewp-forms-row { padding:12px; } .forgewp-form-panel-header, .forgewp-client-fields-heading { flex-direction:column; } .forgewp-forms-editor, .forgewp-form-panel-header, .forgewp-dev-fields { padding-left:14px; padding-right:14px; } }
@@ -2007,9 +2277,8 @@ ${formSectionsPhp}
 
 /**
  * Emits the hydration payload helper used by hydration-enqueuer.js.
- * Returns per-form CLIENT-owned field descriptors only (never mailTo or
- * other server-only config), resolved for the CURRENT request's language
- * when the theme is multilingual.
+ * Returns client-owned field descriptors and explicit label overrides only
+ * (never mailTo or other server-only config), resolved for the current locale.
  */
 function buildFormsHydrationPayloadPhp(forms, locales) {
   const isMultilingual = locales.length > 1;
@@ -2022,19 +2291,20 @@ function buildFormsHydrationPayloadPhp(forms, locales) {
         ? seedByLocalePhpArray(rawSeed, locales)
         : seedFieldsPhpArray(rawSeed);
       const langArg = isMultilingual ? ', $forgewp_forms_current_lang' : '';
-      return `        $payload[${phpString(name)}] = array('fields' => forgewp_forms_get_client_fields(${phpString(name)}, ${seedPhp}${langArg}));`;
+      return `        $forgewp_form_settings = get_option('forgewp_form_settings_${name}', array());
+        if (!is_array($forgewp_form_settings)) { $forgewp_form_settings = array(); }
+        $payload[${phpString(name)}] = array(
+            'fields' => forgewp_forms_get_client_fields(${phpString(name)}, ${seedPhp}${langArg}),
+            'fieldLabels' => isset($forgewp_form_settings['fieldLabels']) && is_array($forgewp_form_settings['fieldLabels']) ? $forgewp_form_settings['fieldLabels'] : array(),
+        );`;
     })
     .join('\n');
 
-  const langResolutionPhp = isMultilingual
-    ? `        $forgewp_forms_current_lang = forgewp_forms_resolve_lang();\n`
-    : '';
-
   return `
 if (!function_exists('forgewp_forms_hydration_payload')) {
-    function forgewp_forms_hydration_payload() {
+    function forgewp_forms_hydration_payload($requested_lang = null) {
         $payload = array();
-${langResolutionPhp}${entries}
+${isMultilingual ? `        $forgewp_forms_current_lang = forgewp_forms_resolve_lang($requested_lang);\n` : ''}${entries}
         return $payload;
     }
 }

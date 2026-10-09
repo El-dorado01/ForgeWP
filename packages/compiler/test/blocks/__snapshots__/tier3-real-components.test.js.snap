@@ -34,7 +34,7 @@ var secondaryProp = (typeof __attr["secondaryButtonLabel"] !== 'undefined') ? __
   const hotelsHref = useWpPageLink('hotels-page', '/hotels');
 
   
-return createElement("div", { className: (("relative overflow-hidden bg-slate-50 w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "absolute top-0 right-0 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(109,155,174,0.13)_0%,transparent_70%)] blur-3xl pointer-events-none" }), createElement("div", { className: "absolute bottom-0 left-0 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(146,159,93,0.09)_0%,transparent_70%)] blur-3xl pointer-events-none" }), createElement("div", { className: "relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10" }, createElement("nav", { className: "flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4 w-full min-w-0" }, createElement(WpLink, { href: homeHref, className: "hover:text-primary transition-colors whitespace-nowrap shrink-0" }, "Startseite"), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4 shrink-0"}, createElement("path", {"d":"m9 18 6-6-6-6"})), createElement("span", { className: "text-slate-700 truncate min-w-0" }, "Über uns")), createElement("div", { className: "grid grid-cols-1 lg:grid-cols-5 gap-10 items-center" }, createElement("div", { className: "lg:col-span-3 max-w-2xl" }, createElement("span", { className: "inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full mb-4" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-3.5 h-3.5 fill-primary"}, createElement("path", {"d":"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"})), setAttributes ? (createElement(wp.blockEditor.RichText, {
+return createElement("div", { className: (("relative overflow-hidden bg-slate-50 w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "absolute top-0 right-0 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(109,155,174,0.13)_0%,transparent_70%)] blur-3xl pointer-events-none" }), createElement("div", { className: "absolute bottom-0 left-0 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(146,159,93,0.09)_0%,transparent_70%)] blur-3xl pointer-events-none" }), createElement("div", { className: "relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10" }, createElement("nav", { className: "flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4 w-full min-w-0" }, createElement(ForgeWpEditorLink, { href: homeHref, className: "hover:text-primary transition-colors whitespace-nowrap shrink-0" }, "Startseite"), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4 shrink-0"}, createElement("path", {"d":"m9 18 6-6-6-6"})), createElement("span", { className: "text-slate-700 truncate min-w-0" }, "Über uns")), createElement("div", { className: "grid grid-cols-1 lg:grid-cols-5 gap-10 items-center" }, createElement("div", { className: "lg:col-span-3 max-w-2xl" }, createElement("span", { className: "inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full mb-4" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-3.5 h-3.5 fill-primary"}, createElement("path", {"d":"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"})), setAttributes ? (createElement(wp.blockEditor.RichText, {
         tagName: "span",
         value: (function(){ var __v = (attributes.badge); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ badge: val }),
@@ -53,14 +53,14 @@ return createElement("div", { className: (("relative overflow-hidden bg-slate-50
         value: (function(){ var __v = (attributes.subtitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ subtitle: val }),
         className: "text-slate-500 text-sm sm:text-base leading-relaxed mb-6"
-      })) : (createElement("div", { className: "text-slate-500 text-sm sm:text-base leading-relaxed mb-6", dangerouslySetInnerHTML: { __html: attributes.subtitle } })), createElement("div", { className: "flex flex-wrap gap-3" }, createElement(WpLink, { href: hotelsHref, className: "relative overflow-hidden inline-flex items-center justify-center bg-primary text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl transition-colors duration-500 group select-none shadow-none cursor-pointer active:scale-95 shrink-0 hover:bg-primary/90" }, createElement("span", { className: "relative z-10 flex items-center gap-2" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+      })) : (createElement("div", { className: "text-slate-500 text-sm sm:text-base leading-relaxed mb-6", dangerouslySetInnerHTML: { __html: attributes.subtitle } })), createElement("div", { className: "flex flex-wrap gap-3" }, createElement(ForgeWpEditorLink, { href: hotelsHref, className: "relative overflow-hidden inline-flex items-center justify-center bg-primary text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl transition-colors duration-500 group select-none shadow-none cursor-pointer active:scale-95 shrink-0 hover:bg-primary/90" }, createElement("span", { className: "relative z-10 flex items-center gap-2" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
         tagName: "span",
         value: (function(){ var __v = (attributes.primaryButtonLabel); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ primaryButtonLabel: val }),
         className: "",
         disableLineBreaks: true,
         allowedFormats: []
-      })) : (primaryButtonLabel), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4"}, createElement("path", {"d":"M5 12h14"}), createElement("path", {"d":"m12 5 7 7-7 7"})))), createElement(WpLink, { href: contactHref, className: "inline-flex items-center gap-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 shrink-0" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+      })) : (primaryButtonLabel), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4"}, createElement("path", {"d":"M5 12h14"}), createElement("path", {"d":"m12 5 7 7-7 7"})))), createElement(ForgeWpEditorLink, { href: contactHref, className: "inline-flex items-center gap-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 shrink-0" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
         tagName: "span",
         value: (function(){ var __v = (attributes.secondaryButtonLabel); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ secondaryButtonLabel: val }),
@@ -291,7 +291,7 @@ return createElement("aside", { className: (("space-y-5 w-full min-w-0") || '') 
             },
           ]
         ).map(({ icon: Icon, label, value, href, color }) => (
-          createElement("div", { key: label, className: "flex items-start gap-4" }, createElement("div", { className: \`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 \${color}\` }, createElement(Icon, { className: "w-4 h-4" })), createElement("div", { className: "min-w-0" }, createElement("div", { className: "text-xs font-semibold text-slate-500 mb-0.5" }, __(label)), href ? (createElement("a", { href: href, className: "text-sm font-bold text-slate-800 hover:text-primary transition-colors break-all" }, value)) : (createElement("p", { className: "text-sm font-bold text-slate-800 leading-snug" }, value))))
+          createElement("div", { key: label, className: "flex items-start gap-4" }, createElement("div", { className: \`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 \${color}\` }, createElement(Icon, { className: "w-4 h-4" })), createElement("div", { className: "min-w-0" }, createElement("div", { className: "text-xs font-semibold text-slate-500 mb-0.5" }, __(label)), href ? (createElement(ForgeWpEditorLink, { href: href, className: "text-sm font-bold text-slate-800 hover:text-primary transition-colors break-all" }, value)) : (createElement("p", { className: "text-sm font-bold text-slate-800 leading-snug" }, value))))
         ))), socialList.length > 0 && (createElement("div", { className: "bg-white rounded-2xl p-6 shadow-xs" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
         tagName: "h2",
         value: (function(){ var __v = (attributes.socialHeading); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
@@ -300,42 +300,8 @@ return createElement("aside", { className: (("space-y-5 w-full min-w-0") || '') 
         disableLineBreaks: true,
         allowedFormats: []
       })) : (createElement("h2", { className: "text-xs font-mono font-black uppercase tracking-widest text-slate-400 pb-3 mb-4" }, attributes.socialHeading)), createElement("div", { className: "space-y-2" }, socialList.map(({ icon: Icon, label, handle, href }) => (
-              createElement("a", { key: label, href: href, target: "_blank", rel: "noopener noreferrer", className: "flex items-center justify-between p-3 rounded-xl transition-all duration-300 group hover:shadow-xs hover:bg-slate-50" }, createElement("div", { className: "flex items-center gap-3" }, createElement("div", { className: "w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-primary transition-all" }, createElement(Icon, { className: "w-3.5 h-3.5 text-slate-500 group-hover:text-white" })), createElement("div", null, createElement("div", { className: "text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400" }, label), createElement("div", { className: "text-xs font-bold text-slate-800" }, handle))), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-300 shrink-0"}, createElement("path", {"d":"M5 12h14"}), createElement("path", {"d":"m12 5 7 7-7 7"})))
+              createElement(ForgeWpEditorLink, { key: label, href: href, target: "_blank", rel: "noopener noreferrer", className: "flex items-center justify-between p-3 rounded-xl transition-all duration-300 group hover:shadow-xs hover:bg-slate-50" }, createElement("div", { className: "flex items-center gap-3" }, createElement("div", { className: "w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-primary transition-all" }, createElement(Icon, { className: "w-3.5 h-3.5 text-slate-500 group-hover:text-white" })), createElement("div", null, createElement("div", { className: "text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400" }, label), createElement("div", { className: "text-xs font-bold text-slate-800" }, handle))), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-300 shrink-0"}, createElement("path", {"d":"M5 12h14"}), createElement("path", {"d":"m12 5 7 7-7 7"})))
             ))))));
-})()"
-`;
-
-exports[`compileBlocks against real hotelchecker24 components > "contact-form-section" customEditJsx parses and contains no mangled-ternary markers 1`] = `
-"(() => {
-var defaults = {"hero_badge":"Wir sind für Sie da","hero_title":"Schreiben Sie uns","hero_subtitle":"Fragen zu Hotels, Kooperationsanfragen oder Feedback — unsere Redaktion antwortet innerhalb von 24 Stunden.","card_image":"https://images.unsplash.com/photo-1516550893923-42d28e5677af?auto=format&fit=crop&w=400&q=80","card_badge":"Hauptredaktion Wien","form_title":"Kontaktformular","form_description":"Alle Felder sind Pflichtfelder, sofern nicht anders angegeben.","details_heading":"Kontaktdaten","social_heading":"Social Media"};
-// Dual-host prop aliases (block attributes → local names used in components)
-var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
-var titleProp = (typeof __attr["formTitle"] !== 'undefined') ? __attr["formTitle"] : (typeof __attr["titleProp"] !== 'undefined' ? __attr["titleProp"] : undefined);
-var descProp = (typeof __attr["formDescription"] !== 'undefined') ? __attr["formDescription"] : (typeof __attr["descProp"] !== 'undefined' ? __attr["descProp"] : undefined);
-
-
-  const titleMeta = useWpMeta('form_title', defaults.form_title);
-  const descMeta = useWpMeta('form_description', defaults.form_description);
-
-  const formTitle = titleProp ?? titleMeta;
-  const formDescription = descProp ?? descMeta;
-
-  
-return createElement("div", { className: (("w-full min-w-0") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, setAttributes ? (createElement("div", { className: "mb-6 p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3" }, createElement("div", { className: "text-xs font-bold uppercase tracking-wider text-slate-400" }, "Contact Form settings"), createElement("div", { className: "space-y-1" }, createElement("div", { className: "text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500" }, "Form Title:"), createElement(wp.blockEditor.RichText, {
-        tagName: "div",
-        value: (function(){ var __v = (attributes.formTitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
-        onChange: (val) => setAttributes({ formTitle: val }),
-        className: "text-sm text-slate-800 font-bold",
-        disableLineBreaks: true,
-        allowedFormats: []
-      })), createElement("div", { className: "space-y-1" }, createElement("div", { className: "text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500" }, "Form Description:"), createElement(wp.blockEditor.RichText, {
-        tagName: "div",
-        value: (function(){ var __v = (attributes.formDescription); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
-        onChange: (val) => setAttributes({ formDescription: val }),
-        className: "text-xs text-slate-600",
-        disableLineBreaks: true,
-        allowedFormats: []
-      })), createElement("p", { className: "text-[10px] text-slate-400 pt-2 border-t border-slate-200/60" }, "Form fields (subject, message) are managed under Appearance → Forms."))) : (createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "ContactForm - interactive preview"), createElement("span", { style: {display:'block'} }, "This section is interactive on the live site (forms, state, live data). Edit text and options in the block sidebar under Block Settings, or use any inline fields shown on the canvas above/below this box. The full interactive UI appears on the visitor page."))));
 })()"
 `;
 
@@ -367,7 +333,7 @@ var cardBadgeProp = (typeof __attr["cardBadge"] !== 'undefined') ? __attr["cardB
   const cardBadge = cardBadgeProp ?? cardBadgeMeta;
 
   
-return createElement("div", { className: (("relative overflow-hidden bg-slate-50 w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(109,155,174,0.13)_0%,transparent_70%)] blur-3xl pointer-events-none" }), createElement("div", { className: "absolute bottom-0 left-0 w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(146,159,93,0.09)_0%,transparent_70%)] blur-3xl pointer-events-none" }), createElement("div", { className: "relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10" }, createElement("nav", { className: "flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4 w-full min-w-0" }, createElement(WpLink, { href: homeHref, className: "hover:text-primary transition-colors whitespace-nowrap shrink-0" }, __('Startseite')), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4 shrink-0"}, createElement("path", {"d":"m9 18 6-6-6-6"})), createElement("span", { className: "text-slate-700 truncate min-w-0" }, __('Kontakt'))), createElement("div", { className: "grid grid-cols-1 lg:grid-cols-5 gap-10 items-center" }, createElement("div", { className: "lg:col-span-3 max-w-2xl" }, createElement("span", { className: "inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full mb-3" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-3.5 h-3.5"}, createElement("path", {"d":"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"})), setAttributes ? (createElement(wp.blockEditor.RichText, {
+return createElement("div", { className: (("relative overflow-hidden bg-slate-50 w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(109,155,174,0.13)_0%,transparent_70%)] blur-3xl pointer-events-none" }), createElement("div", { className: "absolute bottom-0 left-0 w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(146,159,93,0.09)_0%,transparent_70%)] blur-3xl pointer-events-none" }), createElement("div", { className: "relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10" }, createElement("nav", { className: "flex items-center gap-2 text-sm font-semibold text-slate-400 mb-4 w-full min-w-0" }, createElement(ForgeWpEditorLink, { href: homeHref, className: "hover:text-primary transition-colors whitespace-nowrap shrink-0" }, __('Startseite')), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4 shrink-0"}, createElement("path", {"d":"m9 18 6-6-6-6"})), createElement("span", { className: "text-slate-700 truncate min-w-0" }, __('Kontakt'))), createElement("div", { className: "grid grid-cols-1 lg:grid-cols-5 gap-10 items-center" }, createElement("div", { className: "lg:col-span-3 max-w-2xl" }, createElement("span", { className: "inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full mb-3" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-3.5 h-3.5"}, createElement("path", {"d":"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"})), setAttributes ? (createElement(wp.blockEditor.RichText, {
         tagName: "span",
         value: (function(){ var __v = (attributes.badge); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ badge: val }),
@@ -396,41 +362,6 @@ return createElement("div", { className: (("relative overflow-hidden bg-slate-50
         disableLineBreaks: true,
         allowedFormats: []
       })) : (createElement("span", null, attributes.cardBadge))))))));
-})()"
-`;
-
-exports[`compileBlocks against real hotelchecker24 components > "destinations" customEditJsx parses and contains no mangled-ternary markers 1`] = `
-"(() => {
-var defaults = {"hero_title":"Handverlesene","hero_title_colored":"Boutique- & Luxushotels","hero_subtitle":"Hotelchecker24 ist Ihre unabhängige Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa.","hero_search_placeholder":"Hotelname oder Stadt suchen...","trust_stat1_value":"500+","trust_stat1_label":"Kuratierte Hotels","trust_stat2_value":"4","trust_stat2_label":"Länder abgedeckt","trust_stat3_value":"100%","trust_stat3_label":"Unabhängig & redaktionell","trust_stat4_value":"DE / EN","trust_stat4_label":"Deutsch & Englisch","featured_badge":"Empfohlen","featured_heading":"Ausgewählte Hotels","featured_subtitle":"Von unserer Redaktion handverlesen — außergewöhnliche Aufenthalte in ganz Europa.","featured_link_label":"Alle Hotels","editorial_badge":"Redaktionell & Unabhängig","editorial_heading":"Kuratiert von","editorial_heading_colored":"echten Reisenden","editorial_description":"Kein bezahltes Ranking. Kein Algorithmus. Nur ehrliche, redaktionell geprüfte Empfehlungen von unserem Team, das die Hotels selbst besucht hat.","editorial_cta_label":"Alle Hotelvergleiche lesen","editorial_feature1_label":"Vor-Ort-Besuche","editorial_feature1_desc":"Jedes Hotel wird persönlich getestet","editorial_feature2_label":"Keine Werbung","editorial_feature2_desc":"Vollständig redaktionell unabhängig","editorial_feature3_label":"DE & EN","editorial_feature3_desc":"Inhalte auf Deutsch und Englisch","editorial_feature4_label":"Laufend aktuell","editorial_feature4_desc":"Regelmäßige neue Empfehlungen","listicles_badge":"Magazin","listicles_heading":"Aktuelle Hotelvergleiche","listicles_subtitle":"Tiefgehende Reiseberichte und Empfehlungen von unserer Redaktion.","listicles_link_label":"Alle Vergleiche","destinations_heading":"Nach Reiseziel entdecken","destinations_subtitle":"Handverlesene Hotels in den schönsten Reisezielen Europas."};
-function DestinationsGrid() { return undefined; }
-// Dual-host prop aliases (block attributes → local names used in components)
-var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
-var headingProp = (typeof __attr["heading"] !== 'undefined') ? __attr["heading"] : (typeof __attr["headingProp"] !== 'undefined' ? __attr["headingProp"] : undefined);
-var subtitleProp = (typeof __attr["subtitle"] !== 'undefined') ? __attr["subtitle"] : (typeof __attr["subtitleProp"] !== 'undefined' ? __attr["subtitleProp"] : undefined);
-
-
-  const headingMeta = useWpMeta('destinations_heading', defaults.destinations_heading);
-  const subtitleMeta = useWpMeta('destinations_subtitle', defaults.destinations_subtitle);
-
-  const heading = headingProp ?? headingMeta;
-  const subtitle = subtitleProp ?? subtitleMeta;
-
-  
-return createElement("section", { className: (("w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" }, createElement("div", { className: "text-center mb-10" }, createElement("h2", { className: "text-3xl font-sans font-black text-slate-800 uppercase tracking-tight" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
-        tagName: "span",
-        value: (function(){ var __v = (attributes.heading); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
-        onChange: (val) => setAttributes({ heading: val }),
-        className: "",
-        disableLineBreaks: true,
-        allowedFormats: []
-      })) : (heading)), setAttributes ? (createElement(wp.blockEditor.RichText, {
-        tagName: "p",
-        value: (function(){ var __v = (attributes.subtitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
-        onChange: (val) => setAttributes({ subtitle: val }),
-        className: "text-slate-500 text-sm mt-2",
-        disableLineBreaks: true,
-        allowedFormats: []
-      })) : (createElement("p", { className: "text-slate-500 text-sm mt-2" }, attributes.subtitle))), createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "DestinationsGrid - interactive preview"), createElement("span", { style: {display:'block'} }, "This section loads live data (hotels, terms, posts) on the visitor page. Edit headings and labels in the block sidebar under Block Settings, or use any inline fields shown on the canvas above this box. The live grid/list appears on the frontend after save."))));
 })()"
 `;
 
@@ -516,7 +447,7 @@ return createElement("section", { className: (("w-full") || '') + ' ' + (({none:
         className: "text-slate-400 text-sm leading-relaxed mb-6 max-w-sm",
         disableLineBreaks: true,
         allowedFormats: []
-      })) : (createElement("p", { className: "text-slate-400 text-sm leading-relaxed mb-6 max-w-sm" }, attributes.description)), createElement(WpLink, { href: listiclesHref, className: "inline-flex items-center gap-2 bg-[#929f5d] hover:bg-[#929f5d]/90 text-white text-xs font-bold uppercase tracking-wider px-6 py-3 rounded-full transition-all duration-300 active:scale-95" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
+      })) : (createElement("p", { className: "text-slate-400 text-sm leading-relaxed mb-6 max-w-sm" }, attributes.description)), createElement(ForgeWpEditorLink, { href: listiclesHref, className: "inline-flex items-center gap-2 bg-[#929f5d] hover:bg-[#929f5d]/90 text-white text-xs font-bold uppercase tracking-wider px-6 py-3 rounded-full transition-all duration-300 active:scale-95" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
         tagName: "span",
         value: (function(){ var __v = (attributes.ctaLabel); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ ctaLabel: val }),
@@ -580,116 +511,6 @@ return createElement("section", { className: (("w-full") || '') + ' ' + (({none:
         disableLineBreaks: true,
         allowedFormats: []
       })) : (createElement("p", { className: "text-slate-500 text-[10px] mt-1 leading-snug" }, attributes.feature4Desc)))))));
-})()"
-`;
-
-exports[`compileBlocks against real hotelchecker24 components > "featured-hotels" customEditJsx parses and contains no mangled-ternary markers 1`] = `
-"(() => {
-var defaults = {"hero_title":"Handverlesene","hero_title_colored":"Boutique- & Luxushotels","hero_subtitle":"Hotelchecker24 ist Ihre unabhängige Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa.","hero_search_placeholder":"Hotelname oder Stadt suchen...","trust_stat1_value":"500+","trust_stat1_label":"Kuratierte Hotels","trust_stat2_value":"4","trust_stat2_label":"Länder abgedeckt","trust_stat3_value":"100%","trust_stat3_label":"Unabhängig & redaktionell","trust_stat4_value":"DE / EN","trust_stat4_label":"Deutsch & Englisch","featured_badge":"Empfohlen","featured_heading":"Ausgewählte Hotels","featured_subtitle":"Von unserer Redaktion handverlesen — außergewöhnliche Aufenthalte in ganz Europa.","featured_link_label":"Alle Hotels","editorial_badge":"Redaktionell & Unabhängig","editorial_heading":"Kuratiert von","editorial_heading_colored":"echten Reisenden","editorial_description":"Kein bezahltes Ranking. Kein Algorithmus. Nur ehrliche, redaktionell geprüfte Empfehlungen von unserem Team, das die Hotels selbst besucht hat.","editorial_cta_label":"Alle Hotelvergleiche lesen","editorial_feature1_label":"Vor-Ort-Besuche","editorial_feature1_desc":"Jedes Hotel wird persönlich getestet","editorial_feature2_label":"Keine Werbung","editorial_feature2_desc":"Vollständig redaktionell unabhängig","editorial_feature3_label":"DE & EN","editorial_feature3_desc":"Inhalte auf Deutsch und Englisch","editorial_feature4_label":"Laufend aktuell","editorial_feature4_desc":"Regelmäßige neue Empfehlungen","listicles_badge":"Magazin","listicles_heading":"Aktuelle Hotelvergleiche","listicles_subtitle":"Tiefgehende Reiseberichte und Empfehlungen von unserer Redaktion.","listicles_link_label":"Alle Vergleiche","destinations_heading":"Nach Reiseziel entdecken","destinations_subtitle":"Handverlesene Hotels in den schönsten Reisezielen Europas."};
-function FeaturedHotelsGrid() { return undefined; }
-// Dual-host prop aliases (block attributes → local names used in components)
-var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
-var badgeProp = (typeof __attr["badge"] !== 'undefined') ? __attr["badge"] : (typeof __attr["badgeProp"] !== 'undefined' ? __attr["badgeProp"] : undefined);
-var headingProp = (typeof __attr["heading"] !== 'undefined') ? __attr["heading"] : (typeof __attr["headingProp"] !== 'undefined' ? __attr["headingProp"] : undefined);
-var subtitleProp = (typeof __attr["subtitle"] !== 'undefined') ? __attr["subtitle"] : (typeof __attr["subtitleProp"] !== 'undefined' ? __attr["subtitleProp"] : undefined);
-var linkProp = (typeof __attr["linkLabel"] !== 'undefined') ? __attr["linkLabel"] : (typeof __attr["linkProp"] !== 'undefined' ? __attr["linkProp"] : undefined);
-
-
-  const badgeMeta = useWpMeta('featured_badge', defaults.featured_badge);
-  const headingMeta = useWpMeta('featured_heading', defaults.featured_heading);
-  const subtitleMeta = useWpMeta('featured_subtitle', defaults.featured_subtitle);
-  const linkMeta = useWpMeta('featured_link_label', defaults.featured_link_label);
-
-  const badge = badgeProp ?? badgeMeta;
-  const heading = headingProp ?? headingMeta;
-  const subtitle = subtitleProp ?? subtitleMeta;
-  const linkLabel = linkProp ?? linkMeta;
-
-  const hotelsHref = useWpPageLink('hotels-page', '/hotels');
-
-  
-return createElement("section", { className: (("w-full") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" }, createElement("div", { className: "flex items-end justify-between mb-10" }, createElement("div", null, createElement("span", { className: "text-[10px] font-bold uppercase tracking-widest text-[#929f5d] bg-[#929f5d]/10 px-3 py-1 rounded-full" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
-        tagName: "span",
-        value: (function(){ var __v = (attributes.badge); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
-        onChange: (val) => setAttributes({ badge: val }),
-        className: "",
-        disableLineBreaks: true,
-        allowedFormats: []
-      })) : (badge)), createElement("h2", { className: "text-3xl font-sans font-black text-slate-800 uppercase tracking-tight mt-3" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
-        tagName: "span",
-        value: (function(){ var __v = (attributes.heading); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
-        onChange: (val) => setAttributes({ heading: val }),
-        className: "",
-        disableLineBreaks: true,
-        allowedFormats: []
-      })) : (heading)), setAttributes ? (createElement(wp.blockEditor.RichText, {
-        tagName: "p",
-        value: (function(){ var __v = (attributes.subtitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
-        onChange: (val) => setAttributes({ subtitle: val }),
-        className: "text-slate-500 text-sm mt-1 max-w-md",
-        disableLineBreaks: true,
-        allowedFormats: []
-      })) : (createElement("p", { className: "text-slate-500 text-sm mt-1 max-w-md" }, attributes.subtitle))), createElement(WpLink, { href: hotelsHref, className: "hidden md:inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:text-primary/80 transition-colors" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
-        tagName: "span",
-        value: (function(){ var __v = (attributes.linkLabel); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
-        onChange: (val) => setAttributes({ linkLabel: val }),
-        className: "",
-        disableLineBreaks: true,
-        allowedFormats: []
-      })) : (linkLabel), createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-3.5 h-3.5"}, createElement("path", {"d":"M5 12h14"}), createElement("path", {"d":"m12 5 7 7-7 7"})))), createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "FeaturedHotelsGrid - interactive preview"), createElement("span", { style: {display:'block'} }, "This section loads live data (hotels, terms, posts) on the visitor page. Edit headings and labels in the block sidebar under Block Settings, or use any inline fields shown on the canvas above this box. The live grid/list appears on the frontend after save."))));
-})()"
-`;
-
-exports[`compileBlocks against real hotelchecker24 components > "hero-section" customEditJsx parses and contains no mangled-ternary markers 1`] = `
-"(() => {
-var defaults = {"hero_title":"Handverlesene","hero_title_colored":"Boutique- & Luxushotels","hero_subtitle":"Hotelchecker24 ist Ihre unabhängige Magazin-Plattform für außergewöhnliche Aufenthalte. Entdecken Sie handverlesene Empfehlungen, redaktionelle Berichte und versteckte Juwelen in ganz Europa.","hero_search_placeholder":"Hotelname oder Stadt suchen...","trust_stat1_value":"500+","trust_stat1_label":"Kuratierte Hotels","trust_stat2_value":"4","trust_stat2_label":"Länder abgedeckt","trust_stat3_value":"100%","trust_stat3_label":"Unabhängig & redaktionell","trust_stat4_value":"DE / EN","trust_stat4_label":"Deutsch & Englisch","featured_badge":"Empfohlen","featured_heading":"Ausgewählte Hotels","featured_subtitle":"Von unserer Redaktion handverlesen — außergewöhnliche Aufenthalte in ganz Europa.","featured_link_label":"Alle Hotels","editorial_badge":"Redaktionell & Unabhängig","editorial_heading":"Kuratiert von","editorial_heading_colored":"echten Reisenden","editorial_description":"Kein bezahltes Ranking. Kein Algorithmus. Nur ehrliche, redaktionell geprüfte Empfehlungen von unserem Team, das die Hotels selbst besucht hat.","editorial_cta_label":"Alle Hotelvergleiche lesen","editorial_feature1_label":"Vor-Ort-Besuche","editorial_feature1_desc":"Jedes Hotel wird persönlich getestet","editorial_feature2_label":"Keine Werbung","editorial_feature2_desc":"Vollständig redaktionell unabhängig","editorial_feature3_label":"DE & EN","editorial_feature3_desc":"Inhalte auf Deutsch und Englisch","editorial_feature4_label":"Laufend aktuell","editorial_feature4_desc":"Regelmäßige neue Empfehlungen","listicles_badge":"Magazin","listicles_heading":"Aktuelle Hotelvergleiche","listicles_subtitle":"Tiefgehende Reiseberichte und Empfehlungen von unserer Redaktion.","listicles_link_label":"Alle Vergleiche","destinations_heading":"Nach Reiseziel entdecken","destinations_subtitle":"Handverlesene Hotels in den schönsten Reisezielen Europas."};
-function HeroSearchBoard() { return undefined; }
-
-function HeroSpotlight() { return undefined; }
-// Dual-host prop aliases (block attributes → local names used in components)
-var __attr = (typeof attributes === 'object' && attributes) ? attributes : {};
-var titleProp = (typeof __attr["title"] !== 'undefined') ? __attr["title"] : (typeof __attr["titleProp"] !== 'undefined' ? __attr["titleProp"] : undefined);
-var titleColoredProp = (typeof __attr["titleColored"] !== 'undefined') ? __attr["titleColored"] : (typeof __attr["titleColoredProp"] !== 'undefined' ? __attr["titleColoredProp"] : undefined);
-var subtitleProp = (typeof __attr["subtitle"] !== 'undefined') ? __attr["subtitle"] : (typeof __attr["subtitleProp"] !== 'undefined' ? __attr["subtitleProp"] : undefined);
-var searchPlaceholderProp = (typeof __attr["searchPlaceholder"] !== 'undefined') ? __attr["searchPlaceholder"] : (typeof __attr["searchPlaceholderProp"] !== 'undefined' ? __attr["searchPlaceholderProp"] : undefined);
-
-
-  const titleMeta = useWpMeta('hero_title', defaults.hero_title);
-  const titleColoredMeta = useWpMeta('hero_title_colored', defaults.hero_title_colored);
-  const subtitleMeta = useWpMeta('hero_subtitle', defaults.hero_subtitle);
-  const searchPlaceholderMeta = useWpMeta(
-    'hero_search_placeholder',
-    defaults.hero_search_placeholder,
-  );
-
-  const title = titleProp ?? titleMeta;
-  const titleColored = titleColoredProp ?? titleColoredMeta;
-  const subtitle = subtitleProp ?? subtitleMeta;
-  const searchPlaceholder = searchPlaceholderProp ?? searchPlaceholderMeta;
-
-  
-return createElement("section", { className: (("relative w-full overflow-hidden bg-slate-50 selection:bg-primary selection:text-white") || '') + ' ' + (({none:'',sm:'py-4 sm:py-6',md:'py-8 sm:py-10',lg:'py-12 sm:py-16'}[attributes.paddingY] || '') + ' ' + ({none:'',sm:'px-4',md:'px-4 sm:px-6',lg:'px-4 sm:px-6 lg:px-8'}[attributes.paddingX] || '')).trim()}, createElement("div", { className: "absolute top-0 right-0 w-150 h-150 bg-[radial-gradient(circle,rgba(109,155,174,0.12)_0%,transparent_70%)] blur-3xl pointer-events-none z-0" }), createElement("div", { className: "absolute bottom-0 left-0 w-125 h-125 bg-[radial-gradient(circle,rgba(146,159,93,0.08)_0%,transparent_70%)] blur-3xl pointer-events-none z-0" }), createElement("div", { className: "relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center z-10" }, createElement("div", { className: "lg:col-span-7 flex flex-col items-start text-left" }, createElement("h1", { className: "text-4xl sm:text-5xl md:text-6xl font-sans font-black tracking-tight text-slate-800 leading-[1.1] mb-6 uppercase" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
-        tagName: "span",
-        value: (function(){ var __v = (attributes.title); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
-        onChange: (val) => setAttributes({ title: val }),
-        className: "",
-        disableLineBreaks: true,
-        allowedFormats: []
-      })) : (title), createElement("br", null), createElement("span", { className: "bg-linear-to-r from-primary via-slate-700 to-accent bg-clip-text text-transparent" }, setAttributes ? (createElement(wp.blockEditor.RichText, {
-        tagName: "span",
-        value: (function(){ var __v = (attributes.titleColored); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
-        onChange: (val) => setAttributes({ titleColored: val }),
-        className: "",
-        disableLineBreaks: true,
-        allowedFormats: []
-      })) : (titleColored))), setAttributes ? (createElement(wp.blockEditor.RichText, {
-        tagName: "p",
-        value: (function(){ var __v = (attributes.subtitle); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
-        onChange: (val) => setAttributes({ subtitle: val }),
-        className: "text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed",
-        disableLineBreaks: true,
-        allowedFormats: []
-      })) : (createElement("p", { className: "text-slate-500 text-base sm:text-lg max-w-2xl mb-10 font-sans font-normal leading-relaxed" }, attributes.subtitle)), createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "HeroSearchBoard - interactive preview"), createElement("span", { style: {display:'block'} }, "This section loads live data (hotels, terms, posts) on the visitor page. Edit headings and labels in the block sidebar under Block Settings, or use any inline fields shown on the canvas above this box. The live grid/list appears on the frontend after save."))), createElement("div", { className: "lg:col-span-5 flex items-center justify-center relative w-full mt-8 lg:mt-0" }, createElement("div", { className: "forgewp-editor-island-placeholder", style: {padding:'14px 16px',border:'1px dashed #c3c4c7',borderRadius:'8px',background:'#f6f7f7',color:'#646970',fontSize:'12px',lineHeight:'1.55'} }, createElement("strong", { style: {display:'block',marginBottom:'6px',color:'#1d2327',fontSize:'13px'} }, "HeroSpotlight - interactive preview"), createElement("span", { style: {display:'block'} }, "This section loads live data (hotels, terms, posts) on the visitor page. Edit headings and labels in the block sidebar under Block Settings, or use any inline fields shown on the canvas above this box. The live grid/list appears on the frontend after save.")))));
 })()"
 `;
 
@@ -837,7 +658,7 @@ return createElement("div", { className: (("max-w-7xl mx-auto w-full") || '') + 
         className: "text-sm font-bold text-slate-800 block",
         disableLineBreaks: true,
         allowedFormats: []
-      })) : (createElement("a", { href: \`mailto:\${attributes.contactEmail}\`, className: "text-sm font-bold text-slate-800 hover:text-primary transition-colors" }, attributes.contactEmail)), createElement("p", { className: "text-xs font-semibold text-slate-500 mt-1" }, setAttributes ? (createElement(wp.element.Fragment, null, createElement(wp.blockEditor.RichText, {
+      })) : (createElement(ForgeWpEditorLink, { href: \`mailto:\${attributes.contactEmail}\`, className: "text-sm font-bold text-slate-800 hover:text-primary transition-colors" }, attributes.contactEmail)), createElement("p", { className: "text-xs font-semibold text-slate-500 mt-1" }, setAttributes ? (createElement(wp.element.Fragment, null, createElement(wp.blockEditor.RichText, {
         tagName: "span",
         value: (function(){ var __v = (attributes.contactWebsiteLabel); if (__v == null) return ''; return (typeof __v === 'string' ? __v : String(__v)); })(),
         onChange: (val) => setAttributes({ contactWebsiteLabel: val }),
@@ -851,7 +672,7 @@ return createElement("div", { className: (("max-w-7xl mx-auto w-full") || '') + 
         className: "underline",
         disableLineBreaks: true,
         allowedFormats: []
-      }))) : (createElement(wp.element.Fragment, null, attributes.contactWebsiteLabel, ' ', createElement("a", { href: attributes.contactWebsiteUrl, target: "_blank", rel: "noopener noreferrer", className: "underline hover:text-primary" }, attributes.contactWebsiteDisplay)))))), createElement("div", { className: "h-px bg-slate-100" }), createElement("div", { className: "flex gap-4" }, createElement("div", { className: "w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 text-slate-600" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4"}, createElement("line", {"x1":"3","x2":"21","y1":"22","y2":"22"}), createElement("line", {"x1":"6","x2":"6","y1":"18","y2":"11"}), createElement("line", {"x1":"10","x2":"10","y1":"18","y2":"11"}), createElement("line", {"x1":"14","x2":"14","y1":"18","y2":"11"}), createElement("line", {"x1":"18","x2":"18","y1":"18","y2":"11"}), createElement("polygon", {"points":"12 2 20 7 4 7"}))), createElement("div", { className: "space-y-2 w-full" }, editText(
+      }))) : (createElement(wp.element.Fragment, null, attributes.contactWebsiteLabel, ' ', createElement(ForgeWpEditorLink, { href: attributes.contactWebsiteUrl, target: "_blank", rel: "noopener noreferrer", className: "underline hover:text-primary", forgeWpUrl: attributes.contactWebsiteUrl, forgeWpOnUrlChange: (typeof setAttributes === 'function' ? function(value) { setAttributes({ contactWebsiteUrl: value }); } : undefined), forgeWpUrlLabel: "Website URL" }, attributes.contactWebsiteDisplay)))))), createElement("div", { className: "h-px bg-slate-100" }), createElement("div", { className: "flex gap-4" }, createElement("div", { className: "w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 text-slate-600" }, createElement("svg", {"xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round","className":"w-4 h-4"}, createElement("line", {"x1":"3","x2":"21","y1":"22","y2":"22"}), createElement("line", {"x1":"6","x2":"6","y1":"18","y2":"11"}), createElement("line", {"x1":"10","x2":"10","y1":"18","y2":"11"}), createElement("line", {"x1":"14","x2":"14","y1":"18","y2":"11"}), createElement("line", {"x1":"18","x2":"18","y1":"18","y2":"11"}), createElement("polygon", {"points":"12 2 20 7 4 7"}))), createElement("div", { className: "space-y-2 w-full" }, editText(
                 registerHeading,
                 'registerHeading',
                 'text-xs font-mono font-bold uppercase tracking-widest text-slate-400 mb-1 block',

@@ -1,16 +1,80 @@
-Hello Stefanie,
+Hi Stefanie, one more thing - the link doesn't seem to work in Switzerland - here's the link:
 
-The new STRATO hosting for WordPress Plus has now been activated. The two domains hospitality2035.de and hospitality2035.com are also now available in my STRATO account.
+The website is unavailable.
+Dear Stefanie,
 
-Attached is a screenshot of the current status.
+Thank you so much for the update and the excellent summary. In my opinion, the website has already reached a very good stage; I really like the basic structure and design – thank you for the great work!
 
-I haven't started the setup process yet via "Start" so I don't accidentally change any settings. Could you please briefly tell me what access or login details you need for the setup and how I can best provide them to you?
 
-Please use www.hospitality2035.de as the main domain. hospitality2035.com should redirect to the main domain.
+We can now finalize the remaining open points step by step based on this. From my side, I have the following suggestions and change requests:
 
-DICON's Stripe account is also set up and available . As soon as you need the Stripe integration for Easy Digital Downloads, I can gladly add you with the necessary permissions via Stripe's user/team management. For security reasons, I prefer not to send API keys or personal login details via email.
+Partners and supporters
+Please only list companies and organizations on the website as partners or supporters whose participation has already been confirmed. We can add further logos and partner information as soon as the respective commitments are received. All are confirmed except Terra Robotic, Häfele, and Dreamboks – could you remove these? This logo would be suitable for hotelinside:
 
-If you require any further information from me for the setup, please let me know.
 
-Best regards
-Roland
+2. Checkout area on the landing page
+I would not present the currently visible technical and legal information regarding the planned checkout ("WooCommerce + Stripe coming soon," contract confirmation, etc.) as a separate content area on the final public landing page. The necessary information should be fully integrated into the actual ordering process.
+
+After the section on "Publisher," I would prefer to move directly to a more sales-oriented conclusion. My suggestion would be:
+
+Hospitality 2035
+How the economic logic of the hotel industry is changing.
+
+Approximately 90 pages (please change from 80 to 90 pages everywhere) strategic analysis for decision-makers in the hotel, real estate, finance and technology industries.
+
+Single License €249 net
+
+[Buy study] [View preview]
+
+3. Benefit argument before price
+The website already explains very well which topics the study covers. However, I would emphasize even more strongly what specific strategic benefits the buyer will derive from the study.
+
+Please add a compact section immediately before the price or purchase area:
+
+What you will take away from Hospitality 2035
+
+– Which cost and operational structures will come under pressure by 2035
+– Where AI and automation can actually have an economic impact
+– How hotel concepts and space requirements are changing
+– Which business models are gaining in importance
+– How hotels can prepare for increasing automation
+– What strategic consequences arise for operators, owners and investors
+
+In my view, this should make it even clearer why the study offers concrete added value for the decision-makers addressed.
+
+4. Page title / SEO
+Please replace the currently visible default WordPress title "Just another WordPress site". I suggest the following title:
+
+Hospitality 2035 | How the economic logic of the hotel industry is changing
+
+Please also prepare the meta description and social sharing display accordingly.
+
+5. B2B Checkout / Single License
+The single license, priced at €249 net, will be sold exclusively to business customers. The B2B checkout requirements you mentioned can be implemented accordingly. Please keep Stripe in test mode until it is fully tested.
+
+6. Team and Corporate Licenses
+No direct online purchase is planned at this time. Interested parties should contact us via the respective inquiry form for these licensing models, as intended.
+
+7. Legal texts
+I will provide you with the final legal notice, privacy policy, and license terms. Please send me the complete list of the services and plugins actually used, as promised, so that the privacy policy can be finalized accordingly.
+
+8. Study content / Preview
+You will receive the final cover, selected preview pages, and/or the preview PDF from me soon. The same applies to the final confirmed partner and event information.
+
+9. Events Berlin / Zurich
+I will provide the final event details and panel participants as soon as the current voting process is complete. The registration function can already be technically prepared.
+
+For event registrations, it would also be important to me that an automatic registration confirmation is sent and that the participant data can be exported as a CSV or Excel file for further organization.
+
+Otherwise, in my opinion, you can proceed with the technical completion and testing as described.
+
+Thank you very much – I like the current state very much and from my point of view it is clearly heading in the right direction.
+
+
+
+The server IP address of hospitality2035-zrf3nvyltb.live-website.com was not found.
+Try the following:
+Check connection
+ERR_NAME_NOT_RESOLVED
+
+What could be the reason for this? 

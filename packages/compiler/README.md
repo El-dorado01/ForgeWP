@@ -36,11 +36,16 @@ pnpm forgewp make:block HeroBlock --attributes=heading,text,image,buttonText
 
 #### Gutenberg editor previews
 
-ForgeWP uses WordPress's server-rendered block preview for blocks that do not
-define a custom editor view. This renders the compiled `render.php` output and
-keeps interactive visitor code (event handlers, React state, and live-data
-hooks) from running inside the editor. If the custom editor view cannot be
-evaluated, ForgeWP falls back to the same server-rendered preview.
+ForgeWP uses a block's `edit` component as the Gutenberg canvas by default.
+Static same-file helpers and imported components are expanded into that canvas,
+so `WpEditable` fields remain inline-editable instead of showing a separate,
+uneditable server-rendered result. Links in the canvas do not navigate; when
+their URL is bound to a block attribute, the editor also offers URL editing.
+
+If the edit component is interactive or cannot be evaluated safely, ForgeWP
+falls back to WordPress's server-rendered block preview. This renders the
+compiled `render.php` output and keeps visitor-only event handlers, React
+state, and live-data hooks from running inside the editor.
 
 For a block whose visitor output depends on live data or browser interaction,
 define an editor-safe visual approximation with `editorPreview`. It receives
@@ -66,9 +71,11 @@ export default defineBlock({
 ```
 
 The preview is editor-only; the visitor page continues to use `save` and the
-compiled PHP/hydration output. Without `editorPreview`, WordPress previews the
-PHP output, which can show a loading or empty state when the component depends
-on live query data. Validate these blocks in Gutenberg and on the visitor page:
+compiled PHP/hydration output. An explicit `editorPreviewMode: 'override'`
+selects `editorPreview` even when an `edit` component exists. Without a safe
+custom editor view, WordPress previews the PHP output, which can show a loading
+or empty state when the component depends on live query data. Validate these
+blocks in Gutenberg and on the visitor page:
 `pnpm --filter @forgewp/compiler exec vitest run test/blocks/editor-preview.test.js`.
 
 ### 4. Post-Type Loop Scaffolder

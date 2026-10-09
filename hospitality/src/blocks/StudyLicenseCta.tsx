@@ -6,6 +6,7 @@ type StudyLicenseCtaAttributes = {
   heading?: string;
   label?: string;
   href?: string;
+  showActionIcon?: boolean;
   setAttributes?: (attributes: Partial<StudyLicenseCtaAttributes>) => void;
 };
 
@@ -14,6 +15,7 @@ function StudyLicenseCta({
   heading = 'Die vollständige Studie lesen.',
   label = 'Lizenzmodelle ansehen',
   href = '/lizenzen',
+  showActionIcon = false,
   setAttributes,
 }: StudyLicenseCtaAttributes) {
   const licensesPageHref = useWpPageLink('lizenzen-page', '/lizenzen');
@@ -33,22 +35,24 @@ function StudyLicenseCta({
             tagName='h2'
             value={heading}
             onChange={(value) => setAttributes?.({ heading: value })}
-            className='mt-3 font-heading text-4xl font-black sm:text-6xl'
+            className='mt-3 font-heading text-4xl font-black tracking-[-0.06em] sm:text-6xl'
           />
         </div>
         <WpLink
           href={resolvedHref}
-          className='inline-flex items-center justify-center gap-3 border border-white px-5 py-3.5 text-[10px] font-bold uppercase text-white transition-colors hover:bg-white hover:text-accent'
+          className='inline-flex items-center justify-center gap-3 border border-white px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white transition-colors hover:bg-white hover:text-accent'
         >
           <WpEditable
             tagName='span'
             value={label}
             onChange={(value) => setAttributes?.({ label: value })}
           />
-          <ArrowRight
-            size={16}
-            aria-hidden='true'
-          />
+          {showActionIcon && (
+            <ArrowRight
+              size={16}
+              aria-hidden='true'
+            />
+          )}
         </WpLink>
       </div>
     </section>
@@ -65,7 +69,18 @@ export default defineBlock({
     eyebrow: { type: 'string', default: 'Weiter zur Lizenz' },
     heading: { type: 'string', default: 'Die vollständige Studie lesen.' },
     label: { type: 'string', default: 'Lizenzmodelle ansehen' },
-    href: { type: 'string', default: '/lizenzen' },
+    href: {
+      type: 'string',
+      control: 'url',
+      label: 'Action URL',
+      default: '/lizenzen',
+    },
+    showActionIcon: {
+      type: 'boolean',
+      control: 'toggle',
+      label: 'Show action icon',
+      default: false,
+    },
   },
   edit: ({ attributes, setAttributes }) => (
     <StudyLicenseCta

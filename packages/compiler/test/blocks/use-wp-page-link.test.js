@@ -12,6 +12,45 @@ afterEach(() => {
 });
 
 describe('useWpPageLink() block rendering', () => {
+  it('resolves resolveWpAsset() expressions to theme asset URLs in generated PHP', () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'forgewp-asset-link-'));
+    const themeRoot = path.join(tempRoot, 'theme');
+    const outDir = path.join(tempRoot, 'out');
+    const blocksDir = path.join(themeRoot, 'src', 'blocks');
+    fs.mkdirSync(blocksDir, { recursive: true });
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(blocksDir, 'PreviewLink.tsx'),
+      `import { defineBlock, resolveWpAsset } from '@forgewp/react';
+
+function PreviewLink({ attributes }) {
+  return <a href={resolveWpAsset(attributes.previewUrl || '/assets/preview.pdf')}>Preview</a>;
+}
+
+export default defineBlock({
+  name: 'preview-link',
+  title: 'Preview Link',
+  category: 'theme',
+  attributes: { previewUrl: { type: 'string', default: '/assets/preview.pdf' } },
+  edit: () => null,
+  save: ({ attributes }) => <PreviewLink attributes={attributes} />,
+});
+`,
+      'utf8',
+    );
+
+    compileBlocks(themeRoot, outDir, {});
+
+    const renderPhp = fs.readFileSync(
+      path.join(outDir, 'blocks', 'preview-link', 'render.php'),
+      'utf8',
+    );
+    expect(renderPhp).toContain('forgewp_resolve_image_source(');
+    expect(renderPhp).toContain("$attributes['previewUrl']");
+    expect(renderPhp).toContain("'/assets/preview.pdf'");
+    expect(renderPhp).not.toContain('resolveWpAsset(');
+  });
+
   it('resolves multiline calls with a trailing comma in generated PHP', () => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'forgewp-page-link-'));
     const themeRoot = path.join(tempRoot, 'theme');

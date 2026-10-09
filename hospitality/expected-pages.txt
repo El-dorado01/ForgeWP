@@ -7,8 +7,9 @@
 | `/` | Authored Hospitality 2035 landing page; partner section includes confirmed client logos. |
 | `/studie` | Redirects to `/studie/hospitality-2035`. |
 | `/studie/hospitality-2035` | Authored study detail page with preview and partner content. Final preview PDF is still missing. |
-| `/events` | CMS-driven `hospitality_event` overview with animated feature tiles and event listings. Berlin/Zurich registration is now requested; the current pages remain informational until the registration workflow is implemented. |
-| `/events/[event-slug]` | Shared `hospitality_event` single template with animated hero, editable information and programme blocks. Registration must link the privacy notice and must not imply newsletter or marketing consent. |
+| `/events` | Branded Events Manager listing page for upcoming events. The theme supplies the page layout and Events Manager supplies the event records. |
+| `/events/[event-slug]` | Branded Events Manager single-event page with a static introduction and the plugin's event details and booking form. |
+| `/my-bookings` | Branded Events Manager page showing the current visitor's event bookings. |
 | `/lizenzen` | Authored comparison page for single, team, and corporate licenses. |
 | `/checkout/single-license` | The generated developer template preserves the shipped layout by default. Selecting ForgeWP Builder starts a nested Gutenberg composition with the same hero, two-column checkout/legal content, sticky purchase panel, editable price details, EDD Buy Button slot, and return link. Insert EDD's native Buy Button in the slot and select the site's EDD Download. The displayed `249,00 €` amount is currently editable page content, not dynamically bound to EDD; verify it against the Download. EDD's Pages settings independently map Checkout to a WordPress Page containing the EDD Checkout block. No product ID, checkout slug, or Stripe credential is embedded in theme source. The client reports a successful local test-mode purchase, but the updated theme export still needs verification in WordPress. B2B/legal checkout requirements remain unverified. |
 | `/lizenz/team` | Native WordPress inquiry form; sends a notification to DICON, stores the submission in the protected Forms inbox for 180 days, and sends a plain-text acknowledgement. |
@@ -42,9 +43,8 @@ The theme export generates templates but does not create or change WordPress Pag
 ## Completed
 
 - Replaced generic CMS contact defaults with DICON’s supplied contact details and company name.
-- Registered one `hospitality_event` custom post type with a `/events` rewrite base and disabled archive so the authored `/events` Page remains unambiguous.
-- Added Berlin and Zürich event fixtures, a shared event single template, independent event hero/information/programme blocks, and a two-column details shell. Event cards use WordPress permalinks.
-- Added entrance animations to the event archive and event detail sections, with reduced-motion handling.
+- Retired the theme-owned `hospitality_event` post type and its event-only builder blocks; Events Manager is the sole event data source.
+- Added branded Events Manager templates for `/events`, `/events/[event-slug]`, and `/my-bookings`, using the plugin's shortcodes for its event list, details, and booking list.
 - Added native team/corporate inquiry handling: WordPress submission storage, DICON email notifications, 180-day retention, and submitter acknowledgements. Local Vite previews simulate submissions; they do not verify WordPress delivery or storage.
 - Added the single-license summary page with a WordPress content slot for the EDD Buy Button block; the editor selects the Download in the block, and EDD handles checkout on its separately assigned Checkout Page.
 - Added branded EDD system-page templates for Checkout, Order History, Receipt, Transaction Failed, Confirmation, and Products. The EDD blocks and page content remain editable in WordPress and are rendered through BlockArea.

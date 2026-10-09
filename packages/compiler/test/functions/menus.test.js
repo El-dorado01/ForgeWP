@@ -181,6 +181,42 @@ describe('Mega Menus & Hierarchical Navigation Compiler Tests', () => {
     expect(enqueuerPhp).toContain("'id'    => (string) $item->ID,");
     expect(enqueuerPhp).not.toContain("'id'    => (int)$item->ID,");
   });
+
+  it('uses the local-provider route language for form hydration and translations', () => {
+    const config = {
+      textDomain: 'test_theme',
+      i18n: {
+        locales: ['de', 'en'],
+        defaultLocale: 'de',
+        provider: 'local',
+      },
+      forms: { contact: {} },
+    };
+    const enqueuerPhp = buildHydrationEnqueuerPhp(
+      config,
+      { cssFile: 'assets/main.css' },
+      'assets/main.js',
+      new Set(),
+      [],
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      'usernameAndEmail',
+      '',
+    );
+
+    expect(enqueuerPhp).toContain("'forms' => forgewp_forms_hydration_payload($current_lang)");
+    expect(enqueuerPhp).toContain("$forgewp_path_locale = sanitize_key(reset($forgewp_path_segments));");
+    expect(enqueuerPhp).toContain("$forgewp_home_path = rtrim((string) parse_url(home_url('/'), PHP_URL_PATH), '/');");
+    expect(enqueuerPhp).toContain("$current_lang = 'de';");
+    expect(enqueuerPhp).toContain('$current_lang = forgewp_forms_resolve_lang($current_lang);');
+  });
 });
 
 describe('loadMenusData dual-resolution', () => {

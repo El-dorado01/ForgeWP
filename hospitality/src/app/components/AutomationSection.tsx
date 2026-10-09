@@ -13,10 +13,12 @@ export const editable = pickEditable(pageEditable, {
   title: 'automation_title',
   description: 'automation_description',
   imageAlt: 'automation_image_alt',
+  primaryImage: 'automation_primary_image',
   detailTitle: 'automation_detail_title',
   detailDescription: 'automation_detail_description',
   details: 'automation_details',
   secondImageAlt: 'automation_second_image_alt',
+  secondaryImage: 'automation_secondary_image',
 });
 
 export type AutomationSectionProps = {
@@ -28,10 +30,12 @@ export type AutomationSectionProps = {
   title?: string;
   description?: string;
   imageAlt?: string;
+  primaryImage?: string | number | { id?: number; url?: string; alt?: string };
   detailTitle?: string;
   detailDescription?: string;
   details?: AutomationDetail[];
   secondImageAlt?: string;
+  secondaryImage?: string | number | { id?: number; url?: string; alt?: string };
   setAttributes?: (attributes: Partial<AutomationSectionProps>) => void;
 };
 
@@ -44,42 +48,63 @@ export default function AutomationSection({
   title: titleProp,
   description: descriptionProp,
   imageAlt: imageAltProp,
+  primaryImage: primaryImageProp,
   detailTitle: detailTitleProp,
   detailDescription: detailDescriptionProp,
   details: detailsProp,
   secondImageAlt: secondImageAltProp,
+  secondaryImage: secondaryImageProp,
   setAttributes,
 }: AutomationSectionProps) {
-  const eyebrow =
-    eyebrowProp ?? useWpMeta('automation_eyebrow', automationDefaults.eyebrow);
-  const intro =
-    introProp ?? useWpMeta('automation_intro', automationDefaults.intro);
-  const title =
-    titleProp ?? useWpMeta('automation_title', automationDefaults.title);
-  const description =
-    descriptionProp ??
-    useWpMeta('automation_description', automationDefaults.description);
-  const imageAlt =
-    imageAltProp ??
-    useWpMeta('automation_image_alt', automationDefaults.imageAlt);
-  const detailTitle =
-    detailTitleProp ??
-    useWpMeta('automation_detail_title', automationDefaults.detailTitle);
-  const detailDescription =
-    detailDescriptionProp ??
-    useWpMeta(
-      'automation_detail_description',
-      automationDefaults.detailDescription,
-    );
-  const details =
-    detailsProp ??
-    (useWpMeta(
-      'automation_details',
-      automationDefaults.details,
-    ) as AutomationDetail[]);
-  const secondImageAlt =
-    secondImageAltProp ??
-    useWpMeta('automation_second_image_alt', automationDefaults.secondImageAlt);
+  const metaEyebrow = useWpMeta(
+    'automation_eyebrow',
+    automationDefaults.eyebrow,
+  );
+  const metaIntro = useWpMeta('automation_intro', automationDefaults.intro);
+  const metaTitle = useWpMeta('automation_title', automationDefaults.title);
+  const metaDescription = useWpMeta(
+    'automation_description',
+    automationDefaults.description,
+  );
+  const metaImageAlt = useWpMeta(
+    'automation_image_alt',
+    automationDefaults.imageAlt,
+  );
+  const metaPrimaryImage = useWpMeta(
+    'automation_primary_image',
+    automationDefaults.primaryImage,
+  );
+  const metaDetailTitle = useWpMeta(
+    'automation_detail_title',
+    automationDefaults.detailTitle,
+  );
+  const metaDetailDescription = useWpMeta(
+    'automation_detail_description',
+    automationDefaults.detailDescription,
+  );
+  const metaDetails = useWpMeta(
+    'automation_details',
+    automationDefaults.details,
+  ) as AutomationDetail[];
+  const metaSecondImageAlt = useWpMeta(
+    'automation_second_image_alt',
+    automationDefaults.secondImageAlt,
+  );
+  const metaSecondaryImage = useWpMeta(
+    'automation_secondary_image',
+    automationDefaults.secondaryImage,
+  );
+  const eyebrow = eyebrowProp ?? metaEyebrow;
+  const intro = introProp ?? metaIntro;
+  const title = titleProp ?? metaTitle;
+  const description = descriptionProp ?? metaDescription;
+  const imageAlt = imageAltProp ?? metaImageAlt;
+  const primaryImage = primaryImageProp ?? metaPrimaryImage;
+  const detailTitle = detailTitleProp ?? metaDetailTitle;
+  const detailDescription = detailDescriptionProp ?? metaDetailDescription;
+  const details = detailsProp ?? metaDetails;
+  const secondImageAlt = secondImageAltProp ?? metaSecondImageAlt;
+  const secondaryImage = secondaryImageProp ?? metaSecondaryImage;
   const updateDetail = (
     index: number,
     field: keyof AutomationDetail,
@@ -136,17 +161,33 @@ export default function AutomationSection({
             transition={{ delay: 0.12 }}
           >
             <h2 className='w-full font-heading text-5xl font-black leading-[0.88] tracking-[-0.07em] text-brand sm:text-7xl lg:text-8xl'>
-              <WordReveal
-                text={title}
-                reduceMotion={reduceMotion}
-              />
+              {setAttributes ? (
+                <WpEditable
+                  tagName='span'
+                  value={title}
+                  onChange={(value) => setAttributes({ title: value })}
+                />
+              ) : (
+                <WordReveal
+                  text={title}
+                  reduceMotion={reduceMotion}
+                />
+              )}
             </h2>
             <p className='mt-8 max-w-3xl text-lg leading-relaxed text-slate-600'>
-              <WordReveal
-                text={description}
-                reduceMotion={reduceMotion}
-                delay={0.12}
-              />
+              {setAttributes ? (
+                <WpEditable
+                  tagName='span'
+                  value={description}
+                  onChange={(value) => setAttributes({ description: value })}
+                />
+              ) : (
+                <WordReveal
+                  text={description}
+                  reduceMotion={reduceMotion}
+                  delay={0.12}
+                />
+              )}
             </p>
           </motion.div>
         </div>
@@ -159,7 +200,10 @@ export default function AutomationSection({
           transition={{ duration: 0.8, ease: 'easeOut' }}
         >
           <WpImage
-            src='/assets/editorial-images/robotic-hotel-lobby-01.png'
+            src={
+              primaryImage ||
+              '/assets/editorial-images/robotic-hotel-lobby-01.png'
+            }
             alt={imageAlt}
             className='block aspect-[3/1] w-full object-cover'
           />
@@ -263,7 +307,10 @@ export default function AutomationSection({
           transition={{ duration: 0.8, ease: 'easeOut' }}
         >
           <WpImage
-            src='/assets/editorial-images/robotic-hotel-lobby-02.png'
+            src={
+              secondaryImage ||
+              '/assets/editorial-images/robotic-hotel-lobby-02.png'
+            }
             alt={secondImageAlt}
             className='block aspect-[3/1] w-full object-cover'
           />

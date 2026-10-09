@@ -263,7 +263,11 @@ export const CLIENT_ANIMATION_TAGS = new Set([
  * @param {object} tsModule - the `typescript` module (pass the same `ts` this file resolved).
  * @returns {{ isNodeInteractive: (node: object) => boolean, localHookInteractivity: Map<string, boolean> }}
  */
-export function createInteractivityChecker(sourceFile, tsModule) {
+export function createInteractivityChecker(
+  sourceFile,
+  tsModule,
+  { ignoreMotionTags = false } = {},
+) {
   const ts = tsModule;
 
   const localHookInteractivity = new Map();
@@ -319,7 +323,19 @@ export function createInteractivityChecker(sourceFile, tsModule) {
             interactive = true;
             return;
           }
-          if (CLIENT_ANIMATION_DIRECTIVES_REGEX.test(attrName)) {
+          const openingElement = node.parent?.parent;
+          const openingTag = openingElement?.tagName;
+          const isMotionAttribute =
+            ignoreMotionTags &&
+            (openingElement?.kind === ts.SyntaxKind.JsxOpeningElement ||
+              openingElement?.kind === ts.SyntaxKind.JsxSelfClosingElement) &&
+            openingTag?.kind === ts.SyntaxKind.PropertyAccessExpression &&
+            openingTag.expression.kind === ts.SyntaxKind.Identifier &&
+            openingTag.expression.text === 'motion';
+          if (
+            CLIENT_ANIMATION_DIRECTIVES_REGEX.test(attrName) &&
+            !isMotionAttribute
+          ) {
             interactive = true;
             return;
           }
@@ -341,8 +357,10 @@ export function createInteractivityChecker(sourceFile, tsModule) {
               expr.text === 'm' ||
               expr.text === 'animated')
           ) {
-            interactive = true;
-            return;
+            if (!ignoreMotionTags || expr.text !== 'motion') {
+              interactive = true;
+              return;
+            }
           }
         }
         if (tagNameNode.kind === ts.SyntaxKind.Identifier) {
@@ -905,5 +923,29 @@ export function isComponentInteractive(filePath) {
       err,
     );
     return false;
+  }
+}
+
+export function isComponentEditorUnsafe(filePath) {
+  if (!existsSync(filePath) || !ts) return true;
+  try {
+    const content = readComponentSource(filePath);
+    const sourceFile = ts.createSourceFile(
+      filePath,
+      content,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const { isNodeInteractive } = createInteractivityChecker(sourceFile, ts, {
+      ignoreMotionTags: true,
+    });
+    return isNodeInteractive(sourceFile);
+  } catch (err) {
+    console.error(
+      `[AST Editor Interactivity Scan] Error parsing ${filePath}:`,
+      err,
+    );
+    return true;
   }
 }

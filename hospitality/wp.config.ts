@@ -13,18 +13,6 @@ export default defineConfig({
   configVersion: 1,
   options: siteOptions,
   themeMods: themeMods,
-  postTypes: {
-    hospitality_event: {
-      icon: 'dashicons-calendar-alt',
-      hasArchive: false,
-      labels: {
-        singular: 'Veranstaltung',
-        plural: 'Veranstaltungen',
-      },
-      rewrite: { slug: 'events', withFront: false },
-      supports: ['title', 'editor', 'thumbnail', 'custom-fields', 'excerpt'],
-    },
-  },
   // favicon: '/Logo/favicon.svg',
   // plugins: [
   //   seoPlugin({

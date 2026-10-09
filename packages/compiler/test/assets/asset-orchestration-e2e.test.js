@@ -225,6 +225,33 @@ export function HeroSection() {
     expect(processed).toContain('fetchpriority="high"');
   });
 
+  it('renders optimized responsive candidates that match the generated preload set', async () => {
+    const graph = scanAssetGraph(themeRoot);
+    await runAssetPipeline(themeRoot, graph, {
+      outDir,
+      cacheDir,
+      quality: 80,
+    });
+
+    const rendered = processMarkup(
+      '<forgewp-image data-src="/src/assets/hero-living-room.png" data-priority="true" alt="Hero" />',
+      'theme',
+      null,
+      graph,
+    );
+    const preloads = generatePreloadTags(graph, { isPhp: true });
+
+    expect(rendered).toContain('srcset="');
+    expect(rendered).toContain('hero-living-room-480w.webp');
+    expect(rendered).toContain('sizes="(max-width: 1024px) 100vw, 50vw"');
+    expect(rendered).toContain('width="1600"');
+    expect(rendered).toContain('height="900"');
+    expect(rendered).toContain('fetchpriority="high"');
+    expect(preloads).toHaveLength(1);
+    expect(preloads[0]).toContain('imagesrcset=');
+    expect(preloads[0]).toContain('hero-living-room-480w.webp');
+  });
+
   it('orchestrates fonts, detects unused weights, and produces complete asset manifest', async () => {
     const config = {
       fonts: {

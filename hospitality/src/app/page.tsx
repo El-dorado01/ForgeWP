@@ -109,9 +109,12 @@ export default function HomePage() {
   return (
     <div className='min-h-screen overflow-hidden bg-[#f8fafc] text-brand selection:bg-accent selection:text-white'>
       <WpHead
-        title='Hospitality 2035 | DICON'
-        description='Wie sich die wirtschaftliche Logik der Hotellerie verändert.'
+        title='Hospitality 2035 | Wie sich die wirtschaftliche Logik der Hotellerie verändert'
+        description='Strategische Analyse zum Wandel der Hotellerie bis 2035: Kosten, KI, Automatisierung, Hotelkonzepte und Geschäftsmodelle.'
+        ogTitle='Hospitality 2035 | Wie sich die wirtschaftliche Logik der Hotellerie verändert'
+        ogDescription='Eine strategische Analyse der Hotellerie bis 2035 – mit Erkenntnissen zu Kosten, KI, Automatisierung, Flächen und Geschäftsmodellen.'
         ogType='website'
+        twitterCard='summary_large_image'
       />
 
       <SiteNavigation

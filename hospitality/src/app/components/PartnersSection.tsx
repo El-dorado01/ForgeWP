@@ -1,11 +1,22 @@
-import { pickEditable, useWpMeta, WpEditable, WpImage } from '@forgewp/react';
+import {
+  pickEditable,
+  useWpMeta,
+  WpEditable,
+  WpImage,
+  WpLink,
+} from '@forgewp/react';
 import { motion, type Variants } from 'framer-motion';
 import { editable as pageEditable } from '../../../cms/editables/front-page';
 import { defaults as partnerDefaults } from '../../../cms/editables/sections/partners';
 import LandingSection from './LandingSection';
 
-type NameItem = { name: string };
-type PartnerItem = { name: string; role: string };
+type EditableLogo =
+  | string
+  | number
+  | { id?: number; url?: string; alt?: string }
+  | null;
+type NameItem = { name: string; logo?: EditableLogo; url?: string };
+type PartnerItem = { name: string; role: string; logo?: EditableLogo; url?: string };
 
 const associationLogos: Record<string, { src: string; alt: string }> = {
   hotelleriesuisse: {
@@ -42,8 +53,11 @@ export const editable = pickEditable(pageEditable, {
   innovationLabel: 'partners_innovation_label',
   innovationPartners: 'partners_innovation_partners',
   mediaLabel: 'partners_media_label',
+  mediaLogo: 'partners_media_logo',
   mediaName: 'partners_media_name',
   mediaDescription: 'partners_media_description',
+  ihaLogo: 'partners_iha_logo',
+  ihaUrl: 'partners_iha_url',
 });
 
 export type PartnersSectionProps = {
@@ -62,8 +76,11 @@ export type PartnersSectionProps = {
   innovationLabel?: string;
   innovationPartners?: NameItem[];
   mediaLabel?: string;
+  mediaLogo?: EditableLogo;
   mediaName?: string;
   mediaDescription?: string;
+  ihaLogo?: EditableLogo;
+  ihaUrl?: string;
   setAttributes?: (attributes: Partial<PartnersSectionProps>) => void;
 };
 
@@ -82,8 +99,11 @@ export default function PartnersSection({
   innovationLabel: innovationLabelProp,
   innovationPartners: innovationPartnersProp,
   mediaLabel: mediaLabelProp,
+  mediaLogo: mediaLogoProp,
   mediaName: mediaNameProp,
   mediaDescription: mediaDescriptionProp,
+  ihaLogo: ihaLogoProp,
+  ihaUrl: ihaUrlProp,
   setAttributes,
 }: PartnersSectionProps) {
   const eyebrow =
@@ -123,15 +143,33 @@ export default function PartnersSection({
       'partners_innovation_partners',
       partnerDefaults.innovationPartners,
     ) as NameItem[]);
+  const visibleInnovationPartners = innovationPartners
+    .map((partner, index) => ({ partner, index }))
+    .filter(({ partner }) => {
+      const partnerName = partner.name.toLowerCase();
+      return (
+        partner.name.trim().length > 0 &&
+        !partnerName.includes('terra robotic') &&
+        !partnerName.includes('häfele') &&
+        !partnerName.includes('haefele') &&
+        !partnerName.includes('dreamboks')
+      );
+    });
   const mediaLabel =
     mediaLabelProp ??
     useWpMeta('partners_media_label', partnerDefaults.mediaLabel);
+  const mediaLogo =
+    mediaLogoProp ?? useWpMeta('partners_media_logo', partnerDefaults.mediaLogo);
   const mediaName =
     mediaNameProp ??
     useWpMeta('partners_media_name', partnerDefaults.mediaName);
   const mediaDescription =
     mediaDescriptionProp ??
     useWpMeta('partners_media_description', partnerDefaults.mediaDescription);
+  const ihaLogo =
+    ihaLogoProp ?? useWpMeta('partners_iha_logo', partnerDefaults.ihaLogo);
+  const ihaUrl =
+    ihaUrlProp ?? useWpMeta('partners_iha_url', partnerDefaults.ihaUrl);
   const update = (field: string, value: string) =>
     setAttributes?.({ [field]: value } as Partial<PartnersSectionProps>);
 
@@ -217,30 +255,53 @@ export default function PartnersSection({
             </p>
             <div className='mt-10 grid gap-5 sm:grid-cols-3 sm:items-center'>
               <div className='flex min-h-36 flex-col items-center justify-center bg-white p-4'>
-                <WpImage
-                  src='/assets/client-assets/partner-assets/iha-logo.png'
-                  alt='Hotelverband Deutschland IHA logo'
-                  className='h-20 w-full object-contain'
-                />
+                {ihaUrl ? (
+                  <WpLink href={ihaUrl}>
+                    <WpImage
+                      src={ihaLogo || '/assets/client-assets/partner-assets/iha-logo.png'}
+                      alt='Hotelverband Deutschland IHA logo'
+                      className='h-20 w-full object-contain'
+                    />
+                  </WpLink>
+                ) : (
+                  <WpImage
+                    src={ihaLogo || '/assets/client-assets/partner-assets/iha-logo.png'}
+                    alt='Hotelverband Deutschland IHA logo'
+                    className='h-20 w-full object-contain'
+                  />
+                )}
                 <span className='mt-2 text-center text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500'>
                   IHA
                 </span>
               </div>
               {associations.map((partner, index) =>
                 (() => {
-                  const logo = associationLogos[partner.name.toLowerCase()];
+                  const defaultLogo = associationLogos[partner.name.toLowerCase()];
+                  const logoSource = partner.logo || defaultLogo?.src;
+                  const logoAlt =
+                    (typeof partner.logo === 'object' && partner.logo?.alt) ||
+                    defaultLogo?.alt ||
+                    partner.name;
                   return (
                     <div
                       key={`${partner.name}-${index}`}
                       className='flex min-h-36 flex-col items-center justify-center bg-white p-4'
                     >
-                      {logo && (
+                      {logoSource && partner.url ? (
+                        <WpLink href={partner.url}>
+                          <WpImage
+                            src={logoSource}
+                            alt={logoAlt}
+                            className='h-20 w-full object-contain'
+                          />
+                        </WpLink>
+                      ) : logoSource ? (
                         <WpImage
-                          src={logo.src}
-                          alt={logo.alt}
+                          src={logoSource}
+                          alt={logoAlt}
                           className='h-20 w-full object-contain'
                         />
-                      )}
+                      ) : null}
                       <span className='mt-2 text-center text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500'>
                         {setAttributes ? (
                           <WpEditable
@@ -249,7 +310,7 @@ export default function PartnersSection({
                             onChange={(v) =>
                               setAttributes({
                                 associations: associations.map((item, i) =>
-                                  i === index ? { name: v } : item,
+                                  i === index ? { ...item, name: v } : item,
                                 ),
                               })
                             }
@@ -289,7 +350,22 @@ export default function PartnersSection({
             </p>
             <div className='mt-10 grid gap-0 divide-y divide-white/20'>
               {strategicPartners.map((partner, index) => {
-                const logo = strategicLogos[partner.name.toLowerCase()];
+                const partnerName = partner.name.toLowerCase();
+                if (
+                  partnerName.includes('terra robotic') ||
+                  partnerName.includes('häfele') ||
+                  partnerName.includes('haefele') ||
+                  partnerName.includes('dreamboks')
+                ) {
+                  return null;
+                }
+
+                const defaultLogo = strategicLogos[partner.name.toLowerCase()];
+                const logoSource = partner.logo || defaultLogo?.src;
+                const logoAlt =
+                  (typeof partner.logo === 'object' && partner.logo?.alt) ||
+                  defaultLogo?.alt ||
+                  partner.name;
 
                 return (
                   <div
@@ -297,13 +373,23 @@ export default function PartnersSection({
                     className='flex flex-col gap-3 py-5 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6'
                   >
                     <div className='flex min-w-0 items-center gap-4'>
-                      {logo && (
+                      {logoSource && (
                         <div className='flex h-14 w-28 shrink-0 items-center justify-center bg-white px-3 py-2'>
-                          <WpImage
-                            src={logo.src}
-                            alt={logo.alt}
-                            className='max-h-full max-w-full object-contain'
-                          />
+                          {partner.url ? (
+                            <WpLink href={partner.url}>
+                              <WpImage
+                                src={logoSource}
+                                alt={logoAlt}
+                                className='max-h-full max-w-full object-contain'
+                              />
+                            </WpLink>
+                          ) : (
+                            <WpImage
+                              src={logoSource}
+                              alt={logoAlt}
+                              className='max-h-full max-w-full object-contain'
+                            />
+                          )}
                         </div>
                       )}
                       <span className='font-heading text-xl font-bold sm:text-2xl'>
@@ -348,43 +434,57 @@ export default function PartnersSection({
               })}
             </div>
           </article>
-          <article className='border border-slate-200 bg-white p-6 sm:p-8 lg:p-10'>
-            <p className='text-[10px] font-bold uppercase tracking-[0.18em] text-accent'>
-              {setAttributes ? (
-                <WpEditable
-                  tagName='span'
-                  value={innovationLabel}
-                  onChange={(v) => update('innovationLabel', v)}
-                />
-              ) : (
-                innovationLabel
-              )}
-            </p>
-            <div className='mt-10 grid gap-4 sm:grid-cols-2'>
-              {innovationPartners.map((partner, index) => (
-                <div
-                  key={`${partner.name}-${index}`}
-                  className='border border-slate-200 p-5 font-heading text-2xl font-bold text-brand'
-                >
-                  {setAttributes ? (
+          {visibleInnovationPartners.length > 0 && (
+            <article className='border border-slate-200 bg-white p-6 sm:p-8 lg:p-10'>
+              <p className='text-[10px] font-bold uppercase tracking-[0.18em] text-accent'>
+                {setAttributes ? (
+                  <WpEditable
+                    tagName='span'
+                    value={innovationLabel}
+                    onChange={(v) => update('innovationLabel', v)}
+                  />
+                ) : (
+                  innovationLabel
+                )}
+              </p>
+              <div className='mt-10 grid gap-4 sm:grid-cols-2'>
+                {visibleInnovationPartners.map(({ partner, index }) => {
+                  const editableName = setAttributes ? (
                     <WpEditable
                       tagName='span'
                       value={partner.name}
                       onChange={(v) =>
                         setAttributes({
                           innovationPartners: innovationPartners.map(
-                            (item, i) => (i === index ? { name: v } : item),
+                            (item, i) =>
+                              i === index ? { ...item, name: v } : item,
                           ),
                         })
                       }
                     />
                   ) : (
                     partner.name
-                  )}
-                </div>
-              ))}
-            </div>
-          </article>
+                  );
+
+                  return (
+                    <div
+                      key={`${partner.name}-${index}`}
+                      className='border border-slate-200 p-5 font-heading text-2xl font-bold text-brand'
+                    >
+                      {partner.url ? (
+                        <WpLink href={partner.url}>{editableName}</WpLink>
+                      ) : (
+                        editableName
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className='mt-6 text-xs leading-relaxed text-slate-500'>
+                Weitere Partner werden nach verbindlicher Bestätigung ergänzt.
+              </p>
+            </article>
+          )}
           <article className='border border-slate-200 bg-white p-6 sm:p-8 lg:p-10'>
             <p className='text-[10px] font-bold uppercase tracking-[0.18em] text-accent'>
               {setAttributes ? (
@@ -397,8 +497,17 @@ export default function PartnersSection({
                 mediaLabel
               )}
             </p>
-            <div className='mt-10 flex min-h-28 items-center border border-slate-200 p-5 font-heading text-3xl font-bold text-brand'>
-              {setAttributes ? (
+            <div className='mt-10 flex min-h-28 items-center justify-center border border-slate-200 bg-white p-5'>
+              {mediaLogo ? (
+                <WpImage
+                  src={mediaLogo}
+                  alt={mediaName}
+                  width={284}
+                  height={52}
+                  optimize='none'
+                  className='h-auto w-full max-w-[284px] object-contain'
+                />
+              ) : setAttributes ? (
                 <WpEditable
                   tagName='span'
                   value={mediaName}

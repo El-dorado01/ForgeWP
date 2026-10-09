@@ -49,48 +49,6 @@ export const mockData = defineWpPosts({
       },
     },
   ],
-  hospitality_event: [
-    {
-      id: 301,
-      slug: 'berlin-study-media-launch',
-      permalink: '/events/berlin-study-media-launch',
-      title: 'Hospitality 2035 – Study & Media Launch',
-      excerpt:
-        'Erste Novemberwoche 2026 · ca. 09:00–12:30 Uhr. Der offizielle Auftakt mit Präsentation ausgewählter Studienergebnisse und Paneldiskussion.',
-      featuredImage: '/berlin.jpg',
-      content:
-        '<!-- wp:forgewp/hospitality-event-hero {"cityLabel":"Berlin"} /--><!-- wp:forgewp/hospitality-event-overview {"timing":"Erste Novemberwoche 2026 · ca. 09:00–12:30 Uhr","location":"Veranstaltungsort wird ergänzt","participants":"Accor · DICON · hotelinside (Moderation)"} /--><!-- wp:forgewp/hospitality-event-program {"program":"Präsentation ausgewählter Studienergebnisse; Impulse zu Technologie und Automatisierung; Paneldiskussion mit Vertretern aus Hotellerie, Technologie und Branchenorganisationen. Im Anschluss besteht Gelegenheit zum persönlichen Austausch."} /-->',
-      customFields: {
-        city: 'berlin',
-        city_label: 'Berlin',
-        timing: 'Erste Novemberwoche 2026 · ca. 09:00–12:30 Uhr',
-        location: 'Veranstaltungsort wird ergänzt',
-        participants: 'Accor · DICON · hotelinside (Moderation)',
-        program:
-          'Präsentation ausgewählter Studienergebnisse; Impulse zu Technologie und Automatisierung; Paneldiskussion mit Vertretern aus Hotellerie, Technologie und Branchenorganisationen. Im Anschluss besteht Gelegenheit zum persönlichen Austausch.',
-      },
-    },
-    {
-      id: 302,
-      slug: 'zurich-executive-event-switzerland',
-      permalink: '/events/zurich-executive-event-switzerland',
-      title: 'Hospitality 2035 – Executive Event Switzerland',
-      excerpt:
-        'Zweite Novemberwoche 2026. Eine Executive-Diskussion mit Fokus auf die Schweizer Hotellerie.',
-      featuredImage: '/zurich.jpg',
-      content:
-        '<!-- wp:forgewp/hospitality-event-hero {"cityLabel":"Zürich"} /--><!-- wp:forgewp/hospitality-event-overview {"timing":"Zweite Novemberwoche 2026","location":"Veranstaltungsort wird ergänzt","participants":"Ausgewählte Branchenvertreter"} /--><!-- wp:forgewp/hospitality-event-program {"program":"Präsentation zentraler Studienergebnisse und Executive-Diskussion zu den Konsequenzen für die Schweizer Hotellerie."} /-->',
-      customFields: {
-        city: 'zurich',
-        city_label: 'Zürich',
-        timing: 'Zweite Novemberwoche 2026',
-        location: 'Veranstaltungsort wird ergänzt',
-        participants: 'Ausgewählte Branchenvertreter',
-        program:
-          'Präsentation zentraler Studienergebnisse und Executive-Diskussion zu den Konsequenzen für die Schweizer Hotellerie.',
-      },
-    },
-  ],
   attachment: [
     {
       id: 101,

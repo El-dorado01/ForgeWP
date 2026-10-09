@@ -128,6 +128,12 @@ export interface ForgeWPFormConfig {
   mailTo?: string;
   /** Email subject line. Supports {field} interpolation from submitted values. */
   subject?: string;
+  /** Optional private-inbox title template. Supports developer-owned {field} values. */
+  submissionTitle?: string;
+  /** Plain-text notification email body. Supports {field}; blank uses the default field list. */
+  notificationBody?: string;
+  /** Visitor-facing success message returned by the native submission endpoint. */
+  successMessage?: string;
   /** Dev-owned fields — the fixed part of the server-side allowlist. Required in 'native' mode. */
   fields?: Record<string, ForgeWPFormField>;
   clientFields?: ForgeWPFormClientFieldsConfig;

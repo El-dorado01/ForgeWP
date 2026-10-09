@@ -1,9 +1,9 @@
-- **Phase 2 — Code complete; staging mail verification open:** added an opt-in `confirmation` contract, validation of its developer-owned email field and merge tags, and a separate plain-text `wp_mail()` receipt path. Focused compiler tests cover default-off, valid configuration, invalid recipient fields, and unknown merge tags. Verify actual delivery and failure logging with WordPress staging mail transport.
+- **Phase 2 — Code complete; staging mail verification open:** added an opt-in `confirmation` contract and separate plain-text `wp_mail()` receipt path. When client fields are enabled, authorized admins can edit success copy and notification/receipt subjects and bodies; developer defaults remain in the form contract. Merge tags are interpolated from sanitized submitted values without evaluating code. Verify actual delivery and failure logging with WordPress staging mail transport.
 
 # ForgeWP Native Forms: WordPress-First Implementation Plan
 
-**Status:** In progress — Phase 0 code fixes and core Phase 1 admin improvements implemented; staging/security and later phases remain open  
-**Prepared:** 2026-10-03  
+**Status:** In progress — code for Phases 0–3, per-form admin pages, editable copy, and submission titles is implemented; WordPress staging/security verification and Phase 4 remain open  
+**Prepared:** 2026-10-07  
 **Owner:** ForgeWP framework  
 **Scope:** Improve the existing native form path without replacing WordPress, creating a competing form-builder product, or removing plugin integrations.
 
@@ -23,6 +23,8 @@ The existing plugin shortcode path remains supported. When a site needs an estab
 - Inline `wp.config.ts` declarations override discovered same-name form declarations.
 - Native forms have developer-owned fields in the form contract. These are a stable allowlist used by the backend.
 - `clientFields.enabled` adds optional WordPress-managed fields. `<WpFormFields>` renders those fields inside developer-owned React markup.
+- A `WpFormFields` `fallback` prop lets theme components show their configured seed before WordPress hydration is available in local preview.
+- Optional `successMessage` and `notificationBody` properties set the visitor-facing and admin-notification copy defaults.
 - `mode: 'shortcode'` generates no native endpoint, native storage, or client-field editor. `WpShortcode` renders a developer-supplied shortcode. Editors may instead insert a plugin shortcode with the WordPress core Shortcode block inside post content; those are separate workflows.
 
 ### Submission, email, and storage
@@ -30,22 +32,25 @@ The existing plugin shortcode path remains supported. When a site needs an estab
 - `submitWpForm()` simulates success in local Vite. It does not exercise server validation, delivery, or storage.
 - In WordPress, the generated endpoint is `/wp-json/forgewp/v1/forms/{name}/submit`.
 - The endpoint validates declared fields, sanitizes values, applies a rate limit, honeypot, and time trap, and calls `wp_mail()` for the configured recipient.
-- The notification currently goes to `mailTo`; it is not an automatic confirmation email to the submitter.
+- The notification goes to the developer-configured `mailTo`; optional submitter receipts use a developer-declared email field.
+- `storeSubmissions` opts into the private Form Submissions inbox. `submissionTitle` can provide a plain-text title template with merge tags limited to developer-owned fields; the generated title includes the submission time and falls back to form name plus time when omitted or empty.
+- Email recipients and server validation remain code-owned. Plain-text notification/receipt messages and the success response can be edited in WordPress for forms with `clientFields.enabled`; saved overrides live in WordPress options and fall back to the theme defaults on a fresh installation.
+- `useWpForm(name, { resetOnSuccess: true })` resets controls after successful submission when opted in; its default preserves existing values.
 - `storeSubmissions` defaults to enabled and saves entries in the private `forgewp_submission` CPT. Submitted fields are stored as post meta.
 - Auth verification/reset emails also use WordPress mail delivery, but they are separate flows with different triggers, templates, and settings. SMTP configuration belongs to WordPress/site infrastructure and should not be duplicated in Forms settings.
 
 ### Admin field editor and permissions
 
 - The generated Forms screen manages client-owned fields for forms already declared by the developer. It does not create form definitions and does not accept arbitrary plugin shortcodes.
-- The generated screen now groups forms into panels, shows developer-owned fields read-only, and renders client-owned fields as responsive field cards with labeled controls, reorder/remove actions, stable machine keys, and save/conflict status feedback. Compiler tests cover generated structure, but WordPress keyboard-only/narrow-admin behavior still needs staging verification.
+- The generated Forms menu has a compact index and a separate child page for each form with `clientFields.enabled`. Each form page permits changing displayed labels for developer-owned fields while keeping their keys/types/validation fixed, and renders client-owned fields as responsive cards with add/remove/reorder actions, stable machine keys, and save/conflict feedback. It also provides capability-protected editors for success copy and plain-text notification/receipt email templates. Compiler tests cover the generated structure and allowlisted settings writes; WordPress keyboard-only/narrow-admin behavior still needs staging verification.
 - `formsAdminCapability` now controls both the Forms screen and stored-submission CPT. It defaults to `manage_options`; lowering it intentionally grants access to stored personal data. A live role/capability matrix has not yet been checked in WordPress.
 - Submission storage uses a private CPT with the configured capability mapped to record-level actions. CSV export, email-matched WordPress privacy exporter/eraser hooks, and opt-in per-form permanent deletion are implemented; verify actual roles, privacy requests, downloads, and WP-Cron behavior in WordPress staging.
 
 ### Phase progress (2026-10-03)
 
 - **Phase 0 — Code complete; environment audit open:** added `is_email()` validation after sanitization and corrected mail/storage failure messages with server-side logging and identical visitor-facing success text. Compiler tests cover those branches. A live WordPress roles/access audit, privacy exporter/eraser check, and staging mail-failure test remain outstanding.
-- **Phase 1 — Code complete; staging review open:** added the `formsAdminCapability` setting and replaced the fixed-width table with responsive accessible field cards, a developer-owned field inventory, stable keys, and save/conflict feedback. Focused generator tests pass. Manual WordPress admin testing at narrow widths and with keyboard-only navigation remains outstanding.
-- **Phase 2 — Code complete; staging mail verification open:** added the opt-in `confirmation` contract, compile-time validation of its developer-owned email field and merge tags, and a separate plain-text `wp_mail()` receipt path. Compiler tests cover default-off, valid/invalid recipients, and merge-tag restrictions. Verify delivery and failure behavior with WordPress staging mail transport.
+- **Phase 1 — Code complete; staging review open:** added the `formsAdminCapability` setting, individual Forms child pages, and responsive accessible field cards with a developer-owned field inventory, stable keys, and save/conflict feedback. Focused generator tests pass. Manual WordPress admin testing at narrow widths and with keyboard-only navigation remains outstanding.
+- **Phase 2 — Code complete; staging mail verification open:** added the opt-in `confirmation` contract, compile-time validation of its developer-owned email field and merge tags, a separate plain-text `wp_mail()` receipt path, and an admin editor for success copy and email templates. Compiler tests cover default-off, valid/invalid recipients, safe merge-tag interpolation, and generated admin save controls. Verify delivery and failure behavior with WordPress staging mail transport.
 - **Phase 3 — Core code complete; policy/staging verification open:** added capability-protected CSV export with explicit unchecked field selection, form/date filters, UTF-8 output, formula-injection neutralization, form-scoped values, submission language, and no IP-hash export; registered WordPress personal-data exporter/eraser hooks using a site-salted email HMAC plus declared email fields for legacy entries; added opt-in per-form permanent deletion via daily WP-Cron. There is no legal-hold exemption. Focused compiler tests (76) and generated-PHP lint pass. Verify actual roles, exports/privacy requests, cron scheduling, and retention/legal-hold policy in WordPress staging before enabling deletion.
 - **Phase 4 — Deferred:** event registration remains a separate plugin/add-on staging pilot, not part of the general native forms implementation.
 
@@ -57,6 +62,7 @@ The existing plugin shortcode path remains supported. When a site needs an estab
 - `packages/compiler/bin/make-form.js`
 - `packages/compiler/test/functions/forms.test.js`
 - `packages/react/src/hooks.ts` (`submitWpForm`)
+- `packages/react/src/hooks.ts` (`useWpForm`, `useWpFormFieldLabels`)
 - `packages/react/src/components/WpFormFields.tsx`
 - `packages/compiler/templates/wordpress.tsx`
 - `packages/compiler/lib/functions/hydration-enqueuer.js`
@@ -191,9 +197,9 @@ Add an export action to the WordPress submissions screen using normal admin capa
 
 Do not build event capacity, waitlist, or approval into the general native form core until a concrete need justifies a separate event-workflow layer.
 
-### Preferred pilot path
+### Historical pilot path (superseded)
 
-Keep `hospitality_event` as the event source of truth and embed a plugin-managed form shortcode in the event post content through the WordPress Shortcode block. The CPT single template already renders content via `BlockArea`/`the_content()`.
+This earlier proposal assumed the theme-owned `hospitality_event` post type. The current Hospitality theme no longer registers that post type; Events Manager is the site's selected event and booking system. Do not implement this path unless that decision changes.
 
 A candidate stack to validate is:
 
@@ -207,7 +213,7 @@ Current vendor documentation indicates that some waitlist behavior and approval-
 
 - Decide when a seat is reserved: at submission, at approval, or after confirmation. Pending approvals must not accidentally allow overbooking.
 - Decide whether a full event closes registration, accepts waitlist entries, or accepts applications pending manual review.
-- Ensure every entry is associated with the correct `hospitality_event` post. Test a hidden event identifier/permalink field or separate form strategy; do not assume the shortcode knows the parent CPT automatically.
+- Ensure every entry is associated with the correct Events Manager event. Test a hidden event identifier/permalink field or separate form strategy; do not assume the shortcode knows the parent event automatically.
 - Keep marketing consent separate, unchecked by default, and stored independently from event-registration consent.
 - Confirm CSV exports include the event identity, approval status, and timestamps needed by staff.
 - Configure privacy notice, data retention/deletion, and role access in the selected plugin and any add-ons.

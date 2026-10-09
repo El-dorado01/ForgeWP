@@ -1,25 +1,26 @@
-import { defineBlock } from '@forgewp/react';
-import type { Variants } from 'framer-motion';
-import EventsSection from '../app/components/EventsSection';
+import {
+  defineBlock,
+  useWpPageLink,
+  WpLink,
+} from '@forgewp/react';
+import { ArrowRight } from 'lucide-react';
 export { editable } from '../app/components/EventsSection';
 
-const revealVariants: Variants = {
-  hidden: { opacity: 0, y: 28 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.75, ease: 'easeOut' },
-  },
+type EventsSectionAttributes = {
+  eyebrow?: string;
+  intro?: string;
+  title?: string;
+  description?: string;
 };
 
-export default defineBlock({
-  name: 'events-section',
-  title: 'Hospitality Events Section',
-  category: 'theme',
-  icon: 'calendar-alt',
-  description: 'Editable Hospitality 2035 events section.',
-  attributes: {},
-  editorPreview: ({ attributes }) => (
+function EventsSectionMarkup({
+  attributes,
+}: {
+  attributes: EventsSectionAttributes;
+}) {
+  const eventsHref = useWpPageLink('events-page', '/events');
+
+  return (
     <section
       id='events'
       className='border-t border-slate-200 bg-brand px-5 py-20 text-white sm:px-8 lg:px-12 lg:py-32'
@@ -36,7 +37,7 @@ export default defineBlock({
             </p>
           </div>
           <div>
-            <h2 className='font-heading text-5xl font-black leading-[0.88] tracking-[-0.07em] sm:text-7xl lg:text-8xl'>
+            <h2 className='w-full font-heading text-5xl font-black leading-[0.88] tracking-[-0.07em] sm:text-7xl lg:text-8xl'>
               {attributes.title || 'Hospitality 2035 live.'}
             </h2>
             <p className='mt-8 max-w-3xl text-lg leading-relaxed text-slate-300'>
@@ -45,62 +46,32 @@ export default defineBlock({
             </p>
           </div>
         </div>
-        <div className='mt-20 border-y border-white/20'>
-          <article className='grid gap-6 border-b border-white/20 py-8 sm:grid-cols-[0.3fr_0.7fr] sm:gap-10'>
-            <div>
-              <p className='font-heading text-3xl font-black text-accent sm:text-4xl'>
-                Berlin
-              </p>
-              <p className='mt-2 text-xs font-semibold uppercase text-slate-400'>
-                Erste Novemberwoche 2026
-              </p>
-            </div>
-            <div>
-              <h3 className='font-heading text-2xl font-bold sm:text-3xl'>
-                Hospitality 2035 – Study &amp; Media Launch
-              </h3>
-              <p className='mt-3 max-w-2xl text-sm leading-relaxed text-slate-300'>
-                Präsentation ausgewählter Studienergebnisse und Gespräch über
-                Technologie und Automatisierung.
-              </p>
-              <span className='mt-5 inline-flex border border-accent px-4 py-3 text-[10px] font-bold uppercase'>
-                Veranstaltungsdetails
-              </span>
-            </div>
-          </article>
-          <article className='grid gap-6 py-8 sm:grid-cols-[0.3fr_0.7fr] sm:gap-10'>
-            <div>
-              <p className='font-heading text-3xl font-black text-accent sm:text-4xl'>
-                Zürich
-              </p>
-              <p className='mt-2 text-xs font-semibold uppercase text-slate-400'>
-                Zweite Novemberwoche 2026
-              </p>
-            </div>
-            <div>
-              <h3 className='font-heading text-2xl font-bold sm:text-3xl'>
-                Hospitality 2035 – Executive Event Switzerland
-              </h3>
-              <p className='mt-3 max-w-2xl text-sm leading-relaxed text-slate-300'>
-                Executive-Diskussion zu den Konsequenzen für die Schweizer
-                Hotellerie.
-              </p>
-              <span className='mt-5 inline-flex border border-accent px-4 py-3 text-[10px] font-bold uppercase'>
-                Veranstaltungsdetails
-              </span>
-            </div>
-          </article>
+        <div className='mt-20 border-t border-white/20 pt-8'>
+          <WpLink
+            href={eventsHref}
+            className='inline-flex min-h-14 items-center justify-center gap-3 bg-accent px-7 py-4 text-xs font-bold uppercase tracking-[0.14em] text-white transition-colors hover:bg-white hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white'
+          >
+            Alle Veranstaltungen
+            <ArrowRight
+              size={16}
+              aria-hidden='true'
+            />
+          </WpLink>
         </div>
       </div>
     </section>
+  );
+}
+
+export default defineBlock({
+  name: 'events-section',
+  title: 'Hospitality Events Section',
+  category: 'theme',
+  icon: 'calendar-alt',
+  description: 'Editable Hospitality 2035 events section.',
+  attributes: {},
+  save: ({ attributes }) => (
+    <EventsSectionMarkup attributes={attributes} />
   ),
-  edit: ({ attributes, setAttributes }) => (
-    <EventsSection
-      {...attributes}
-      setAttributes={setAttributes}
-      reduceMotion={false}
-      revealInitial={false}
-      revealVariants={revealVariants}
-    />
-  ),
+  edit: () => null,
 });

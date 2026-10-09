@@ -1,19 +1,45 @@
 import { ArrowLeft } from 'lucide-react';
-import { defineBlock, useWpPageLink, WpLink } from '@forgewp/react';
+import {
+  defineBlock,
+  useWpPageLink,
+  WpEditable,
+  WpLink,
+} from '@forgewp/react';
 
-function SingleLicenseBackLink() {
-  const licensesHref = useWpPageLink('lizenzen-page', '/lizenzen');
+type SingleLicenseBackLinkAttributes = {
+  label?: string;
+  href?: string;
+  showIcon?: boolean;
+  setAttributes?: (
+    attributes: Partial<SingleLicenseBackLinkAttributes>,
+  ) => void;
+};
+
+function SingleLicenseBackLink({
+  label = 'Zur Lizenzübersicht',
+  href = '/lizenzen',
+  showIcon = true,
+  setAttributes,
+}: SingleLicenseBackLinkAttributes) {
+  const licensesPageHref = useWpPageLink('lizenzen-page', '/lizenzen');
+  const resolvedHref = href === '/lizenzen' ? licensesPageHref : href;
 
   return (
     <WpLink
-      href={licensesHref}
+      href={resolvedHref}
       className='mt-6 inline-flex w-full items-center justify-center gap-2 text-xs font-semibold text-slate-600 transition-colors hover:text-accent'
     >
-      <ArrowLeft
-        size={15}
-        aria-hidden='true'
+      {showIcon && (
+        <ArrowLeft
+          size={15}
+          aria-hidden='true'
+        />
+      )}
+      <WpEditable
+        tagName='span'
+        value={label}
+        onChange={(value) => setAttributes?.({ label: value })}
       />
-      Zur Lizenzübersicht
     </WpLink>
   );
 }
@@ -24,6 +50,27 @@ export default defineBlock({
   category: 'theme',
   icon: 'undo',
   description: 'Return link to the license overview.',
-  edit: () => <SingleLicenseBackLink />,
-  save: () => <SingleLicenseBackLink />,
+  attributes: {
+    label: {
+      type: 'string',
+      default: 'Zur Lizenzübersicht',
+      label: 'Link text',
+    },
+    href: {
+      type: 'string',
+      control: 'url',
+      default: '/lizenzen',
+      label: 'Link URL',
+    },
+    showIcon: {
+      type: 'boolean',
+      control: 'toggle',
+      default: true,
+      label: 'Show link icon',
+    },
+  },
+  edit: ({ attributes, setAttributes }) => (
+    <SingleLicenseBackLink {...attributes} setAttributes={setAttributes} />
+  ),
+  save: ({ attributes }) => <SingleLicenseBackLink {...attributes} />,
 });

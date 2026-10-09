@@ -11,9 +11,15 @@
  *   silently dropping its styling (the browser auto-closes the outer <p> at the nested
  *   one). The empty-value/default case bypassed wpautop entirely, so this only ever
  *   surfaced once an editor actually filled in the field.
+ * @param {import('./assets/asset-graph.js').AssetGraph|null} assetGraph
  * @returns {string} Transpiled HTML containing PHP tags
  */
-export function processMarkup(html, textDomain = 'theme', richTextKeys = null) {
+export function processMarkup(
+  html,
+  textDomain = 'theme',
+  richTextKeys = null,
+  assetGraph = null,
+) {
   if (!html) return '';
   // Fix nav links — # → <?php echo esc_url( home_url( '/' ) ); ?>
   // We use a placeholder and replace it in the PHP file generation if needed,
@@ -497,6 +503,12 @@ ${phpArgs}
         if (decoding) htmlAttrs.push(`decoding="${decoding}"`);
       }
       if (sizes) htmlAttrs.push(`sizes="${sizes}"`);
+      const responsiveAttrs = getResponsiveImageAttributes(
+        src,
+        assetGraph,
+        htmlAttrs,
+      );
+      htmlAttrs.push(...responsiveAttrs);
       const extraHtmlStr =
         htmlAttrs.length > 0 ? ' ' + htmlAttrs.join(' ') : '';
       const isNumericSrc = id || (/^\d+$/.test(src) ? src : null);
@@ -533,18 +545,35 @@ ${phpArgs}
   );
   processed = processed.replace(/<\/forgewp-image>/g, '');
 
-  // ── Universal Media Assets (video, audio, source, img, preload link) ──
+  // ── Static Media Assets (video, audio, images, downloads, preload links) ──
   const MEDIA_EXTS =
-    /\.(png|jpe?g|webp|svg|gif|avif|mp4|webm|ogg|mp3|wav|woff2?|ttf|eot)$/i;
+    /\.(png|jpe?g|webp|svg|gif|avif|mp4|webm|ogg|mp3|wav|woff2?|ttf|eot|pdf)$/i;
   processed = processed.replace(
-    /<(video|audio|source|img|link)\b([^>]*)\/?>/gi,
+    /<(video|audio|source|img|link|a)\b([^>]*)\/?>/gi,
     (tagMatch, tagName, attrsStr) => {
-      let updatedAttrs = attrsStr.replace(
+      let updatedAttrs = attrsStr;
+      if (tagName.toLowerCase() === 'img') {
+        const srcMatch = attrsStr.match(/\bsrc=(?:"([^"]*)"|'([^']*)')/i);
+        const src = srcMatch ? srcMatch[1] || srcMatch[2] : '';
+        const responsiveAttrs = getResponsiveImageAttributes(
+          src,
+          assetGraph,
+          attrsStr,
+        );
+        if (responsiveAttrs.length > 0) {
+          updatedAttrs += ` ${responsiveAttrs.join(' ')}`;
+        }
+      }
+      updatedAttrs = updatedAttrs.replace(
         /\b(src|poster|href)=(?:"([^"]*)"|'([^']*)')/gi,
         (attrMatch, attrName, doubleVal, singleVal) => {
           const val = doubleVal !== undefined ? doubleVal : singleVal;
+          const isThemeAssetAnchor =
+            tagName.toLowerCase() !== 'a' ||
+            /^(?:\/|\.\/|@\/)?assets\//.test(val);
           if (
             !val ||
+            !isThemeAssetAnchor ||
             /^https?:\/\//i.test(val) ||
             /^\/\//.test(val) ||
             /^data:/i.test(val) ||
@@ -879,6 +908,55 @@ ${phpArgs}
   );
 
   return processed;
+}
+
+function getResponsiveImageAttributes(src, assetGraph, existingAttrs) {
+  if (!src || !assetGraph || typeof assetGraph.getAsset !== 'function') {
+    return [];
+  }
+
+  const node = assetGraph.getAsset(src);
+  if (
+    !node ||
+    node.classification !== 'local-static' ||
+    !Array.isArray(node.variants) ||
+    node.variants.length === 0
+  ) {
+    return [];
+  }
+
+  const hasAttribute = (name) =>
+    new RegExp(`\\b${name}\\s*=`, 'i').test(existingAttrs);
+  const variants = node.variants.filter(
+    (variant) =>
+      variant &&
+      typeof variant.publicUrl === 'string' &&
+      Number(variant.width) > 0,
+  );
+  if (variants.length === 0) return [];
+
+  const escapePhpString = (value) =>
+    value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const srcset = variants
+    .map(
+      (variant) =>
+        `<?php echo esc_url( get_theme_file_uri( '${escapePhpString(variant.publicUrl)}' ) ); ?> ${Number(variant.width)}w`,
+    )
+    .join(', ');
+  const attributes = [];
+
+  if (!hasAttribute('srcset')) attributes.push(`srcset="${srcset}"`);
+  if (node.sizes && !hasAttribute('sizes')) {
+    attributes.push(`sizes="${node.sizes}"`);
+  }
+  if (node.width && !hasAttribute('width')) {
+    attributes.push(`width="${node.width}"`);
+  }
+  if (node.height && !hasAttribute('height')) {
+    attributes.push(`height="${node.height}"`);
+  }
+
+  return attributes;
 }
 
 function findMatchingClosingDiv(html, startIndex) {

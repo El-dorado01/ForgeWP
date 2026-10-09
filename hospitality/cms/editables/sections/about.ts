@@ -1,8 +1,10 @@
 import {
   defineEditable,
   getEditableDefaults,
+  image,
   richText,
   text,
+  url,
 } from '@forgewp/react';
 
 export const editable = defineEditable({
@@ -25,6 +27,7 @@ export const editable = defineEditable({
     default:
       'DICON ist auf die wirtschaftliche und strategische Beratung der Hotellerie sowie auf Hotelentwicklung und die Bewertung neuer Beherbergungs- und Betreiberkonzepte spezialisiert.',
   }),
+  companyLogo: image({ label: 'Company Logo' }),
   cityLabel: text({ label: 'City Label', default: 'Berlin · Deutschland' }),
   foundedLabel: text({ label: 'Founded Label', default: 'Gegründet 2004' }),
   authorLabel: text({ label: 'Author Label', default: 'Autor / Herausgeber' }),
@@ -37,6 +40,14 @@ export const editable = defineEditable({
     label: 'Author Description',
     default:
       'Roland Schwecke beschäftigt sich seit vielen Jahren mit der Entwicklung der Beherbergungswirtschaft, neuen Hotelkonzepten und den wirtschaftlichen Folgen des strukturellen Wandels.',
+  }),
+  contactLabel: text({
+    label: 'Contact Link Text',
+    default: 'contact@dicon-beratung.de',
+  }),
+  contactUrl: url({
+    label: 'Contact Link URL',
+    default: 'mailto:contact@dicon-beratung.de',
   }),
 });
 

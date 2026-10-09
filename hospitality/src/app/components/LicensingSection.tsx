@@ -24,6 +24,9 @@ export const editable = pickEditable(pageEditable, {
   title: 'licensing_title',
   description: 'licensing_description',
   licenses: 'licensing_licenses',
+  singleLicenseUrl: 'licensing_single_license_url',
+  teamLicenseUrl: 'licensing_team_license_url',
+  companyLicenseUrl: 'licensing_company_license_url',
   vatNote: 'licensing_vat_note',
 });
 export type LicensingSectionProps = {
@@ -35,6 +38,9 @@ export type LicensingSectionProps = {
   title?: string;
   description?: string;
   licenses?: LicenseCard[];
+  singleLicenseUrl?: string;
+  teamLicenseUrl?: string;
+  companyLicenseUrl?: string;
   vatNote?: string;
   setAttributes?: (attributes: Partial<LicensingSectionProps>) => void;
 };
@@ -48,6 +54,9 @@ export default function LicensingSection({
   title: titleProp,
   description: descriptionProp,
   licenses: licensesProp,
+  singleLicenseUrl: singleLicenseUrlProp,
+  teamLicenseUrl: teamLicenseUrlProp,
+  companyLicenseUrl: companyLicenseUrlProp,
   vatNote: vatNoteProp,
   setAttributes,
 }: LicensingSectionProps) {
@@ -60,6 +69,18 @@ export default function LicensingSection({
     'unternehmenslizenz-page',
     '/lizenz/unternehmen',
   );
+  const singleLicenseOverride =
+    singleLicenseUrlProp ??
+    useWpMeta('licensing_single_license_url', licenseDefaults.singleLicenseUrl);
+  const teamLicenseOverride =
+    teamLicenseUrlProp ??
+    useWpMeta('licensing_team_license_url', licenseDefaults.teamLicenseUrl);
+  const companyLicenseOverride =
+    companyLicenseUrlProp ??
+    useWpMeta(
+      'licensing_company_license_url',
+      licenseDefaults.companyLicenseUrl,
+    );
   const eyebrow =
     eyebrowProp ?? useWpMeta('licensing_eyebrow', licenseDefaults.eyebrow);
   const intro =
@@ -220,10 +241,10 @@ export default function LicensingSection({
                 <WpLink
                   href={
                     featured
-                      ? singleLicenseHref
+                      ? singleLicenseOverride || singleLicenseHref
                       : index === 1
-                        ? teamLicenseHref
-                        : companyLicenseHref
+                        ? teamLicenseOverride || teamLicenseHref
+                        : companyLicenseOverride || companyLicenseHref
                   }
                   className={`mt-auto inline-flex items-center justify-center border px-4 py-3.5 text-center text-[10px] font-bold uppercase tracking-[0.15em] ${featured ? 'border-accent bg-accent text-white' : 'border-brand text-brand'}`}
                 >

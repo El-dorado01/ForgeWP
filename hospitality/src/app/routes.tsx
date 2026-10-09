@@ -86,8 +86,9 @@ function withLayout(componentOrModule: any, customConfig?: any) {
  * // 3. Add the Route: <Route path="/about" component={withLayout(AboutPage)} />
  */
 import { DieStudiePage } from './pages/DieStudiePage';
-import { EventsPage } from './pages/EventsPage';
-import { SingleHospitalityEventPreview } from './components/SingleHospitalityEventPreview';
+import EventsListingPage from './components/EventsManagerPage';
+import MyBookingsPage from './components/EventManagerBookingsPage';
+import SingleEvent from './single-event';
 import { LizenzenPage } from './pages/LizenzenPage';
 import { EinzellizenzPage } from './pages/EinzellizenzPage';
 import { TeamlizenzPage } from './pages/TeamlizenzPage';
@@ -100,10 +101,15 @@ import { VertragWiderrufenPage } from './pages/VertragWiderrufenPage';
 import { KontaktPage } from './pages/KontaktPage';
 
 function StudyRedirect() {
+  const studyHref = useWpPageLink(
+    'die-studie-page',
+    '/studie/hospitality-2035',
+  );
+
   useEffect(() => {
     const query = window.location.search;
-    window.location.replace(`/studie/hospitality-2035${query}`);
-  }, []);
+    window.location.replace(`${studyHref}${query}`);
+  }, [studyHref]);
 
   return null;
 }
@@ -131,12 +137,17 @@ export default function AppRoutes() {
 
       <Route
         path='/events'
-        component={withLayout(EventsPage)}
+        component={withLayout(EventsListingPage)}
       />
 
       <Route
         path='/events/:slug'
-        component={withLayout(SingleHospitalityEventPreview)}
+        component={withLayout(SingleEvent)}
+      />
+
+      <Route
+        path='/my-bookings'
+        component={withLayout(MyBookingsPage)}
       />
 
       <Route

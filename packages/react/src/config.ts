@@ -160,6 +160,12 @@ export interface WpFormConfig {
   mailTo?: string;
   /** Email subject line. Supports {field} interpolation from submitted values. */
   subject?: string;
+  /** Optional private-inbox title template. Supports developer-owned {field} values. */
+  submissionTitle?: string;
+  /** Plain-text notification email body template. Blank uses the default field list. */
+  notificationBody?: string;
+  /** Visitor-facing success copy returned by the native submission endpoint. */
+  successMessage?: string;
   /** Dev-owned fields — the fixed part of the server-side allowlist. Required in 'native' mode. */
   fields?: Record<string, WpFormField>;
   clientFields?: WpFormClientFieldsConfig;
@@ -188,6 +194,7 @@ export interface WpFormConfig {
  * export const form = defineWpForm({
  *   mailTo: 'admin',
  *   subject: 'New contact form submission',
+ *   submissionTitle: 'Contact — {name}',
  *   fields: {
  *     name: { type: 'text', label: 'Name', required: true },
  *     email: { type: 'email', label: 'Email', required: true },

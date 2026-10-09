@@ -1,6 +1,7 @@
 import {
   defineEditable,
   getEditableDefaults,
+  image,
   repeater,
   richText,
   text,
@@ -25,6 +26,7 @@ export const editable = defineEditable({
     label: 'Automation Image Alt',
     default: 'Robotic hotel lobby concept with autonomous service technology',
   }),
+  primaryImage: image({ label: 'Primary Automation Image' }),
   detailTitle: text({
     label: 'Automation Detail Title',
     default: 'Von der Software bis zum Service-Roboter.',
@@ -68,6 +70,7 @@ export const editable = defineEditable({
     label: 'Second Automation Image Alt',
     default: 'Future hotel lobby with robotic guest services',
   }),
+  secondaryImage: image({ label: 'Secondary Automation Image' }),
 });
 
 export const defaults = getEditableDefaults(editable);

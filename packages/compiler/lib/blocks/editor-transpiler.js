@@ -541,7 +541,7 @@ function emitRealJsxChildren(children, code, blockSettings) {
 
 /**
  * Emit createElement(...) code for a real JSXElement/JSXFragment node —
- * WpIcon and WpEditable get their own dedicated runtime/RichText translation,
+ * WpIcon, WpImage, WpLink, and WpEditable get editor-safe runtime translations;
  * everything else becomes a generic createElement(type, props, ...children) call.
  */
 function generateFromRealJsxNode(node, code, blockSettings) {
@@ -553,6 +553,8 @@ function generateFromRealJsxNode(node, code, blockSettings) {
   }
 
   const tagName = getJsxElementName(node.openingElement.name);
+  const motionTag = tagName.match(/^motion\.([a-z][a-z0-9-]*)$/i);
+  const hostTagName = motionTag ? motionTag[1] : tagName;
   const attributes = readRealJsxAttributes(node.openingElement, code);
 
   // React short fragments <>…</>, and an explicit <Fragment> tag alike.
@@ -587,6 +589,49 @@ function generateFromRealJsxNode(node, code, blockSettings) {
     }
     const providerRaw = String(attributes.provider || 'lucide').replace(/['"]/g, '');
     return `forgeWpRenderIcon(${nameExpr}, ${classExpr}, ${JSON.stringify(providerRaw)})`;
+  }
+
+  if (tagName === 'WpImage') {
+    const sourceRaw = String(attributes.src || '""').trim();
+    const sourceExpr =
+      sourceRaw.startsWith('{') && sourceRaw.endsWith('}')
+        ? sourceRaw.slice(1, -1).trim()
+        : JSON.stringify(sourceRaw.replace(/^['"]|['"]$/g, ''));
+    const props = {};
+    for (const [key, value] of Object.entries(attributes)) {
+      if (key === 'src' || key === 'id' || key === 'field' || key === 'size' ||
+          key === 'priority' || key === 'optimize' || key === 'placeholder' ||
+          key === 'blurDataURL' || key === 'attachments') continue;
+      if (value === true || value === '') {
+        props[key] = 'true';
+      } else if (typeof value === 'string' && value.startsWith('{') && value.endsWith('}')) {
+        props[key] = value.slice(1, -1).trim();
+      } else {
+        props[key] = JSON.stringify(value);
+      }
+    }
+    const formatPropKey = (key) =>
+      /^[A-Za-z_$][\w$]*$/.test(key) ? key : JSON.stringify(key);
+    const propsStr = Object.keys(props).length > 0
+      ? `{ ${Object.entries(props).map(([key, value]) => `${formatPropKey(key)}: ${value}`).join(', ')} }`
+      : '{}';
+    return `createElement("img", Object.assign(${propsStr}, { src: forgeWpResolveEditorImage(${sourceExpr}), alt: forgeWpEditorImageAlt(${sourceExpr}, ${props.alt || '""'}) }))`;
+  }
+
+  if (tagName === 'WpLink') {
+    const props = {};
+    for (const [key, value] of Object.entries(attributes)) {
+      if (key === 'newTab' || key === 'prefetch') continue;
+      if (value === true || value === '') {
+        props[key] = 'true';
+      } else if (typeof value === 'string' && value.startsWith('{') && value.endsWith('}')) {
+        props[key] = value.slice(1, -1).trim();
+      } else {
+        props[key] = JSON.stringify(value);
+      }
+    }
+    const childCodes = emitRealJsxChildren(node.children, code, blockSettings).filter(Boolean);
+    return emitEditorLink(props, childCodes.join(', '), blockSettings);
   }
 
   if (tagName === 'WpEditable') {
@@ -685,6 +730,30 @@ function generateFromRealJsxNode(node, code, blockSettings) {
 
   const props = {};
   for (const [key, val] of Object.entries(attributes)) {
+    if (
+      motionTag &&
+      [
+        'animate',
+        'drag',
+        'dragConstraints',
+        'exit',
+        'initial',
+        'layout',
+        'layoutId',
+        'onAnimationComplete',
+        'onUpdate',
+        'transition',
+        'variants',
+        'viewport',
+        'whileDrag',
+        'whileFocus',
+        'whileHover',
+        'whileInView',
+        'whileTap',
+      ].includes(key)
+    ) {
+      continue;
+    }
     const propKey = key === 'className' ? 'className' : key;
     if (val === true || val === '') {
       props[propKey] = 'true';
@@ -710,7 +779,7 @@ function generateFromRealJsxNode(node, code, blockSettings) {
   const childCodesList = emitRealJsxChildren(node.children, code, blockSettings).filter(Boolean);
   const childrenStr = childCodesList.join(', ');
 
-  const isPascalCase = /^[A-Z]/.test(tagName);
+  const isPascalCase = /^[A-Z]/.test(hostTagName);
   if (isPascalCase && blockSettings && blockSettings.importMap && blockSettings.importMap[tagName] && blockSettings.themeRoot) {
     const packageName = blockSettings.importMap[tagName];
     const rawClassName = attributes.className || '';
@@ -721,9 +790,44 @@ function generateFromRealJsxNode(node, code, blockSettings) {
     if (resolved) return resolved;
   }
 
-  const isHost = !isPascalCase || tagName.includes('-') || tagName === 'Fragment';
-  const typeExpr = isHost ? JSON.stringify(tagName) : tagName;
+  const isHost = !isPascalCase || hostTagName.includes('-') || hostTagName === 'Fragment';
+  if (hostTagName === 'a') {
+    return emitEditorLink(props, childrenStr, blockSettings);
+  }
+  const typeExpr = isHost ? JSON.stringify(hostTagName) : hostTagName;
   return `createElement(${typeExpr}, ${propsStr}${childrenStr ? `, ${childrenStr}` : ''})`;
+}
+
+/**
+ * Emit a canvas link through the editor runtime's ForgeWpEditorLink so it never
+ * navigates away from wp-admin. When `href` reads a block attribute
+ * (`attributes.buyUrl`, optionally with a `|| '#fallback'`), also wire inline
+ * URL editing for that attribute. Loop-row hrefs (`item.url`) only get the
+ * navigation guard; their URLs remain editable in the sidebar repeater.
+ *
+ * @param {Record<string, string>} props  prop name → JS expression
+ * @param {string} childrenStr
+ * @param {object} blockSettings
+ */
+function emitEditorLink(props, childrenStr, blockSettings) {
+  const linkProps = { ...props };
+  const hrefExpr = typeof props.href === 'string' ? props.href.trim() : '';
+  const bound = hrefExpr.match(/^\(?\s*attributes\.([A-Za-z_$][\w$]*)\s*\)?(?:\s*(?:\|\||\?\?)\s*[\s\S]+)?$/);
+  const attrKey = bound ? bound[1] : null;
+  const attrConfig =
+    attrKey && blockSettings && blockSettings.attributes
+      ? blockSettings.attributes[attrKey]
+      : null;
+  if (attrConfig && (!attrConfig.type || attrConfig.type === 'string')) {
+    linkProps.forgeWpUrl = `attributes.${attrKey}`;
+    linkProps.forgeWpOnUrlChange =
+      `(typeof setAttributes === 'function' ? function(value) { setAttributes({ ${attrKey}: value }); } : undefined)`;
+    linkProps.forgeWpUrlLabel = JSON.stringify(attrConfig.label || 'Link URL');
+  }
+  const formatPropKey = (k) =>
+    /^[A-Za-z_$][\w$]*$/.test(k) ? k : JSON.stringify(k);
+  const propsStr = `{ ${Object.entries(linkProps).map(([k, v]) => `${formatPropKey(k)}: ${v}`).join(', ')} }`;
+  return `createElement(ForgeWpEditorLink, ${propsStr}${childrenStr ? `, ${childrenStr}` : ''})`;
 }
 
 export function generateReactCreateElement(node, blockSettings) {

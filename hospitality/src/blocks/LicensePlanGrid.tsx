@@ -29,7 +29,7 @@ export default defineBlock({
           title: 'Teamlizenz',
           price: '1.490 €',
           featureOne: 'Nutzungsrecht für bis zu 10 Personen',
-          featureTwo: 'Einheitliche Lizenz innerhalb Ihres Unternehmens',
+          featureTwo: 'Für Managementteams und Fachabteilungen',
           actionLabel: 'Teamlizenz anfragen',
           actionHref: '/lizenz/team',
           featured: true,

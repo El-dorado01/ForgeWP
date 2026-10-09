@@ -3,6 +3,18 @@ import { defineWpForm } from '@forgewp/react/config';
 export const form = defineWpForm({
   mailTo: 'contact@dicon-beratung.de',
   subject: 'Neue Teamlizenz-Anfrage – Hospitality 2035',
+  submissionTitle: 'Teamlizenz — {company} — {firstName} {lastName}',
+  successMessage:
+    'Vielen Dank. Ihre Anfrage ist bei DICON eingegangen. Eine Eingangsbestätigung wird an Ihre E-Mail-Adresse versendet. Die Anfrage stellt noch keinen Vertragsschluss dar.',
+  notificationBody: `Neue Teamlizenz-Anfrage
+
+Vorname: {firstName}
+Nachname: {lastName}
+Unternehmen: {company}
+E-Mail: {email}
+Telefon: {phone}
+Geplante Nutzerzahl: {userCount}
+Nachricht: {message}`,
   storeSubmissions: true,
   retentionDays: 180,
   fields: {
@@ -28,7 +40,17 @@ export const form = defineWpForm({
       label: 'Geplante Nutzerzahl',
       required: true,
     },
-    message: { type: 'textarea', label: 'Nachricht oder Rückrufhinweis' },
+  },
+  clientFields: {
+    enabled: true,
+    seed: [
+      {
+        name: 'message',
+        type: 'textarea',
+        label: 'Nachricht oder Rückrufhinweis',
+        required: false,
+      },
+    ],
   },
   confirmation: {
     enabled: true,

@@ -778,12 +778,137 @@ export function translateTemplateLiteral(jsExpr) {
   return result;
 }
 
+function phpStringLiteral(value) {
+  return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+const WP_DATA_HOOKS = new Set([
+  'useWpTitle',
+  'useWpContent',
+  'useWpExcerpt',
+  'useWpPermalink',
+  'useWpDate',
+  'useWpModifiedDate',
+  'useWpAuthor',
+  'useWpFeaturedImage',
+  'useWpCustomField',
+  'useWpField',
+  'useWpMeta',
+]);
+
+function translateWpDataHookCall(node, source, blockAttrKeys, localVars, freeFunctions) {
+  if (
+    node.callee.type !== 'Identifier' ||
+    !WP_DATA_HOOKS.has(node.callee.name) ||
+    node.arguments.some((arg) => arg.type === 'SpreadElement')
+  ) {
+    return null;
+  }
+
+  const name = node.callee.name;
+  const noArgHooks = {
+    useWpTitle: 'get_the_title()',
+    useWpContent: 'get_the_content()',
+    useWpExcerpt: 'get_the_excerpt()',
+    useWpPermalink: 'get_permalink()',
+    useWpDate: 'get_the_date()',
+    useWpModifiedDate: 'get_the_modified_date()',
+    useWpAuthor: 'get_the_author()',
+    useWpFeaturedImage: "get_the_post_thumbnail_url(get_the_ID(), 'full')",
+  };
+  if (Object.prototype.hasOwnProperty.call(noArgHooks, name)) {
+    return node.arguments.length === 0 ? noArgHooks[name] : null;
+  }
+  if (node.arguments.length < 1 || node.arguments.length > 2) return null;
+
+  const fieldNode = node.arguments[0];
+  const fieldExpr =
+    fieldNode.type === 'StringLiteral'
+      ? phpStringLiteral(fieldNode.value)
+      : `sanitize_key((string)(${translateJsExpressionToPhp(
+          source.slice(fieldNode.start, fieldNode.end),
+          blockAttrKeys,
+          localVars,
+          freeFunctions,
+        )}))`;
+  const fallbackExpr =
+    node.arguments.length === 2
+      ? translateJsExpressionToPhp(
+          source.slice(node.arguments[1].start, node.arguments[1].end),
+          blockAttrKeys,
+          localVars,
+          freeFunctions,
+        )
+      : "''";
+
+  return `forgewp_get_meta_value(${fieldExpr}, ${fallbackExpr}, false, null, false)`;
+}
+
+function extractWpDataHookCalls(expression, blockAttrKeys, localVars, freeFunctions) {
+  if (!/\buseWp(?:Title|Content|Excerpt|Permalink|Date|ModifiedDate|Author|FeaturedImage|CustomField|Field|Meta)\s*\(/.test(expression)) {
+    return { expression, replacements: [] };
+  }
+
+  const ast = tryParseSource(expression);
+  if (!ast) return { expression, replacements: [] };
+
+  const replacements = [];
+  traverse(ast, {
+    CallExpression(path) {
+      const phpExpression = translateWpDataHookCall(
+        path.node,
+        expression,
+        blockAttrKeys,
+        localVars,
+        freeFunctions,
+      );
+      if (!phpExpression) return;
+
+      let ancestor = path.parentPath;
+      while (ancestor) {
+        if (
+          ancestor.node?.type === 'CallExpression' &&
+          ancestor.node.callee?.type === 'Identifier' &&
+          WP_DATA_HOOKS.has(ancestor.node.callee.name)
+        ) {
+          return;
+        }
+        ancestor = ancestor.parentPath;
+      }
+
+      replacements.push({
+        start: path.node.start,
+        end: path.node.end,
+        phpExpression,
+      });
+    },
+  });
+
+  let translated = expression;
+  const tokens = [];
+  for (const replacement of replacements.sort((a, b) => b.start - a.start)) {
+    const token = phpStringLiteral(`__FORGEWP_DATA_HOOK_${tokens.length}__`);
+    translated =
+      translated.slice(0, replacement.start) +
+      token +
+      translated.slice(replacement.end);
+    tokens.push({ token, phpExpression: replacement.phpExpression });
+  }
+  return { expression: translated, replacements: tokens };
+}
+
 export function translateJsExpressionToPhp(
   jsExpr,
   blockAttrKeys = [],
   localVars = new Set(),
   freeFunctions = new Set(),
 ) {
+  const wpHookResult = extractWpDataHookCalls(
+    jsExpr,
+    blockAttrKeys,
+    localVars,
+    freeFunctions,
+  );
   const skipWords = new Set([
     'true',
     'false',
@@ -810,6 +935,7 @@ export function translateJsExpressionToPhp(
     'parseInt',
     'parseFloat',
     'useWpPageLink',
+    'forgewp_resolve_image_source',
     'count',
     'array_filter',
     'array_map',
@@ -823,7 +949,9 @@ export function translateJsExpressionToPhp(
   }
 
   // Replace ?. with . first
-  let cleanedExpr = jsExpr.replace(/\?\./g, '.');
+  let cleanedExpr = wpHookResult.expression
+    .replace(/\?\./g, '.')
+    .replace(/\bresolveWpAsset\s*\(/g, 'forgewp_resolve_image_source(');
 
   // Must run before every other pass below — they aren't backtick-aware and
   // would otherwise mangle a template literal's text/interpolation syntax.
@@ -957,9 +1085,15 @@ export function translateJsExpressionToPhp(
     finalPhpExpr.replace(/\?\?/g, '').replace(/\?:/g, '').match(/\?/g) || []
   ).length;
   if (questionCount >= 1 && !isFullyParenthesized(finalPhpExpr)) {
-    return `(${finalPhpExpr})`;
+    finalPhpExpr = `(${finalPhpExpr})`;
   }
 
+  for (const replacement of wpHookResult.replacements) {
+    finalPhpExpr = finalPhpExpr.replace(
+      replacement.token,
+      replacement.phpExpression,
+    );
+  }
   return finalPhpExpr;
 }
 
@@ -1151,6 +1285,62 @@ function findSameFileComponentSource(compName, sourceCode) {
     : null;
 }
 
+function canInlineSameFileEditorComponent(
+  compName,
+  componentSource,
+  callSiteAttrsStr,
+) {
+  const ast = tryParseSource(componentSource);
+  if (!ast) return false;
+  const component = findNamedFunction(ast, compName);
+  if (!component) return false;
+
+  let bodyExpression = component.body;
+  if (bodyExpression?.type === 'BlockStatement') {
+    const statements = bodyExpression.body;
+    const returnIndex = statements.length - 1;
+    if (
+      returnIndex < 0 ||
+      statements[returnIndex].type !== 'ReturnStatement' ||
+      statements
+        .slice(0, returnIndex)
+        .some((statement) => statement.type !== 'VariableDeclaration')
+    ) {
+      return false;
+    }
+    bodyExpression = statements[returnIndex].argument;
+  }
+  if (
+    bodyExpression?.type !== 'JSXElement' &&
+    bodyExpression?.type !== 'JSXFragment'
+  ) {
+    return false;
+  }
+
+  const firstParam =
+    component.params?.[0]?.type === 'TSParameterProperty'
+      ? component.params[0].parameter
+      : component.params?.[0];
+  if (firstParam?.type !== 'ObjectPattern') {
+    return !firstParam
+      ? callSiteAttrsStr.trim() === ''
+      : firstParam.type === 'Identifier' &&
+          /\.\.\.\s*attributes\b/.test(callSiteAttrsStr);
+  }
+
+  const hasAttributeSpread = /\.\.\.\s*attributes\b/.test(callSiteAttrsStr);
+  const callSiteProps = new Set(
+    parseJsxAttributes(callSiteAttrsStr).map(({ name }) => name),
+  );
+  return firstParam.properties.every((property) => {
+    if (property.type === 'RestElement') return true;
+    if (property.type !== 'ObjectProperty') return false;
+    const key = property.key.name || property.key.value;
+    if (key === 'children') return true;
+    return callSiteProps.has(key) || (hasAttributeSpread && key !== 'setAttributes');
+  });
+}
+
 export function resolveImportedComponentJsx(
   compName,
   sourceCode,
@@ -1158,6 +1348,7 @@ export function resolveImportedComponentJsx(
   themeRoot,
   mode = 'editor',
   callSiteAttrsStr = '',
+  callSiteChildrenStr = '',
 ) {
   const importRegex = new RegExp(
     `import\\s+(?:\\{\\s*${compName}\\s*\\}|${compName})\\s+from\\s+["']([^"']+)["']`,
@@ -1188,11 +1379,19 @@ export function resolveImportedComponentJsx(
     ) {
       finalPath = resolvedPath;
     }
-  } else if (
-    mode === 'php' &&
-    findSameFileComponentSource(compName, sourceCode)
-  ) {
-    finalPath = sourceFilePath;
+  } else {
+    const sameFileSource = findSameFileComponentSource(compName, sourceCode);
+    if (
+      sameFileSource &&
+      (mode === 'php' ||
+        canInlineSameFileEditorComponent(
+          compName,
+          sameFileSource,
+          callSiteAttrsStr,
+        ))
+    ) {
+      finalPath = sourceFilePath;
+    }
   }
   if (!finalPath) return null;
 
@@ -1361,6 +1560,187 @@ export function resolveImportedComponentJsx(
       }
     }
     if (!compJsx) return null;
+    if (mode === 'editor') {
+      let componentParams = null;
+      let componentPath = null;
+      const componentAst = tryParseSource(componentSource);
+      if (componentAst) {
+        traverse(componentAst, {
+          FunctionDeclaration(path) {
+            if (path.node.id?.name === compName) {
+              componentParams = path.node.params;
+              componentPath = path;
+              path.stop();
+            }
+          },
+          FunctionExpression(path) {
+            if (path.node.id?.name === compName) {
+              componentParams = path.node.params;
+              componentPath = path;
+              path.stop();
+            }
+          },
+          VariableDeclarator(path) {
+            if (
+              path.node.id.type === 'Identifier' &&
+              path.node.id.name === compName &&
+              ['ArrowFunctionExpression', 'FunctionExpression'].includes(
+                path.node.init?.type,
+              )
+            ) {
+              componentParams = path.node.init.params;
+              componentPath = path.get('init');
+              path.stop();
+            }
+          },
+        });
+      }
+
+      const firstParam =
+        componentParams?.[0]?.type === 'TSParameterProperty'
+          ? componentParams[0].parameter
+          : componentParams?.[0];
+      let childrenName = null;
+      let restName = null;
+      if (firstParam?.type === 'ObjectPattern') {
+        for (const property of firstParam.properties) {
+          if (property.type === 'RestElement') {
+            restName = property.argument.name || null;
+          } else if (
+            property.type === 'ObjectProperty' &&
+            (property.key.name || property.key.value) === 'children'
+          ) {
+            childrenName =
+              property.value.type === 'Identifier'
+                ? property.value.name
+                : property.key.name || 'children';
+          }
+        }
+      }
+
+      if (childrenName) {
+        const childrenRef = new RegExp(
+          `\\{\\s*${childrenName.replace(/[$]/g, '\\$') }\\s*\\}`,
+          'g',
+        );
+        compJsx = compJsx.replace(
+          childrenRef,
+          callSiteChildrenStr || '',
+        );
+      }
+      if (restName) {
+        const spreadRef = new RegExp(
+          `\\{\\s*\\.\\.\\.${restName.replace(/[$]/g, '\\$')}\\s*\\}`,
+          'g',
+        );
+        const forwardedAttrs = callSiteAttrsStr.replace(
+          /\s+ref\s*=\s*(?:\{[^{}]*\}|["'][^"']*["'])/g,
+          '',
+        );
+        compJsx = compJsx.replace(spreadRef, forwardedAttrs);
+      }
+      if (componentPath && firstParam?.type === 'ObjectPattern') {
+        const callSiteProps = new Map(
+          parseJsxAttributes(callSiteAttrsStr).map((attribute) => [
+            attribute.name,
+            attribute.isStringLiteral
+              ? JSON.stringify(attribute.expr)
+              : attribute.expr,
+          ]),
+        );
+        const hasAttributeSpread = /\{\s*\.\.\.\s*attributes\b/.test(
+          callSiteAttrsStr,
+        );
+        const propExpressions = new Map();
+        for (const property of firstParam.properties) {
+          if (
+            property.type !== 'ObjectProperty' ||
+            property.key.name === 'children' ||
+            property.key.value === 'children'
+          ) {
+            continue;
+          }
+          const key = property.key.name || property.key.value;
+          const value =
+            property.value.type === 'AssignmentPattern'
+              ? property.value.left
+              : property.value;
+          if (value.type !== 'Identifier') continue;
+          if (key === 'setAttributes' && value.name === 'setAttributes') {
+            continue;
+          }
+
+          if (callSiteProps.has(key)) {
+            propExpressions.set(value.name, callSiteProps.get(key));
+          } else if (hasAttributeSpread && key !== 'setAttributes') {
+            const attributeValue = /^[A-Za-z_$][\w$]*$/.test(key)
+              ? `attributes.${key}`
+              : `attributes[${JSON.stringify(key)}]`;
+            const fallback =
+              property.value.type === 'AssignmentPattern'
+                ? componentSource.slice(
+                    property.value.right.start,
+                    property.value.right.end,
+                  )
+                : null;
+            propExpressions.set(
+              value.name,
+              fallback
+                ? `${attributeValue} === undefined ? (${fallback}) : ${attributeValue}`
+                : attributeValue,
+            );
+          }
+        }
+
+        const jsxStart = componentSource.indexOf(compJsx, componentPath.node.start);
+        if (jsxStart !== -1 && propExpressions.size > 0) {
+          const jsxEnd = jsxStart + compJsx.length;
+          const replacements = [];
+          traverse(componentAst, {
+            Identifier(identifierPath) {
+              const replacement = propExpressions.get(
+                identifierPath.node.name,
+              );
+              if (
+                !replacement ||
+                !identifierPath.isReferencedIdentifier() ||
+                identifierPath.node.start < jsxStart ||
+                identifierPath.node.end > jsxEnd ||
+                identifierPath.scope.getBinding(identifierPath.node.name) !==
+                  componentPath.scope.getBinding(identifierPath.node.name)
+              ) {
+                return;
+              }
+              replacements.push({
+                start: identifierPath.node.start - jsxStart,
+                end: identifierPath.node.end - jsxStart,
+                text: `(${replacement})`,
+              });
+            },
+          });
+          replacements.sort((a, b) => b.start - a.start);
+          for (const replacement of replacements) {
+            compJsx =
+              compJsx.slice(0, replacement.start) +
+              replacement.text +
+              compJsx.slice(replacement.end);
+          }
+        }
+      }
+      const refParam =
+        componentParams?.[1]?.type === 'Identifier'
+          ? componentParams[1].name
+          : null;
+      if (refParam) {
+        compJsx = compJsx.replace(
+          new RegExp(
+            `\\s+ref\\s*=\\s*\\{\\s*${refParam.replace(/[$]/g, '\\$')}\\s*\\}`,
+            'g',
+          ),
+          '',
+        );
+      }
+    }
     // Return the resolved file's own content/path alongside its JSX so callers can
     // recurse into it using ITS imports — a component nested two or more levels deep
     // (e.g. wrapper -> BlockComponent -> Grid) has an import that only exists in
@@ -1411,6 +1791,10 @@ function expandNestedTagsAstPass(
           node.openingElement.name.end,
           attrsEnd,
         );
+        const callSiteChildrenStr =
+          !selfClosing && node.closingElement
+            ? jsxText.slice(node.openingElement.end, node.closingElement.start)
+            : '';
         const resolved = resolveImportedComponentJsx(
           name,
           sourceCode,
@@ -1418,6 +1802,7 @@ function expandNestedTagsAstPass(
           themeRoot,
           mode,
           callSiteAttrsStr,
+          callSiteChildrenStr,
         );
         if (resolved) {
           const compJsx = expandNestedComponentTags(
@@ -3065,7 +3450,7 @@ export function transpileStaticArrayObjectMap(
  *   copies of the row template. That's a cross-reference into sibling source
  *   text, not a property of the JSX subtree being emitted here — a
  *   genuinely different concern from "turn this parsed expression into PHP".
- *   tryEmitPhpMapLoop below only takes over the loop shapes it can resolve
+ *   tryEmitPhpMapLoop below emits supported dynamic array loop shapes
  *   with confidence (a bare attribute/local-var array, or the `(x || '').
  *   split(...)` string-split shape); anything else — an array literal
  *   target, an `as const` cast, chained `.filter()` in an unrecognized
@@ -3099,6 +3484,7 @@ export function generatePhpMarkupFromJsx(jsxCode, blockSettings, context) {
     themeRoot: context && context.themeRoot,
     importMap: (blockSettings && blockSettings.importMap) || {},
     textDomain: (context && context.textDomain) || 'hotelchecker24',
+    queryState: { nextId: 0 },
   };
 
   try {
@@ -3235,7 +3621,9 @@ function tryEmitPhpMapLoop(callExpr, code, blockSettings, context) {
   const arrow = callExpr.arguments[0];
   if (!isJsxNodePhp(arrow.body)) return null; // only concise `=> ( <JSX/> )` bodies, matching legacy's scope
   if (arrow.params.length < 1 || arrow.params.length > 2) return null;
-  if (arrow.params[0].type !== 'Identifier') return null; // no destructured loop params on this path
+  const valueParam = arrow.params[0];
+  const indexParam = arrow.params[1];
+  if (indexParam && indexParam.type !== 'Identifier') return null;
 
   const arrayTarget = callExpr.callee.object;
   let phpArrayExpr = null;
@@ -3249,6 +3637,33 @@ function tryEmitPhpMapLoop(callExpr, code, blockSettings, context) {
     // available either (it takes no localVars argument at all).
     const name = arrayTarget.name;
     phpArrayExpr = `($attributes['${name}'] ?? $${name} ?? array())`;
+  } else if (arrayTarget.type === 'ArrayExpression') {
+    phpArrayExpr = translateJsExpressionToPhp(
+      code.slice(arrayTarget.start, arrayTarget.end),
+      context.attrKeys,
+      context.localVars,
+      context.freeFunctions,
+    );
+  } else if (arrayTarget.type === 'MemberExpression') {
+    const attrKey = getPhpMapAttributeKey(arrayTarget);
+    if (attrKey !== null) {
+      phpArrayExpr = `($attributes['${attrKey}'] ?? array())`;
+    }
+  } else if (
+    arrayTarget.type === 'LogicalExpression' &&
+    (arrayTarget.operator === '||' || arrayTarget.operator === '??')
+  ) {
+    const attrKey = getPhpMapAttributeKey(arrayTarget.left);
+    if (attrKey !== null) {
+      const fallback = emitPhpMapArrayFallback(
+        arrayTarget.right,
+        code,
+        context,
+      );
+      if (fallback !== null) {
+        phpArrayExpr = `($attributes['${attrKey}'] ?? ${fallback})`;
+      }
+    }
   } else {
     const split = matchPhpSplitMapTarget(arrayTarget, code);
     if (split) {
@@ -3257,15 +3672,114 @@ function tryEmitPhpMapLoop(callExpr, code, blockSettings, context) {
   }
   if (!phpArrayExpr) return null; // complex target (array literal, `as const`, …) — bail
 
-  const varName = arrow.params[0].name;
+  const varName =
+    valueParam.type === 'Identifier'
+      ? valueParam.name
+      : `__forgewp_row_${context.queryState.nextId++}`;
+  const bindings = getPhpMapParamBindings(valueParam, varName);
+  if (bindings === null) return null;
+  const indexName = indexParam ? indexParam.name : null;
   const innerContext = {
     ...context,
-    localVars: new Set([...context.localVars, varName]),
+    localVars: new Set([
+      ...context.localVars,
+      varName,
+      ...(indexName ? [indexName] : []),
+      ...bindings.map(({ name }) => name),
+    ]),
   };
   let innerContent = emitPhpNode(arrow.body, code, blockSettings, innerContext);
   innerContent = innerContent.replace(/className=/g, 'class=');
 
-  return `<?php foreach (${phpArrayExpr} as $${varName}): ?>\n${innerContent}\n<?php endforeach; ?>`;
+  const foreachValue =
+    indexName && innerContent.includes(`$${indexName}`)
+    ? `$${indexName} => $${varName}`
+    : `$${varName}`;
+  const bindingStatements = bindings
+    .map(({ name, expression }) => `<?php $${name} = ${expression}; ?>`)
+    .join('\n');
+  return `<?php foreach (${phpArrayExpr} as ${foreachValue}): ?>\n${bindingStatements}${bindingStatements ? '\n' : ''}${innerContent}\n<?php endforeach; ?>`;
+}
+
+function getPhpMapAttributeKey(node) {
+  if (
+    node.type !== 'MemberExpression' ||
+    node.object.type !== 'Identifier' ||
+    node.object.name !== 'attributes'
+  ) {
+    return null;
+  }
+
+  if (!node.computed && node.property.type === 'Identifier') {
+    return node.property.name;
+  }
+  if (
+    node.computed &&
+    (node.property.type === 'StringLiteral' ||
+      node.property.type === 'NumericLiteral')
+  ) {
+    return String(node.property.value);
+  }
+  return null;
+}
+
+function emitPhpMapArrayFallback(node, code, context) {
+  if (node.type !== 'ArrayExpression') return null;
+  const expression = code.slice(node.start, node.end);
+  if (node.elements.some((item) => item?.type === 'ObjectExpression')) {
+    return convertJsArrayToPhp(expression);
+  }
+  return translateJsExpressionToPhp(
+    expression,
+    context.attrKeys,
+    context.localVars,
+    context.freeFunctions,
+  );
+}
+
+function getPhpMapParamBindings(pattern, valueName) {
+  if (pattern.type === 'Identifier') return [];
+
+  if (pattern.type === 'ArrayPattern') {
+    const bindings = [];
+    for (const [index, element] of pattern.elements.entries()) {
+      if (element === null) continue;
+      if (element.type !== 'Identifier') return null;
+      bindings.push({
+        name: element.name,
+        expression: `($${valueName}[${index}] ?? null)`,
+      });
+    }
+    return bindings;
+  }
+
+  if (pattern.type === 'ObjectPattern') {
+    const bindings = [];
+    for (const property of pattern.properties) {
+      if (
+        property.type !== 'ObjectProperty' ||
+        property.computed ||
+        property.value.type !== 'Identifier'
+      ) {
+        return null;
+      }
+      const key =
+        property.key.type === 'Identifier'
+          ? property.key.name
+          : property.key.type === 'StringLiteral'
+            ? property.key.value
+            : null;
+      if (key === null) return null;
+      const escapedKey = key.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      bindings.push({
+        name: property.value.name,
+        expression: `($${valueName}['${escapedKey}'] ?? null)`,
+      });
+    }
+    return bindings;
+  }
+
+  return null;
 }
 
 /** `(x || '').split(',')[.map(trim)][.filter(Boolean)]` → { varName, separator } | null */
@@ -3809,6 +4323,344 @@ function emitPhpWpEditable(attrs, children, code, blockSettings, context) {
   return `<${tag}${attrsPhp}>${content}</${tag}>`;
 }
 
+function phpAttributeExpression(attrs, name, code, context, fallback) {
+  const attr = findPhpAttr(attrs, name);
+  if (!attr || !attr.hasValue || !attr.valueNode) return fallback;
+  const node = attr.valueNode;
+  if (node.type === 'StringLiteral') return phpStringLiteral(node.value);
+  if (node.type === 'NumericLiteral') return String(node.value);
+  if (node.type === 'BooleanLiteral') return node.value ? 'true' : 'false';
+  return translateJsExpressionToPhp(
+    code.slice(node.start, node.end),
+    context.attrKeys,
+    context.localVars,
+    context.freeFunctions,
+  );
+}
+
+function phpBooleanPropExpression(
+  attrs,
+  name,
+  code,
+  blockSettings,
+  context,
+  fallback,
+) {
+  const attr = findPhpAttr(attrs, name);
+  if (!attr || !attr.hasValue || !attr.valueNode) {
+    return fallback ? 'true' : 'false';
+  }
+
+  const node = attr.valueNode;
+  if (node.type === 'BooleanLiteral') return node.value ? 'true' : 'false';
+
+  let attributeName = null;
+  if (node.type === 'Identifier') {
+    attributeName = node.name;
+  } else if (
+    node.type === 'MemberExpression' &&
+    !node.computed &&
+    node.object.type === 'Identifier' &&
+    (node.object.name === 'attributes' || node.object.name === 'props') &&
+    node.property.type === 'Identifier'
+  ) {
+    attributeName = node.property.name;
+  }
+
+  const attributeDefinition =
+    attributeName &&
+    blockSettings?.attributes &&
+    blockSettings.attributes[attributeName];
+  if (attributeDefinition?.type === 'boolean') {
+    const defaultValue =
+      typeof attributeDefinition.default === 'boolean'
+        ? attributeDefinition.default
+        : fallback;
+    return `($attributes['${attributeName}'] ?? ${defaultValue ? 'true' : 'false'})`;
+  }
+
+  if (node.type === 'Identifier') {
+    return `($${node.name} ?? ${fallback ? 'true' : 'false'})`;
+  }
+
+  return translateJsExpressionToPhp(
+    code.slice(node.start, node.end),
+    context.attrKeys,
+    context.localVars,
+    context.freeFunctions,
+  );
+}
+
+function emitPhpWpFormSubmitButton(attrs, children, code, blockSettings, context) {
+  const iconAttr = findPhpAttr(attrs, 'icon');
+  const showIconExpr = phpBooleanPropExpression(
+    attrs,
+    'showIcon',
+    code,
+    blockSettings,
+    context,
+    true,
+  );
+  const pendingExpr = phpBooleanPropExpression(
+    attrs,
+    'pending',
+    code,
+    blockSettings,
+    context,
+    false,
+  );
+  const disabledExpr = phpBooleanPropExpression(
+    attrs,
+    'disabled',
+    code,
+    blockSettings,
+    context,
+    false,
+  );
+  const icon =
+    iconAttr?.valueNode && isJsxNodePhp(iconAttr.valueNode)
+      ? emitPhpNode(iconAttr.valueNode, code, blockSettings, context)
+      : '';
+  const iconMarkup = icon
+    ? `<?php if ((${showIconExpr}) && !(${pendingExpr})): ?><span aria-hidden="true">${icon}</span><?php endif; ?>`
+    : '';
+  const disabledMarkup = `<?php if ((${disabledExpr}) || (${pendingExpr})): ?> disabled<?php endif; ?>`;
+  const busyMarkup = `<?php if (${pendingExpr}): ?> aria-busy="true"<?php endif; ?>`;
+  const excluded = new Set([
+    'type',
+    'icon',
+    'showIcon',
+    'pending',
+    'disabled',
+    'aria-busy',
+  ]);
+  let attrsPhp = emitPhpAttrsExcluding(attrs, code, context, excluded);
+  const classAttr = findPhpAttr(attrs, 'className');
+  if (classAttr) {
+    attrsPhp =
+      ` ${emitPhpSingleAttr('class', classAttr.valueNode, classAttr.hasValue, code, context)}` +
+      attrsPhp;
+  }
+  const content = emitPhpChildren(children, code, blockSettings, context);
+
+  return `<button type="submit"${attrsPhp}${disabledMarkup}${busyMarkup}>${content}${iconMarkup}</button>`;
+}
+
+function emitPhpWpQueryLoop(node, code, blockSettings, context) {
+  const attrs = readPhpJsxAttrs(node.openingElement);
+  const id = context.queryState.nextId++;
+  const queryName = `$forgewp_query_${id}`;
+  const argsName = `$forgewp_query_args_${id}`;
+  const parentPostName = `$forgewp_parent_post_${id}`;
+  const postsPerPageName = `$forgewp_posts_per_page_${id}`;
+
+  const postType = phpAttributeExpression(
+    attrs,
+    'postType',
+    code,
+    context,
+    "'post'",
+  );
+  const postsPerPage = phpAttributeExpression(
+    attrs,
+    'postsPerPage',
+    code,
+    context,
+    '3',
+  );
+  const order = phpAttributeExpression(attrs, 'order', code, context, "'DESC'");
+  const categoryName = findPhpAttr(attrs, 'categoryName')
+    ? phpAttributeExpression(attrs, 'categoryName', code, context, "''")
+    : null;
+  const orderby = findPhpAttr(attrs, 'orderby')
+    ? phpAttributeExpression(attrs, 'orderby', code, context, "''")
+    : null;
+  const postId = findPhpAttr(attrs, 'postId')
+    ? phpAttributeExpression(attrs, 'postId', code, context, '0')
+    : null;
+  const metaKey = findPhpAttr(attrs, 'metaKey')
+    ? phpAttributeExpression(attrs, 'metaKey', code, context, "''")
+    : null;
+  const metaValue = phpAttributeExpression(
+    attrs,
+    'metaValue',
+    code,
+    context,
+    "''",
+  );
+  const metaCompare = phpAttributeExpression(
+    attrs,
+    'metaCompare',
+    code,
+    context,
+    "'='",
+  );
+  const taxTaxonomy = findPhpAttr(attrs, 'taxTaxonomy')
+    ? phpAttributeExpression(attrs, 'taxTaxonomy', code, context, "''")
+    : null;
+  const taxTerms = findPhpAttr(attrs, 'taxTerms')
+    ? phpAttributeExpression(attrs, 'taxTerms', code, context, "''")
+    : null;
+  const postIn = findPhpAttr(attrs, 'postIn')
+    ? phpAttributeExpression(attrs, 'postIn', code, context, "''")
+    : null;
+
+  const setup = [
+    `global $post;`,
+    `${parentPostName} = isset($post) ? $post : null;`,
+    `${postsPerPageName} = intval(${postsPerPage});`,
+    `${argsName} = array(`,
+    `    'post_type' => sanitize_key((string)(${postType})),`,
+    `    'post_status' => 'publish',`,
+    `    'posts_per_page' => (${postsPerPageName} === -1 ? -1 : max(1, ${postsPerPageName})),`,
+    `    'order' => (strtoupper((string)(${order})) === 'ASC' ? 'ASC' : 'DESC'),`,
+    `);`,
+  ];
+
+  if (orderby !== null) {
+    setup.push(
+      `if ((string)(${orderby}) !== '') { ${argsName}['orderby'] = sanitize_key((string)(${orderby})); }`,
+    );
+  }
+  if (categoryName !== null) {
+    setup.push(
+      `if ((string)(${categoryName}) !== '') { ${argsName}['category_name'] = sanitize_title((string)(${categoryName})); }`,
+    );
+  }
+  if (postId !== null) {
+    setup.push(
+      `if (absint(${postId}) > 0) { ${argsName}['p'] = absint(${postId}); }`,
+    );
+  }
+  if (metaKey !== null) {
+    const keyName = `$forgewp_meta_key_${id}`;
+    const compareName = `$forgewp_meta_compare_${id}`;
+    setup.push(
+      `${keyName} = sanitize_key((string)(${metaKey}));`,
+      `if (${keyName} !== '') {`,
+      `    ${compareName} = strtoupper((string)(${metaCompare}));`,
+      `    $forgewp_allowed_meta_compare_${id} = array('=', '!=', '>', '>=', '<', '<=', 'LIKE', 'NOT LIKE', 'IN', 'NOT IN', 'BETWEEN', 'NOT BETWEEN', 'EXISTS', 'NOT EXISTS', 'REGEXP', 'NOT REGEXP', 'RLIKE');`,
+      `    if (!in_array(${compareName}, $forgewp_allowed_meta_compare_${id}, true)) { ${compareName} = '='; }`,
+      `    $forgewp_meta_query_${id} = array('key' => ${keyName}, 'compare' => ${compareName});`,
+    );
+    const valueAttr = findPhpAttr(attrs, 'metaValue');
+    const specialValue =
+      valueAttr?.valueNode?.type === 'StringLiteral'
+        ? valueAttr.valueNode.value
+        : null;
+    let valueExpr = `sanitize_text_field((string)(${metaValue}))`;
+    if (specialValue === 'CURRENT_POST_ID') {
+      valueExpr = 'get_the_ID()';
+    } else if (specialValue === ',CURRENT_POST_ID,') {
+      valueExpr = "',' . get_the_ID() . ','";
+    }
+    setup.push(
+      `    if (!in_array(${compareName}, array('EXISTS', 'NOT EXISTS'), true)) {`,
+      `        $forgewp_meta_query_${id}['value'] = ${valueExpr};`,
+      `    }`,
+      `    ${argsName}['meta_query'] = array($forgewp_meta_query_${id});`,
+      `}`,
+    );
+  }
+  if (taxTaxonomy !== null) {
+    setup.push(
+      `$forgewp_taxonomy_${id} = sanitize_key((string)(${taxTaxonomy}));`,
+      `$forgewp_terms_${id} = array_map('sanitize_title', wp_parse_list((string)(${taxTerms})));`,
+      `if ($forgewp_taxonomy_${id} !== '' && !empty($forgewp_terms_${id})) {`,
+      `    ${argsName}['tax_query'] = array(array('taxonomy' => $forgewp_taxonomy_${id}, 'field' => 'slug', 'terms' => $forgewp_terms_${id}));`,
+      `}`,
+    );
+  }
+  if (postIn !== null) {
+    setup.push(
+      `$forgewp_post_in_key_${id} = sanitize_key((string)(${postIn}));`,
+      `$forgewp_post_in_value_${id} = $forgewp_post_in_key_${id} !== '' ? get_post_meta(get_the_ID(), $forgewp_post_in_key_${id}, true) : '';`,
+      `$forgewp_post_in_ids_${id} = array_values(array_filter(array_map('absint', explode(',', (string)$forgewp_post_in_value_${id}))));`,
+      `${argsName}['post__in'] = !empty($forgewp_post_in_ids_${id}) ? $forgewp_post_in_ids_${id} : array(-1);`,
+      `${argsName}['orderby'] = 'post__in';`,
+    );
+  }
+  setup.push(
+    `if (function_exists('pll_current_language')) { ${argsName}['lang'] = pll_current_language(); }`,
+    `${queryName} = new WP_Query(${argsName});`,
+    `if (${queryName}->have_posts()) :`,
+    `while (${queryName}->have_posts()) :`,
+    `${queryName}->the_post();`,
+  );
+
+  const content = emitPhpChildren(
+    node.children,
+    code,
+    blockSettings,
+    context,
+  );
+  return `<?php\n${setup.join('\n')}\n?>${content}<?php\nendwhile;\nwp_reset_postdata();\nif (${parentPostName} instanceof WP_Post) {\n    $post = ${parentPostName};\n    setup_postdata($post);\n}\nendif;\n?>`;
+}
+
+function emitPhpWpImage(attrs, code, context) {
+  const sizeExpr = phpAttributeExpression(attrs, 'size', code, context, "'full'");
+  const srcAttr = findPhpAttr(attrs, 'src');
+  const idAttr = findPhpAttr(attrs, 'id');
+  const fieldAttr = findPhpAttr(attrs, 'field');
+  let sourceExpr = "'assets/image-placeholder.png'";
+  if (srcAttr) {
+    sourceExpr = phpAttributeExpression(attrs, 'src', code, context, "''");
+  } else if (idAttr) {
+    sourceExpr = phpAttributeExpression(attrs, 'id', code, context, "''");
+  } else if (fieldAttr) {
+    const fieldExpr = phpAttributeExpression(attrs, 'field', code, context, "''");
+    sourceExpr = `forgewp_get_meta_value(${fieldExpr}, '', false, null, false)`;
+  }
+
+  const excluded = new Set([
+    'src',
+    'id',
+    'field',
+    'size',
+    'priority',
+    'loading',
+    'decoding',
+    'style',
+  ]);
+  let attrsPhp = emitPhpAttrsExcluding(attrs, code, context, excluded);
+  const classAttr = findPhpAttr(attrs, 'className');
+  if (classAttr) {
+    attrsPhp =
+      ` ${emitPhpSingleAttr('class', classAttr.valueNode, classAttr.hasValue, code, context)}` +
+      attrsPhp;
+  }
+  if (!findPhpAttr(attrs, 'alt')) attrsPhp += ' alt=""';
+
+  const loadingAttr = findPhpAttr(attrs, 'loading');
+  const decodingAttr = findPhpAttr(attrs, 'decoding');
+  const priorityAttr = findPhpAttr(attrs, 'priority');
+  const priorityExpr = priorityAttr
+    ? priorityAttr.hasValue
+      ? phpAttributeExpression(attrs, 'priority', code, context, 'false')
+      : 'true'
+    : 'false';
+  if (loadingAttr) {
+    attrsPhp += ` ${emitPhpSingleAttr('loading', loadingAttr.valueNode, loadingAttr.hasValue, code, context)}`;
+  } else {
+    attrsPhp += ` loading="<?php echo esc_attr( (${priorityExpr}) ? 'eager' : 'lazy' ); ?>"`;
+  }
+  if (decodingAttr) {
+    attrsPhp += ` ${emitPhpSingleAttr('decoding', decodingAttr.valueNode, decodingAttr.hasValue, code, context)}`;
+  } else {
+    attrsPhp += ' decoding="async"';
+  }
+  if (priorityAttr) {
+    attrsPhp += `<?php if (${priorityExpr}): ?> fetchpriority="high"<?php endif; ?>`;
+  }
+
+  const styleAttr = findPhpAttr(attrs, 'style');
+  if (styleAttr?.valueNode?.type === 'ObjectExpression') {
+    attrsPhp += ' ' + emitPhpStyleAttr(styleAttr.valueNode, code, context);
+  }
+
+  return `<img src="<?php echo esc_url(forgewp_resolve_image_source(${sourceExpr}, ${sizeExpr})); ?>"${attrsPhp} />`;
+}
+
 function emitPhpGenericElement(
   tagName,
   attrs,
@@ -3890,12 +4742,48 @@ function emitPhpNode(node, code, blockSettings, context) {
     return emitPhpChildren(node.children, code, blockSettings, context);
   }
 
-  const tagName = getPhpJsxTagName(node.openingElement.name);
-  const attrs = readPhpJsxAttrs(node.openingElement);
+  const sourceTagName = getPhpJsxTagName(node.openingElement.name);
+  const isMotionTag = /^motion\.[a-z][\w-]*$/.test(sourceTagName);
+  const tagName = isMotionTag
+    ? sourceTagName.slice('motion.'.length)
+    : sourceTagName;
+  const motionOnlyProps = new Set([
+    'animate',
+    'drag',
+    'dragConstraints',
+    'exit',
+    'initial',
+    'layout',
+    'layoutId',
+    'onAnimationComplete',
+    'onUpdate',
+    'transition',
+    'variants',
+    'viewport',
+    'whileDrag',
+    'whileFocus',
+    'whileHover',
+    'whileInView',
+    'whileTap',
+  ]);
+  const attrs = readPhpJsxAttrs(node.openingElement).filter(
+    (attr) => !isMotionTag || !motionOnlyProps.has(attr.name),
+  );
 
+  if (tagName === 'WpQueryLoop')
+    return emitPhpWpQueryLoop(node, code, blockSettings, context);
+  if (tagName === 'WpImage') return emitPhpWpImage(attrs, code, context);
   if (tagName === 'WpIcon') return emitPhpWpIcon(attrs, code, context);
   if (tagName === 'WpShortcode')
     return emitPhpWpShortcode(attrs, code, context);
+  if (tagName === 'WpFormSubmitButton')
+    return emitPhpWpFormSubmitButton(
+      attrs,
+      node.children,
+      code,
+      blockSettings,
+      context,
+    );
   if (tagName === 'WpEditable')
     return emitPhpWpEditable(
       attrs,
@@ -3915,13 +4803,24 @@ function emitPhpNode(node, code, blockSettings, context) {
           ? classAttr.valueNode.value
           : `<?php echo esc_attr( ${translateJsExpressionToPhp(code.slice(classAttr.valueNode.start, classAttr.valueNode.end), context.attrKeys, context.localVars, context.freeFunctions)} ); ?>`;
     }
-    const svgHtml = resolveIconToSvgHtml(
+    let svgHtml = resolveIconToSvgHtml(
       tagName,
       context.importMap[tagName],
       context.themeRoot,
       '',
     );
     if (svgHtml) {
+      const iconSize = getPhpStaticNumericAttr(attrs, 'size', code);
+      const width =
+        getPhpStaticNumericAttr(attrs, 'width', code) ?? iconSize;
+      const height =
+        getPhpStaticNumericAttr(attrs, 'height', code) ?? iconSize;
+      if (width !== null) {
+        svgHtml = svgHtml.replace(/(\swidth=")[^"]*(")/, `$1${width}$2`);
+      }
+      if (height !== null) {
+        svgHtml = svgHtml.replace(/(\sheight=")[^"]*(")/, `$1${height}$2`);
+      }
       const classAttrRegex = /class="([^"]*)"/;
       const hasClassAttr = svgHtml.match(classAttrRegex);
       if (hasClassAttr) {
@@ -3950,7 +4849,17 @@ function emitPhpNode(node, code, blockSettings, context) {
             ).match(/="([\s\S]*)"$/)[1]
         : '#';
     const cls = classAttr
-      ? ` class='${classAttr.valueNode && classAttr.valueNode.type === 'StringLiteral' ? classAttr.valueNode.value : ''}'`
+      ? classAttr.valueNode?.type === 'StringLiteral'
+        ? ` class='${classAttr.valueNode.value}'`
+        : classAttr.valueNode
+          ? ` ${emitPhpSingleAttr(
+            'class',
+            classAttr.valueNode,
+            true,
+            code,
+            context,
+            )}`
+          : ' class=""'
       : '';
     const content = emitPhpChildren(
       node.children,
@@ -3963,7 +4872,17 @@ function emitPhpNode(node, code, blockSettings, context) {
   if (tagName === 'Button') {
     const classAttr = findPhpAttr(attrs, 'className');
     const cls = classAttr
-      ? ` class='${classAttr.valueNode && classAttr.valueNode.type === 'StringLiteral' ? classAttr.valueNode.value : ''}'`
+      ? classAttr.valueNode?.type === 'StringLiteral'
+        ? ` class='${classAttr.valueNode.value}'`
+        : classAttr.valueNode
+          ? ` ${emitPhpSingleAttr(
+            'class',
+            classAttr.valueNode,
+            true,
+            code,
+            context,
+            )}`
+          : ' class=""'
       : '';
     const content = emitPhpChildren(
       node.children,
@@ -3993,4 +4912,17 @@ function emitPhpNode(node, code, blockSettings, context) {
     blockSettings,
     context,
   );
+}
+
+function getPhpStaticNumericAttr(attrs, name, code) {
+  const attr = findPhpAttr(attrs, name);
+  if (!attr || !attr.valueNode) return null;
+
+  const raw =
+    attr.valueNode.type === 'StringLiteral'
+      ? attr.valueNode.value
+      : code.slice(attr.valueNode.start, attr.valueNode.end);
+  const value = String(raw).trim();
+  if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(value)) return null;
+  return value;
 }

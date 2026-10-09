@@ -1,5 +1,11 @@
 import { motion, type Variants } from 'framer-motion';
-import { pickEditable, useWpMeta, WpEditable, WpImage } from '@forgewp/react';
+import {
+  pickEditable,
+  useWpMeta,
+  WpEditable,
+  WpImage,
+  WpLink,
+} from '@forgewp/react';
 import { editable as pageEditable } from '../../../cms/editables/front-page';
 import { defaults as aboutDefaults } from '../../../cms/editables/sections/about';
 import LandingSection from './LandingSection';
@@ -11,12 +17,15 @@ export const editable = pickEditable(pageEditable, {
   title: 'about_title',
   description: 'about_description',
   companyDescription: 'about_company_description',
+  companyLogo: 'about_company_logo',
   cityLabel: 'about_city_label',
   foundedLabel: 'about_founded_label',
   authorLabel: 'about_author_label',
   authorName: 'about_author_name',
   authorRole: 'about_author_role',
   authorDescription: 'about_author_description',
+  contactLabel: 'about_contact_label',
+  contactUrl: 'about_contact_url',
 });
 
 export type AboutSectionProps = {
@@ -28,12 +37,15 @@ export type AboutSectionProps = {
   title?: string;
   description?: string;
   companyDescription?: string;
+  companyLogo?: string | number | { id?: number; url?: string; alt?: string };
   cityLabel?: string;
   foundedLabel?: string;
   authorLabel?: string;
   authorName?: string;
   authorRole?: string;
   authorDescription?: string;
+  contactLabel?: string;
+  contactUrl?: string;
   setAttributes?: (attributes: Partial<AboutSectionProps>) => void;
 };
 
@@ -46,12 +58,15 @@ export default function AboutSection({
   title: titleProp,
   description: descriptionProp,
   companyDescription: companyDescriptionProp,
+  companyLogo: companyLogoProp,
   cityLabel: cityLabelProp,
   foundedLabel: foundedLabelProp,
   authorLabel: authorLabelProp,
   authorName: authorNameProp,
   authorRole: authorRoleProp,
   authorDescription: authorDescriptionProp,
+  contactLabel: contactLabelProp,
+  contactUrl: contactUrlProp,
   setAttributes,
 }: AboutSectionProps) {
   const eyebrow =
@@ -64,6 +79,9 @@ export default function AboutSection({
   const companyDescription =
     companyDescriptionProp ??
     useWpMeta('about_company_description', aboutDefaults.companyDescription);
+  const companyLogo =
+    companyLogoProp ??
+    useWpMeta('about_company_logo', aboutDefaults.companyLogo);
   const cityLabel =
     cityLabelProp ?? useWpMeta('about_city_label', aboutDefaults.cityLabel);
   const foundedLabel =
@@ -79,6 +97,11 @@ export default function AboutSection({
   const authorDescription =
     authorDescriptionProp ??
     useWpMeta('about_author_description', aboutDefaults.authorDescription);
+  const contactLabel =
+    contactLabelProp ??
+    useWpMeta('about_contact_label', aboutDefaults.contactLabel);
+  const contactUrl =
+    contactUrlProp ?? useWpMeta('about_contact_url', aboutDefaults.contactUrl);
 
   return (
     <LandingSection
@@ -125,17 +148,33 @@ export default function AboutSection({
             transition={{ delay: 0.12 }}
           >
             <h2 className='w-full font-heading text-5xl font-black leading-[0.88] tracking-[-0.07em] text-brand sm:text-7xl lg:text-8xl'>
-              <WordReveal
-                text={title}
-                reduceMotion={reduceMotion}
-              />
+              {setAttributes ? (
+                <WpEditable
+                  tagName='span'
+                  value={title}
+                  onChange={(value) => setAttributes({ title: value })}
+                />
+              ) : (
+                <WordReveal
+                  text={title}
+                  reduceMotion={reduceMotion}
+                />
+              )}
             </h2>
             <p className='mt-8 max-w-3xl text-lg leading-relaxed text-slate-600'>
-              <WordReveal
-                text={description}
-                reduceMotion={reduceMotion}
-                delay={0.12}
-              />
+              {setAttributes ? (
+                <WpEditable
+                  tagName='span'
+                  value={description}
+                  onChange={(value) => setAttributes({ description: value })}
+                />
+              ) : (
+                <WordReveal
+                  text={description}
+                  reduceMotion={reduceMotion}
+                  delay={0.12}
+                />
+              )}
             </p>
           </motion.div>
         </div>
@@ -150,7 +189,10 @@ export default function AboutSection({
           >
             <div>
               <WpImage
-                src='/assets/client-assets/dicon-brand/dicon-logo.jpg'
+                src={
+                  companyLogo ||
+                  '/assets/client-assets/dicon-brand/dicon-logo.jpg'
+                }
                 alt='DICON Marketing- und Beratungsgesellschaft mbH'
                 className='h-auto w-[min(75vw,360px)] bg-white p-3'
               />
@@ -248,12 +290,16 @@ export default function AboutSection({
                 authorDescription
               )}
             </p>
-            <a
-              href='mailto:contact@dicon-beratung.de'
+            <WpLink
+              href={contactUrl || 'mailto:contact@dicon-beratung.de'}
               className='mt-8 inline-flex border-b border-accent pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-brand transition-colors hover:text-accent'
             >
-              contact@dicon-beratung.de
-            </a>
+              <WpEditable
+                tagName='span'
+                value={contactLabel}
+                onChange={(value) => setAttributes?.({ contactLabel: value })}
+              />
+            </WpLink>
           </motion.div>
         </div>
       </div>
