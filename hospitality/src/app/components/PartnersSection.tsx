@@ -17,6 +17,12 @@ type EditableLogo =
   | null;
 type NameItem = { name: string; logo?: EditableLogo; url?: string };
 type PartnerItem = { name: string; role: string; logo?: EditableLogo; url?: string };
+type MediaPartnerItem = {
+  name: string;
+  logo?: EditableLogo;
+  url?: string;
+  description?: string;
+};
 
 const associationLogos: Record<string, { src: string; alt: string }> = {
   hotelleriesuisse: {
@@ -53,6 +59,7 @@ export const editable = pickEditable(pageEditable, {
   innovationLabel: 'partners_innovation_label',
   innovationPartners: 'partners_innovation_partners',
   mediaLabel: 'partners_media_label',
+  mediaPartners: 'partners_media_partners',
   mediaLogo: 'partners_media_logo',
   mediaName: 'partners_media_name',
   mediaDescription: 'partners_media_description',
@@ -76,6 +83,7 @@ export type PartnersSectionProps = {
   innovationLabel?: string;
   innovationPartners?: NameItem[];
   mediaLabel?: string;
+  mediaPartners?: MediaPartnerItem[];
   mediaLogo?: EditableLogo;
   mediaName?: string;
   mediaDescription?: string;
@@ -99,6 +107,7 @@ export default function PartnersSection({
   innovationLabel: innovationLabelProp,
   innovationPartners: innovationPartnersProp,
   mediaLabel: mediaLabelProp,
+  mediaPartners: mediaPartnersProp,
   mediaLogo: mediaLogoProp,
   mediaName: mediaNameProp,
   mediaDescription: mediaDescriptionProp,
@@ -166,6 +175,47 @@ export default function PartnersSection({
   const mediaDescription =
     mediaDescriptionProp ??
     useWpMeta('partners_media_description', partnerDefaults.mediaDescription);
+  const mediaPartners =
+    mediaPartnersProp ??
+    (useWpMeta(
+      'partners_media_partners',
+      partnerDefaults.mediaPartners,
+    ) as MediaPartnerItem[] | undefined);
+
+  const fallbackMediaPartners: MediaPartnerItem[] = [
+    {
+      name: mediaName || 'hotelinside',
+      logo:
+        mediaLogo ||
+        '/assets/client-assets/partner-assets/hotel-inside.jpg',
+      description:
+        mediaDescription ||
+        'Eventmoderation und redaktionelle Berichterstattung.',
+    },
+  ];
+
+  const resolvedMediaPartners: MediaPartnerItem[] =
+    mediaPartners && mediaPartners.length > 0
+      ? mediaPartners
+      : fallbackMediaPartners;
+
+  const filteredMediaPartners = resolvedMediaPartners.filter((partner) => {
+    const hasName = Boolean(partner.name && partner.name.trim().length > 0);
+    const hasLogo = Boolean(
+      partner.logo &&
+        (typeof partner.logo === 'string'
+          ? partner.logo.trim().length > 0
+          : typeof partner.logo === 'number'
+            ? true
+            : 'url' in partner.logo && Boolean(partner.logo.url)),
+    );
+    return hasName || hasLogo;
+  });
+
+  const visibleMediaPartners =
+    filteredMediaPartners.length > 0
+      ? filteredMediaPartners
+      : fallbackMediaPartners;
   const ihaLogo =
     ihaLogoProp ?? useWpMeta('partners_iha_logo', partnerDefaults.ihaLogo);
   const ihaUrl =
@@ -497,37 +547,96 @@ export default function PartnersSection({
                 mediaLabel
               )}
             </p>
-            <div className='mt-10 flex min-h-28 items-center justify-center border border-slate-200 bg-white p-5'>
-              {mediaLogo ? (
-                <WpImage
-                  src={mediaLogo}
-                  alt={mediaName}
-                  width={284}
-                  height={52}
-                  optimize='none'
-                  className='h-auto w-full max-w-[284px] object-contain'
-                />
-              ) : setAttributes ? (
-                <WpEditable
-                  tagName='span'
-                  value={mediaName}
-                  onChange={(v) => update('mediaName', v)}
-                />
-              ) : (
-                mediaName
-              )}
+            <div
+              className={`mt-10 ${
+                visibleMediaPartners.length > 1
+                  ? 'grid gap-8 sm:grid-cols-2'
+                  : 'flex flex-col'
+              }`}
+            >
+              {visibleMediaPartners.map((partner, index) => {
+                const defaultLogo =
+                  partner.name.toLowerCase() === 'hotelinside'
+                    ? '/assets/client-assets/partner-assets/hotel-inside.jpg'
+                    : null;
+                const logoSource = partner.logo || defaultLogo;
+                const logoAlt =
+                  (typeof partner.logo === 'object' && partner.logo?.alt) ||
+                  partner.name;
+
+                return (
+                  <div
+                    key={`${partner.name}-${index}`}
+                    className='flex flex-col'
+                  >
+                    <div className='flex min-h-28 items-center justify-center border border-slate-200 bg-white p-5'>
+                      {logoSource ? (
+                        partner.url ? (
+                          <WpLink href={partner.url}>
+                            <WpImage
+                              src={logoSource}
+                              alt={logoAlt}
+                              width={284}
+                              height={52}
+                              optimize='none'
+                              className='h-auto w-full max-w-71 object-contain'
+                            />
+                          </WpLink>
+                        ) : (
+                          <WpImage
+                            src={logoSource}
+                            alt={logoAlt}
+                            width={284}
+                            height={52}
+                            optimize='none'
+                            className='h-auto w-full max-w-[284px] object-contain'
+                          />
+                        )
+                      ) : setAttributes ? (
+                        <WpEditable
+                          tagName='span'
+                          value={partner.name}
+                          onChange={(v) =>
+                            setAttributes({
+                              mediaPartners: (mediaPartners || []).map(
+                                (item, i) =>
+                                  i === index ? { ...item, name: v } : item,
+                              ),
+                            })
+                          }
+                        />
+                      ) : (
+                        <span className='font-heading text-xl font-bold text-brand'>
+                          {partner.name}
+                        </span>
+                      )}
+                    </div>
+                    {partner.description ? (
+                      <p className='mt-5 text-sm leading-relaxed text-slate-500'>
+                        {setAttributes ? (
+                          <WpEditable
+                            tagName='span'
+                            value={partner.description}
+                            onChange={(v) =>
+                              setAttributes({
+                                mediaPartners: (mediaPartners || []).map(
+                                  (item, i) =>
+                                    i === index
+                                      ? { ...item, description: v }
+                                      : item,
+                                ),
+                              })
+                            }
+                          />
+                        ) : (
+                          partner.description
+                        )}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
-            <p className='mt-5 text-sm leading-relaxed text-slate-500'>
-              {setAttributes ? (
-                <WpEditable
-                  tagName='span'
-                  value={mediaDescription}
-                  onChange={(v) => update('mediaDescription', v)}
-                />
-              ) : (
-                mediaDescription
-              )}
-            </p>
           </article>
         </div>
       </div>

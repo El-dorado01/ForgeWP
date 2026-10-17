@@ -87,6 +87,27 @@ export const editable = defineEditable({
     default: [],
   }),
   mediaLabel: text({ label: 'Media Label', default: 'Media Partner' }),
+  mediaPartners: repeater({
+    label: 'Media Partners',
+    mode: 'dynamic',
+    fields: {
+      name: text({ label: 'Name', default: 'hotelinside' }),
+      logo: image({ label: 'Partner Logo' }),
+      url: url({ label: 'Partner Website URL' }),
+      description: text({
+        label: 'Description',
+        default: 'Eventmoderation und redaktionelle Berichterstattung.',
+      }),
+    },
+    default: [
+      {
+        name: 'hotelinside',
+        logo: '/assets/client-assets/partner-assets/hotel-inside.jpg',
+        url: '',
+        description: 'Eventmoderation und redaktionelle Berichterstattung.',
+      },
+    ],
+  }),
   mediaLogo: image({
     label: 'Media Partner Logo',
     default: '/assets/client-assets/partner-assets/hotel-inside.jpg',

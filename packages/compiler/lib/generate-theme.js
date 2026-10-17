@@ -1046,6 +1046,15 @@ function forgeWpResolveEditorImage(source) {
   }
   return source;
 }
+function resolveWpAsset(path) {
+  if (!path) return '';
+  if (/^(?:https?:|\\/\\/|data:|blob:)/i.test(path)) return path;
+  const themeUri = window.forgeWpEditorConfig && window.forgeWpEditorConfig.themeUri;
+  if (themeUri) {
+    return themeUri.replace(/\\/+$/, '') + '/' + path.replace(/^(\\/|\\.\\/)+/, '');
+  }
+  return path;
+}
 function forgeWpEditorImageAlt(source, fallback) {
   return source && typeof source === 'object' && source.alt ? source.alt : (fallback || '');
 }
@@ -1741,7 +1750,7 @@ if (window.forgeWpBlocks) {
                             'useWpPermalink', 'useWpDate', 'useWpModifiedDate', 'useWpAuthor', 'useWpFeaturedImage', 'useWpCustomField', 'useWpField',
                             'useWpArchiveTitle', 'useWpCategories', 'useWpTaxonomyList', 'useWpMenu', 'useWpPrefetch', 'useWpLanguage', 'WpLink',
                             'isEditorPreview', 'useIsEditorPreview', 'forgeWpRenderIcon', 'WpIcon',
-                            'forgeWpResolveEditorImage', 'forgeWpEditorImageAlt', 'ForgeWpEditorLink'
+                            'resolveWpAsset', 'forgeWpResolveEditorImage', 'forgeWpEditorImageAlt', 'ForgeWpEditorLink'
                         ];
                         // Never shadow the fixed hook/param names.
                         const baseParamSet = {};
@@ -1768,7 +1777,7 @@ if (window.forgeWpBlocks) {
                             useWpPermalink, useWpDate, useWpModifiedDate, useWpAuthor, useWpFeaturedImage, useWpCustomField, useWpField,
                             useWpArchiveTitle, useWpCategories, useWpTaxonomyList, useWpMenu, useWpPrefetch, useWpLanguage, WpLink,
                             isEditorPreview, useIsEditorPreview, forgeWpRenderIcon, WpIcon,
-                            forgeWpResolveEditorImage, forgeWpEditorImageAlt, ForgeWpEditorLink,
+                            resolveWpAsset, forgeWpResolveEditorImage, forgeWpEditorImageAlt, ForgeWpEditorLink,
                             ...scopeVals
                         );
                         return createElement('div', blockProps,

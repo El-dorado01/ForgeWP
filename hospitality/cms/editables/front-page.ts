@@ -92,6 +92,7 @@ export const pageEditableSections = [
       innovationLabel: 'innovation_label',
       innovationPartners: 'innovation_partners',
       mediaLabel: 'media_label',
+      mediaPartners: 'media_partners',
       mediaLogo: 'media_logo',
       mediaName: 'media_name',
       mediaDescription: 'media_description',

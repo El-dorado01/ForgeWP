@@ -118,6 +118,17 @@ export default defineBlock({
 });`,
   );
   fs.writeFileSync(
+    path.join(blocksDir, 'asset-link-panel.tsx'),
+    `import { defineBlock, resolveWpAsset } from '@forgewp/react';
+export default defineBlock({
+  name: 'asset-link-panel',
+  title: 'Asset Link Panel',
+  attributes: { previewUrl: { type: 'string', default: '/assets/preview.pdf' } },
+  edit: ({ attributes }) => <section><a href={resolveWpAsset(attributes.previewUrl)}>Open preview</a></section>,
+  save: () => null,
+});`,
+  );
+  fs.writeFileSync(
     path.join(blocksDir, 'motion-only-panel.tsx'),
     `import { defineBlock } from '@forgewp/react';
 export default defineBlock({
@@ -330,5 +341,18 @@ describe('interactive block editor previews', () => {
     expect(editorRuntime).toContain(
       'forgeWpResolveEditorImage, forgeWpEditorImageAlt, ForgeWpEditorLink,',
     );
+  });
+
+  it('supports theme asset URL resolution in custom editor previews', () => {
+    const preview = blocksBySlug.get('asset-link-panel').customEditJsx;
+    expect(preview).toContain('href: resolveWpAsset(attributes.previewUrl)');
+
+    const editorRuntime = fs.readFileSync(
+      new URL('../../lib/generate-theme.js', import.meta.url),
+      'utf8',
+    );
+    expect(editorRuntime).toContain('function resolveWpAsset(path)');
+    expect(editorRuntime).toContain("'resolveWpAsset'");
+    expect(editorRuntime).toContain('resolveWpAsset, forgeWpResolveEditorImage');
   });
 });

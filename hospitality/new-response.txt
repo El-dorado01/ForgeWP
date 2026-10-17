@@ -1,0 +1,297 @@
+
+I would now like to ask you to complete the remaining work on our website www.hospitality2035.de .
+
+
+Since the invitations and press activities for the Berlin event on November 9th will begin at short notice, the activation of the website and the functionality of the event registrations have special priority at first.
+
+1. Updating content and partner logos
+
+Please note the following additions and updates:
+
+Inclusion of the attached current Accor logo.
+Integration of the NUMA logo, which is yet to be delivered, as soon as the corresponding approval is available.
+Integration of the Oracle Hospitality logo, which is yet to be delivered, as soon as it is available.
+Additional partner logos may be included, provided they are submitted and approved in a timely manner.
+The currently stored study preview or PDF file will be replaced with an updated version, which I will provide to you shortly.
+The logos should continue to be displayed uniformly and in a visually appealing manner in the relevant partner areas of the website.
+
+I will likely send you two, possibly three, more partner logos for integration. Publication will only occur after my explicit approval.
+
+Should any of these updates cause you significant additional effort, please let me know.
+
+2. Updating the event page
+
+Please refer to the following updated information for both events.
+
+Study & Media Launch Berlin
+
+November 9, 2026 | 2:00 PM – 4:00 PM | Oracle Showroom, Berlin
+
+How will the economic logic of the hotel industry change by 2035?
+
+At the Berlin Study & Media Launch, DICON will present for the first time the key findings and strategic theses of the future study “Hospitality 2035 – How the economic logic of the hotel industry is changing”.
+
+Following this, representatives of leading companies and organizations in the hotel and technology sectors will discuss new business models, artificial intelligence, automation and the future of economically successful hotel operations.
+
+The following text is provided for the presentation of the participating organizations:
+
+"The Study & Media Launch is being held in cooperation with Accor and Oracle Hospitality. Representatives from the hotel and technology sectors will discuss the economic future of the hotel industry in a moderated panel discussion. The names of the panelists will be announced shortly."
+
+This specific wording is currently undergoing final approval with Accor and Oracle Hospitality. Please consider it during your preparations, but do not publish it until you have given your explicit approval.
+
+The panel discussion will focus in particular on the question of how technological innovations will change the productivity, cost structures and business models of the hotel industry.
+
+Following the discussion, there will be an opportunity for questions from the audience. Networking and individual media interviews are scheduled from 4:00 PM onwards.
+
+Moderation: Hans Amrein (hotelinside), planned
+
+Participation: By invitation only | Limited number of participants
+
+Button: "Request participation"
+
+Study & Media Launch Zurich
+
+November 17, 2026 | 10:00–12:00 | Mama Shelter Zurich
+
+Following its initial presentation in Berlin, the future study “Hospitality 2035” will also be presented in Zurich.
+
+The focus is on the economic challenges and future prospects of the hotel industry: rising costs, new guest expectations, artificial intelligence, automation and changing operating models.
+
+With Accor as an international hotel operator and other representatives of the Swiss hospitality industry and technology companies, the key study results are discussed from different perspectives.
+
+The focus is particularly on the question of which business models and technological developments will determine the competitiveness of the hotel industry by 2035.
+
+Following the moderated discussion, there will be an opportunity for networking and individual media interviews until approximately 12:30 pm.
+
+Moderation: Hans Amrein (hotelinside), planned
+
+Participation: By invitation only | Limited number of participants
+
+Button: "Request participation"
+
+Please only publish confirmed event information. Internal setup times, catering questions, and unconfirmed panel participants should not appear on the website.
+
+The addition of further organizations or panel participants by name will take place after their binding confirmation and my corresponding approval.
+
+3. Event registrations Berlin and Zurich
+
+As already discussed in our correspondence of September 25th and 26th and confirmed by you, the event registrations including participant management, export function and automatic registration confirmation are part of the agreed scope of services .
+
+I therefore request appropriate implementation and final functional testing.
+
+3.1 Registration button and form
+
+For both events, a clearly visible, interactive button labelled "Request participation" should be set up on the respective event page below the description text and the participation information.
+
+Clicking on the link opens a registration form or a corresponding form page.
+
+The form should collect at least the following information:
+
+First and last name (required field)
+Company (required field)
+Function/Position (optional)
+Email address (required field)
+Phone number (optional)
+Event (Berlin or Zurich; preferably pre-booked according to the selected event)
+A confirmation should appear on the website after submission:
+
+"Thank you for your interest in our Hospitality 2035 Study & Media Launch. We have received your inquiry and will contact you regarding your participation."
+
+3.2 Storage and management of registrations
+
+The submitted registration data should be automatically stored in a central, password-protected participant overview within WordPress, which can be accessed at any time.
+
+It is particularly important to me that:
+
+The registrations for Berlin and Zurich can be displayed or filtered separately,
+All received inquiries, including name, company, email address and registration date, are visible.
+The participant lists can be exported as Excel or CSV files if required.
+New registrations will be automatically reported to DICON via email.
+The login data will remain in the system even after the notification email has been sent.
+DICON should later be able to access and export the participant lists independently in the WordPress backend, without requiring any further technical support.
+
+No elaborate event management software or separate booking system is required. The agreed-upon simple participant management system is sufficient.
+
+3.3 Automatic confirmation of receipt
+
+The agreed automatic registration confirmation via email could contain the following wording:
+
+"Thank you for your interest in our Hospitality 2035 Study & Media Launch. We have received your request for the event in Berlin/Zurich. As the number of participants is limited and attendance is by invitation only, you will receive a separate confirmation of participation if applicable."
+
+It is important to note that this automatic confirmation of receipt does not yet constitute a binding commitment to a place at the event.
+
+3.4 Data protection and functional testing
+
+Please ensure that the registration data is processed and stored in compliance with data protection regulations and that this is taken into account in the privacy policy.
+
+Before finalizing the event, I request a functional test for both events, particularly regarding:
+
+correct transmission of the form data,
+Storage and retrieval of registrations,
+Assignment to the respective event,
+Export option for participant lists,
+Delivery of automatic receipt confirmations and notification emails.
+4. Stripe, Easy Digital Downloads and Order Processing
+
+A particularly important point is the full functionality of the agreed ordering and payment process.
+
+This includes in particular:
+
+Functional integration of Stripe with Easy Digital Downloads (EDD).
+Transition from test operation to productive payment operation.
+Correct representation of the proposed licensing models:
+Single License: €249 net
+Team License: €1,490 net – with inquiry function via email to contact@dicon-beratung.de
+Corporate License: from €2,490 net – enquire via email to contact@dicon-beratung.de
+Functional automated order processing for the Single License in Germany.
+Inquiry function for team and corporate licenses according to the agreed scope of services.
+Correct calculation and presentation of sales tax for the agreed German order processing.
+Capture of the required invoice data, including the VAT ID, in the intended B2B checkout.
+Automatic creation and transmission of an invoice after successful payment.
+Automatic order confirmation via email.
+Automatic provision or delivery of the purchased study as a PDF after successful payment.
+Working discount codes, especially for the intended association discounts of 20%.
+Correct processing and documentation of orders in the WordPress/EDD system.
+I would also be happy to implement the individual license numbering of the delivered PDF files that you mentioned. However, since this feature, according to our previous agreement, constitutes a separate additional service, I would like to postpone it for now and concentrate on completing the agreed scope of services.
+
+My primary concern is that the basic ordering, payment, invoicing and delivery process for Germany functions fully.
+
+Please conduct a full test purchase before completing your order, including checking payment, order confirmation, invoice, and PDF delivery.
+
+Please also check that the Stripe payment confirmation is processed correctly via the relevant webhooks, so that automatic delivery works reliably even if a buyer does not return to the website immediately after payment.
+
+The full paid study will only be accessible via a protected download after successful order and not via a freely accessible link in the WordPress media library.
+
+5. Domains, redirects and SSL
+
+The website will in future be located under the main domain
+
+https://www.hospitality2035.de
+
+be reachable.
+
+The domain hospitality2035.com should automatically and permanently redirect to www.hospitality2035.de .
+
+Please ensure that:
+
+the main domain is correctly connected to the WordPress installation,
+the SSL encryption works,
+Internal links, order pages, PDF downloads and forms will still function after the domain change.
+There are no disruptive redirects to the previous development domain.
+A permanent 301 redirect would be useful for redirecting hospitality2035.com to the main German domain.
+
+Since this specific domain redirection was not explicitly part of our original agreement, I would appreciate a brief response as to whether you can set it up during the domain migration that is necessary anyway, without significant additional effort.
+
+6. Legal aspects, data protection and technical functionality testing
+
+Finally, please check the correct integration and accessibility of the legal notice and privacy policy, as well as the technical implementation of the required data protection and cookie settings.
+
+The legal texts will of course be provided or approved by DICON.
+
+Furthermore, the following points should be checked as part of the agreed final functional tests:
+
+Website display on desktop, tablet and smartphone.
+Function of all buttons, links and contact forms.
+Correct delivery of automatically generated emails.
+Function of event registrations including participant management.
+Function of the ordering and payment process.
+The discount codes are working correctly.
+Secure and error-free delivery of PDF files.
+No obvious technical error messages in the frontend or checkout.
+7. Completion, acceptance and handover
+
+Once completed, please send me a brief message so that I can give the website and especially the ordering process a final check.
+
+As agreed in our correspondence, DICON will be provided with the administrative access data for the WordPress installation after full payment, so that the website can then be operated and maintained independently or by another WordPress service provider.
+
+In connection with the final project handover, I therefore request the following information and/or documents:
+
+All administrator access data for the WordPress installation.
+Overview of the installed plugins and the access required for their management.
+Brief documentation of the essential Stripe/EDD settings and order processing.
+Information on potentially required paid plugin licenses or ongoing technical costs.
+Information on backing up and restoring the website.
+Furthermore, it would be important for me to receive a complete and recoverable backup of the WordPress website, including the database, themes, plugins, and uploaded files .
+
+Since such a complete backup handover was not explicitly stipulated in our original agreement, I would appreciate brief confirmation as to whether you can provide this as part of the final handover.
+
+Please also confirm that the agreed administrative WordPress access data will be handed over after full payment and that DICON can then allow another service provider to operate the website without restrictions.
+
+The handover of the administrative WordPress access data will then take place as per our agreement. Please confirm in advance that all necessary access and information for independent continued operation of the website is available.
+
+Since the invitations and press activities for the Berlin event on November 9th are now starting at short notice, the timely completion of the website is particularly important.
+
+Please let me know when you expect to complete the remaining tasks and whether you require any further information or documents from me regarding specific points.
+
+Should any of the additional adjustments you have requested exceed the scope of services originally agreed upon, please let me know. Any additional costs will only be incurred after prior consultation and my explicit approval.
+
+Thank you for your work so far. I would be delighted if we could now successfully complete the project together.
+
+Best regards
+
+Roland Schwecke
+
+
+
+
+
+
+
+
+==============GERMAN VERSION============
+
+
+2. Aktualisierung der Veranstaltungsseite
+
+Bitte übernehmen Sie für die beiden Veranstaltungen die folgenden aktualisierten Informationen.
+
+Study & Media Launch Berlin
+
+9. November 2026 | 14:00–16:00 Uhr | Oracle Showroom, Berlin
+
+Wie verändert sich die wirtschaftliche Logik der Hotellerie bis 2035?
+
+Beim Berliner Study & Media Launch präsentiert DICON erstmals die zentralen Ergebnisse und strategischen Thesen der Zukunftsstudie „Hospitality 2035 – Wie sich die wirtschaftliche Logik der Hotellerie verändert“.
+
+Im Anschluss diskutieren Vertreter führender Unternehmen und Organisationen der Hotellerie und Technologiebranche über neue Geschäftsmodelle, künstliche Intelligenz, Automatisierung und die Zukunft wirtschaftlich erfolgreicher Hotelbetriebe.
+
+Für die Darstellung der beteiligten Organisationen ist folgender Text vorgesehen:
+
+„Der Study & Media Launch findet in Zusammenarbeit mit Accor und Oracle Hospitality statt. Im Rahmen einer moderierten Paneldiskussion werden Vertreter der Hotellerie und Technologiebranche über die wirtschaftliche Zukunft der Hotellerie diskutieren. Die Namen der Panelteilnehmer werden in Kürze bekannt gegeben.“
+
+Diese konkrete Formulierung befindet sich derzeit noch in der abschließenden Abstimmung mit Accor und Oracle Hospitality. Bitte berücksichtigen Sie sie zunächst bei der Vorbereitung, veröffentlichen Sie sie jedoch erst nach meiner ausdrücklichen Freigabe.
+
+Die Paneldiskussion beleuchtet insbesondere die Frage, wie technologische Innovationen die Produktivität, Kostenstrukturen und Geschäftsmodelle der Hotellerie verändern werden.
+
+Im Anschluss an die Diskussion besteht Gelegenheit für Fragen aus dem Publikum. Ab 16:00 Uhr sind Networking und individuelle Mediengespräche vorgesehen.
+
+Moderation: Hans Amrein (hotelinside), vorgesehen
+
+Teilnahme: Auf Einladung | Begrenzte Teilnehmerzahl
+
+Button: „Teilnahme anfragen“
+
+Study & Media Launch Zürich
+
+17. November 2026 | 10:00–12:00 Uhr | Mama Shelter Zürich
+
+Nach der Berliner Erstvorstellung wird die Zukunftsstudie „Hospitality 2035“ auch in Zürich präsentiert.
+
+Im Mittelpunkt stehen die wirtschaftlichen Herausforderungen und Zukunftsperspektiven der Hotellerie: steigende Kosten, neue Gästeerwartungen, künstliche Intelligenz, Automatisierung und veränderte Betriebsmodelle.
+
+Mit Accor als internationalem Hotelbetreiber und weiteren Vertretern der Schweizer Hospitality-Branche und Technologieunternehmen werden die zentralen Studienergebnisse aus unterschiedlichen Perspektiven diskutiert.
+
+Dabei geht es insbesondere um die Frage, welche Geschäftsmodelle und technologischen Entwicklungen die Wettbewerbsfähigkeit der Hotellerie bis 2035 bestimmen werden.
+
+Im Anschluss an die moderierte Diskussion besteht bis etwa 12:30 Uhr Gelegenheit zum Networking und für individuelle Mediengespräche.
+
+Moderation: Hans Amrein (hotelinside), vorgesehen
+
+Teilnahme: Auf Einladung | Begrenzte Teilnehmerzahl
+
+Button: „Teilnahme anfragen“
+
+Bitte ausschließlich bestätigte Veranstaltungsinformationen veröffentlichen. Interne Aufbauzeiten, Cateringfragen und noch nicht bestätigte Panelteilnehmer sollen nicht auf der Website erscheinen.
+
+Die namentliche Ergänzung weiterer Organisationen beziehungsweise Panelteilnehmer erfolgt nach deren verbindlicher Bestätigung und meiner entsprechenden Freigabe
+

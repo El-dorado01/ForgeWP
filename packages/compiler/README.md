@@ -46,6 +46,8 @@ If the edit component is interactive or cannot be evaluated safely, ForgeWP
 falls back to WordPress's server-rendered block preview. This renders the
 compiled `render.php` output and keeps visitor-only event handlers, React
 state, and live-data hooks from running inside the editor.
+The custom preview runtime also provides `resolveWpAsset()` for converting
+theme-relative asset URLs, such as a PDF link, to their exported theme URL.
 
 For a block whose visitor output depends on live data or browser interaction,
 define an editor-safe visual approximation with `editorPreview`. It receives
