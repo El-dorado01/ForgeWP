@@ -4,6 +4,13 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pc from 'picocolors';
+import { blockAuthoringHelp } from '../lib/block-authoring-help.js';
+import { isSupportedNode, SUPPORTED_NODE_RANGE } from '../lib/node-runtime.js';
+
+if (!isSupportedNode()) {
+  console.error(`ForgeWP requires Node.js ${SUPPORTED_NODE_RANGE}; found ${process.version}. Install a compatible Node.js version and try again.`);
+  process.exit(1);
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,6 +24,7 @@ const subcommands = {
   'make:page': path.join(__dirname, 'make-page.js'),
   'make:island': path.join(__dirname, 'make-island.js'),
   'make:editable': path.join(__dirname, 'make-editable.js'),
+  'make:mail': path.join(__dirname, 'make-mail.js'),
   'make:form': path.join(__dirname, 'make-form.js'),
   'make:sandbox': path.join(__dirname, 'make-sandbox.js'),
   'sync:routes': path.join(__dirname, 'sync-routes.js'),
@@ -156,11 +164,12 @@ function printHelp() {
     ${pc.cyan('make:page <Name>')}         Scaffold a custom WordPress Page Template
     ${pc.cyan('make:island <Name>')}       Scaffold an interactive selective hydration island
     ${pc.cyan('make:editable <Name>')}     Scaffold a colocated editable content schema (cms/editables/)
+    ${pc.cyan('make:mail <name>')}         Scaffold a plain-text email template (cms/mail/)
     ${pc.cyan('make:form <Name>')}         Scaffold a form (cms/forms/) + starter component (src/components/forms/)
     ${pc.cyan('make:sandbox <type>')}         Scaffold sandbox mock databases (e.g. ecommerce, auth)
     ${pc.cyan('sync:routes')}             Synchronize sitemap menus with routes and scaffold pages
     ${pc.cyan('sync:hooks')}              Propagate wordpress.tsx hooks to all workspace projects
-    ${pc.cyan('seed')}                    Synchronize cms/products.ts and cms/mock-data.ts into WordPress
+    ${pc.cyan('seed')}                    Inspect local fixtures and configure WordPress seed routines
     ${pc.cyan('i18n:extract')}            Extract translation strings to cms/translations.ts (or .json)
     ${pc.cyan('i18n:translate')}          Translate missing strings via the configured engine
     ${pc.cyan('export')}                  Package your theme into an installable WP zip
@@ -191,5 +200,6 @@ function printHelp() {
     pnpm forgewp clean
     pnpm forgewp fresh
     pnpm forgewp export
+${blockAuthoringHelp}
   `);
 }

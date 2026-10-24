@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { registrationMetaFields } from '../registration-metadata.js';
 
 function generatePhpArgs(queryObj) {
   const phpLines = [];
@@ -838,6 +839,17 @@ function forgewp_rest_signup( $request ) {
 
     $default_role = get_option( 'forgewp_auth_default_role', '${defaultDefaultRole}' );
 
+    $allowed_metadata = array(${registrationMetaFields(config.auth).map((key) => `'${key}'`).join(', ')});
+    $metadata = isset( $params['metadata'] ) ? $params['metadata'] : array();
+    if ( ! is_array( $metadata ) ) {
+        return new WP_Error( 'rest_invalid_metadata', 'Registration metadata must be an object.', array( 'status' => 400 ) );
+    }
+    foreach ( $metadata as $meta_key => $meta_val ) {
+        if ( ! in_array( $meta_key, $allowed_metadata, true ) || ! is_scalar( $meta_val ) ) {
+            return new WP_Error( 'rest_invalid_metadata', 'Registration metadata contains an unsupported field or value.', array( 'status' => 400 ) );
+        }
+    }
+
     $user_id = wp_create_user( $username, $password, $email );
 
     if ( is_wp_error( $user_id ) ) {
@@ -851,8 +863,8 @@ function forgewp_rest_signup( $request ) {
         wp_update_user( array( 'ID' => $user_id, 'display_name' => $displayName ) );
     }
 
-    if ( ! empty( $params['metadata'] ) && is_array( $params['metadata'] ) ) {
-        foreach ( $params['metadata'] as $meta_key => $meta_val ) {
+    if ( ! empty( $metadata ) ) {
+        foreach ( $metadata as $meta_key => $meta_val ) {
             $clean_key = sanitize_key( $meta_key );
             $clean_val = is_scalar( $meta_val ) ? sanitize_text_field( $meta_val ) : $meta_val;
             update_user_meta( $user_id, $clean_key, $clean_val );
@@ -861,10 +873,11 @@ function forgewp_rest_signup( $request ) {
 
     // Check verification status
     $verification_enabled = get_option( 'forgewp_auth_email_verification_enabled', '${defaultEmailVerificationEnabled}' ) === '1';
+    $verification_email_sent = null;
     if ( $verification_enabled ) {
         update_user_meta( $user_id, 'forgewp_email_verified', '0' );
         // Send email verification
-        forgewp_send_email_verification( $user );
+        $verification_email_sent = forgewp_send_email_verification( $user );
     } else {
         update_user_meta( $user_id, 'forgewp_email_verified', '1' );
     }
@@ -877,7 +890,14 @@ function forgewp_rest_signup( $request ) {
             'user_password' => $password,
             'remember'      => true,
         );
-        wp_signon( $creds, is_ssl() );
+        $signed_in = wp_signon( $creds, is_ssl() );
+        if ( is_wp_error( $signed_in ) ) {
+            return rest_ensure_response( array(
+                'success' => true,
+                'requiresVerification' => false,
+                'message' => 'Registration successful. Please sign in.',
+            ) );
+        }
         wp_set_current_user( $user_id );
         $user_payload = forgewp_get_current_user_hydration_payload();
         $response = array(
@@ -892,7 +912,11 @@ function forgewp_rest_signup( $request ) {
 
     return rest_ensure_response( array(
         'success' => true,
-        'message' => $verification_enabled ? 'Registration successful. Please verify your email.' : 'Registration successful.',
+        'requiresVerification' => $verification_enabled,
+        'verificationEmailSent' => $verification_email_sent,
+        'message' => $verification_enabled
+            ? ( $verification_email_sent ? 'Registration successful. Please verify your email.' : 'Your account was created, but the verification email could not be sent. Please request another verification email.' )
+            : 'Registration successful. Please sign in.',
     ) );
 }
 
@@ -911,19 +935,16 @@ function forgewp_rest_verify_email( $request ) {
     $user_id = isset( $params['userId'] ) ? intval( $params['userId'] ) : 0;
     $token = isset( $params['token'] ) ? sanitize_text_field( $params['token'] ) : '';
 
-    if ( $user_id === 0 || empty( $token ) ) {
+    if ( $user_id <= 0 || empty( $token ) ) {
         return new WP_Error( 'rest_missing_fields', 'User ID and token are required.', array( 'status' => 400 ) );
     }
 
     $saved_id = get_transient( 'forgewp_verify_email_' . $token );
-    $verified_meta = get_user_meta( $user_id, 'forgewp_email_verified', true );
-
-    if ( $saved_id !== false && intval( $saved_id ) === $user_id ) {
-        delete_transient( 'forgewp_verify_email_' . $token );
-        update_user_meta( $user_id, 'forgewp_email_verified', '1' );
-    } elseif ( $verified_meta !== '1' && $verified_meta !== true ) {
+    if ( $saved_id === false || intval( $saved_id ) !== $user_id || ! get_user_by( 'id', $user_id ) ) {
         return new WP_Error( 'rest_invalid_token', 'Invalid or expired verification token.', array( 'status' => 400 ) );
     }
+    delete_transient( 'forgewp_verify_email_' . $token );
+    update_user_meta( $user_id, 'forgewp_email_verified', '1' );
 
     wp_set_current_user( $user_id );
     wp_set_auth_cookie( $user_id, true, is_ssl() );
@@ -965,7 +986,9 @@ function forgewp_rest_resend_verification( $request ) {
         return new WP_Error( 'rest_already_verified', 'Email is already verified.', array( 'status' => 400 ) );
     }
 
-    forgewp_send_email_verification( $user );
+    if ( ! forgewp_send_email_verification( $user ) ) {
+        return new WP_Error( 'rest_verification_mail_failed', 'The verification email could not be sent. Please try again.', array( 'status' => 502 ) );
+    }
 
     return rest_ensure_response( array( 'success' => true ) );
 }
@@ -1011,6 +1034,14 @@ function forgewp_send_email_verification( $user ) {
 
 function forgewp_rest_lost_password( $request ) {
     $params = $request->get_json_params();
+    if ( ! is_array( $params ) ) {
+        return new WP_Error( 'rest_missing_fields', 'Account fields are required.', array( 'status' => 400 ) );
+    }
+    foreach ( array('user_login', 'email', 'username') as $field ) {
+        if ( isset( $params[$field] ) && ! is_string( $params[$field] ) ) {
+            return new WP_Error( 'rest_invalid_fields', 'Account fields must be text values.', array( 'status' => 400 ) );
+        }
+    }
     $user_login = isset( $params['user_login'] ) ? sanitize_text_field( $params['user_login'] ) : '';
     if ( empty( $user_login ) && isset( $params['email'] ) ) {
         $user_login = sanitize_text_field( $params['email'] );
@@ -1038,6 +1069,14 @@ function forgewp_rest_lost_password( $request ) {
 
 function forgewp_rest_reset_password( $request ) {
     $params = $request->get_json_params();
+    if ( ! is_array( $params ) ) {
+        return new WP_Error( 'rest_missing_fields', 'Account fields are required.', array( 'status' => 400 ) );
+    }
+    foreach ( array('login', 'username', 'user_login', 'key', 'password') as $field ) {
+        if ( isset( $params[$field] ) && ! is_string( $params[$field] ) ) {
+            return new WP_Error( 'rest_invalid_fields', 'Account fields must be text values.', array( 'status' => 400 ) );
+        }
+    }
     $user_login = isset( $params['login'] ) ? sanitize_text_field( $params['login'] ) : '';
     if ( empty( $user_login ) && isset( $params['username'] ) ) {
         $user_login = sanitize_text_field( $params['username'] );

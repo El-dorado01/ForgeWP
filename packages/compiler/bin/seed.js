@@ -4,11 +4,45 @@ import fs from 'node:fs';
 import path from 'node:path';
 import pc from 'picocolors';
 import { loadProductsData } from '../lib/functions/seed-products.js';
-import { loadMockData } from '../lib/functions/seed-mock-data.js';
+import { loadMockData, normalizeMockSeedData } from '../lib/functions/seed-mock-data.js';
+import { loadConfig } from '../lib/load-config.js';
 
 const projectRoot = process.cwd();
 const args = process.argv.slice(2);
 const target = args[0] || 'all';
+
+// Preview only: no configuration writes, export, network request, or database access.
+if (args.includes('--dry-run')) {
+  if (args.some((arg) => !['mock-data', 'mock', 'posts', '--dry-run', '--json'].includes(arg))) {
+    console.error('Dry-run supports mock-data only: forgewp seed mock-data --dry-run [--json]');
+    process.exit(1);
+  }
+  const config = await loadConfig(projectRoot);
+  const raw = loadMockData(projectRoot);
+  const seed = config.seed || {};
+  const data = normalizeMockSeedData(raw, seed.mockData);
+  const strategyMap = seed.mockData && typeof seed.mockData === 'object' ? seed.mockData : null;
+  const report = {
+    mode: 'preview-only',
+    configChanged: false,
+    databaseConnected: false,
+    developmentOnly: seed.developmentOnly !== false,
+    sideloadImages: seed.sideloadImages !== false,
+    activation: 'Requires export/install; WordPress debug flag, seed markers, and database state are not inspected.',
+    types: Object.entries(raw).map(([postType, entries]) => {
+      const strategy = strategyMap ? strategyMap[postType] : seed.mockData;
+      return {
+        postType,
+        fixtureCount: Array.isArray(entries) ? entries.length : 0,
+        strategy: data[postType] ? (strategy === true ? 'once' : strategy) : false,
+        records: data[postType] || [],
+      };
+    }),
+  };
+  if (!args.includes('--json')) console.log('Mock seed preview — no files changed. Disabled types have no seed records.\n');
+  console.log(JSON.stringify(report, null, 2));
+  process.exit(0);
+}
 
 console.log(`\n  ${pc.bold(pc.bgGreen(pc.black('  🌱 FORGEWP DATA SEEDER  ')))} ${pc.green('— WordPress & WooCommerce Synchronization')}\n`);
 
@@ -76,8 +110,9 @@ if (!hasSeedConfig && (productsCount > 0 || mockTypesCount > 0)) {
 
 console.log(`
   ${pc.bold('🚀 Synchronization Status:')}
-  • Products and mock data have been compiled into your theme's PHP seeders.
-  • On theme activation or WP Admin load, WordPress will safely execute the idempotent seeder.
+  • Local seed configuration has been inspected. This command has not exported PHP or connected to WordPress.
+  • Review wp.config.ts, then export and install the theme to generate its configured seed routines.
+  • Automatic execution depends on the configured strategy, WordPress debug guard, and existing seed markers.
   • ${pc.dim('Optional:')} If using WP-CLI, you can also run:
       ${pc.cyan('wp forgewp seed-products')}
       ${pc.cyan('wp forgewp seed-mock-data')}

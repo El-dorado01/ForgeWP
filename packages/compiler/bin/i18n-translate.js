@@ -5,6 +5,7 @@ import path from 'node:path';
 import pc from 'picocolors';
 import { loadConfig } from '../lib/load-config.js';
 import { getProvider } from '../lib/i18n/providers.js';
+import { createTranslationCache, translateMissingEntries } from '../lib/i18n/translation-cache.js';
 import { loadTranslationsData, writeTranslationsData, translationsSourcePath } from '../lib/functions/load-translations.js';
 
 console.log(`\n🤖  ${pc.bold(pc.bgCyan(pc.black("  FORGEWP I18N AUTO-TRANSLATOR  ")))}\n`);
@@ -42,6 +43,8 @@ async function run() {
     console.log(`  🌐 Default locale: ${pc.yellow(defaultLocale)}`);
 
     const provider = getProvider(providerName, i18n.providerConfig || {});
+    const cache = providerName === 'local' || providerName === 'manual' ? null :
+      createTranslationCache(themeRoot, i18n.cache, providerName, i18n.providerConfig || {});
 
     let totalTranslated = 0;
 
@@ -70,17 +73,10 @@ async function run() {
         continue;
       }
 
-      // Execute auto-translation
-      const translatedMap = await provider.translate(untranslatedKeys, defaultLocale, locale);
-      
-      let successCount = 0;
-      for (const key of untranslatedKeys) {
-        if (translatedMap[key]) {
-          localeMap[key] = translatedMap[key];
-          successCount++;
-          totalTranslated++;
-        }
-      }
+      const result = await translateMissingEntries(localeMap, defaultLocale, locale, provider, cache);
+      const successCount = result.translated + result.restored;
+      totalTranslated += result.translated;
+      if (result.restored) console.log(`  Restored ${result.restored} translation(s) from cache.`);
       console.log(`  ✅ Translated ${pc.green(successCount)}/${pc.yellow(untranslatedKeys.length)} keys successfully.`);
     }
 
@@ -94,7 +90,7 @@ async function run() {
       console.log(`  💡 Setup complete. Open ${pc.cyan(path.relative(themeRoot, writtenPath))} to write translations manually.`);
       console.log(`     Or configure 'deepl' to auto-translate using environment variables.`);
     } else {
-      console.log(`  ✅ All locales are 100% up-to-date. No API calls were made.`);
+      console.log(`  No new translations were returned. Review any remaining blank catalog entries.`);
     }
     console.log(`\n`);
 

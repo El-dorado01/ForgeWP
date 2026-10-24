@@ -11,6 +11,18 @@ import {
 } from '../../lib/blocks/source-sanitize.js';
 
 describe('PHP rendering for dynamic block components', () => {
+  it('reads shared facts from metadata rather than a similarly named block attribute', () => {
+    const markup = `<p>{useWpCustomField('session_date', 'Date to be confirmed')}</p>`;
+    const card = generatePhpMarkupFromJsx(markup, { attributes: {} }, {});
+    const detail = generatePhpMarkupFromJsx(markup, {
+      attributes: { session_date: { type: 'string', default: 'Old copied date' } },
+    }, {});
+    for (const php of [card, detail]) {
+      expect(php).toContain("forgewp_get_meta_value('session_date'");
+      expect(php).not.toContain("$attributes['session_date']");
+      expect(php).not.toContain('Old copied date');
+    }
+  });
   it('does not treat a lowercase module constant as the visitor component', () => {
     const tempRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), 'forgewp-checkout-benefits-'),

@@ -1,5 +1,5 @@
 import { processMarkup } from '../lib/markup-processor.js';
-import { buildFunctionsPhp } from '../lib/functions-builder.js';
+import { buildFunctionsPhp } from '../lib/functions/index.js';
 import { forgewpPageConfigPlugin } from '../lib/index.js';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -96,20 +96,20 @@ function testFunctionsBuilderWithAuth() {
   );
 
   console.log('Generated functions.php length:', functionsPhp.length);
-  console.log('Contains login controller?', functionsPhp.includes("register_rest_route( 'forgewp/v1/auth', '/login'"));
+  console.log('Contains login controller?', functionsPhp.includes("register_rest_route( 'forgewp/v1', '/auth/login'"));
   console.log('Contains currentUser?', functionsPhp.includes('window.forgeWpHydration.currentUser'));
 
   // Verify that the custom rest controllers and hydration user mapping are outputted
-  assert(functionsPhp.includes("register_rest_route( 'forgewp/v1/auth', '/login'"), 'Should register login REST endpoint');
-  assert(functionsPhp.includes("register_rest_route( 'forgewp/v1/auth', '/logout'"), 'Should register logout REST endpoint');
-  assert(functionsPhp.includes("register_rest_route( 'forgewp/v1/auth', '/register'"), 'Should register register REST endpoint');
-  assert(functionsPhp.includes("register_rest_route( 'forgewp/v1/auth', '/lost-password'"), 'Should register lost-password REST endpoint');
-  assert(functionsPhp.includes("register_rest_route( 'forgewp/v1/auth', '/verify-email'"), 'Should register verify-email REST endpoint');
-  assert(functionsPhp.includes("register_rest_route( 'forgewp/v1/auth', '/config'"), 'Should register config GET REST endpoint');
+  assert(functionsPhp.includes("register_rest_route( 'forgewp/v1', '/auth/login'"), 'Should register login REST endpoint');
+  assert(functionsPhp.includes("register_rest_route( 'forgewp/v1', '/auth/logout'"), 'Should register logout REST endpoint');
+  assert(functionsPhp.includes("register_rest_route( 'forgewp/v1', '/auth/register'"), 'Should register register REST endpoint');
+  assert(functionsPhp.includes("register_rest_route( 'forgewp/v1', '/auth/lost-password'"), 'Should register lost-password REST endpoint');
+  assert(functionsPhp.includes("register_rest_route( 'forgewp/v1', '/auth/verify-email'"), 'Should register verify-email REST endpoint');
+  assert(functionsPhp.includes("register_rest_route( 'forgewp/v1', '/auth/config'"), 'Should register config GET REST endpoint');
   assert(functionsPhp.includes("forgewp_register_auth_settings"), 'Should register authentication Settings API hooks');
-  assert(functionsPhp.includes("forgewp_enforce_login_field_policy"), 'Should enforce login policy via authenticate filter');
+  assert(functionsPhp.includes("if ( $login_field === 'emailOnly' )"), 'Should apply configured login-field policy in the REST controller');
   assert(functionsPhp.includes("forgewp_auth_admin_menu"), 'Should register settings admin submenu page');
-  assert(functionsPhp.includes("forgewp_intercept_mail"), 'Should register local dev mail logger filter');
+  assert(functionsPhp.includes("$sent = wp_mail( $email, $subject, $body, $headers );"), 'Should generate verification email delivery');
   assert(functionsPhp.includes("Reserved usernames validation"), 'Should include reserved usernames blocklist validation');
   assert(functionsPhp.includes("window.forgeWpHydration ="), 'Should include forgeWpHydration');
 
@@ -182,6 +182,10 @@ async function testPageProtectIntegration() {
     'utf8'
   );
 
+  fs.mkdirSync(path.join(srcAppDir, 'pages'), { recursive: true });
+  fs.writeFileSync(path.join(srcAppDir, 'pages', 'Protected.tsx'),
+    `import React from 'react'; export default function Protected() { return <div>{React.createElement('forgewp-require-auth', { allowed: 'edit_posts', redirect: '/login-custom' })}Protected Content</div>; }`, 'utf8');
+
   // Create dist/assets and manifest.json
   const distDir = path.join(tempProjectDir, 'dist');
   const distAssetsDir = path.join(distDir, 'assets');
@@ -201,10 +205,9 @@ async function testPageProtectIntegration() {
   fs.writeFileSync(path.join(distAssetsDir, 'index.js'), '// mock js', 'utf8');
 
   // Create node_modules junction to the starter package node_modules
-  const { execSync } = await import('node:child_process');
   const workspaceNodeModules = path.resolve(__dirname, '../../starter/node_modules');
   const tempNodeModules = path.join(tempProjectDir, 'node_modules');
-  execSync(`cmd /c mklink /j "${tempNodeModules}" "${workspaceNodeModules}"`);
+  if (!fs.existsSync(tempNodeModules)) fs.symlinkSync(workspaceNodeModules, tempNodeModules, process.platform === 'win32' ? 'junction' : 'dir');
 
   // Create .forgewp directory
   const forgewpDir = path.join(tempProjectDir, '.forgewp');
@@ -245,7 +248,8 @@ async function testPageProtectIntegration() {
   assert(!staticHtml.includes('forgewp-require-auth'), 'The custom require-auth tag should be stripped from static HTML');
 
   // Clean up
-  fs.rmdirSync(tempNodeModules);
+  if (process.platform === 'win32') fs.rmdirSync(tempNodeModules);
+  else fs.unlinkSync(tempNodeModules);
   fs.rmSync(tempProjectDir, { recursive: true, force: true });
   
   // Clean outDir

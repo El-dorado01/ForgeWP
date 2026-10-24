@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import type { WpPost } from "./types";
+import type { WpPost } from "./types.js";
 
 /**
  * WpPostContext — Internal context that WpQueryLoop provides.

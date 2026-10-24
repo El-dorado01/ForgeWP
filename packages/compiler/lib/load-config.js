@@ -1,8 +1,13 @@
+import { resolveMailTemplates } from './mail-templates.js';
+import { registrationMetaFields } from './registration-metadata.js';
 import fs, { existsSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createJiti } from 'jiti';
 import { scanForFormSchemas } from './hydration/form-schemas.js';
+import { validateMockSeedStrategy } from './functions/seed-mock-data.js';
+import { resolveThemeCompatibility } from './theme-compatibility.js';
+import { validateCptRewrite } from './functions/cpt-routing.js';
 
 /**
  * @param {string} themeRoot
@@ -17,6 +22,7 @@ export async function loadConfig(themeRoot) {
 
   const jiti = createJiti(pathToFileURL(configPath).href, {
     interopDefault: true,
+    moduleCache: false,
   });
 
   const importedConfig = await jiti.import(configPath);
@@ -41,6 +47,8 @@ export async function loadConfig(themeRoot) {
       'wp.config.ts must export name, slug, version, description, textDomain',
     );
   }
+
+  resolveThemeCompatibility(config);
 
   // Validate configVersion
   if (config.configVersion === undefined) {
@@ -114,6 +122,7 @@ export async function loadConfig(themeRoot) {
   }
 
   // Validate auth
+  registrationMetaFields(config.auth);
   if (config.auth !== undefined) {
     if (typeof config.auth !== 'object' || config.auth === null) {
       throw new Error('auth configuration must be an object');
@@ -220,6 +229,9 @@ export async function loadConfig(themeRoot) {
     if (provider !== undefined && typeof provider !== 'string') {
       throw new Error('i18n.provider must be a string (e.g. "local", "deepl")');
     }
+    if (config.i18n.cache !== undefined && (typeof config.i18n.cache !== 'string' || !config.i18n.cache.trim())) {
+      throw new Error('i18n.cache must be a nonempty project-relative JSON path');
+    }
   }
 
   if (config.postTypes) {
@@ -232,12 +244,38 @@ export async function loadConfig(themeRoot) {
     }
   }
 
+  for (const [group, flags] of [
+    ['postTypes', ['public', 'hasArchive', 'showInRest']],
+    ['taxonomies', ['public', 'showUi', 'showInRest', 'hierarchical']],
+  ]) {
+    if (config[group] === undefined) continue;
+    if (!config[group] || typeof config[group] !== 'object' || Array.isArray(config[group])) {
+      throw new Error(`${group} must be a configuration object`);
+    }
+    for (const [key, entry] of Object.entries(config[group])) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        throw new Error(`${group}.${key} must be a configuration object`);
+      }
+      for (const flag of flags) {
+        if (entry[flag] !== undefined && typeof entry[flag] !== 'boolean') {
+          throw new Error(`${group}.${key}.${flag} must be a boolean`);
+        }
+      }
+      if (group === 'postTypes') validateCptRewrite(entry.rewrite, key);
+      if (group === 'postTypes' && entry.supports !== undefined &&
+          (!Array.isArray(entry.supports) || entry.supports.some((feature) => typeof feature !== 'string'))) {
+        throw new Error(`postTypes.${key}.supports must be an array of strings`);
+      }
+    }
+  }
+
   // Validate seed configuration
   if (config.seed !== undefined) {
     if (typeof config.seed !== 'object' || config.seed === null) {
       throw new Error('seed must be an object configuration in wp.config.ts');
     }
     const validStrategies = [true, false, 'once', 'upsert', 'force'];
+    validateMockSeedStrategy(config.seed.mockData);
     if (config.seed.products !== undefined && !validStrategies.includes(config.seed.products)) {
       throw new Error(
         `Invalid seed.products strategy: "${config.seed.products}". Expected true, false, "once", "upsert", or "force".`
@@ -284,6 +322,7 @@ export async function loadConfig(themeRoot) {
     config.forms = { ...discoveredForms, ...inlineForms };
   }
 
+  resolveMailTemplates(config.forms, themeRoot);
   return config;
 }
 

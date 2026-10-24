@@ -171,6 +171,7 @@ export type {
   WpOptionField,
   WpOptionsSchema,
   WpFormResult,
+  SubmitWpFormOptions,
   WpFormState,
   WpFormStatus,
 } from './hooks';

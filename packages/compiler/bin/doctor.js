@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { isSupportedNode, SUPPORTED_NODE_RANGE } from '../lib/node-runtime.js';
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -48,9 +49,8 @@ function runCheck(name, fn) {
 
 // 1. Node Version Check
 runCheck("Node.js Runtime Environment", () => {
-  const major = parseInt(process.versions.node.split(".")[0], 10);
-  if (major < 18) {
-    return `Your Node version is v${process.version}. ForgeWP recommends Node v18+ for compiling React themes.`;
+  if (!isSupportedNode()) {
+    return `Your Node version is ${process.version}. ForgeWP requires Node.js ${SUPPORTED_NODE_RANGE}.`;
   }
   return null;
 });

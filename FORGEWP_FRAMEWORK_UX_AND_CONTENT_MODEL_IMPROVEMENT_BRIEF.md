@@ -1,275 +1,100 @@
-- Mail/storage failure behavior is explicit: stored-but-unmailed submissions return a received response and log the mail failure; mail failure without storage returns an error; mail success with storage failure is logged. Submitter confirmation is now opt-in, uses a validated developer-owned email field and plain-text body, and logs failures without changing successful submission outcomes. Verify real delivery on staging.
-- Native mode sends an admin notification and optionally stores submissions in the private `forgewp_submission` CPT. CSV export, WordPress personal-data exporter/eraser integration, and retention policy remain open.
+# ForgeWP Auth Improvement Pass
 
-# ForgeWP Framework UX and Content Model Improvement Brief
+Scope: Auth package, generated WordPress endpoints/settings, CLI scaffolds, local preview, and Auth documentation. Core implementation work is closed; WooCommerce remains separate. WordPress acceptance testing is deferred.
 
-**Status:** Proposal for framework investigation and implementation planning  
-**Prepared:** 2026-10-03  
-**Scope:** ForgeWP React adapter, compiler, CLI, and `forgewp-docs`. This is framework guidance, not Hospitality project documentation.
+## Initial findings and progress
 
-## Purpose
+- [x] Corrected the Auth transpilation runner's removed compiler import, outdated REST route grouping assertions, and assertions referring to nonexistent global login-policy/mail-log functions. The updated checks describe the current REST login policy and verification mail output; they do not establish live authentication security.
+- [x] Updated the export fixture to author a real protected Page component. The renderer refreshes discovery caches, so writing a cache file alone no longer creates a template. Native junction creation replaces a Windows shell-only command and tolerates an existing fixture link.
+- [x] Put Auth package export types first and added .js relative source specifiers for NodeNext consumers. Auth package typecheck passes under Bundler and NodeNext.
+- [x] Corrected initial published Auth examples to use WpAuthProvider, useWpAuth, WpLoginForm, WpAuthGate and WpCapabilityGate. Removed unsupported ProtectedRoute, redirectTo, isAuthenticated and automatic nonce-refresh guarantees. Corrected signup exercise text so auto-login depends on configured policy.
 
-Use this brief to improve the consistency of the three authoring/runtime environments:
+## Remaining audit and implementation order
 
-1. Local React/Vite preview.
-2. Gutenberg editing in WordPress.
-3. The exported visitor-facing WordPress theme.
+1. Inventory every public Auth value/type, provider prop, hook result, generated endpoint, admin option and scaffold; replace the short hard-coded documentation placeholders with source-backed beginner guides and checked examples. Owner: sibling forgewp-docs/scripts/compile-docs.ts, packages/auth/src, compiler templates/auth and functions/rest-endpoints.js.
+2. Trace local mock, provider-backed, standalone, cookie and optional JWT behavior for login/logout/session restoration. Record reproducible differences before changing behavior. The confirmed home-URL subdirectory mismatch is fixed in the login/logout follow-up below. Remaining parity checks include environment-option precedence, initialization/SSR, mock role capabilities, and optional JWT recovery.
+3. Audit registration/default-role/metadata ownership, verification-token lifecycle and resend behavior, password recovery/reset, mail failures and configuration validation against generated PHP. Establish executable PHP tests; string generation assertions alone cannot prove these flows.
+4. Audit endpoint permission checks, request origins, cookies/nonces and redirect validation. Client UI gates and decoded JWT display state must not be documented as backend authorization. Inspect implementation before claiming any security defect or complete protection.
+5. Add practical Auth recipes and exercises after behavior and public contracts are verified. Keep local simulations distinct from WordPress account creation and delivery.
+6. Deferred WordPress acceptance: cookies/session persistence, roles, protected Pages, email delivery, verification/reset expiry and single use, error recovery and deployment-specific origins/caching.
 
-The goal is not to make every surface behave identically. The goal is to make differences explicit, avoid duplicated content ownership, and help a theme author predict what is stored, previewed, exported, and editable.
+This is an initial scoped audit, not an assertion that Auth is complete. Retain checked fixes and add source-backed findings as work proceeds.
 
-This document records behavior observed in the current codebase, proposes changes, and gives acceptance criteria. It does not authorize a broad rewrite or a breaking API change.
+Initial verification: the existing Auth transpilation runner now passes, including gate SSR/PHP generation and protected Page export. Auth Bundler and NodeNext typechecks pass. Documentation compilation/typecheck and the existing 17 core examples/260-link regression checks pass; those core checks do not yet typecheck the new Auth example. Auth-specific published-example checks remain part of the next documentation inventory. No live WordPress authentication or email delivery has been tested.
 
-## Executive Summary
+## Auth chapter 1: setup and session foundations
 
-The highest-value opportunities are:
+- [x] Replaced the hard-coded introductory Auth placeholders with Markdown guides under `forgewp-docs/content/auth/`: overview, installation/first login, and sessions/local preview. Existing overview/session route IDs are retained; installation is a new page. Auth source files are excluded from the core section scanner.
+- [x] Corrected the introductory example again after checking actual hook return values: `useWpAuth()` provides actions/status and does not return user; `useWpUser()` provides the user. The complete provider/form/user/logout example is now included in the published TypeScript checks through the real Auth source entry.
+- [x] Added explanations of provider scope, mock versus WordPress accounts, capability versus role, installed admin settings, cookie-mode reloads, and optional JWT backend responsibility. No automatic nonce-refresh or local-to-server authentication guarantee.
+- [x] Extended documentation link verification to Auth pages as well as core.
+- [ ] Finish the complete Auth API/options/endpoint/scaffold inventory and deeper session parity audit. The three introductory chapters do not complete the remaining registration, recovery, protection, reference, recipe, and practice work.
 
-1. Finish block preview fidelity across environments. Local `BlockArea` still inserts mock `post.content` as raw HTML instead of parsing Gutenberg block comments. Gutenberg now uses a renderable `edit` implementation by default, with `editorPreview` as a fallback and `editorPreviewMode: 'override'` for deliberate alternatives; live-data and interactive blocks still need an inert editor surface.
-2. Define one source of truth for content shared between CPT fields and block attributes. A value duplicated in both places can diverge when an editor changes only one copy.
-3. Make template discovery intent explicit. Root `single-<post-type>.tsx` files map to WordPress single templates, while files under `src/app/pages/` are also scanned as Page templates. A helper component placed in `pages/` can unintentionally create an additional Page template.
-4. Make block authoring choices easier to understand. `defineBlock()`, `@forgewp-block`, `make:block`, and `make:shell` solve different problems; generators and docs should guide authors to the right one.
-5. Make fixture seeding unmistakable. Local mock data is not live WordPress data unless seeding is explicitly configured or invoked.
+Verification: Auth introduction example passes against source types as part of 18 published examples; docs compilation/typecheck and the core public coverage audit pass. Existing 94 generated routes remain unique. No Auth runtime changes or live WordPress checks were made in this chapter. Detailed session parity findings remain pending reproduction.
 
-## Verified Current Behavior
+## Auth login/logout and session follow-up
 
-### Content Across Runtime Environments
+- [x] Fixed standalone API calls dropping the WordPress home subdirectory. Both paths now use its pathname for same-origin calls; explicit API bases and home paths use shared trailing-slash normalization in `packages/auth/src/session-url.ts`. Existing provider process-environment aliases are preserved; a complete resolver unification is not claimed.
+- [x] Both cookie logout implementations now check HTTP success before clearing user state/reloading. Rejected responses and network failures retain the current user and update error state. A fresh logout clears the prior error; mock and JWT-local logout behavior is preserved.
+- [x] Added `test/functions/auth-session.test.js`: production bundles execute against a small React-state harness with fetch mocks. Eight tests cover both paths, root/subdirectory/malformed home values, explicit trailing slashes, failed login, rejected/non-JSON/unreachable logout, and successful logout. This checks action logic, not mounted-browser lifecycle or real cookies.
+- [x] Added the Markdown Login & Logout guide with complete built-in/custom form examples, actual action signatures, failure feedback, navigation behavior, and subdirectory API configuration. Both examples are included in published TypeScript checks.
+- [ ] Registration/default-role/metadata and verification flows remain next; full JWT/provider/standalone initialization parity and live WordPress acceptance remain open.
 
-`@forgewp/react` hooks such as `useWpTitle()` and `useWpCustomField()` read a post from `WpPostContext` supplied by `WpQueryLoop` in local React development. In exported templates, compiler transforms replace these hooks with WordPress/PHP expressions.
+Follow-up verification: all 8 new session action tests, the existing full Auth transpilation/protected-Page export runner, Auth NodeNext typecheck, documentation compilation/typecheck, 20 published examples, and 263 internal links passed; 95 routes remain unique. Live WordPress/mail/browser acceptance is deferred. The existing production documentation build font-fetch limitation remains unchanged.
 
-`BlockArea` has different behavior by environment:
+## Auth sidebar chapter structure
 
-- In local React development, it reads `post.content` and inserts it with `dangerouslySetInnerHTML`. It does not parse Gutenberg's serialized block comments or invoke registered block renderers.
-- During export, the compiler replaces `BlockArea` with WordPress `the_content()`. WordPress parses the saved block tree and invokes dynamic block renderers.
+- [x] Split the existing Auth guides into Getting Started (overview, installation), Sessions & Login (sessions, login/logout), and Access Control (existing gate introduction). These are expandable chapters under the shared Guides navigation; Recipes and Practice remain separate. Updated links to the moved session page. No empty future chapters were added. Existing getting-started and access-control section IDs remain; session and login pages now belong to auth-sessions.
 
-Relevant source: `packages/react/src/components/BlockArea.tsx`, `packages/compiler/lib/render-theme.mts`.
+## Registration and verification audit/fixes
 
-Hospitality's local single-event preview currently reads the slug-matched mock event and manually renders `EventHeroSection`, `EventOverviewSection`, and `EventProgramSection` from mock fields. This proves the visual components render locally; it does not prove the serialized `post.content` block tree renders locally. Relevant source: `hospitality/src/app/components/SingleHospitalityEventPreview.tsx`.
+- [x] Fixed verification sign-in bypass: the generated endpoint previously allowed an already-verified user ID to proceed without a matching transient token. It now always requires a matching token and existing user before consuming the token, writing verification state, or setting the auth cookie. PHP tests reject invalid/mismatched/deleted-account/replayed tokens and accept a valid token once.
+- [x] Replaced arbitrary public signup metadata writes with explicit developer-approved `auth.registrationMetaFields` (default empty). Config loading and PHP generation validate unique lowercase identifiers and reject role/capability/session/ForgeWP-owned keys. Unsupported request keys and nested values are rejected before account creation; approved scalar profile values are sanitized. Role assignment stays server-owned. Provider mock metadata is nested rather than spread over IDs/roles.
+- [x] Signup without automatic login now returns explicit requiresVerification alongside success. Provider and standalone clients accept successful account creation without requiring a signed-in user payload. Tests cover both verification enabled and disabled responses.
+- [x] Added Registration & Verification as a separate expandable chapter, with registration/default-role and email-verification/resend guides. The ready-made registration example is included in published type checks.
 
-### Mock Data and Live Seeding
+### Remaining source-backed findings from this pass
 
-`cms/mock-data.ts` provides local preview fixtures and can also be used as input to generated WordPress seeders. Those are separate uses.
+- [x] Registration preview parity (shared signup behavior implemented; real WordPress validation remains separate): provider and standalone mocks now share disabled-registration/duplicate checks, role/capability assignment, approved scalar metadata, email-only username generation, verification-token/mail-log creation, and configured auto-login decisions. Source: auth/src/components.tsx register versus auth/src/hooks.ts register. Development-only public policy is projected from wp.config.ts without server mail content. Focused bundle tests cover both paths; full WordPress sanitization and browser lifecycle are not simulated.
+- [x] Verification mail outcomes: signup preserves account-created success and returns a verificationEmailSent flag plus truthful message; the hook exposes registration feedback through notice, rendered by WpRegisterForm. Resend returns a 502 error when transport fails, preserving retry. Source: compiler/lib/functions/rest-endpoints.js. Executable PHP tests cover signup mail failure and failed/successful resend; bundle tests cover notice delivery. Successful transport is not claimed as inbox delivery.
+- [ ] Token resend lifecycle: resend creates additional tokens without revoking older unused ones. Decide the resend policy explicitly and test old/new links, expiry and simultaneous redemption; the current guide states the implemented per-token expiry/use behavior.
+- [x] Auto-login failure: signup now checks wp_signon before setting the current user or returning a user payload. A failed sign-in preserves account-created success and asks the visitor to sign in; an executable PHP test verifies no current user/session is claimed.
 
-- Seeding is disabled unless `wp.config.ts` opts into `seed.mockData` or the project runs the relevant seed configuration workflow.
-- The CLI command `pnpm forgewp seed:mock-data` configures WordPress-side mock-data seeding; it does not directly connect to a live site and push records from the terminal.
-- Generated seeding is guarded by `WP_DEBUG` by default. The strategy and `developmentOnly` option affect whether and when WordPress inserts fixture content.
-- When fixture content is seeded into a post's `content`, Gutenberg serialization comments become saved `post_content`; WordPress can then render them normally, provided the blocks are registered.
+Live WordPress acceptance remains deferred. These focused fixes are not a complete endpoint-security audit; origin/cookie/nonce/rate-limit behavior and the remaining recovery/session cases still require their own pass.
 
-Relevant source: `packages/compiler/bin/seed.js`, `packages/compiler/lib/functions/seed-mock-data.js`, `packages/compiler/lib/index.d.ts`.
+Verification for registration/verification: 16 focused PHP/client session tests passed after the final auto-login fix; the public API/config-loading suites passed in the broader run. Existing Auth transpilation and protected-Page export passed. Auth NodeNext and documentation typechecks passed, along with 21 published examples, 264 internal links, the public core coverage audit, and scoped whitespace checks (97 unique routes). No live accounts, mail transport or WordPress database were used; PHP tests use stand-ins for WordPress functions.
 
-Docs must distinguish local mock fixtures, generated seed PHP, WP-CLI invocation, and content already authored in wp-admin. Exporting a theme alone should not be described as automatically importing mock entries unless the project's seed configuration says so.
+## Auth guide teaching and presentation pass
 
-### CPT Routes and Permalinks
+- [x] Enriched all six existing Markdown Auth guides with contextual tips/notes, setup expectations, decision/outcome tables, and recovery guidance. Added four Mermaid flows (architecture, cookie login, registration, verification) and a React-to-generated-PHP gate comparison grounded in the existing gate transpilation checks.
+- [x] Preserved source-backed distinctions: mock versus WordPress sessions, account creation versus sign-in, request completion versus delivery, and content gates versus endpoint authorization. No new runtime capabilities are implied.
+- [x] Documentation compilation/typecheck and 21 published examples/264 internal links pass (97 unique routes). Diagram syntax and compiled component counts are checked separately below. Existing live WordPress and runtime follow-ups remain pending.
 
-`CustomPostTypeConfig` supports developer-owned `rewrite` and `hasArchive` options. For example, a CPT can use `/projects/<post-slug>` while an authored WordPress Page owns `/projects` by setting `hasArchive: false`.
+Presentation verification: generated Auth data contains 12 alert components, one comparison, and four Mermaid blocks. Standalone Node Mermaid parsing could not complete because its DOMPurify dependency requires browser DOM support; no rendered-browser or diagram-parser pass is claimed. No runtime or app security settings were changed.
 
-The rewrite base is theme configuration, not a normal per-post admin field. An editor can change an individual post slug; links using `useWpPermalink()` should follow the resulting WordPress permalink. ForgeWP emits rewrite configuration and refreshes rewrite rules once when its configured rewrite/archive signature changes.
+## Registration preview and mail-feedback follow-up
 
-Relevant source: `packages/compiler/lib/index.d.ts`, `packages/compiler/lib/functions/index.js`, `packages/react/src/hooks.ts`.
+- [x] Added shared `auth/src/registration-preview.ts` and development-only public policy injection via the Vite virtual runtime. Config edits reload the preview; production output omits this policy. Private email subjects/bodies are excluded.
+- [x] Added optional context notice state and stable `useWpAuth().notice` output for account-created instructions, separate from errors. Existing boolean register semantics are preserved. Updated signup/session/verification guides and a typechecked SignupStatus example.
+- [ ] Verification resend policy/expiry/race review remains open: issuing a new token currently does not revoke older unused tokens. Password recovery/reset, deeper deployment/security checks, and live WordPress acceptance remain separate pending work.
 
-### Page and Single-Template Discovery
+Follow-up verification (2026-10-24): all 42 focused Auth/registration/PHP/preview/virtual-runtime/config tests passed. Existing Auth transpilation and protected-page export checks passed. Framework and Auth NodeNext typechecks, documentation compilation/typecheck, 22 published examples, 264 internal links, 97 unique routes, and scoped whitespace checks passed. Tests execute generated PHP against stand-ins and production/development bundles against a state harness; live WordPress/mail delivery and rendered-browser acceptance remain deferred.
 
-The current React adapter uses naming/location conventions:
+## Password recovery and reset
 
-- `src/app/single-<post-type>.tsx` is discovered as a WordPress single template for that post type. It is not a WordPress Page and should not be described as one.
-- Components under `src/app/pages/` are scanned as custom Page templates. A helper component placed there can produce an extra generated Page template even when it is imported by a single template.
-- Local Vite routes are a separate concern. A local `:slug` route does not itself create a WordPress Page or CPT single template.
+- [x] Replaced the built-in WpPasswordResetForm preview-only success message with the real forgotPassword hook path, so mock requests produce usable reset tokens and preview mail-log records. The form reports hook errors and supports provider or browser standalone state.
+- [x] Added shared preview reset-token consumption. Empty passwords, mismatched accounts, invalid/non-string tokens and malformed stores fail without consuming a valid token. A valid token is consumed once. This does not change password hashes or enforce WordPress expiry in the preview.
+- [x] Made standalone hook initialization safe when no browser window exists, required by server-rendering the recovery form through the common action path.
+- [x] Added input-type checks for generated recovery/reset endpoints. Non-string account/key/password values are rejected before WordPress handlers. Real key checks and password writes remain delegated to WordPress.
+- [x] Added a Password Recovery chapter with request/reset guides, diagrams, outcome tables and complete typechecked examples. Built-in form naming is explained: it requests a link, not a new password.
+- [ ] Live acceptance remains deferred: real expiry/single-use keys, new-credential login, mail transport, frontend reset URL routing, cookies and plugin password rules.
 
-The renderer clears stale generated page/single HTML cache files on export. This does not delete WordPress Pages that were already created on a live installation.
+New evidence to retain: password recovery currently exposes WordPress account/delivery errors rather than a uniform account-existence response. Preview tokens have no real expiry and do not replace mock login credentials. Future origin/rate-limit/privacy review must assess the desired public recovery contract before claiming account-enumeration protection.
 
-Relevant source: `packages/compiler/lib/render-theme.mts`, `packages/compiler/lib/generate-theme.js`, `packages/compiler/lib/functions/routing.js`.
+Recovery/reset verification: 34 focused Auth session/registration/password tests passed, including a built-in recovery form action test and no-window render test. Generated PHP tests use WordPress stand-ins to verify call ordering and error paths, not actual WordPress expiry or password hashing. Existing Auth transpilation/protected-page export and Auth NodeNext typecheck passed. Documentation compilation/typecheck, 24 published examples, 266 links and 99 unique routes passed. Scoped whitespace checks passed; live WordPress and browser visual acceptance remain pending. Next documentation chapter: protected pages and capability gates.
 
-### Block Authoring Models
+## Publication validation and docs UI fixes
 
-These APIs should remain distinct and documented in terms of intent:
-
-- `defineBlock()` authors a block definition with explicit metadata, attributes, edit/save behavior, and optional `innerBlocks`.
-- `@forgewp-block` discovers a React component and generates a wrapper. It is convenient for simple props, but inferred attributes and editor behavior are intentionally less expressive.
-- `pnpm forgewp make:block` scaffolds a source block file; the generated TSX remains project source to inspect and customize. Export generates WordPress block metadata and PHP output.
-- `pnpm forgewp make:shell` scaffolds a parent layout block using `InnerBlocks`. The shell owns arrangement and child constraints. Child blocks remain registered blocks that can also be inserted independently. A shell is not itself an event/page content schema unless explicit attributes are added.
-
-For a shell, explain the concepts separately:
-
-- `attributes`: values stored on the parent block.
-- `innerBlocks.allowedBlocks`: which children may be inserted.
-- `innerBlocks.template`: starter child structure.
-- `innerBlocks.templateLock`: whether editors may add, remove, or move children.
-- `innerBlocks.orientation`: editor arrangement direction.
-- `shell.className` / `shell.gridClassName`: layout classes, not persisted content fields.
-
-Relevant source: `packages/compiler/bin/make-shell.js`, `packages/compiler/lib/blocks/scanner.js`, `packages/compiler/lib/react-adapter.js`.
-
-## Proposed Improvements
-
-### 1. Add Source-Consistent Block Previews Across Environments
-
-**Status:** Partial. The Gutenberg shared-canvas path is implemented and covered by compiler tests and a Hospitality block audit. Local block-tree preview remains unresolved.
-
-**Problem:** Local `BlockArea` currently inserts serialized comments as raw HTML, so it does not preview the saved Gutenberg block tree. Static Gutenberg blocks can now share their renderable `edit` implementation with the visitor component, including inline text, image, and link rendering. Live queries, forms, and other active interactions still need an explicit inert preview or WordPress server rendering. Hospitality also reported that an Inspector-edited License Hero value remains visible in the sidebar after save/reload while the block canvas shows older content. The current source routes Inspector controls and inline RichText through block attributes, and generated PHP renders those attributes; the editor persistence mismatch has not been reproduced outside the reported WordPress install.
-
-**Proposal:** Investigate a local block-content renderer that parses WordPress block serialization and resolves registered ForgeWP blocks to their local renderer. Prefer the standard WordPress block serialization parser instead of writing a custom comment/JSON parser. Preserve Gutenberg's `edit`-first canvas behavior, its `editorPreview` fallback, and the explicit `editorPreviewMode: 'override'` escape hatch. Define behavior for core blocks, ForgeWP static and dynamic blocks, nested `InnerBlocks`, and unknown/unregistered blocks. Keep theme-relative image resolution in the supported editor runtime path. Add a WordPress save/reload regression check for both InspectorControl and inline edits so the reported stale canvas can be localized to serialization, editor preview, or server rendering.
-
-**Acceptance criteria:**
-
-- [ ] A fixture containing sibling and nested ForgeWP blocks previews in the same order and hierarchy as WordPress in local `BlockArea`.
-- [ ] Supported block attributes appear in local preview.
-- [ ] In WordPress, InspectorControl and inline edits both remain visible in the block after saving and reloading the page, and match the visitor renderer.
-- [x] A `defineBlock()` visitor renderer containing `WpQueryLoop` emits a real `WP_Query` loop in `render.php`; each result uses the current post's title, excerpt, featured image, permalink, and custom fields, and the supported query filters are preserved.
-- [x] A typical static block can use its renderable `edit` component for the Gutenberg canvas without duplicate `editorPreview` JSX; explicit fallback and override behavior are tested.
-- [x] Image and URL attributes have documented controls and render through the Gutenberg shared-canvas path; theme-relative images resolve against the active theme URL.
-- [ ] Unknown blocks produce a clear local preview placeholder rather than raw serialized comments.
-- [ ] Tests cover local nested shell/child blocks, malformed or unknown block content, and local attribute rendering; the Gutenberg shared-canvas, media/link, nested-component, and motion paths have focused coverage.
-- [x] Docs distinguish local Vite, Gutenberg, and visitor behavior and describe when `editorPreview` is appropriate.
-
-### 2. Establish a Canonical Source for Shared CPT Content
-
-**Problem:** Listing cards may read date/location from CPT custom fields while single-page blocks store date/location/program in their block attributes. Editing one representation can leave the archive and detail page inconsistent.
-
-**Proposal:** Before adding more APIs, select and document the canonical content owner for values shared across views. Options include:
-
-- CPT metadata is canonical; blocks render the metadata and own layout only.
-- Block attributes are canonical; archive/query support extracts or hydrates the values reliably.
-- Intentional dual hosting maps block attributes to metadata with a documented sync/conflict policy.
-
-Prefer an explicit schema/contract over storing the same value independently in mock fields and block attributes. Define behavior for existing content and migrations before changing public data contracts.
-
-**Acceptance criteria:**
-
-- Date, location, participants, and programme each have one documented owner.
-- Editing the canonical value is reflected consistently in both archive and single views.
-- Local fixtures model the chosen contract without unexplained duplicate values.
-- Any migration preserves existing wp-admin content and has a recovery path.
-
-### 3. Make Template Intent Explicit
-
-**Problem:** File location plus filename determines whether a React component becomes a WordPress Page template or a CPT single template. A reusable implementation component under `src/app/pages/` can accidentally become a second Page template.
-
-**Proposal:** Keep current naming conventions backward-compatible, but consider explicit template intent metadata or a manifest. For example, distinguish `page`, `single`, `archive`, and `component` entries and validate incompatible combinations. Until then, improve diagnostics when a page-scanned file appears to be a helper imported by another template.
-
-**Acceptance criteria:**
-
-- A single template and its implementation component can be authored without generating an unintended Page template.
-- Export reports the exact WordPress template file and route each source produced.
-- Removing a local template removes it from a fresh export without deleting live WordPress content.
-- Tests cover root `single-<post-type>.tsx`, Page components, and helper imports under `src/app/pages/`.
-
-### 4. Improve the Block Authoring Decision Path
-
-**Problem:** Authors must choose among annotations, handwritten `defineBlock()`, `make:block`, and `make:shell`, but generated-source versus generated-output boundaries are easy to confuse.
-
-**Proposal:** Keep all existing mechanisms, but make the CLI/docs recommend a path from the authoring goal:
-
-- simple reusable component with inferred text/number/boolean props: `@forgewp-block`;
-- custom fields/editor controls or editor/save split: `defineBlock()` or `make:block` scaffold;
-- parent layout around independently usable child blocks: `make:shell` scaffold;
-- fixed React layout with normal WP content: `BlockArea`.
-
-Ensure the shell generator can initialize a useful child template from registered blocks and that generated shell children remain individually insertable. Do not make shell-specific child blocks unavailable outside the parent.
-
-**Acceptance criteria:**
-
-- CLI help and docs distinguish generator scaffolding from compiler-generated `block.json`/`render.php`.
-- A shell example demonstrates layout-only parent attributes and independent child blocks.
-- The generated shell can be exported, inserted, rearranged, and rendered on the front end.
-- Docs do not present one project-specific event shell as the framework's general model.
-
-### 5. Make Seeding Safer and More Predictable
-
-**Problem:** A local fixture can look like live WordPress content, while the seeding command modifies project config and the generated PHP seeder is subject to a debug-only safety guard by default.
-
-**Proposal:** Add a dry-run/preview mode showing post types, item counts, slugs, block content, image handling, and whether the current config will seed on activation. Clearly separate "configure seeding", "export seed code", and "run against a database". Keep production insertion opt-in and safe.
-
-**Acceptance criteria:**
-
-- The command makes file changes explicit before/after execution and does not imply it connected to WordPress when it did not.
-- The user can preview the exact CPT records and serialized content that would be seeded.
-- `once`, `upsert`, `force`, and `developmentOnly` behavior is documented and tested.
-- Existing editor-authored posts are not overwritten without an explicit force action.
-
-### 6. Clarify CPT URL Ownership and Conflicts
-
-**Problem:** CPT rewrite bases are developer-owned theme configuration, while post slugs are editor-owned. These are different controls, but the distinction can be unclear. CPT archive paths can also collide with authored Pages.
-
-**Proposal:** Keep global rewrite bases in `wp.config.ts` unless a concrete use case requires admin-managed routing. Improve validation and migration messages for collisions between CPT archive bases, custom Page routes, and existing Pages. Document that `useWpPermalink()` follows an editor-changed item slug but does not dynamically change the CPT base.
-
-**Acceptance criteria:**
-
-- Export warns clearly when a CPT archive conflicts with a configured Page route.
-- Changing one post slug updates links that use `useWpPermalink()`.
-- Changing a CPT base is explicit, refreshes rules once, and reports potential URL migration implications.
-- Docs state that exported route changes do not delete existing WordPress Pages or create redirect policies automatically.
-
-### 7. Make Archive Promotion Policy Explicit
-
-**Problem:** A listing can show more events than the image-led header promotes. For example, a two-item header loop can omit later events even though they appear in the archive list.
-
-**Proposal:** Treat header promotion count and ordering as product decisions: keep a deliberate fixed limit, or add an editor-controlled featured/ordering field. Do not imply all CPT records appear in the header if the query is capped.
-
-**Acceptance criteria:**
-
-- The UI and docs state which events are promoted and how they are ordered.
-- Editors can change promoted items only if an explicit supported field/control is implemented.
-
-### 8. Align Native Forms Preview, Validation, and Editor Permissions
-
-Detailed WordPress-first implementation phases and acceptance gates are maintained in [`FORGEWP_NATIVE_FORMS_WORDPRESS_FIRST_IMPLEMENTATION_PLAN.md`](FORGEWP_NATIVE_FORMS_WORDPRESS_FIRST_IMPLEMENTATION_PLAN.md). This section remains the concise improvement backlog; the plan is the implementation handoff.
-
-**Observed behavior:**
-
-- Native forms are declared inline in `wp.config.ts` or discovered from `cms/forms/<name>.ts`. `load-config.js` merges discovered contracts with inline forms; inline configuration wins on duplicate names.
-- Developer-owned fields are declared in the contract and are a fixed server allowlist. Optional client-owned fields are seeded in that contract, edited on the generated WordPress Forms admin page, hydrated to `WpFormFields`, and merged into server validation. `WpFormFields` provides developer-owned rendering markup plus the client-managed field list.
-- The React `submitWpForm()` local path logs the payload, waits, and simulates success. A field value equal to the `__fail__` sentinel exercises its simulated error response. It does not exercise PHP validation, persistence, or mail delivery.
-- `WpFormFields` reads `window._forgeWpMockForms` or `window.forgeWpHydration.forms`; Vite does not automatically inject the form contract into a mock-form global. An optional `fallback` prop renders a provided seed in local preview; themes must pass that seed when they need local client-field previews.
-- Native form definitions and core field keys/types/validation remain developer-owned. For each form with `clientFields.enabled`, the generated Forms menu has an individual child page for editing optional fields, displayed labels, and capability-protected success-copy and plain-text notification/receipt templates; the Forms root is a compact index. It does not create forms or plugin forms. Saved WordPress settings use source-config values as fresh-install defaults.
-- Stored submissions remain an opt-in framework feature (`storeSubmissions`, default on for native forms). Developers can provide `submissionTitle` with merge tags restricted to declared developer-owned fields; stored entries include the resolved title and submission time. Without it, the existing form-name-and-time title remains the fallback.
-- `useWpForm()` provides reusable submission state over `submitWpForm()` and supports opt-in `resetOnSuccess`. Builder blocks can use a separate inert `editorPreview`; Hospitality now demonstrates a hero block followed by a parent shell containing the working form and summary blocks. `WpFormFields` renders provided fallback seeds before client hydration and the server-hydrated field set in WordPress.
-- Notification and optional receipt templates are plain text. `{field}` tags are interpolated from sanitized submitted values; recipients, core validation, and the server field allowlist remain developer-owned. The CLI has no named mail-template scaffold.
-- In staging, verify that the configured Forms capability maps to the intended WordPress roles. This screen can expose stored submission PII to anyone granted that capability.
-- Plugin-created forms have two distinct shortcode paths: developer-authored `<WpShortcode>` compiles to `do_shortcode()` and shows a placeholder in Vite, while a WordPress editor can insert the core Shortcode block into content rendered by `BlockArea`/`the_content()` without a `forms` config entry. The docs now describe both paths. `forms.mode: 'shortcode'` is a developer-authored contract; its `shortcode` config value is not automatically exposed as an editable setting in wp-admin. A developer can make it editable by explicitly sourcing it from page metadata, but that is separate wiring.
-
-**Suggested improvements:**
-
-1. Consider automatically injecting the resolved form contract into the Vite mock-form global so themes that want local client-field previews do not have to pass `WpFormFields.fallback` at each use site. Keep the current fallback prop and simulated-submission boundary.
-2. Add an opt-in local validation mode that uses the form contract for required fields, email, and select options. Keep the current fast success simulation available, but make clear that it does not test backend behavior.
-3. Verify the configured Forms capability against real WordPress roles on staging, including access to list, view, and export stored submissions.
-4. Keep plugin shortcode placement and shortcode configuration distinct. Editors can create a plugin form and insert its shortcode with the core Shortcode block in content rendered by `the_content()`. Do not add a ForgeWP shortcode registry/editor unless a demonstrated workflow requires it.
-5. For event registrations, evaluate a maintained plugin/add-on stack against capacity, approval/waitlist, confirmation, export, privacy/retention, and separate marketing consent before expanding the general-purpose native forms API.
-6. Add named, source-controlled mail-template files and a `make:mail` scaffold for reusable developer-authored templates. Admin-editable text is already a separate capability-protected override; source templates should remain the defaults, and neither path may execute arbitrary PHP or template code.
-
-**Acceptance criteria:**
-
-- If generic Vite form injection is added, local preview uses the same resolved client-field seed as WordPress without calling the real endpoint; `WpFormFields.fallback` continues to work for explicit per-component previews.
-- Local test behavior is clearly distinguished from real server validation, email delivery, and persistence.
-- Verify role/capability behavior, stored-submission privacy access, and mail delivery semantics on a real WordPress staging site.
-- Verify CSV export, personal-data export/erasure, and WP-Cron retention behavior on a real WordPress staging site before enabling these tools for a client.
-- `make:mail` scaffolds a named source template, form configuration can reference it, and tests verify allowed merge tags, escaping, and missing/unknown-tag behavior.
-
-## Recommended Implementation Order
-
-1. Resolve canonical ownership for event fields and update the fixture contract.
-2. Complete local block-tree rendering in `BlockArea`; preserve the verified Gutenberg shared-canvas and preview-fallback contract.
-3. Add template-discovery diagnostics/tests for Page helpers versus root CPT single templates.
-4. Improve seed dry-run/reporting without enabling production fixture import by default.
-5. Refine CLI/docs for annotation, block, shell, and `BlockArea` choices.
-6. Add route collision/migration diagnostics and document rewrite ownership.
-7. Decide whether archive header promotion remains capped or becomes editor-configurable.
-8. Before implementing event registration, compare a plugin/add-on pilot with a scoped native extension; resolve capacity/approval, export, privacy, and retention requirements first.
-
-## Non-Goals and Guardrails
-
-- Do not automatically seed fixture records into a production database.
-- Do not make global CPT permalink bases casually editable by content editors; they affect site routing and migrations.
-- Do not remove `defineBlock()`, `@forgewp-block`, `make:block`, or `make:shell` merely to reduce the number of APIs.
-- Do not make child blocks dependent on their shell unless the block's design explicitly requires that.
-- Do not hand-edit generated `.forgewp/` output.
-- Do not document proposed behavior as supported until source, tests, export output, and docs agree.
-- Keep framework docs generic; use project-specific examples only in project notes or clearly labeled case studies.
-
-## Validation Checklist for Follow-up Work
-
-- Focused tests for compiler route discovery, block serialization/rendering, and seed generation.
-- React package typecheck for public hook/component/type changes.
-- CLI smoke tests for `make:block`, `make:shell`, route sync, and seed dry-run.
-- Hospitality local route checks for archive and slug-based event details.
-- Theme export inspection for the intended `single-<post-type>.php`, rewrite rules, block registration, and seed guards.
-- Manual Gutenberg check: insert shell, insert/reorder children, edit fields, save, reload, and inspect visitor output.
-- `forgewp-docs` typecheck and production build for documentation changes.
-- Report any live-site migration steps separately from generated-theme behavior.
+- [x] Fixed desktop/mobile Markdown copy: awaited clipboard, fallback, truthful failure state; Mermaid blocks included. Auth overview comparison stacks on desktop through an explicit layout option. Docs production build passed with external font fetching allowed; earlier font-fetch limitation no longer applies to this validation run.
+- [ ] Broad framework validation: 435 tests passed in the initial functions/blocks run, but the public type suite and tier3 real-components setup timed out under load. Public type tests passed on retry with one worker. The tier3 fixture still timed out at its explicit 180-second setup limit; 23 tests did not execute. This is an unresolved verification limitation, not a claimed assertion failure or a green full suite. Source: packages/compiler/test/blocks/tier3-real-components.test.js. Investigate fixture setup/performance and rerun before claiming complete regression coverage.
+- [ ] Hosted/browser acceptance remains pending. Static generated Auth HTML contains article content without scripts, supporting direct page extraction; no claim is made that an AI given one URL automatically crawls the whole site.

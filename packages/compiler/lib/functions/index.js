@@ -1,5 +1,4 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { buildThemeSetupPhp } from './theme-setup.js';
 import { buildRoutingPhp } from './routing.js';
@@ -10,6 +9,7 @@ import { buildFormsPhp } from './forms.js';
 import { buildSeedProductsPhp } from './seed-products.js';
 import { buildSeedMockDataPhp, loadMockData } from './seed-mock-data.js';
 import { scanAppProviders } from '../hydration/scan-app-providers.js';
+import { collectCptRouteDiagnostics, buildCptRewriteRefreshPhp } from './cpt-routing.js';
 
 export function buildFunctionsPhp(
   config,
@@ -241,11 +241,6 @@ add_filter('rank_math/json_ld', function($data, $jsonld) {
   const i18nKeysPhp = uniquePolylangStrings
     .map((k) => `        '${k.replace(/'/g, "\\'")}',`)
     .join('\n');
-  const wpBlockStylesLine =
-    config.presets?.wordpressCoreStyles === false
-      ? ''
-      : "    add_theme_support('wp-block-styles');\n";
-
   let cptRegistration = '';
   try {
     const cmsDir = path.join(themeRoot, 'cms');
@@ -387,6 +382,10 @@ ${postTypes
     const plural = ptConfig?.labels?.plural || pluralizeLabel(singular);
     const icon = ptConfig?.icon || 'dashicons-admin-post';
     const hasArchive = ptConfig?.hasArchive === false ? 'false' : 'true';
+    const supports = ptConfig?.supports ?? ['title', 'editor', 'thumbnail', 'custom-fields', 'excerpt'];
+    // An empty array makes WordPress add its default features. false is the
+    // native sentinel required to honor an explicitly empty feature list.
+    const supportsPhp = supports.length === 0 ? 'false' : `array(${supports.map((feature) => `'${String(feature).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`).join(', ')})`;
     const rewriteSlug =
       ptConfig?.rewrite && typeof ptConfig.rewrite === 'object'
         ? String(ptConfig.rewrite.slug || pt)
@@ -426,11 +425,11 @@ ${postTypes
                 'search_items'       => __('Search ${plural}', '${config.textDomain}'),
                 'not_found'          => __('No ${plural} found.', '${config.textDomain}'),
             ),
-            'public'      => true,
+            'public'      => ${ptConfig?.public === false ? 'false' : 'true'},
             'has_archive' => ${hasArchive},
             'rewrite'     => ${rewrite},
-            'show_in_rest'=> true,${taxonomiesLine}
-            'supports'    => array('title', 'editor', 'thumbnail', 'custom-fields', 'excerpt'),
+            'show_in_rest'=> ${ptConfig?.showInRest === false ? 'false' : 'true'},${taxonomiesLine}
+            'supports'    => ${supportsPhp},
             'menu_icon'   => '${icon}',
         ));${nativeTaxesCalls}
     }`;
@@ -465,11 +464,11 @@ ${registeredTaxonomies
                 'menu_name'         => '${plural}',
             ),
             'hierarchical'      => ${hierarchical ? 'true' : 'false'},
-            'public'            => true,
-            'show_ui'           => true,
+            'public'            => ${taxConfig?.public === false ? 'false' : 'true'},
+            'show_ui'           => ${taxConfig?.showUi === false ? 'false' : 'true'},
             'show_admin_column' => true,
             'query_var'         => true,
-            'show_in_rest'      => true,
+            'show_in_rest'      => ${taxConfig?.showInRest === false ? 'false' : 'true'},
         ));
     }`;
   })
@@ -1184,39 +1183,12 @@ ${fieldsPhpLines.join('\n')}
 
   const formsPhp = buildFormsPhp(config);
 
-  const cptRewriteConfig = postTypes
-    .filter((postType) => {
-      const postTypeConfig = config.postTypes?.[postType];
-      return (
-        postTypeConfig?.rewrite !== undefined ||
-        postTypeConfig?.hasArchive !== undefined
-      );
-    })
-    .map((postType) => ({
-      postType,
-      rewrite: config.postTypes[postType].rewrite ?? true,
-      hasArchive: config.postTypes[postType].hasArchive ?? true,
-    }));
-  const cptRewriteFlushPhp = cptRewriteConfig.length
-    ? (() => {
-        const signature = createHash('sha256')
-          .update(JSON.stringify(cptRewriteConfig))
-          .digest('hex');
-        const optionName = `forgewp_${String(config.textDomain || 'theme').replace(/[^a-zA-Z0-9_]/g, '_')}_cpt_rewrite_signature`;
-        const functionName = `forgewp_flush_${String(config.textDomain || 'theme').replace(/[^a-zA-Z0-9_]/g, '_')}_cpt_rewrite_rules`;
-        return `
-function ${functionName}() {
-    $signature = '${signature}';
-    if (get_option('${optionName}') === $signature) {
-        return;
-    }
-    flush_rewrite_rules(false);
-    update_option('${optionName}', $signature, false);
-}
-add_action('init', '${functionName}', 99);
-`;
-      })()
-    : '';
+  for (const diagnostic of collectCptRouteDiagnostics(config, postTypes, pagesToAutoCreate)) {
+    const message = '[ForgeWP Routing' + (diagnostic.level === 'warning' ? ' Warning' : '') + '] ' + diagnostic.message;
+    if (diagnostic.level === 'warning') console.warn(message);
+    else console.log(message);
+  }
+  const cptRewriteFlushPhp = buildCptRewriteRefreshPhp(config, postTypes);
 
   let _php = `<?php
 /**

@@ -7,8 +7,21 @@ import { stdin as input, stdout as output } from "node:process";
 import pc from "picocolors";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
+import { blockAuthoringHelp } from "../lib/block-authoring-help.js";
 
 const args = process.argv.slice(2);
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(`forgewp make:block <Name> [--attributes=title,description]
+
+Creates editable React block source at src/blocks/<Name>.tsx.
+  --name <Name>          Alternative to the positional name.
+  --attributes, --attrs  Comma-separated string attribute names (default: title,description).
+  -h, --help            Show help without creating files or prompting.
+
+Example: pnpm forgewp make:block PromoCard --attributes=title,description
+${blockAuthoringHelp}`);
+  process.exit(0);
+}
 let rawBlockName = args.find(a => !a.startsWith("-"));
 
 // Support --name TestimonialBlock or --name=TestimonialBlock

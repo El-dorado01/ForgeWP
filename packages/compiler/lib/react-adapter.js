@@ -982,6 +982,14 @@ export function onMakeBlock(
   themeRoot,
   { pascalCase, readableTitle, attributesList, pc },
 ) {
+  if (!/^[A-Za-z][A-Za-z0-9]*$/.test(pascalCase)) {
+    throw new Error('Block names must start with a letter and produce a valid component name.');
+  }
+  if (!Array.isArray(attributesList) || !attributesList.length || attributesList.some((name) =>
+    typeof name !== 'string' || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) || name === '__proto__'
+  ) || new Set(attributesList).size !== attributesList.length) {
+    throw new Error('Attribute names must be unique JavaScript property identifiers, such as title or cta_label. make:block creates string attributes; edit their types in source.');
+  }
   const blocksDir = path.join(themeRoot, 'src', 'blocks');
   if (!existsSync(blocksDir)) {
     mkdirSync(blocksDir, { recursive: true });
@@ -1061,18 +1069,10 @@ export function onMakeBlock(
 /**
  * ⚡ ForgeWP Custom Gutenberg Block — "Sharp ${readableTitle}"
  * 
- * HOW TO PREVIEW LOCALLY INSIDE REACT:
- * This block is defined using standard React structures. You can import this block and
- * preview its visitor/frontend layout locally in any React page or component without running
- * WordPress, by invoking its `.save()` component with mock attributes:
- * 
- * \`\`\`tsx
- * import ${pascalCase} from "@/blocks/${pascalCase}";
- * 
- * <${pascalCase}.save attributes={{
- *   ${attributesList.map((a, i) => `${a}: "Mock Value ${i + 1}"`).join(',\n   ')}
- * }} />
- * \`\`\`
+ * LOCAL PREVIEW: Import this definition and pass it in BlockArea.previewBlocks.
+ * Use the map key forgewp/${nameSlug}. The current mock post's serialized content
+ * selects block instances, their order, and saved attributes.
+ * This generated TSX is editable source; export creates WordPress block assets.
  */
 export default defineBlock({
   name: "${nameSlug}",
@@ -1114,6 +1114,7 @@ ${attributesRegistry}
   );
   console.log(`   Location: ${pc.cyan(`src/blocks/${pascalCase}.tsx`)}`);
   console.log(`   Gutenberg Title: ${pc.yellow(`Sharp ${readableTitle}`)}`);
+  console.log('   Edit this source file; export generates block.json, render.php, and editor assets.');
   console.log(
     `\n🎉 Run ${pc.cyan('pnpm export')} to automatically register it inside your WordPress theme!\n`,
   );
@@ -1180,13 +1181,13 @@ export function onMakeShell(
   const orientation = innerBlocks.orientation || 'horizontal';
 
   const allowedLit = allowed.length
-    ? `[\n${allowed.map((s) => `      '${s}',`).join('\n')}\n    ]`
+    ? `[\n${allowed.map((s) => `      ${JSON.stringify(s)},`).join('\n')}\n    ]`
     : 'undefined';
   const templateLit = template.length
     ? `[\n${template
         .map((row) => {
           const name = Array.isArray(row) ? row[0] : row;
-          return `      ['${name}'],`;
+          return `      ${JSON.stringify(Array.isArray(row) ? row : [name])},`;
         })
         .join('\n')}\n    ]`
     : 'undefined';

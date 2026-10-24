@@ -9,8 +9,9 @@ import {
   createContext,
   type FormEvent,
 } from 'react';
-import { WpPostContext } from './context';
-import type { WpPost, WpQueryArgs, WpQueryResults, WpMenuItem } from './types';
+import { WpPostContext } from './context.js';
+import type { WpPost, WpQueryArgs, WpQueryResults, WpMenuItem } from './types.js';
+import { validateLocalForm } from './local-form-validation.js';
 
 function isForgeWpCompileTime(): boolean {
   return (
@@ -249,6 +250,11 @@ export interface WpFormResult {
   errors?: Record<string, string>;
 }
 
+export interface SubmitWpFormOptions {
+  /** Opt into basic contract validation in local simulation. WordPress always validates real submissions. */
+  validateLocal?: boolean;
+}
+
 // Module-load timestamp, used as the server-side time-trap's baseline —
 // a genuine human takes more than a few seconds between page load and
 // submit; a bot firing the request immediately does not.
@@ -271,6 +277,7 @@ function isProductionForms(): boolean {
 export async function submitWpForm(
   name: string,
   data: FormData | Record<string, unknown>,
+  options: SubmitWpFormOptions = {},
 ): Promise<WpFormResult> {
   if (!isProductionForms()) {
     let plain: Record<string, unknown>;
@@ -281,6 +288,10 @@ export async function submitWpForm(
       });
     } else {
       plain = data;
+    }
+    if (options.validateLocal) {
+      const validation = validateLocalForm(name, plain);
+      if (validation) return validation;
     }
     // eslint-disable-next-line no-console
     console.log(`[forgewp:forms] submit "${name}"`, plain);
@@ -377,7 +388,7 @@ export function useWpFormFieldLabels(form: string): Record<string, string> {
  * Provides accessible submission state for a native ForgeWP form while
  * delegating transport and server behavior to submitWpForm().
  */
-export interface UseWpFormOptions {
+export interface UseWpFormOptions extends SubmitWpFormOptions {
   /** Clear the form controls after a successful submission. */
   resetOnSuccess?: boolean;
 }
@@ -400,7 +411,7 @@ export function useWpForm(
     setMessage('');
     setErrors({});
 
-    const result = await submitWpForm(name, data);
+    const result = await submitWpForm(name, data, options);
     setStatus(result.ok ? 'success' : 'error');
     setMessage(result.message || '');
     setErrors(result.errors || {});
@@ -644,7 +655,7 @@ export function useWpMenu(location: string = 'primary'): {
  */
 function matchMetaCondition(
   customFields: Record<string, any> = {},
-  condition: import('./types').WpMetaQuery,
+  condition: import('./types.js').WpMetaQuery,
 ): boolean {
   const { key, value, compare = '=' } = condition;
 
@@ -681,7 +692,7 @@ function matchMetaCondition(
  */
 function executeInMemoryQuery(
   mockDb: any[],
-  args: import('./types').WpQueryArgs,
+  args: import('./types.js').WpQueryArgs,
   page: number,
 ): { items: any[]; total: number } {
   const {
@@ -1166,13 +1177,17 @@ export interface ThemeSettings {
   description?: string;
   textDomain?: string;
   style?: 'forgewp' | 'shadcn';
+  /** @deprecated The exporter reads cms/screenshot.png; this property does not select an image. */
   screenshot?: string;
+  /** @deprecated Use explicit wp.config.ts options. This is not a general feature registry. */
   features?: Record<string, boolean>;
   menus?: Record<string, string>;
   presets?: {
-    wordpressCoreStyles?: boolean; // Set to false to fully cut off standard pre-packaged legacy styles
+    /** Whether to add wp-block-styles theme support. Default: true; does not remove all WordPress CSS. */
+    wordpressCoreStyles?: boolean;
   };
   settings?: {
+    menus?: Record<string, { description?: string }>;
     layout?: {
       contentSize?: string;
       wideSize?: string;
@@ -1190,8 +1205,10 @@ export interface ThemeSettings {
 }
 
 /**
- * Declares a WordPress theme configuration in ForgeWP.
- * Statically parsed by the compiler to output theme.json and functions.php registers.
+ * Legacy identity helper: returns its argument without registering a theme.
+ * Export configuration is loaded from wp.config.ts. Use the compiler's
+ * defineConfig there for the complete, required export configuration contract.
+ * @deprecated Use defineConfig from @forgewp/compiler/define-config in wp.config.ts.
  */
 export function defineTheme(config: ThemeSettings): ThemeSettings {
   return config;

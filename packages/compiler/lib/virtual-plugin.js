@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { loadConfig } from './load-config.js';
+import { buildFormsPreviewData, formsPreviewScript } from './forms-preview.js';
 
 /**
  * ForgeWP Vite Virtual Plugin
@@ -16,6 +18,25 @@ export function forgewpVirtualPlugin(options = {}) {
 
   const VIRTUAL_RUNTIME_ID = 'virtual:forgewp-runtime';
   const RESOLVED_RUNTIME_ID = '\0' + VIRTUAL_RUNTIME_ID;
+  let development = false;
+  let formPreview = buildFormsPreviewData({});
+  let authPreview = {};
+  async function refreshForms() {
+    const configPath = path.join(projectRoot, 'wp.config.ts');
+    const config = fs.existsSync(configPath) ? await loadConfig(projectRoot) : {};
+    formPreview = buildFormsPreviewData(config);
+    const auth = config.auth || {};
+    authPreview = { registration: auth.features?.registration, emailVerification: auth.features?.emailVerification, autoLoginAfterSignup: auth.features?.autoLoginAfterSignup, defaultRole: auth.defaultRole, loginField: auth.loginField, registrationMetaFields: auth.registrationMetaFields || [], reservedUsernames: (auth.reservedUsernames || ['admin', 'system', 'root']).map((name) => name.toLowerCase()) };
+  }
+  const isFormSource = (file) => {
+    const relative = path.relative(projectRoot, file).replaceAll('\\', '/');
+    return relative === 'wp.config.ts' || (relative.startsWith('cms/mail/') && relative.endsWith('.json')) || (relative.startsWith('cms/forms/') && /\.[jt]sx?$/.test(relative));
+  };
+  function reloadForms(server) {
+    const module = server.moduleGraph.getModuleById(RESOLVED_RUNTIME_ID);
+    if (module) server.moduleGraph.invalidateModule(module);
+    server.ws.send({ type: 'full-reload' });
+  }
 
   function hasPackage(pkgName) {
     const pkgPath = path.join(projectRoot, 'package.json');
@@ -34,6 +55,34 @@ export function forgewpVirtualPlugin(options = {}) {
 
   return {
     name: 'forgewp-virtual-runtime',
+    configResolved(config) { development = config.command === 'serve'; },
+    async buildStart() {
+      if (!development) return;
+      await refreshForms();
+      this.addWatchFile?.(path.join(projectRoot, 'wp.config.ts'));
+    },
+    configureServer(server) {
+      const formsDir = path.join(projectRoot, 'cms/forms');
+      server.watcher.add(formsDir);
+      server.watcher.add(path.join(projectRoot, 'cms/mail'));
+      const onStructureChange = async (file) => {
+        if (!isFormSource(file)) return;
+        try { await refreshForms(); reloadForms(server); }
+        catch (error) { server.ws.send({ type: 'error', err: { message: error.message, stack: error.stack } }); }
+      };
+      server.watcher.on('add', onStructureChange);
+      server.watcher.on('unlink', onStructureChange);
+      server.httpServer?.once('close', () => {
+        server.watcher.off('add', onStructureChange);
+        server.watcher.off('unlink', onStructureChange);
+      });
+    },
+    async handleHotUpdate({ file, server }) {
+      if (!isFormSource(file)) return;
+      await refreshForms();
+      reloadForms(server);
+      return [];
+    },
 
     resolveId(id) {
       if (id === VIRTUAL_RUNTIME_ID) {
@@ -248,6 +297,8 @@ if (typeof window !== 'undefined') {
   };
   window._forgeWpMockMenus = menusData;
   window._forgeWpMockTranslations = translationsData;
+  ${development ? formsPreviewScript(formPreview) : ''}
+  ${development ? `window._forgeWpAuthPreview = ${JSON.stringify(authPreview)};` : ''}
   ${hasAuth ? `window._forgeWpMockUsers = usersData;\n  window._forgeWpMockRoles = rolesData;\n  window._forgeWpMockSessions = sessionsData;` : ''}
 }
 

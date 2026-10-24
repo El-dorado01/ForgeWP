@@ -27,6 +27,7 @@ import {
  * @param {boolean} [options.validate]
  * @param {boolean} [options.strict] Treat editable from/pick issues (and --validate warnings) as failures
  * @param {string} [options.packageManager]
+ * @param {(progress: { stage: string, message: string }) => void} [options.onProgress]
  */
 export async function exportTheme(options) {
   const themeRoot = path.resolve(options.themeRoot);

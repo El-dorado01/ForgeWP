@@ -22,6 +22,7 @@ import { loadMenusData } from './functions/load-menus.js';
 import { loadMockData } from './functions/seed-mock-data.js';
 import { loadProductsData } from './functions/seed-products.js';
 import { usesBlockArea } from './hydration/uses-block-area.js';
+import { discoverReactTemplates, resolvePageTemplateIntent, pageTemplateDiagnostic, writePageTemplateCache } from './template-discovery.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 register(pathToFileURL(path.join(__dirname, 'asset-loader.js')).href);
@@ -1031,9 +1032,10 @@ if (existsSync(outDir)) {
 }
 
 const appDir = path.join(themeRoot, 'src', 'app');
+const templateDiscovery = discoverReactTemplates(themeRoot);
 if (existsSync(appDir)) {
   const { readdirSync } = require('node:fs');
-  const files = readdirSync(appDir);
+  const files = templateDiscovery.roots;
   for (const file of files) {
     if (file.endsWith('.tsx')) {
       const name = file.replace('.tsx', '');
@@ -1094,6 +1096,7 @@ if (existsSync(appDir)) {
 
             const finalHtml = cleanHtml + stateScript;
             writeFileSync(path.join(outDir, `${name}.html`), finalHtml, 'utf8');
+            console.warn(`[ForgeWP Templates] src/app/${file} -> ${name}.php (WordPress hierarchy; URL follows WordPress routing).`);
             console.warn(`[ForgeWP Compiler] WROTE ${name}.html to ${outDir}`);
 
             const seoProps = extractSeoPropsFromSource(filePath);
@@ -1141,9 +1144,7 @@ if (VERBOSE) {
 }
 if (existsSync(pagesDir)) {
   const { readdirSync } = require('node:fs');
-  const pages = readdirSync(pagesDir).filter(
-    (f: string) => f.endsWith('.tsx') && !/^placeholder\.tsx$/i.test(f),
-  );
+  const pages = templateDiscovery.pages;
 
   for (const pageFile of pages) {
     const pagePath = path.join(pagesDir, pageFile);
@@ -1152,6 +1153,12 @@ if (existsSync(pagesDir)) {
     }
     try {
       const module = await import(pathToFileURL(pagePath).href);
+      const discoveryConfig = module.pageConfig && typeof module.pageConfig === 'object' ? module.pageConfig : {};
+      const intent = resolvePageTemplateIntent(pageFile, discoveryConfig);
+      if (intent.kind === 'component') {
+        console.warn(pageTemplateDiagnostic(`src/app/pages/${pageFile}`, intent, discoveryConfig));
+        continue;
+      }
       const CustomPage = module.default || Object.values(module)[0];
       if (CustomPage) {
         forgeWpGlobal.__forgewpSsrQueries = {};
@@ -1159,19 +1166,8 @@ if (existsSync(pagesDir)) {
           module.pageConfig && typeof module.pageConfig === 'object'
             ? module.pageConfig
             : {};
-        const pageName = pageFile.replace('.tsx', '');
-        const slug = pageName
-          .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-          .toLowerCase();
-
-        const isPostTypeSingle =
-          slug === 'product' ||
-          slug.startsWith('single-') ||
-          Boolean(pageConfig && pageConfig.postType);
-
-        const singleSlug =
-          pageConfig?.postType ||
-          (slug.startsWith('single-') ? slug.replace(/^single-/, '') : slug);
+        const { slug, singleSlug } = intent;
+        const isPostTypeSingle = intent.kind === 'single';
 
         // Dynamically discover a representative sample item for this post type
         // so SSR renders a rich, complete preview skeleton instead of a not-found fallback
@@ -1268,42 +1264,13 @@ if (existsSync(pagesDir)) {
             finalHtml;
         }
 
-        writeFileSync(
-          path.join(outDir, `template-${slug}.html`),
-          finalHtml,
-          'utf8',
-        );
-        if (VERBOSE) {
-          console.warn(`WROTE template-${slug}.html to ${outDir}`);
-        }
-
         const customSeo = extractSeoPropsFromSource(pagePath);
         let customHeadHtml = buildHeadHtml(layoutSeo, customSeo);
         if (customExtraHeadTags) {
           customHeadHtml += '\n' + customExtraHeadTags;
         }
-        writeFileSync(
-          path.join(outDir, `template-${slug}-head.html`),
-          customHeadHtml,
-          'utf8',
-        );
-        if (VERBOSE) {
-          console.warn(`WROTE template-${slug}-head.html to ${outDir}`);
-        }
-
-        if (isPostTypeSingle) {
-          writeFileSync(
-            path.join(outDir, `single-${singleSlug}.html`),
-            finalHtml,
-            'utf8',
-          );
-          writeFileSync(
-            path.join(outDir, `single-${singleSlug}-head.html`),
-            customHeadHtml,
-            'utf8',
-          );
-          console.warn(`WROTE single-${singleSlug}.html to ${outDir}`);
-        }
+        writePageTemplateCache(outDir, intent, finalHtml, customHeadHtml);
+        console.warn(pageTemplateDiagnostic(`src/app/pages/${pageFile}`, intent, discoveryConfig, templateDiscovery.importers.get(pageFile)));
       }
     } catch (e: any) {
       console.warn(`Failed to render custom page ${pageFile}:`, e.message);

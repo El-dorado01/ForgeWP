@@ -4,16 +4,18 @@
  * @param {import('./types.js').ForgeWPThemeConfig} config
  * @returns {string}
  */
+import { resolveThemeCompatibility } from './theme-compatibility.js';
+
 export function buildStyleCss(config) {
+  const compatibility = resolveThemeCompatibility(config);
   return `/*
 Theme Name: ${config.name}
 Theme URI: https://forgewp.dev
 Author: ForgeWP
 Description: ${config.description}
 Version: ${config.version}
-Requires at least: 6.0
-Tested up to: 6.7
-Requires PHP: 7.4
+Requires at least: ${compatibility.requiresWordPress}
+${compatibility.testedUpTo ? `Tested up to: ${compatibility.testedUpTo}\n` : ''}Requires PHP: ${compatibility.requiresPhp}
 License: GNU General Public License v2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: ${config.textDomain}

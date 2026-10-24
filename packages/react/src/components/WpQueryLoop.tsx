@@ -1,11 +1,11 @@
 import React from 'react';
-import { WpPostContext } from '../context';
-import type { WpPost } from '../types';
+import { WpPostContext } from '../context.js';
+import type { WpPost } from '../types.js';
 
 export interface WpQueryLoopProps {
   /** Post type key — matches a key in your cms/mock-data.json */
   postType?: string;
-  /** Number of posts to render */
+  /** Number of posts to render; -1 includes all matching posts. */
   postsPerPage?: number;
   /** Optional category slug filter */
   categoryName?: string;
@@ -73,6 +73,8 @@ export function WpQueryLoop({
         postType,
         postsPerPage,
         categoryName,
+        orderby,
+        order,
         postId,
         metaKey,
         metaValue,
@@ -182,8 +184,7 @@ export function WpQueryLoop({
     filteredPosts = filteredPosts.filter((p) => p.id === postId);
   }
 
-  const items = filteredPosts
-    .slice(0, postsPerPage)
+  const items = (postsPerPage === -1 ? filteredPosts : filteredPosts.slice(0, postsPerPage))
     .map((p) => ({ ...p, __postType: postType }));
 
   if (items.length === 0) {

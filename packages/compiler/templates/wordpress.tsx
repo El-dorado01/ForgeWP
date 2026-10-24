@@ -257,7 +257,11 @@ if (IS_DEV) {
         mockForms[formName] = { fields: seedFields };
       }
     }
-    (window as any)._forgeWpMockForms = mockForms;
+    // The virtual runtime includes discovered forms and owns its locale-aware data.
+    // Retain this bootstrap only when no virtual runtime has initialized it.
+    if (!(window as any)._forgeWpMockForms) {
+      (window as any)._forgeWpMockForms = mockForms;
+    }
   }
 }
 

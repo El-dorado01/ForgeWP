@@ -366,6 +366,7 @@ add_action('acf/init', 'forgewp_register_acf_field_groups');
 if ( ! function_exists( 'forgewp_theme_setup' ) ) :
     function forgewp_theme_setup() {
         // Essential theme features
+${config.presets?.wordpressCoreStyles === false ? '' : "        add_theme_support( 'wp-block-styles' );\n"}
         add_theme_support( 'post-thumbnails' );
         add_theme_support( 'title-tag' );
         add_theme_support( 'responsive-embeds' );

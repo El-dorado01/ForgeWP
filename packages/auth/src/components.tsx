@@ -1,5 +1,8 @@
+import { consumePreviewResetToken } from './password-preview.js';
+import { registerPreviewUser } from './registration-preview.js';
+import { normalizeAuthBase } from './session-url.js';
 import React from 'react';
-import { WpUser, WpAuthContext, useWpUser, useWpCapability, useWpAuth, WpPageConfig, stripHtml } from './hooks';
+import { WpUser, WpAuthContext, useWpUser, useWpCapability, useWpAuth, WpPageConfig, stripHtml } from './hooks.js';
 
 const IS_DEV =
   typeof import.meta !== 'undefined' &&
@@ -8,30 +11,30 @@ const IS_DEV =
 
 function getApiBaseUrl(): string {
   if (typeof window !== 'undefined' && (window as any).FORGEWP_API_URL) {
-    return (window as any).FORGEWP_API_URL;
+    return normalizeAuthBase((window as any).FORGEWP_API_URL);
   }
   try {
     // @ts-ignore
     const fwUrl = import.meta.env.FORGEWP_API_URL;
-    if (fwUrl) return fwUrl;
+    if (fwUrl) return normalizeAuthBase(fwUrl);
   } catch (e) {}
   try {
     // @ts-ignore
     const viteUrl = import.meta.env.VITE_WP_API_URL;
-    if (viteUrl) return viteUrl;
+    if (viteUrl) return normalizeAuthBase(viteUrl);
   } catch (e) {}
   try {
     if (typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.env) {
       const processEnv = (globalThis as any).process.env;
       const envUrl = processEnv.FORGEWP_API_URL || processEnv.NEXT_PUBLIC_WP_API_URL || processEnv.WP_API_URL;
-      if (envUrl) return envUrl;
+      if (envUrl) return normalizeAuthBase(envUrl);
     }
   } catch (e) {}
   if (typeof window !== 'undefined') {
     const homeUrl = (window as any).forgeWpHydration?.siteSettings?.options?.home;
     if (homeUrl) {
       try {
-        return new URL(homeUrl).pathname.replace(/\/$/, '');
+        return normalizeAuthBase(new URL(homeUrl).pathname);
       } catch (e) {}
     }
   }
@@ -215,6 +218,7 @@ export function WpAuthProvider({
   });
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
 
   // Sync loginField and emailVerificationEnabled from compile-time / runtime environment and hydration
   React.useEffect(() => {
@@ -502,6 +506,7 @@ export function WpAuthProvider({
   }, [loginField]);
 
   const logout = React.useCallback(async (): Promise<void> => {
+    setError(null);
     setLoading(true);
     if (IS_DEV) {
       await new Promise((res) => setTimeout(res, 300));
@@ -519,7 +524,11 @@ export function WpAuthProvider({
       }
 
       try {
-        await fetch(`${getApiBaseUrl()}/wp-json/forgewp/v1/auth/logout`, { method: 'POST' });
+        const res = await fetch(`${getApiBaseUrl()}/wp-json/forgewp/v1/auth/logout`, { method: 'POST' });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || 'Logout failed. Please try again.');
+        }
         setUser(null);
         setLoading(false);
         if (typeof window !== 'undefined') {
@@ -540,80 +549,24 @@ export function WpAuthProvider({
   ): Promise<boolean> => {
     setLoading(true);
     setError(null);
+    setNotice(null);
 
     if (IS_DEV) {
-      await new Promise((res) => setTimeout(res, 500));
-      const mockUsers = window._forgeWpMockUsers || [];
-
-      if (mockUsers.some((u: any) => u.username.toLowerCase() === username.toLowerCase())) {
-        setError('Username is already taken.');
-        setLoading(false);
-        return false;
-      }
-
-      if (mockUsers.some((u: any) => u.email.toLowerCase() === email.toLowerCase())) {
-        setError('Email is already registered.');
-        setLoading(false);
-        return false;
-      }
-
-      const defaultRole = (window.forgeWpHydration?.siteSettings?.authDefaultRole) || 'subscriber';
-      const isEmailVerification = window.forgeWpHydration?.emailVerificationEnabled ?? emailVerificationEnabled;
-
-      const newUser: WpUser = {
-        id: Date.now(),
-        username,
-        email,
-        displayName: username,
-        roles: [defaultRole],
-        avatarUrl: `https://picsum.photos/seed/${username}/150/150`,
-        emailVerified: !isEmailVerification,
-        ...metadata,
-      };
-
-      if (window._forgeWpMockUsers) {
-        if (!window._forgeWpMockUsers.some((u: any) => u.id === newUser.id)) {
-          window._forgeWpMockUsers.push(newUser);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const result = registerPreviewUser(username, email, password, metadata, emailVerificationEnabled, loginField);
+        setNotice(result.notice);
+        if (result.autoLogin) {
+          setUser(result.user);
+          window.localStorage.setItem('forgewp_auth_session', JSON.stringify(result.user));
         }
-      }
-
-      // Post log to dev server to record new user in cms/users.json
-      fetch('/forgewp-dev-api/write-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser)
-      }).catch(() => {});
-
-      if (emailVerificationEnabled) {
-        const mockToken = 'dev-token-' + Math.random().toString(36).substring(2, 10);
-        const mockPending = JSON.parse(window.localStorage.getItem('forgewp_mock_verification_tokens') || '{}');
-        mockPending[mockToken] = newUser.id;
-        window.localStorage.setItem('forgewp_mock_verification_tokens', JSON.stringify(mockPending));
-        
-        const verificationLink = `${window.location.origin}/verify-email?userId=${newUser.id}&token=${mockToken}`;
-        console.log(`[ForgeWP Auth] Simulated Verification Email sent to ${email}. Verification Link: ${verificationLink}`);
-        
-        // Post log to dev server to record in cms/email-logs.json
-        fetch('/forgewp-dev-api/write-email-log', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: email,
-            subject: 'Verify your ForgeWP Account',
-            message: `Welcome to ForgeWP! Click this link to verify your email address:\n\n${verificationLink}`,
-            verification_url: verificationLink,
-            timestamp: new Date().toISOString()
-          })
-        }).catch(() => {});
-
         setLoading(false);
         return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Registration failed.');
+        setLoading(false);
+        return false;
       }
-
-      setUser(newUser);
-      window.localStorage.setItem('forgewp_auth_session', JSON.stringify(newUser));
-      setLoading(false);
-      return true;
     } else {
       try {
         const res = await fetch(`${getApiBaseUrl()}/wp-json/forgewp/v1/auth/register`, {
@@ -630,6 +583,7 @@ export function WpAuthProvider({
         }
 
         const data = await res.json();
+        setNotice(stripHtml(data.message));
         const userObj = (data && (data.user || data.id ? (data.user || data) : null)) as WpUser | null;
         if (userObj && userObj.id) {
           if (isJwtAuthEnabled()) {
@@ -639,7 +593,7 @@ export function WpAuthProvider({
           setLoading(false);
           return true;
         }
-        if (data && data.requiresVerification) {
+        if (data && data.success === true) {
           setLoading(false);
           return true;
         }
@@ -793,10 +747,7 @@ export function WpAuthProvider({
 
     if (IS_DEV) {
       await new Promise((res) => setTimeout(res, 800));
-      const mockResetTokens = JSON.parse(window.localStorage.getItem('forgewp_mock_reset_tokens') || '{}');
-      if (mockResetTokens[key] && mockResetTokens[key].toLowerCase() === loginName.toLowerCase()) {
-        delete mockResetTokens[key];
-        window.localStorage.setItem('forgewp_mock_reset_tokens', JSON.stringify(mockResetTokens));
+      if (consumePreviewResetToken(loginName, key, pass)) {
         setLoading(false);
         return true;
       }
@@ -920,6 +871,7 @@ export function WpAuthProvider({
     loading,
     initializing,
     error: stripHtml(error),
+    notice: stripHtml(notice),
     login,
     logout,
     register,
@@ -929,7 +881,7 @@ export function WpAuthProvider({
     forgotPassword,
     resetPassword,
     resendVerificationEmail,
-  }), [user, loading, initializing, error, login, logout, register, loginField, emailVerificationEnabled, verifyEmail, forgotPassword, resetPassword, resendVerificationEmail]);
+  }), [user, loading, initializing, error, notice, login, logout, register, loginField, emailVerificationEnabled, verifyEmail, forgotPassword, resetPassword, resendVerificationEmail]);
 
   return <WpAuthContext.Provider value={value}>{children}</WpAuthContext.Provider>;
 }
@@ -1270,6 +1222,7 @@ export function WpRegisterForm({
       className={`forgewp-auth-form forgewp-register-form border-2 border-black p-6 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-4 max-w-sm w-full ${className}`}
     >
       <h3 className="text-xl font-bold uppercase tracking-tight">Create Account</h3>
+      {context.notice && <p role="status">{context.notice}</p>}
       
       {formErr && (
         <div className="bg-red-100 border-2 border-red-500 text-red-700 p-3 font-semibold text-sm">
@@ -1373,6 +1326,7 @@ export function WpPasswordResetForm({
   className?: string;
   onSuccess?: () => void;
 }) {
+  const auth = useWpAuth();
   const [emailOrUsername, setEmailOrUsername] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
   const [formErr, setFormErr] = React.useState<string | null>(null);
@@ -1388,33 +1342,18 @@ export function WpPasswordResetForm({
     setFormErr(null);
     setSuccessMsg(null);
 
-    if (IS_DEV) {
-      await new Promise((res) => setTimeout(res, 600));
-      setSuccessMsg('Reset link sent successfully (simulated).');
-      setSubmitting(false);
-      if (onSuccess) onSuccess();
-    } else {
-      try {
-        const res = await fetch(`${getApiBaseUrl()}/wp-json/forgewp/v1/auth/lost-password`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_login: emailOrUsername }),
-        });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setFormErr(stripHtml(data.message) || 'Failed to send recovery email.');
-          setSubmitting(false);
-          return;
-        }
-
-        setSuccessMsg('A password reset link has been sent to your email.');
-        setSubmitting(false);
+    try {
+      const ok = await auth.forgotPassword(emailOrUsername.trim());
+      if (ok) {
+        setSuccessMsg(IS_DEV ? 'Check the preview email log for your reset link.' : 'Password recovery request accepted. Check your inbox for the reset link.');
         if (onSuccess) onSuccess();
-      } catch (err: any) {
-        setFormErr(stripHtml(err.message) || 'Connection error.');
-        setSubmitting(false);
+      } else {
+        setFormErr('Unable to request a reset link. Please try again.');
       }
+    } catch (err: any) {
+      setFormErr(stripHtml(err.message) || 'Connection error.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1425,9 +1364,9 @@ export function WpPasswordResetForm({
     >
       <h3 className="text-xl font-bold uppercase tracking-tight">Recover Password</h3>
       
-      {formErr && (
+      {(formErr || auth.error) && (
         <div className="bg-red-100 border-2 border-red-500 text-red-700 p-3 font-semibold text-sm">
-          ⚠️ {formErr}
+          ⚠️ {auth.error || formErr}
         </div>
       )}
 

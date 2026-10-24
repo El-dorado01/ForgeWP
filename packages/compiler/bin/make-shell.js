@@ -23,6 +23,7 @@ import {
   SHELL_LAYOUT_PRESETS,
   DEFAULT_SHELL_CLASSNAME,
 } from "../lib/blocks/discover-blocks.js";
+import { blockAuthoringHelp } from "../lib/block-authoring-help.js";
 
 const args = process.argv.slice(2);
 
@@ -65,6 +66,7 @@ function printHelp() {
     pnpm forgewp make:shell AboutSplitSection
     pnpm forgewp make:shell AboutSplitSection --children=about-mission,about-values --layout=2-col
     pnpm forgewp make:shell FeatureRow --layout=3-col --template-lock=insert
+${blockAuthoringHelp}
 `);
 }
 

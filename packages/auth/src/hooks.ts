@@ -1,3 +1,6 @@
+import { consumePreviewResetToken } from './password-preview.js';
+import { registerPreviewUser } from './registration-preview.js';
+import { normalizeAuthBase } from './session-url.js';
 import React from 'react';
 
 export function stripHtml(text: any): string | null {
@@ -50,6 +53,7 @@ export interface WpAuthContextType {
   loading: boolean;
   initializing: boolean;
   error: string | null;
+  notice?: string | null;
   login: (credential: string, password: string, redirectUrl?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   register: (username: string, email: string, password: string, metadata?: Record<string, any>) => Promise<boolean>;
@@ -73,6 +77,7 @@ declare global {
   }
 
   interface Window {
+    _forgeWpAuthPreview?: import('./registration-preview.js').RegistrationPreviewPolicy;
     _forgeWpMockUsers?: WpUser[];
     _forgeWpMockRoles?: Record<string, string[]>;
     _forgeWpMockSessions?: any[];
@@ -101,6 +106,7 @@ let globalLoading = false;
 let globalInitializing =
   typeof window !== 'undefined' && (window as any)._forgeWpCompileTime !== true;
 let globalError: string | null = null;
+let globalNotice: string | null = null;
 const globalListeners = new Set<() => void>();
 
 
@@ -110,23 +116,23 @@ function notifyAuthSubscribers() {
 
 function getStandAloneApiBaseUrl(): string {
   if (typeof window !== 'undefined' && window.FORGEWP_API_URL) {
-    return window.FORGEWP_API_URL;
+    return normalizeAuthBase(window.FORGEWP_API_URL);
   }
   try {
     // @ts-ignore
     const fwUrl = import.meta.env.FORGEWP_API_URL;
-    if (fwUrl) return fwUrl;
+    if (fwUrl) return normalizeAuthBase(fwUrl);
   } catch (e) {}
   try {
     // @ts-ignore
     const viteUrl = import.meta.env.VITE_WP_API_URL;
-    if (viteUrl) return viteUrl;
+    if (viteUrl) return normalizeAuthBase(viteUrl);
   } catch (e) {}
   if (typeof window !== 'undefined') {
     const homeUrl = window.forgeWpHydration?.siteSettings?.options?.home;
     if (homeUrl) {
       try {
-        return new URL(homeUrl).origin;
+        return normalizeAuthBase(new URL(homeUrl).pathname);
       } catch (e) {}
     }
   }
@@ -235,6 +241,7 @@ export function useWpAuth() {
     loading: globalLoading,
     initializing: globalInitializing,
     error: globalError,
+    notice: globalNotice,
   }));
 
   React.useEffect(() => {
@@ -245,6 +252,7 @@ export function useWpAuth() {
         loading: globalLoading,
         initializing: globalInitializing,
         error: globalError,
+    notice: globalNotice,
       });
     };
     globalListeners.add(handler);
@@ -261,6 +269,7 @@ export function useWpAuth() {
       loading: context.loading,
       initializing: context.initializing,
       error: stripHtml(context.error),
+      notice: stripHtml(context.notice),
       loginField: context.loginField,
       emailVerificationEnabled: context.emailVerificationEnabled,
       verifyEmail: context.verifyEmail,
@@ -425,6 +434,7 @@ export function useWpAuth() {
   };
 
   const logout = async (): Promise<void> => {
+    globalError = null;
     globalLoading = true;
     notifyAuthSubscribers();
 
@@ -444,7 +454,11 @@ export function useWpAuth() {
       }
 
       try {
-        await fetch(`${getStandAloneApiBaseUrl()}/wp-json/forgewp/v1/auth/logout`, { method: 'POST' });
+        const res = await fetch(`${getStandAloneApiBaseUrl()}/wp-json/forgewp/v1/auth/logout`, { method: 'POST' });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || 'Logout failed. Please try again.');
+        }
         globalUser = null;
         globalLoading = false;
         notifyAuthSubscribers();
@@ -467,53 +481,25 @@ export function useWpAuth() {
   ): Promise<boolean> => {
     globalLoading = true;
     globalError = null;
+    globalNotice = null;
     notifyAuthSubscribers();
 
     if (IS_DEV) {
-      await new Promise((res) => setTimeout(res, 500));
-      const mockUsers = window._forgeWpMockUsers || [];
-
-      if (mockUsers.some((u: any) => u.username.toLowerCase() === username.toLowerCase())) {
-        globalError = 'Username is already taken.';
-        globalLoading = false;
-        notifyAuthSubscribers();
-        return false;
-      }
-
-      if (mockUsers.some((u: any) => u.email.toLowerCase() === email.toLowerCase())) {
-        globalError = 'Email is already registered.';
-        globalLoading = false;
-        notifyAuthSubscribers();
-        return false;
-      }
-
-      const defaultRole = (window.forgeWpHydration?.siteSettings?.authDefaultRole) || 'subscriber';
-      const emailVerificationEnabled = window.forgeWpHydration?.emailVerificationEnabled ?? false;
-
-      const newUser: WpUser = {
-        id: Date.now(),
-        username,
-        email,
-        displayName: username,
-        roles: [defaultRole],
-        avatarUrl: `https://picsum.photos/seed/${username}/150/150`,
-        emailVerified: !emailVerificationEnabled,
-      };
-
-      mockUsers.push(newUser);
-      window._forgeWpMockUsers = mockUsers;
-
-      if (emailVerificationEnabled) {
-        globalLoading = false;
-        notifyAuthSubscribers();
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const result = registerPreviewUser(username, email, password, metadata, window.forgeWpHydration?.emailVerificationEnabled ?? false, window.forgeWpHydration?.loginField || 'usernameAndEmail');
+        globalNotice = result.notice;
+        if (result.autoLogin) {
+          globalUser = result.user;
+          window.localStorage.setItem('forgewp_auth_session', JSON.stringify(result.user));
+        }
+        globalLoading = false; notifyAuthSubscribers();
         return true;
+      } catch (err) {
+        globalError = err instanceof Error ? err.message : 'Registration failed.';
+        globalLoading = false; notifyAuthSubscribers();
+        return false;
       }
-
-      globalUser = newUser;
-      window.localStorage.setItem('forgewp_auth_session', JSON.stringify(newUser));
-      globalLoading = false;
-      notifyAuthSubscribers();
-      return true;
     } else {
       try {
         const res = await fetch(`${getStandAloneApiBaseUrl()}/wp-json/forgewp/v1/auth/register`, {
@@ -531,9 +517,8 @@ export function useWpAuth() {
         }
 
         const data = await res.json();
-        const emailVerificationEnabled = window.forgeWpHydration?.emailVerificationEnabled || data?.requiresVerification || false;
-
-        if (emailVerificationEnabled) {
+        globalNotice = stripHtml(data.message);
+        if (data?.success === true && !data.user && !data.id) {
           globalLoading = false;
           notifyAuthSubscribers();
           return true;
@@ -711,10 +696,7 @@ export function useWpAuth() {
 
     if (IS_DEV) {
       await new Promise((res) => setTimeout(res, 800));
-      const mockResetTokens = JSON.parse(window.localStorage.getItem('forgewp_mock_reset_tokens') || '{}');
-      if (mockResetTokens[key] && mockResetTokens[key].toLowerCase() === loginName.toLowerCase()) {
-        delete mockResetTokens[key];
-        window.localStorage.setItem('forgewp_mock_reset_tokens', JSON.stringify(mockResetTokens));
+      if (consumePreviewResetToken(loginName, key, pass)) {
         globalLoading = false;
         notifyAuthSubscribers();
         return true;
@@ -846,8 +828,8 @@ export function useWpAuth() {
     }
   };
 
-  const loginField = window.forgeWpHydration?.loginField || 'usernameAndEmail';
-  const emailVerificationEnabled = window.forgeWpHydration?.emailVerificationEnabled || false;
+  const loginField = typeof window !== 'undefined' ? window.forgeWpHydration?.loginField || 'usernameAndEmail' : 'usernameAndEmail';
+  const emailVerificationEnabled = typeof window !== 'undefined' && (window.forgeWpHydration?.emailVerificationEnabled || false);
 
   return {
     login,
@@ -856,6 +838,7 @@ export function useWpAuth() {
     loading: standaloneState.loading,
     initializing: standaloneState.initializing,
     error: stripHtml(standaloneState.error),
+    notice: stripHtml(standaloneState.notice),
     loginField,
     emailVerificationEnabled,
     verifyEmail,

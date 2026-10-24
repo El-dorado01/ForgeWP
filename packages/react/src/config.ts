@@ -138,8 +138,10 @@ export interface WpFormClientFieldsConfig {
 export interface WpFormConfirmationConfig {
   enabled: boolean;
   emailField: string;
-  subject: string;
-  body: string;
+  subject?: string;
+  body?: string;
+  /** Named plain-text template in cms/mail/<name>.json. */
+  template?: string;
 }
 
 export interface WpFormConfig {
@@ -164,6 +166,8 @@ export interface WpFormConfig {
   submissionTitle?: string;
   /** Plain-text notification email body template. Blank uses the default field list. */
   notificationBody?: string;
+  /** Named notification default in cms/mail/<name>.json. */
+  notificationTemplate?: string;
   /** Visitor-facing success copy returned by the native submission endpoint. */
   successMessage?: string;
   /** Dev-owned fields — the fixed part of the server-side allowlist. Required in 'native' mode. */
@@ -211,6 +215,8 @@ export function defineWpForm(config: WpFormConfig): WpFormConfig {
  * Configuration options for a page component declared via `export const pageConfig`.
  */
 export interface PageConfig {
+  /** Skip standalone src/app/pages discovery for a reusable helper. Explicit routes can still render it. Default: true. */
+  exportTemplate?: boolean;
   /**
    * Layout identifier to wrap this page with.
    * Resolves to `src/app/layouts/{layout}.tsx`.
@@ -259,7 +265,7 @@ export interface PageConfig {
  * @example
  * ```tsx
  * // src/app/pages/landing.tsx
- * import { definePageConfig } from '@forgewp/react';
+ * import { definePageConfig } from '@forgewp/react/config';
  *
  * export const pageConfig = definePageConfig({
  *   layout: 'blank', // or header: false, footer: false
@@ -447,6 +453,8 @@ export interface ForgeWPSeedConfig {
   products?: ForgeWPSeedStrategy;
   /**
    * Sync mock posts, pages, and CPTs from `cms/mock-data.ts` (or `mock-data.json`).
+   * A map opts in each post type independently; omitted/false types are disabled,
+   * even when invoked with --force. true is equivalent to 'once'.
    * Default: false
    */
   mockData?: ForgeWPSeedStrategy | Record<string, ForgeWPSeedStrategy>;
@@ -456,7 +464,7 @@ export interface ForgeWPSeedConfig {
    */
   sideloadImages?: boolean;
   /**
-   * Safety guard: Only execute when WP_DEBUG is true or in development environments.
+   * Safety guard: Only execute when WP_DEBUG is true, unless explicitly forced.
    * Default: true
    */
   developmentOnly?: boolean;

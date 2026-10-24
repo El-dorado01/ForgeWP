@@ -10,6 +10,22 @@ import { loadMenusData } from '../../lib/functions/load-menus.js';
 import { collectFallbackPageRoutes } from '../../lib/collect-static-routes.js';
 
 describe('Mega Menus & Hierarchical Navigation Compiler Tests', () => {
+  it('preserves explicit menu descriptions and scopes the core-style flag to theme support', () => {
+    const base = {
+      version: '1.0.0', textDomain: 'example',
+      settings: { menus: { primary: { description: "Editor's navigation" } } },
+    };
+    const generate = (config) => buildFunctionsPhp(
+      config, { cssFile: 'assets/main.css' }, [], '', [],
+      { primary: [] }, null, [], {}, [], []
+    );
+    const standard = generate(base);
+    expect(standard).toContain("Editor's navigation".replace("'", "\\'"));
+    expect(standard).toContain("add_theme_support( 'wp-block-styles' )");
+    const custom = generate({ ...base, presets: { wordpressCoreStyles: false } });
+    expect(custom).not.toContain("add_theme_support( 'wp-block-styles' )");
+    expect(custom).toContain('register_nav_menus');
+  });
   it('serializes nested mega menu items with children, badges, images, and classes to PHP', () => {
     const config = {
       textDomain: 'test_theme',

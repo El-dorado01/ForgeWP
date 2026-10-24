@@ -23,6 +23,7 @@ export interface CustomPostTypeConfig {
     singular?: string;
     plural?: string;
   };
+  /** Replaces the default features; [] disables all features (emitted as PHP false). */
   supports?: string[];
   public?: boolean;
   hasArchive?: boolean;
@@ -46,6 +47,7 @@ export interface ForgeWPI18nConfig {
   locales: string[];
   defaultLocale: string;
   provider?: 'local' | 'deepl' | 'libretranslate' | 'google' | string;
+  /** Optional project-relative JSON response cache for i18n:translate. */
   cache?: string;
   providerConfig?: {
     apiKey?: string;
@@ -58,13 +60,19 @@ export interface ForgeWpSeoSitemapsConfig {
   taxonomies: string[];
 }
 
+export interface ForgeWPPluginContext {
+  fs: typeof import('node:fs');
+  path: typeof import('node:path');
+}
+
 export interface ForgeWPPlugin {
   name: string;
-  validateConfig?: (config: ForgeWPThemeConfig, themeRoot: string) => void;
+  validateConfig?: (config: ForgeWPThemeConfig, themeRoot: string, context: ForgeWPPluginContext) => void;
   transformFunctionsPhp?: (
     php: string,
     config: ForgeWPThemeConfig,
     themeRoot: string,
+    context: ForgeWPPluginContext,
   ) => string;
 }
 
@@ -104,8 +112,10 @@ export interface ForgeWPFormClientFieldsConfig {
 export interface ForgeWPFormConfirmationConfig {
   enabled: boolean;
   emailField: string;
-  subject: string;
-  body: string;
+  subject?: string;
+  body?: string;
+  /** Named plain-text template in cms/mail/<name>.json. */
+  template?: string;
 }
 
 export interface ForgeWPFormConfig {
@@ -132,6 +142,8 @@ export interface ForgeWPFormConfig {
   submissionTitle?: string;
   /** Plain-text notification email body. Supports {field}; blank uses the default field list. */
   notificationBody?: string;
+  /** Named notification default in cms/mail/<name>.json. */
+  notificationTemplate?: string;
   /** Visitor-facing success message returned by the native submission endpoint. */
   successMessage?: string;
   /** Dev-owned fields — the fixed part of the server-side allowlist. Required in 'native' mode. */
@@ -171,6 +183,8 @@ export interface ForgeWPSeedConfig {
   products?: ForgeWPSeedStrategy;
   /**
    * Sync mock posts, pages, and CPTs from `cms/mock-data.ts` (or `mock-data.json`).
+   * A map opts in each post type independently; omitted/false types are disabled,
+   * even when invoked with --force. true is equivalent to 'once'.
    * Default: false
    */
   mockData?: ForgeWPSeedStrategy | Record<string, ForgeWPSeedStrategy>;
@@ -180,13 +194,19 @@ export interface ForgeWPSeedConfig {
    */
   sideloadImages?: boolean;
   /**
-   * Safety guard: Only execute when WP_DEBUG is true or in development environments.
+   * Safety guard: Only execute when WP_DEBUG is true, unless explicitly forced.
    * Default: true
    */
   developmentOnly?: boolean;
 }
 
 export interface ForgeWPThemeConfig {
+  /** Generated style.css requirements. Raise minima for project dependencies; record testedUpTo after WordPress acceptance. */
+  compatibility?: {
+    requiresWordPress?: string;
+    requiresPhp?: string;
+    testedUpTo?: string;
+  };
   name: string;
   slug: string;
   version: string;
@@ -205,6 +225,12 @@ export interface ForgeWPThemeConfig {
   };
   frameworkAdapter?: 'react' | 'html' | 'stub';
   style?: 'forgewp' | 'shadcn';
+  /** Declare menu location keys. Labels come from settings.menus; use cms/menus.ts for starter entries. */
+  menus?: Record<string, string>;
+  presets?: {
+    /** Whether to add wp-block-styles theme support. Default: true. */
+    wordpressCoreStyles?: boolean;
+  };
   headless?: {
     apiUrl?: string;
     jwtAuth?: boolean;
@@ -212,6 +238,8 @@ export interface ForgeWPThemeConfig {
   auth?: {
     loginField?: 'usernameOnly' | 'emailOnly' | 'usernameAndEmail';
     defaultRole?: string;
+    /** Profile metadata accepted from public signup. Empty by default; reserved keys cannot be allowed. */
+    registrationMetaFields?: string[];
     reservedUsernames?: string[];
     features?: {
       registration?: boolean;
@@ -237,6 +265,8 @@ export interface ForgeWPThemeConfig {
   seed?: ForgeWPSeedConfig;
   i18n?: ForgeWPI18nConfig;
   settings?: {
+    /** Explicit location descriptions, taking precedence over inferred menu labels. */
+    menus?: Record<string, { description?: string }>;
     layout?: {
       contentSize?: string;
       wideSize?: string;
@@ -346,17 +376,97 @@ export type ForgeWPFrameworkAdapterModule = ForgeWPFrameworkAdapter & {
   default?: ForgeWPFrameworkAdapter;
 };
 
-export function exportTheme(options: {
+export interface ForgeWPExportProgress {
+  stage: string;
+  message: string;
+}
+
+export interface ForgeWPExportOptions {
   themeRoot: string;
   skipBuild?: boolean;
   zip?: boolean;
   packageManager?: string;
-}): Promise<{
+  validate?: boolean;
+  strict?: boolean;
+  onProgress?: (progress: ForgeWPExportProgress) => void;
+}
+
+export interface ForgeWPExportResult {
   config: ForgeWPThemeConfig;
   outDir: string;
   zipPath: string | null;
   assets: ForgeWPBuildAssets;
-}>;
+}
+
+export function exportTheme(options: ForgeWPExportOptions): Promise<ForgeWPExportResult>;
+
+export interface ForgeWPValidationOptions {
+  themeRoot: string;
+  outDir: string;
+  assets: ForgeWPBuildAssets;
+  config: ForgeWPThemeConfig;
+  strict?: boolean;
+}
+
+export interface ForgeWPValidationResult {
+  missing: string[];
+  warnings: string[];
+}
+
+export function validateExport(options: ForgeWPValidationOptions): Promise<ForgeWPValidationResult>;
+
+export interface ForgeWPHydrationIsland {
+  name: string;
+  file: string;
+  trigger: string;
+  preload: string;
+  media: string | null;
+  connection: string | null;
+  clientOnly: boolean;
+  smartDiscovered?: boolean;
+  rootClassName?: string | null;
+  rootClassNameUnresolved?: boolean;
+}
+
+export function scanForHydrationIslandsWithProps(themeRoot: string): ForgeWPHydrationIsland[];
+
+/** Parsed editable field records; extra provider-specific metadata is retained. */
+export interface ForgeWPEditableField {
+  type: string;
+  label?: string;
+  default?: unknown;
+  [key: string]: unknown;
+}
+
+export function scanForEditableSchemas(themeRoot: string): Record<string, Record<string, ForgeWPEditableField>>;
+
+export interface ForgeWPIslandDiagnostic {
+  name: string;
+  sizeKb: number;
+  isHeavy: boolean;
+  chunkPath: string;
+}
+
+export interface ForgeWPHydrationAnalysis {
+  heavyCount: number;
+  results: ForgeWPIslandDiagnostic[];
+  violations?: Array<{
+    type: string;
+    file: string;
+    message: string;
+    severity: 'warning' | 'error';
+    lineContent?: string;
+  }>;
+}
+
+export function analyzeHydrationIslands(themeRoot: string, mapping: Record<string, string>): ForgeWPHydrationAnalysis;
+
+export function generateVisualReport(
+  themeRoot: string,
+  analysis: ForgeWPHydrationAnalysis,
+  islandsWithProps: ForgeWPHydrationIsland[],
+  config: ForgeWPThemeConfig,
+): string;
 
 export function loadConfig(themeRoot: string): Promise<ForgeWPThemeConfig>;
 

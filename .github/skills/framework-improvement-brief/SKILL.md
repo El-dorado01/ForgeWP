@@ -13,7 +13,7 @@ Maintain relevant findings in the monorepo-root file:
 
 `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md`
 
-Read the current brief before editing it. Do not create a competing improvement list elsewhere unless the user requests one. The brief is a current working backlog, not an append-only archive.
+Read the current brief before editing it. Do not create a competing improvement list elsewhere unless the user requests one. The brief is a current working backlog and shared progress tracker. Retain completed items so the user can track delivered work alongside remaining work.
 
 ## Evidence First
 
@@ -42,8 +42,8 @@ Keep verified current behavior separate from proposed future behavior. Do not de
 
 Whenever the brief is touched:
 
-- Remove a suggestion from the improvement brief entirely when its behavior is implemented and verified. Do not retain it as an "implemented" item, resolved entry, or completion history in the brief.
-- Keep current implementation facts only when needed to explain an unresolved suggestion, compatibility boundary, or staging/validation task. Put historical implementation details in the owning code/docs or a separately requested handoff, not in the improvement brief.
+- Mark an item completed when its acceptance criteria are implemented and verified. Retain its checked criteria and a concise verification note. Distinguish implementation/test completion from deferred WordPress acceptance; never mark untested live behavior as verified.
+- Keep implementation details concise and link to owning code/docs rather than duplicating them. Retain completion status and verification evidence in the brief.
 - Remove or rewrite a suggestion when code inspection disproves its premise. Do not leave a refuted concern phrased as an open defect.
 - Mark an item as partial when only one acceptance criterion is met. Keep remaining work explicit.
 - If another contributor or user changed relevant files, inspect the current source before changing the brief's status.
@@ -59,4 +59,4 @@ Whenever the brief is touched:
 
 ## Finish
 
-After updating the brief, verify active items against current source, tests, generated output, and docs; remove resolved or invalidated entries; then check that remaining entries are clear, non-duplicative, and point to real paths. In the response, say what changed in the brief and whether the suggestions were only recorded or also implemented.
+After updating the brief, verify active items against current source, tests, generated output, and docs; mark verified work complete and rewrite invalidated concerns with a short explanation; then check that remaining entries are clear, non-duplicative, and point to real paths. In the response, say what changed in the brief and whether the suggestions were only recorded or also implemented.

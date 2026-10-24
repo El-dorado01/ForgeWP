@@ -148,6 +148,14 @@ export function validateFormsConfig(forms) {
     const seedFields = Array.isArray(rawSeed)
       ? rawSeed
       : Object.values(rawSeed).flat();
+    const notificationKeys = new Set([...devFieldNames, ...seedFields.map((field) => field.name)]);
+    for (const setting of ['subject', 'notificationBody']) {
+      for (const [, field] of (formConfig[setting] || '').matchAll(/\{([a-zA-Z0-9_-]+)\}/g)) {
+        if (!notificationKeys.has(field)) {
+          throw new Error(`[ForgeWP Forms] forms.${name}.${setting} references undeclared field "${field}". Use an exact developer-owned or client seed field key.`);
+        }
+      }
+    }
     for (const field of seedFields) {
       if (devFieldNames.has(field.name)) {
         throw new Error(
@@ -1603,6 +1611,16 @@ ${locales.map((l, i) => `                <button type="button" class="button for
           <section class="forgewp-form-settings">
             <h3><?php esc_html_e( 'Form messages and labels', '${textDomain}' ); ?></h3>
             <p><?php esc_html_e( 'Edit visitor-facing copy and email text. Field keys, validation, and delivery addresses stay managed by the theme.', '${textDomain}' ); ?></p>
+            <?php
+            $forgewp_mail_keys = array(${Object.keys(formConfig.fields || {}).map(phpString).join(', ')});
+            foreach (array(${(isMultilingual ? locales : [null]).map((locale) => locale === null ? 'null' : phpString(locale)).join(', ')}) as $forgewp_mail_lang) {
+                foreach (forgewp_forms_get_client_fields(${phpString(name)}, ${seedPhp}, $forgewp_mail_lang) as $forgewp_mail_field) {
+                    if (isset($forgewp_mail_field['name'])) { $forgewp_mail_keys[] = $forgewp_mail_field['name']; }
+                }
+            }
+            ?>
+            <p><?php esc_html_e( 'Notification placeholders (case-sensitive):', '${textDomain}' ); ?> <code><?php echo esc_html('{' . implode('}, {', array_unique($forgewp_mail_keys)) . '}'); ?></code></p>
+${formConfig.confirmation?.enabled ? `            <p><?php esc_html_e( 'Receipt placeholders (developer-owned fields only):', '${textDomain}' ); ?> <code><?php echo esc_html(${phpString(Object.keys(formConfig.fields || {}).map((key) => `{${key}}`).join(', '))}); ?></code></p>` : ''}
             <form id="forgewp-settings-${name}" method="post" action="<?php echo esc_url( admin_url('admin-post.php') ); ?>">
               <input type="hidden" name="action" value="forgewp_forms_save_settings" />
               <input type="hidden" name="forgewp_form" value="${name}" />
@@ -1870,6 +1888,32 @@ ${editableForms.map(([n, f]) => `            ${phpString(n)} => array(${Object.k
             $confirmation_body = sanitize_textarea_field(isset($_POST['forgewp_confirmation_body']) ? wp_unslash($_POST['forgewp_confirmation_body']) : '');
             $settings['confirmationSubject'] = $confirmation_subject !== '' ? $confirmation_subject : $defaults['confirmationSubject'];
             $settings['confirmationBody'] = $confirmation_body !== '' ? $confirmation_body : $defaults['confirmationBody'];
+        }
+
+        // Notification messages may use the currently saved client fields.
+        // Receipt messages retain their developer-owned field contract.
+        $notification_keys = $field_keys[$form_name];
+        $client_seeds = array(
+${editableForms.map(([n, f]) => `            ${phpString(n)} => ${locales.length > 1 ? seedByLocalePhpArray(f.clientFields.seed || [], locales) : seedFieldsPhpArray(Array.isArray(f.clientFields.seed) ? f.clientFields.seed : [])},`).join('\n')}
+        );
+        foreach (array(${(locales.length > 1 ? locales : [null]).map((locale) => locale === null ? 'null' : phpString(locale)).join(', ')}) as $template_lang) {
+            foreach (forgewp_forms_get_client_fields($form_name, $client_seeds[$form_name], $template_lang) as $client_field) {
+                if (isset($client_field['name'])) { $notification_keys[] = $client_field['name']; }
+            }
+        }
+        foreach (array('notificationSubject', 'notificationBody', 'confirmationSubject', 'confirmationBody') as $setting_key) {
+            if (!isset($settings[$setting_key])) { continue; }
+            $allowed_keys = strpos($setting_key, 'confirmation') === 0 ? $field_keys[$form_name] : $notification_keys;
+            preg_match_all('/\\{([a-zA-Z0-9_-]+)\\}/', $settings[$setting_key], $template_matches);
+            $unknown_keys = array_diff($template_matches[1], $allowed_keys);
+            if (!empty($unknown_keys)) {
+                wp_die(esc_html(sprintf(
+                    __('Settings were not saved. Unknown email placeholders in %1$s: %2$s. Allowed field keys: %3$s. Placeholder names are case-sensitive. Go back to correct your message.', '${textDomain}'),
+                    $setting_key,
+                    implode(', ', array_unique($unknown_keys)),
+                    implode(', ', array_unique($allowed_keys))
+                )), '', array('back_link' => true));
+            }
         }
 
         update_option('forgewp_form_settings_' . $form_name, $settings, false);

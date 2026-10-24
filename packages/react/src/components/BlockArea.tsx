@@ -1,8 +1,11 @@
 import React from 'react';
-import { WpPostContext } from '../context';
+import { WpPostContext } from '../context.js';
+import { BlockContentPreview, type PreviewBlocks } from './BlockContentPreview.js';
 
 export interface BlockAreaProps {
   name: string;
+  /** Local-only block definitions keyed by serialized block name; does not register WordPress blocks. */
+  previewBlocks?: PreviewBlocks;
 }
 
 /**
@@ -11,18 +14,17 @@ export interface BlockAreaProps {
  * In production the ForgeWP compiler replaces this with:
  *   <?php the_content(); ?>
  */
-export function BlockArea({ name }: BlockAreaProps) {
+export function BlockArea({ name, previewBlocks = {} }: BlockAreaProps) {
+  const post = React.useContext(WpPostContext);
   if (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime) {
     return React.createElement('forgewp-block-area', {
       'data-name': name,
     });
   }
 
-  const post = React.useContext(WpPostContext);
-
   // Dev preview: show active post content if available, otherwise show a beautiful visual placeholder
   if (post && post.content) {
-    return <div dangerouslySetInnerHTML={{ __html: post.content }} />;
+    return <div><BlockContentPreview content={post.content} blocks={previewBlocks} /></div>;
   }
 
   return (

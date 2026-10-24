@@ -3,6 +3,19 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { parseSource, traverse } from '../blocks/ast-parser.js';
 
+export function validateMockSeedStrategy(value) {
+  const valid = (strategy) => [true, false, 'once', 'upsert', 'force'].includes(strategy);
+  if (value === undefined || valid(value)) return;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Invalid seed.mockData: expected a seed strategy or a post-type strategy map.');
+  }
+  for (const [postType, strategy] of Object.entries(value)) {
+    if (!/^[a-z0-9_-]{1,20}$/.test(postType) || !valid(strategy)) {
+      throw new Error(`Invalid seed.mockData entry "${postType}": expected a post-type key and false, true, "once", "upsert", or "force".`);
+    }
+  }
+}
+
 /**
  * Converts a Babel AST literal/object/array node to a JS value.
  */
@@ -99,32 +112,18 @@ export function loadMockData(themeRoot) {
 }
 
 /**
- * Builds the PHP code for seeding WordPress posts, pages, and custom post types from mock-data.ts.
- * @param {import('../types.js').ForgeWPThemeConfig} config
- * @param {string} themeRoot
- * @returns {string}
+ * Shared fixture normalization for generated PHP and the read-only CLI preview.
  */
-export function buildSeedMockDataPhp(config, themeRoot) {
-  const seedConfig = config.seed;
-  if (!seedConfig || !seedConfig.mockData) {
-    return '';
-  }
-
-  const rawMockData = loadMockData(themeRoot);
+export function normalizeMockSeedData(rawMockData, mockStrategy) {
   const postTypesToSeed = Object.keys(rawMockData);
-
-  if (postTypesToSeed.length === 0) {
-    return '';
-  }
-
-  const defaultStrategy = typeof seedConfig.mockData === 'string' ? seedConfig.mockData : 'once';
-  const developmentOnly = seedConfig.developmentOnly !== false;
-  const sideloadImages = seedConfig.sideloadImages !== false;
-
-  // Normalize mock data dictionary
+  const strategyMap = mockStrategy && typeof mockStrategy === 'object' ? mockStrategy : null;
+  if (!mockStrategy) return {};
   const normalizedData = {};
 
   for (const postType of postTypesToSeed) {
+    // Maps opt in explicitly: omitted/disabled types never enter the payload,
+    // including when the WordPress command is run with --force.
+    if (strategyMap && (!Object.hasOwn(strategyMap, postType) || strategyMap[postType] === false)) continue;
     const items = rawMockData[postType];
     if (!Array.isArray(items) || items.length === 0) continue;
 
@@ -165,12 +164,47 @@ export function buildSeedMockDataPhp(config, themeRoot) {
     });
   }
 
+  return normalizedData;
+}
+
+/** Build configured WordPress seed routines without connecting to a database. */
+export function buildSeedMockDataPhp(config, themeRoot) {
+  const seedConfig = config.seed;
+  validateMockSeedStrategy(seedConfig?.mockData);
+  if (!seedConfig || !seedConfig.mockData) {
+    return '';
+  }
+
+  const rawMockData = loadMockData(themeRoot);
+  const postTypesToSeed = Object.keys(rawMockData);
+
+  if (postTypesToSeed.length === 0) {
+    return '';
+  }
+
+  const defaultStrategy = typeof seedConfig.mockData === 'string' ? seedConfig.mockData : 'once';
+  const strategyMap = typeof seedConfig.mockData === 'object' ? seedConfig.mockData : null;
+  const developmentOnly = seedConfig.developmentOnly !== false;
+  const sideloadImages = seedConfig.sideloadImages !== false;
+
+  const normalizedData = normalizeMockSeedData(rawMockData, seedConfig.mockData);
+
   if (Object.keys(normalizedData).length === 0) {
     return '';
   }
 
   const mockDataJson = JSON.stringify(normalizedData, null, 2);
   const dataHash = crypto.createHash('sha256').update(mockDataJson).digest('hex');
+  const typeState = {};
+  if (strategyMap) {
+    for (const [postType, posts] of Object.entries(normalizedData)) {
+      const strategy = strategyMap[postType] === true ? 'once' : strategyMap[postType];
+      typeState[postType] = {
+        strategy,
+        hash: crypto.createHash('sha256').update(JSON.stringify({ strategy, posts })).digest('hex'),
+      };
+    }
+  }
 
   return `
 /**
@@ -190,13 +224,13 @@ ${developmentOnly ? `
     $saved_hash = get_option('forgewp_seeded_mock_data_hash', '');
     $default_strategy = '${defaultStrategy}';
 
-    // In 'once' mode, skip if already seeded
-    if (!$force && $default_strategy === 'once' && !empty($saved_hash)) {
+    // Scalar strategies retain their existing global marker semantics.
+    if (${strategyMap ? 'false' : 'true'} && !$force && $default_strategy === 'once' && !empty($saved_hash)) {
         return;
     }
 
     // In 'upsert' mode, skip if content hash matches
-    if (!$force && $default_strategy === 'upsert' && $saved_hash === $current_hash) {
+    if (${strategyMap ? 'false' : 'true'} && !$force && $default_strategy === 'upsert' && $saved_hash === $current_hash) {
         return;
     }
 
@@ -208,9 +242,12 @@ FORGEWP_MOCK_DATA_JSON;
     if (!is_array($mock_data)) {
         return;
     }
+    $type_state = json_decode(base64_decode('${Buffer.from(JSON.stringify(typeState)).toString('base64')}'), true);
+    $saved_type_hashes = get_option('forgewp_seeded_mock_data_type_hashes', array());
+    if (!is_array($saved_type_hashes)) $saved_type_hashes = array();
 
     // Ensure media handling helpers exist if sideloading images
-    if (!function_exists('media_sideload_image')) {
+    if (${sideloadImages ? 'true' : 'false'} && !function_exists('media_sideload_image')) {
         require_once ABSPATH . 'wp-admin/includes/media.php';
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/image.php';
@@ -227,9 +264,14 @@ FORGEWP_MOCK_DATA_JSON;
         if (!is_array($posts)) {
             continue;
         }
+        $strategy = isset($type_state[$post_type]) ? $type_state[$post_type]['strategy'] : $default_strategy;
+        $type_hash = isset($type_state[$post_type]) ? $type_state[$post_type]['hash'] : '';
+        $saved_type_hash = isset($saved_type_hashes[$post_type]) ? $saved_type_hashes[$post_type] : '';
+        if (!$force && $type_hash !== '' && (($strategy === 'once' && $saved_type_hash !== '') || ($strategy === 'upsert' && $saved_type_hash === $type_hash))) continue;
+        $type_succeeded = true;
 
         // In 'once' mode, check if any posts of this post_type already exist in WP
-        if (!$force && $default_strategy === 'once') {
+        if (!$force && $strategy === 'once') {
             $existing_count = wp_count_posts($post_type);
             if (!empty($existing_count->publish) && intval($existing_count->publish) > 0) {
                 continue;
@@ -247,7 +289,7 @@ FORGEWP_MOCK_DATA_JSON;
             $existing_post = get_page_by_path($slug, OBJECT, $post_type);
             $post_id = $existing_post ? $existing_post->ID : 0;
 
-            if ($post_id && $default_strategy === 'once' && !$force) {
+            if ($post_id && $strategy === 'once' && !$force) {
                 continue;
             }
 
@@ -270,11 +312,15 @@ FORGEWP_MOCK_DATA_JSON;
 
             if ($post_id) {
                 $post_args['ID'] = $post_id;
-                $saved_post_id = wp_update_post($post_args);
+                $saved_post_id = wp_update_post($post_args, true);
             } else {
-                $saved_post_id = wp_insert_post($post_args);
+                $saved_post_id = wp_insert_post($post_args, true);
             }
 
+            if (!$saved_post_id || is_wp_error($saved_post_id)) {
+                $type_succeeded = false;
+                continue;
+            }
             if ($saved_post_id && !is_wp_error($saved_post_id)) {
                 // Save custom fields
                 if (!empty($item['customFields']) && is_array($item['customFields'])) {
@@ -314,13 +360,19 @@ FORGEWP_MOCK_DATA_JSON;
                 ` : ''}
             }
         }
+        if ($type_hash !== '' && $type_succeeded) {
+            $saved_type_hashes[$post_type] = $type_hash;
+        }
     }
 
-    update_option('forgewp_seeded_mock_data_hash', $current_hash);
+    ${strategyMap ? "update_option('forgewp_seeded_mock_data_type_hashes', $saved_type_hashes);" : "update_option('forgewp_seeded_mock_data_hash', $current_hash);"}
 }
 
 // Hook into theme activation and admin initialization
-add_action('after_switch_theme', 'forgewp_seed_mock_content');
+add_action('after_switch_theme', function() {
+    // WordPress passes the old theme name here; it must not become $force.
+    forgewp_seed_mock_content();
+});
 add_action('admin_init', function() {
     if (current_user_can('edit_posts')) {
         forgewp_seed_mock_content();
