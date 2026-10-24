@@ -893,8 +893,7 @@ export function WpAuthGate({
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }) {
-  const context = React.useContext(WpAuthContext);
-  const user = context?.user;
+  const user = useWpUser();
 
   if (IS_DEV) {
     return user ? <>{children}</> : <>{fallback}</>;
@@ -902,8 +901,7 @@ export function WpAuthGate({
 
   // Hydration in production
   if (typeof window !== 'undefined' && !window._forgeWpCompileTime) {
-    const hydUser = window.forgeWpHydration?.currentUser;
-    return hydUser ? <>{children}</> : <>{fallback}</>;
+    return user ? <>{children}</> : <>{fallback}</>;
   }
 
   // SSR compile-time: return transpiler placeholders

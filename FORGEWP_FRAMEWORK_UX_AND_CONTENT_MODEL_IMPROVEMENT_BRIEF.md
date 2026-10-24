@@ -11,11 +11,11 @@ Scope: Auth package, generated WordPress endpoints/settings, CLI scaffolds, loca
 
 ## Remaining audit and implementation order
 
-1. Inventory every public Auth value/type, provider prop, hook result, generated endpoint, admin option and scaffold; replace the short hard-coded documentation placeholders with source-backed beginner guides and checked examples. Owner: sibling forgewp-docs/scripts/compile-docs.ts, packages/auth/src, compiler templates/auth and functions/rest-endpoints.js.
+1. Completed documentation inventory: public Auth values/types, provider props, hook results, generated endpoints, admin options and scaffold ownership now have source-backed guides and checked examples. Owner: sibling forgewp-docs/scripts/compile-docs.ts, packages/auth/src, compiler templates/auth and functions/rest-endpoints.js.
 2. Trace local mock, provider-backed, standalone, cookie and optional JWT behavior for login/logout/session restoration. Record reproducible differences before changing behavior. The confirmed home-URL subdirectory mismatch is fixed in the login/logout follow-up below. Remaining parity checks include environment-option precedence, initialization/SSR, mock role capabilities, and optional JWT recovery.
 3. Audit registration/default-role/metadata ownership, verification-token lifecycle and resend behavior, password recovery/reset, mail failures and configuration validation against generated PHP. Establish executable PHP tests; string generation assertions alone cannot prove these flows.
 4. Audit endpoint permission checks, request origins, cookies/nonces and redirect validation. Client UI gates and decoded JWT display state must not be documented as backend authorization. Inspect implementation before claiming any security defect or complete protection.
-5. Add practical Auth recipes and exercises after behavior and public contracts are verified. Keep local simulations distinct from WordPress account creation and delivery.
+5. Completed practical Auth recipes and exercises with solutions. Local simulations remain distinct from WordPress account creation and delivery.
 6. Deferred WordPress acceptance: cookies/session persistence, roles, protected Pages, email delivery, verification/reset expiry and single use, error recovery and deployment-specific origins/caching.
 
 This is an initial scoped audit, not an assertion that Auth is complete. Retain checked fixes and add source-backed findings as work proceeds.
@@ -28,7 +28,7 @@ Initial verification: the existing Auth transpilation runner now passes, includi
 - [x] Corrected the introductory example again after checking actual hook return values: `useWpAuth()` provides actions/status and does not return user; `useWpUser()` provides the user. The complete provider/form/user/logout example is now included in the published TypeScript checks through the real Auth source entry.
 - [x] Added explanations of provider scope, mock versus WordPress accounts, capability versus role, installed admin settings, cookie-mode reloads, and optional JWT backend responsibility. No automatic nonce-refresh or local-to-server authentication guarantee.
 - [x] Extended documentation link verification to Auth pages as well as core.
-- [ ] Finish the complete Auth API/options/endpoint/scaffold inventory and deeper session parity audit. The three introductory chapters do not complete the remaining registration, recovery, protection, reference, recipe, and practice work.
+- [x] Finished Auth API/options/endpoint/scaffold documentation and the remaining protection, reference, recipe, and practice pages. Deeper session parity and security review remain separate pending work.
 
 Verification: Auth introduction example passes against source types as part of 18 published examples; docs compilation/typecheck and the core public coverage audit pass. Existing 94 generated routes remain unique. No Auth runtime changes or live WordPress checks were made in this chapter. Detailed session parity findings remain pending reproduction.
 
@@ -38,7 +38,7 @@ Verification: Auth introduction example passes against source types as part of 1
 - [x] Both cookie logout implementations now check HTTP success before clearing user state/reloading. Rejected responses and network failures retain the current user and update error state. A fresh logout clears the prior error; mock and JWT-local logout behavior is preserved.
 - [x] Added `test/functions/auth-session.test.js`: production bundles execute against a small React-state harness with fetch mocks. Eight tests cover both paths, root/subdirectory/malformed home values, explicit trailing slashes, failed login, rejected/non-JSON/unreachable logout, and successful logout. This checks action logic, not mounted-browser lifecycle or real cookies.
 - [x] Added the Markdown Login & Logout guide with complete built-in/custom form examples, actual action signatures, failure feedback, navigation behavior, and subdirectory API configuration. Both examples are included in published TypeScript checks.
-- [ ] Registration/default-role/metadata and verification flows remain next; full JWT/provider/standalone initialization parity and live WordPress acceptance remain open.
+- [x] Registration/default-role/metadata and verification guides and focused fixes completed below. Full JWT/provider/standalone initialization parity and live WordPress acceptance remain open.
 
 Follow-up verification: all 8 new session action tests, the existing full Auth transpilation/protected-Page export runner, Auth NodeNext typecheck, documentation compilation/typecheck, 20 published examples, and 263 internal links passed; 95 routes remain unique. Live WordPress/mail/browser acceptance is deferred. The existing production documentation build font-fetch limitation remains unchanged.
 
@@ -91,7 +91,7 @@ Follow-up verification (2026-10-24): all 42 focused Auth/registration/PHP/previe
 
 New evidence to retain: password recovery currently exposes WordPress account/delivery errors rather than a uniform account-existence response. Preview tokens have no real expiry and do not replace mock login credentials. Future origin/rate-limit/privacy review must assess the desired public recovery contract before claiming account-enumeration protection.
 
-Recovery/reset verification: 34 focused Auth session/registration/password tests passed, including a built-in recovery form action test and no-window render test. Generated PHP tests use WordPress stand-ins to verify call ordering and error paths, not actual WordPress expiry or password hashing. Existing Auth transpilation/protected-page export and Auth NodeNext typecheck passed. Documentation compilation/typecheck, 24 published examples, 266 links and 99 unique routes passed. Scoped whitespace checks passed; live WordPress and browser visual acceptance remain pending. Next documentation chapter: protected pages and capability gates.
+Recovery/reset verification: 34 focused Auth session/registration/password tests passed, including a built-in recovery form action test and no-window render test. Generated PHP tests use WordPress stand-ins to verify call ordering and error paths, not actual WordPress expiry or password hashing. Existing Auth transpilation/protected-page export and Auth NodeNext typecheck passed. Documentation compilation/typecheck, 24 published examples, 266 links and 99 unique routes passed. Scoped whitespace checks passed; live WordPress and browser visual acceptance remain pending. Protected pages and capability gates are now documented in the completion pass below.
 
 ## Publication validation and docs UI fixes
 
@@ -108,3 +108,18 @@ Recovery/reset verification: 34 focused Auth session/registration/password tests
 Distinguish model pretraining from search-time retrieval. Public crawling/index eligibility can be improved; model training selection, update schedules and recommendations are controlled by model providers and are not guaranteed by a metadata file. Sources consulted: Bing Webmaster Guidelines (bing.com/webmasters/help/bing-webmaster-guidelines-30fba23a), Google guidance on generative AI content (developers.google.com/search/docs/fundamentals/using-gen-ai-content), OpenAI publisher/crawler documentation. No indexing submission, hosted bot-policy change, or AI-provider training action was performed.
 
 Navigation validation: documentation TypeScript and production Next build passed after moving the version badge and adding the mobile social footer. Module icon animations and top-aligned button grouping are preserved. No browser visual check is claimed.
+
+## Auth documentation completion
+
+- [x] Published 22 Markdown Auth pages: setup, sessions, registration/verification, recovery, access control, complete API/configuration/endpoints/scaffold reference, deployment, troubleshooting, two recipes and two exercises with solutions. Removed remaining hard-coded Auth placeholders; preserved existing route IDs.
+- [x] Added source-inventory validation in forgewp-docs/scripts/verify-auth-reference.mjs and audit/auth-coverage.json: all 12 runtime exports, 3 interfaces, 12 configuration leaf fields, 10 generated routes and 10 admin options are represented. This checks reference presence, not runtime correctness.
+- [x] Included all Auth Markdown files in published-example/link verification: 31 selected complete examples typecheck against framework source; 274 internal links resolve and 110 routes are unique. Clarified automatic scaffold pages versus the optional Dashboard catalog example, and documented FORGEWP_FRONTEND_ORIGIN for account emails.
+- [x] Fixed WpAuthGate reading stale initial hydration after provider login/logout. It now uses current useWpUser state in runtime rendering; compiler markers are preserved. Added a production-bundle regression for current signed-in/signed-out state overriding initial hydration. All 35 focused session/registration/password tests, Auth NodeNext typecheck and Auth transpilation/protected-page export pass.
+- [ ] Live WordPress, browser interaction and deployment/security acceptance remain deferred. Documentation completion does not close the runtime audit items above.
+
+### Additional source-backed follow-ups
+
+- [ ] JWT restoration policy: components.tsx validates the token but restores decoded display state on network failure; hooks.ts standalone restoration decodes stored state. Define intentional offline behavior and align both paths. Acceptance: focused tests cover rejected, expired, malformed and unreachable validation responses; docs and UI distinguish validated sessions from cached display state. Backend authorization remains independent.
+- [ ] Password-reset email config validation: compiler/lib/load-config.js validates verification subject/body types but does not apply equivalent shape checks to passwordReset. Invalid JavaScript config can therefore reach mail generation. Add matching object/string checks and focused config-loading tests; valid typed configurations must remain unchanged.
+
+Documentation completion verification: compilation, TypeScript, public core coverage, Auth inventory and Markdown-copy checks pass. All 110 pages serialize to Markdown, including 45 diagrams. The production Next.js build passed (160 generated pages). No real accounts, inbox delivery, cookie lifecycle or browser rendering were tested in this pass.

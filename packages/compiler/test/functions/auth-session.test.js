@@ -14,11 +14,12 @@ function runtime(provider, home = 'https://example.test/members/', explicit, pre
   const state = [];
   let cursor = 0;
   let initialText;
+  let contextValue = null;
   const React = {
     createContext: () => ({ Provider: 'provider' }),
     createElement: (_type, props) => props,
     jsx: (_type, props) => props, jsxs: (_type, props) => props,
-    useContext: () => null,
+    useContext: () => contextValue,
     useState: (value) => { const index = cursor++; state[index] = value === '' && initialText !== undefined ? initialText : typeof value === 'function' ? value() : value; return [state[index], (next) => { state[index] = next; }]; },
     useMemo: (fn) => fn(), useCallback: (fn) => fn, useEffect: () => {},
   };
@@ -40,7 +41,7 @@ function runtime(provider, home = 'https://example.test/members/', explicit, pre
   vm.runInContext(source, context);
   const api = context.module.exports;
   const actions = provider ? api.WpAuthProvider({ children: null }).value : api.useWpAuth();
-  return { actions, fetch, window, state, api, setInitialText: (value) => { initialText = value; } };
+  return { actions, fetch, window, state, api, setInitialText: (value) => { initialText = value; }, setContext: (value) => { contextValue = value; } };
 }
 
 describe.each([false, true])('Auth session parity (provider=%s)', (provider) => {
@@ -191,4 +192,14 @@ it('the built-in recovery form creates a usable preview reset link through its h
 it('the recovery form can render without browser globals', () => {
   const r = runtime(true, undefined, undefined, undefined, true);
   expect(() => r.api.WpPasswordResetForm({})).not.toThrow();
+});
+
+
+it('hydrated authentication gates follow the active provider user over stale initial payloads', () => {
+  const r = runtime(true);
+  r.setContext({ user: null });
+  expect(r.api.WpAuthGate({ children: 'member', fallback: 'signed-out' }).children).toBe('signed-out');
+  r.window.forgeWpHydration.currentUser = null;
+  r.setContext({ user });
+  expect(r.api.WpAuthGate({ children: 'member', fallback: 'signed-out' }).children).toBe('member');
 });
