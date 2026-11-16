@@ -151,7 +151,7 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
   // Validate generated page templates from .forgewp/template-*.html
   const templateDir = path.join(themeRoot, '.forgewp');
   if (fs.existsSync(templateDir)) {
-    const templateFiles = fs.readdirSync(templateDir).filter((file) => /^template-.*\.html$/.test(file));
+    const templateFiles = fs.readdirSync(templateDir).filter((file) => /^template-.*\.html$/.test(file) && !file.endsWith('-head.html'));
     for (const templateFile of templateFiles) {
       const slug = templateFile.replace(/^template-(.*)\.html$/, '$1');
       const templatePhp = path.join(outDir, `page-${slug}.php`);

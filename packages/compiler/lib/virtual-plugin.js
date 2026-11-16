@@ -117,7 +117,9 @@ export function forgewpVirtualPlugin(options = {}) {
         const hasAuth = hasPackage('@forgewp/auth');
 
         const imports = [];
-        const unwrapLogic = [];
+        const unwrapLogic = [
+          `const _u = (m, ...ks) => { const o = Object(m); for (const k of ks) if (o[k] !== undefined) return o[k]; return m; };`,
+        ];
 
         // 1. Mock Data / Posts
         const mockDataTs = path.join(cmsDir, 'mock-data.ts');
@@ -131,7 +133,7 @@ export function forgewpVirtualPlugin(options = {}) {
               : `import rawMockData from '${importPath}';`,
           );
           unwrapLogic.push(
-            `const mockData = (rawMockData && (rawMockData.default || rawMockData.mockData)) || rawMockData || {};`,
+            `const mockData = _u(rawMockData, 'default', 'mockData') || {};`,
           );
         } else {
           unwrapLogic.push(`const mockData = {};`);
@@ -149,7 +151,7 @@ export function forgewpVirtualPlugin(options = {}) {
               : `import rawMenusData from '${importPath}';`,
           );
           unwrapLogic.push(
-            `const menusData = (rawMenusData && (rawMenusData.default || rawMenusData.menus)) || rawMenusData || {};`,
+            `const menusData = _u(rawMenusData, 'default', 'menus') || {};`,
           );
         } else {
           unwrapLogic.push(`const menusData = {};`);
@@ -169,7 +171,7 @@ export function forgewpVirtualPlugin(options = {}) {
               : `import rawTranslationsData from '${importPath}';`,
           );
           unwrapLogic.push(
-            `const translationsData = (rawTranslationsData && (rawTranslationsData.default || rawTranslationsData.translations)) || rawTranslationsData || {};`,
+            `const translationsData = _u(rawTranslationsData, 'default', 'translations') || {};`,
           );
         } else {
           unwrapLogic.push(`const translationsData = {};`);
@@ -187,9 +189,8 @@ export function forgewpVirtualPlugin(options = {}) {
                 ? `import * as rawProductsData from '${importPath}';`
                 : `import rawProductsData from '${importPath}';`,
             );
-            unwrapLogic.push(`const rawProdAny = rawProductsData;`);
             unwrapLogic.push(
-              `const normalizedProducts = (rawProdAny && (rawProdAny.default || rawProdAny.products || rawProdAny.product)) || rawProdAny || [];`,
+              `const normalizedProducts = _u(rawProductsData, 'default', 'products', 'product') || [];`,
             );
             unwrapLogic.push(
               `const productsMap = Array.isArray(normalizedProducts) ? { product: normalizedProducts } : normalizedProducts;`,
@@ -214,7 +215,7 @@ export function forgewpVirtualPlugin(options = {}) {
                 : `import rawUsersData from '${importPath}';`,
             );
             unwrapLogic.push(
-              `const usersData = (rawUsersData && (rawUsersData.default || rawUsersData.users)) || rawUsersData;`,
+              `const usersData = _u(rawUsersData, 'default', 'users');`,
             );
           } else {
             unwrapLogic.push(`const usersData = [];`);
@@ -231,7 +232,7 @@ export function forgewpVirtualPlugin(options = {}) {
                 : `import rawRolesData from '${importPath}';`,
             );
             unwrapLogic.push(
-              `const rolesData = (rawRolesData && (rawRolesData.default || rawRolesData.roles)) || rawRolesData;`,
+              `const rolesData = _u(rawRolesData, 'default', 'roles');`,
             );
           } else {
             unwrapLogic.push(`const rolesData = {};`);
@@ -254,7 +255,7 @@ export function forgewpVirtualPlugin(options = {}) {
             `import * as rawOptionsData from '/cms/site-options.ts';`,
           );
           unwrapLogic.push(
-            `const optionsData = (rawOptionsData && (rawOptionsData.default || rawOptionsData.siteOptions || rawOptionsData.options)) || rawOptionsData || {};`,
+            `const optionsData = _u(rawOptionsData, 'default', 'siteOptions', 'options') || {};`,
           );
         } else if (fs.existsSync(siteSettingsJson)) {
           imports.push(
@@ -271,7 +272,7 @@ export function forgewpVirtualPlugin(options = {}) {
         if (fs.existsSync(themeModsTs)) {
           imports.push(`import * as rawModsData from '/cms/theme-mods.ts';`);
           unwrapLogic.push(
-            `const modsData = (rawModsData && (rawModsData.default || rawModsData.themeMods)) || rawModsData || {};`,
+            `const modsData = _u(rawModsData, 'default', 'themeMods') || {};`,
           );
         } else if (fs.existsSync(siteSettingsJson)) {
           unwrapLogic.push(

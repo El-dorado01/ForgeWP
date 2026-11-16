@@ -1,6 +1,6 @@
 import { consumePreviewResetToken } from './password-preview.js';
 import { registerPreviewUser } from './registration-preview.js';
-import { normalizeAuthBase } from './session-url.js';
+import { normalizeAuthBase, decodeJwt, readValidStoredJwt, restoreJwtSession, userFromJwtPayload } from './session-url.js';
 import React from 'react';
 
 export function stripHtml(text: any): string | null {
@@ -98,15 +98,10 @@ const IS_DEV =
 // Used when components are hydrated outside of WpAuthProvider in monolith mode.
 let globalUser: WpUser | null = null;
 let globalLoading = false;
-// In compile-time SSR (window._forgeWpCompileTime = true) or pure Node.js SSR,
-// there is no session to initialize — render "not loading" state immediately.
-// In a real browser, this starts as true but the initialization block below
-// runs synchronously at module load time and sets it to false before any
-// React component renders, so no spinner is ever shown.
-let globalInitializing =
-  typeof window !== 'undefined' && (window as any)._forgeWpCompileTime !== true;
+let globalInitializing = false;
 let globalError: string | null = null;
 let globalNotice: string | null = null;
+let standaloneJwtRestored = false;
 const globalListeners = new Set<() => void>();
 
 
@@ -156,22 +151,6 @@ function isStandaloneJwtEnabled(): boolean {
   return false;
 }
 
-function decodeStandaloneJwt(token: string): any {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-}
-
 // Initialize standalone state
 const compileTimeMockUser: WpUser = {
   id: 1,
@@ -197,23 +176,7 @@ if (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime === tru
     }
     globalInitializing = false;
   } else {
-    if (isStandaloneJwtEnabled()) {
-      const token = typeof window.localStorage !== 'undefined' ? window.localStorage.getItem('forgewp_jwt_token') : null;
-      if (token) {
-        const payload = decodeStandaloneJwt(token);
-        if (payload) {
-          globalUser = {
-            id: payload?.data?.user?.id || 0,
-            username: payload?.data?.user?.user_login || '',
-            email: payload?.data?.user?.user_email || '',
-            displayName: payload?.data?.user?.display_name || '',
-            roles: payload?.data?.user?.roles || ['subscriber'],
-            avatarUrl: `https://picsum.photos/seed/${payload?.data?.user?.user_login || 'user'}/150/150`,
-          };
-        }
-      }
-      globalInitializing = false;
-    } else {
+    if (!isStandaloneJwtEnabled()) {
       const sessionScript = typeof document !== 'undefined' && typeof document.getElementById === 'function' 
         ? document.getElementById('forgewp-session') 
         : null;
@@ -225,8 +188,27 @@ if (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime === tru
       } else if (window.forgeWpHydration?.currentUser) {
         globalUser = window.forgeWpHydration.currentUser;
       }
-      globalInitializing = false;
     }
+    globalInitializing = false;
+  }
+}
+
+function ensureStandaloneJwtRestored() {
+  if (standaloneJwtRestored || typeof window === 'undefined' || typeof document === 'undefined' || (window as any)._forgeWpCompileTime === true) {
+    return;
+  }
+  if (IS_DEV || !isStandaloneJwtEnabled()) return;
+  standaloneJwtRestored = true;
+  if (readValidStoredJwt()) {
+    globalInitializing = true;
+    void restoreJwtSession(getStandAloneApiBaseUrl()).then((result) => {
+      globalUser = result.user;
+      globalError = result.error;
+      globalInitializing = false;
+      notifyAuthSubscribers();
+    });
+  } else {
+    globalInitializing = false;
   }
 }
 
@@ -235,6 +217,7 @@ if (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime === tru
  */
 export function useWpAuth() {
   const context = React.useContext(WpAuthContext);
+  if (!context) ensureStandaloneJwtRestored();
   
   const [standaloneState, setStandaloneState] = React.useState(() => ({
     user: globalUser,
@@ -361,15 +344,14 @@ export function useWpAuth() {
           const data = await res.json();
           if (data && data.token) {
             window.localStorage.setItem('forgewp_jwt_token', data.token);
-            const payload = decodeStandaloneJwt(data.token);
-            globalUser = {
-              id: payload?.data?.user?.id || data.user_id || 0,
+            const payload = decodeJwt(data.token);
+            globalUser = userFromJwtPayload(payload, {
+              id: data.user_id || 0,
               username: data.user_nicename || payload?.data?.user?.user_login || username,
-              email: data.user_email || payload?.data?.user?.user_email || '',
+              email: data.user_email,
               displayName: data.user_display_name || payload?.data?.user?.display_name || username,
-              roles: payload?.data?.user?.roles || ['subscriber'],
               avatarUrl: data.avatar || `https://picsum.photos/seed/${data.user_nicename || username}/150/150`,
-            };
+            });
             globalLoading = false;
             notifyAuthSubscribers();
             if (redirectUrl) {
@@ -778,6 +760,7 @@ export function useWpAuth() {
 
       const mockVerificationToken = 'mock-verification-' + Math.random().toString(36).substring(2, 10);
       const mockPending = JSON.parse(window.localStorage.getItem('forgewp_mock_verification_tokens') || '{}');
+      for (const [k, v] of Object.entries(mockPending)) if (v === found.id) delete mockPending[k];
       mockPending[mockVerificationToken] = found.id;
       window.localStorage.setItem('forgewp_mock_verification_tokens', JSON.stringify(mockPending));
 
@@ -853,6 +836,7 @@ export function useWpAuth() {
  */
 export function useWpUser(): WpUser | null {
   const context = React.useContext(WpAuthContext);
+  if (!context) ensureStandaloneJwtRestored();
   
   const [standaloneUser, setStandaloneUser] = React.useState(globalUser);
 

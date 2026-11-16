@@ -277,9 +277,11 @@ function testJwtAuthPackageSource() {
   console.log('Testing JWT source implementation in @forgewp/auth...');
   
   const authPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../auth/src/components.tsx');
+  const sessionUrlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../auth/src/session-url.ts');
   const authContent = fs.readFileSync(authPath, 'utf8');
+  const sessionUrlContent = fs.readFileSync(sessionUrlPath, 'utf8');
 
-  assert(authContent.includes('function decodeJwt'), 'components.tsx should declare decodeJwt helper');
+  assert(sessionUrlContent.includes('function decodeJwt'), 'session-url.ts should declare decodeJwt helper');
   assert(authContent.includes('function isJwtAuthEnabled'), 'components.tsx should declare isJwtAuthEnabled detector');
   assert(authContent.includes('isJwtAuthEnabled()'), 'WpAuthProvider should check isJwtAuthEnabled()');
   assert(authContent.includes('jwt-auth/v1/token'), 'WpAuthProvider should reference jwt-auth/v1/token endpoints');

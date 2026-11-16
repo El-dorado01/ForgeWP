@@ -42,6 +42,7 @@ export function registerPreviewUser(username: string, email: string, password: s
     const token = 'dev-token-' + Math.random().toString(36).slice(2);
     let pending: Record<string, number> = {};
     try { const parsed = JSON.parse(window.localStorage.getItem('forgewp_mock_verification_tokens') || '{}'); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) pending = parsed; } catch {}
+    for (const [k, v] of Object.entries(pending)) if (v === user.id) delete pending[k];
     pending[token] = user.id;
     window.localStorage.setItem('forgewp_mock_verification_tokens', JSON.stringify(pending));
     const link = `${window.location.origin}/verify-email?userId=${user.id}&token=${token}`;

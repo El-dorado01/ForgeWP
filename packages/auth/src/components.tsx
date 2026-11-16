@@ -1,6 +1,6 @@
 import { consumePreviewResetToken } from './password-preview.js';
 import { registerPreviewUser } from './registration-preview.js';
-import { normalizeAuthBase } from './session-url.js';
+import { normalizeAuthBase, decodeJwt, readValidStoredJwt, restoreJwtSession, userFromJwtPayload } from './session-url.js';
 import React from 'react';
 import { WpUser, WpAuthContext, useWpUser, useWpCapability, useWpAuth, WpPageConfig, stripHtml } from './hooks.js';
 
@@ -39,22 +39,6 @@ function getApiBaseUrl(): string {
     }
   }
   return '';
-}
-
-function decodeJwt(token: string): any {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
 }
 
 function isJwtAuthEnabled(): boolean {
@@ -209,7 +193,7 @@ export function WpAuthProvider({
       if (initialSession.hasSession) {
         return false;
       }
-      if (isJwtAuthEnabled() && window.localStorage.getItem('forgewp_jwt_token')) {
+      if (isJwtAuthEnabled() && readValidStoredJwt()) {
         return true;
       }
       return false;
@@ -288,44 +272,11 @@ export function WpAuthProvider({
     } else {
       // Production: check if JWT mode is active
       if (typeof window !== 'undefined' && isJwtAuthEnabled()) {
-        const token = window.localStorage.getItem('forgewp_jwt_token');
-        if (token) {
-          fetch(`${getApiBaseUrl()}/wp-json/jwt-auth/v1/token/validate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            }
-          })
-            .then(async (res) => {
-              if (res.ok) {
-                const payload = decodeJwt(token);
-                const loggedUser: WpUser = {
-                  id: payload?.data?.user?.id || 0,
-                  username: payload?.data?.user?.user_login || '',
-                  email: payload?.data?.user?.user_email || '',
-                  displayName: payload?.data?.user?.display_name || '',
-                  roles: payload?.data?.user?.roles || ['subscriber'],
-                  avatarUrl: `https://picsum.photos/seed/${payload?.data?.user?.user_login || 'user'}/150/150`,
-                };
-                setUser(loggedUser);
-              } else {
-                window.localStorage.removeItem('forgewp_jwt_token');
-              }
-            })
-            .catch(() => {
-              const payload = decodeJwt(token);
-              if (payload) {
-                const loggedUser: WpUser = {
-                  id: payload?.data?.user?.id || 0,
-                  username: payload?.data?.user?.user_login || '',
-                  email: payload?.data?.user?.user_email || '',
-                  displayName: payload?.data?.user?.display_name || '',
-                  roles: payload?.data?.user?.roles || ['subscriber'],
-                  avatarUrl: `https://picsum.photos/seed/${payload?.data?.user?.user_login || 'user'}/150/150`,
-                };
-                setUser(loggedUser);
-              }
+        if (readValidStoredJwt()) {
+          restoreJwtSession(getApiBaseUrl())
+            .then((result) => {
+              setUser(result.user);
+              if (result.error) setError(result.error);
             })
             .finally(() => {
               setInitializing(false);
@@ -435,14 +386,13 @@ export function WpAuthProvider({
             window.localStorage.setItem('forgewp_jwt_token', data.token);
             
             const payload = decodeJwt(data.token);
-            const loggedUser: WpUser = {
-              id: payload?.data?.user?.id || data.user_id || 0,
+            const loggedUser: WpUser = userFromJwtPayload(payload, {
+              id: data.user_id || 0,
               username: data.user_nicename || payload?.data?.user?.user_login || username,
-              email: data.user_email || payload?.data?.user?.user_email || '',
+              email: data.user_email,
               displayName: data.user_display_name || payload?.data?.user?.display_name || username,
-              roles: payload?.data?.user?.roles || ['subscriber'],
               avatarUrl: data.avatar || `https://picsum.photos/seed/${data.user_nicename || username}/150/150`,
-            };
+            });
 
             setUser(loggedUser);
             setLoading(false);
@@ -820,6 +770,7 @@ export function WpAuthProvider({
 
       const mockVerificationToken = 'mock-verification-' + Math.random().toString(36).substring(2, 10);
       const mockPending = JSON.parse(window.localStorage.getItem('forgewp_mock_verification_tokens') || '{}');
+      for (const [k, v] of Object.entries(mockPending)) if (v === found.id) delete mockPending[k];
       mockPending[mockVerificationToken] = found.id;
       window.localStorage.setItem('forgewp_mock_verification_tokens', JSON.stringify(mockPending));
 

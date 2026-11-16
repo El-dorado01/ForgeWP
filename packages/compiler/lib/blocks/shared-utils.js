@@ -6,6 +6,51 @@ import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 
 export const _svgHtmlCache = new Map();
+const fallbackRequire = createRequire(import.meta.url);
+
+function loadIconPackageSync(packageName, themeRoot) {
+  globalThis._forgewp_icon_packages = globalThis._forgewp_icon_packages || {};
+  if (globalThis._forgewp_icon_packages[packageName]) {
+    return globalThis._forgewp_icon_packages[packageName];
+  }
+  try {
+    const pkgJsonFile = themeRoot ? path.join(themeRoot, 'package.json') : null;
+    const projectRequire = pkgJsonFile && existsSync(pkgJsonFile) ? createRequire(pkgJsonFile) : fallbackRequire;
+    const resolveMod = (id) => {
+      try { return projectRequire(id); } catch (_) { return fallbackRequire(id); }
+    };
+    if (!globalThis._forgewp_icon_packages['react']) {
+      globalThis._forgewp_icon_packages['react'] = resolveMod('react');
+    }
+    if (!globalThis._forgewp_icon_packages['react-dom/server']) {
+      const rdMod = resolveMod('react-dom/server');
+      const renderToStaticMarkup = rdMod.renderToStaticMarkup || rdMod.default?.renderToStaticMarkup;
+      globalThis._forgewp_icon_packages['react-dom/server'] = { renderToStaticMarkup };
+    }
+    let pkgJsonPath;
+    try { pkgJsonPath = projectRequire.resolve(`${packageName}/package.json`); }
+    catch (_) { pkgJsonPath = fallbackRequire.resolve(`${packageName}/package.json`); }
+    const pkgDir = path.dirname(pkgJsonPath);
+    const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
+    const exp = pkgJson.exports?.['.'];
+    const cjsRel =
+      (typeof exp?.require === 'string' ? exp.require : exp?.require?.default) ||
+      (typeof exp?.node === 'string' ? exp.node : exp?.node?.default) ||
+      (!pkgJson.type || pkgJson.type === 'commonjs' ? pkgJson.main : null);
+    if (cjsRel) {
+      const cjsPath = path.resolve(pkgDir, cjsRel);
+      if (existsSync(cjsPath)) {
+        const mod = { exports: {} };
+        const fn = new Function('exports', 'require', 'module', '__filename', '__dirname', readFileSync(cjsPath, 'utf8'));
+        const localReq = createRequire(cjsPath);
+        fn(mod.exports, (id) => { try { return localReq(id); } catch (_) { return resolveMod(id); } }, mod, cjsPath, path.dirname(cjsPath));
+        globalThis._forgewp_icon_packages[packageName] = mod.exports;
+        return mod.exports;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
 
 export async function warmupIconCache(themeRoot) {
   try {
@@ -81,6 +126,7 @@ export async function warmupIconCache(themeRoot) {
     globalThis._forgewp_icon_packages['react-dom/server'] = { renderToStaticMarkup };
 
     for (const pkgName of iconPackages) {
+      if (loadIconPackageSync(pkgName, themeRoot)) continue;
       try {
         const pkgJsonPath = projectRequire.resolve(`${pkgName}/package.json`);
         const pkgDir = path.dirname(pkgJsonPath);
@@ -117,7 +163,8 @@ export function resolveIconToSvgHtml(componentName, packageName, themeRoot, clas
   const cacheKey = `${packageName}::${componentName}::${classNameStr}`;
   if (_svgHtmlCache.has(cacheKey)) return _svgHtmlCache.get(cacheKey);
 
-  // 1. Try to render from in-process cache if warmed up
+  // 1. Try to render from in-process cache (warming synchronously via CJS entry when available)
+  loadIconPackageSync(packageName, themeRoot);
   if (globalThis._forgewp_icon_packages && globalThis._forgewp_icon_packages[packageName]) {
     const pkg = globalThis._forgewp_icon_packages[packageName];
     const React = globalThis._forgewp_icon_packages['react'];

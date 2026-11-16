@@ -53,12 +53,13 @@ export function applyProjectConfig(targetDir, config) {
     }
     if (pkg.dependencies?.['@forgewp/react']) {
       pkg.dependencies['@forgewp/react'] = 'workspace:*';
+      for (const k of ['@forgewp/woocommerce', '@forgewp/plugin-seo']) if (pkg.dependencies?.[k]) pkg.dependencies[k] = 'workspace:*';
     }
   }
 
   if (hasAuth) {
     if (!pkg.dependencies) pkg.dependencies = {};
-    pkg.dependencies['@forgewp/auth'] = isWorkspace ? 'workspace:*' : '^0.1.0';
+    pkg.dependencies['@forgewp/auth'] = isWorkspace ? 'workspace:*' : '^0.1.2';
   }
 
   writeJson(pkgPath, pkg);

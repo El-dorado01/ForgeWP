@@ -65,6 +65,7 @@ function syncTemplate(srcDir, destDir, requiredFiles, templateName) {
     pkg.dependencies["@forgewp/react"] = `^${reactPkg.version}`;
   }
 
+  for (const deps of [pkg.dependencies, pkg.devDependencies]) for (const [k, v] of Object.entries(deps || {})) if (k.startsWith("@forgewp/") && String(v).startsWith("workspace:")) { const p = path.join(root, "packages", k.slice(9), "package.json"); if (existsSync(p)) deps[k] = `^${JSON.parse(readFileSync(p, "utf8")).version}`; }
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 
   // Inject path mapping for @forgewp/react to resolve type definitions in the CLI template workspace

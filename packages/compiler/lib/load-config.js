@@ -165,15 +165,17 @@ export async function loadConfig(themeRoot) {
       if (typeof config.auth.emails !== 'object' || config.auth.emails === null) {
         throw new Error('auth.emails must be an object');
       }
-      if (config.auth.emails.verification !== undefined) {
-        if (typeof config.auth.emails.verification !== 'object' || config.auth.emails.verification === null) {
-          throw new Error('auth.emails.verification must be an object');
+      for (const k of ['verification', 'passwordReset']) {
+        const entry = config.auth.emails[k];
+        if (entry === undefined) continue;
+        if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+          throw new Error(`auth.emails.${k} must be an object`);
         }
-        if (config.auth.emails.verification.subject !== undefined && typeof config.auth.emails.verification.subject !== 'string') {
-          throw new Error('auth.emails.verification.subject must be a string');
+        if (entry.subject !== undefined && typeof entry.subject !== 'string') {
+          throw new Error(`auth.emails.${k}.subject must be a string`);
         }
-        if (config.auth.emails.verification.body !== undefined && typeof config.auth.emails.verification.body !== 'string') {
-          throw new Error('auth.emails.verification.body must be a string');
+        if (entry.body !== undefined && typeof entry.body !== 'string') {
+          throw new Error(`auth.emails.${k}.body must be a string`);
         }
       }
     }

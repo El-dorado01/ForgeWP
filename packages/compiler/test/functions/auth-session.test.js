@@ -10,8 +10,9 @@ const viteRequire = createRequire(fs.realpathSync(path.join(packages, 'starter/n
 const { buildSync } = viteRequire('esbuild');
 const user = { id: 7, username: 'member', email: 'member@example.test', displayName: 'Member', roles: ['subscriber'], avatarUrl: '' };
 
-function runtime(provider, home = 'https://example.test/members/', explicit, preview, server = false) {
+function runtime(provider, home = 'https://example.test/members/', explicit, preview, server = false, jwt = null) {
   const state = [];
+  const effects = [];
   let cursor = 0;
   let initialText;
   let contextValue = null;
@@ -21,27 +22,29 @@ function runtime(provider, home = 'https://example.test/members/', explicit, pre
     jsx: (_type, props) => props, jsxs: (_type, props) => props,
     useContext: () => contextValue,
     useState: (value) => { const index = cursor++; state[index] = value === '' && initialText !== undefined ? initialText : typeof value === 'function' ? value() : value; return [state[index], (next) => { state[index] = next; }]; },
-    useMemo: (fn) => fn(), useCallback: (fn) => fn, useEffect: () => {},
+    useMemo: (fn) => fn(), useCallback: (fn) => fn, useEffect: (fn) => { if (jwt) effects.push(fn); },
   };
   const storage = new Map();
+  if (jwt?.token !== undefined && jwt.token !== null) storage.set('forgewp_jwt_token', jwt.token);
   const window = {
-    forgeWpHydration: { currentUser: preview ? null : user, siteSettings: { options: { home } } },
+    forgeWpHydration: { currentUser: preview || jwt ? null : user, siteSettings: { options: { home } } },
     location: { reload: vi.fn(), href: '', origin: 'http://localhost:5173' },
     localStorage: { getItem: (key) => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: vi.fn((key) => storage.delete(key)) },
     ...(preview ? { _forgeWpAuthPreview: preview, _forgeWpMockUsers: [], _forgeWpMockRoles: { subscriber: ['read'] } } : {}),
     ...(explicit ? { FORGEWP_API_URL: explicit } : {}),
+    ...(jwt ? { FORGEWP_JWT_AUTH: true } : {}),
   };
-  const fetch = vi.fn().mockResolvedValue({ ok: true });
+  const fetch = jwt?.fetch || vi.fn().mockResolvedValue({ ok: true });
   const source = buildSync({
     entryPoints: [path.join(packages, 'auth/src', provider ? 'components.tsx' : 'hooks.ts')],
     bundle: true, platform: 'node', format: 'cjs', write: false, external: ['react'],
     define: { 'import.meta.env': JSON.stringify({ DEV: Boolean(preview) }) }, logLevel: 'silent',
   }).outputFiles[0].text;
-  const context = vm.createContext({ module: { exports: {} }, exports: {}, require: () => React, window: server ? undefined : window, document: { getElementById: () => null }, fetch, URL, console, setTimeout: preview ? (fn) => fn() : setTimeout });
+  const context = vm.createContext({ module: { exports: {} }, exports: {}, require: () => React, window: server ? undefined : window, document: { getElementById: () => null }, fetch, URL, atob, console, setTimeout: preview ? (fn) => fn() : setTimeout });
   vm.runInContext(source, context);
   const api = context.module.exports;
   const actions = provider ? api.WpAuthProvider({ children: null }).value : api.useWpAuth();
-  return { actions, fetch, window, state, api, setInitialText: (value) => { initialText = value; }, setContext: (value) => { contextValue = value; } };
+  return { actions, fetch, window, state, effects, api, setInitialText: (value) => { initialText = value; }, setContext: (value) => { contextValue = value; } };
 }
 
 describe.each([false, true])('Auth session parity (provider=%s)', (provider) => {
@@ -174,6 +177,64 @@ describe.each([false, true])('Auth session parity (provider=%s)', (provider) => 
       expect(await r.actions.register('new-member', 'new@example.test', 'password')).toBe(true);
       expect(r.window.location.reload).not.toHaveBeenCalled();
       expect(provider ? r.state[2] : r.api.useWpUser()).toEqual(user);
+    }
+  });
+
+  it('aligns JWT restoration across valid, rejected, expired, malformed and unreachable responses', async () => {
+    const sign = (payload) => `hdr.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.sig`;
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    const past = Math.floor(Date.now() / 1000) - 60;
+    const validToken = sign({ exp: future, data: { user: { id: 7, user_login: 'member', user_email: 'member@example.test', display_name: 'Member', roles: ['subscriber'] } } });
+    const expiredToken = sign({ exp: past, data: { user: { id: 7, user_login: 'member' } } });
+    const flush = async (r) => {
+      for (const fn of r.effects) fn();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    };
+
+    // Malformed & expired: cleared synchronously without calling validation endpoint
+    for (const bad of ['not-a-jwt', sign({ data: {} }), expiredToken]) {
+      const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+      const r = runtime(provider, undefined, undefined, undefined, false, { token: bad, fetch });
+      await flush(r);
+      expect(fetch.mock.calls.some(([url]) => String(url).includes('/token/validate'))).toBe(false);
+      expect(r.window.localStorage.getItem('forgewp_jwt_token')).toBeNull();
+      expect(provider ? r.state[2] : r.api.useWpUser()).toBeNull();
+      expect(provider ? r.state[3] : r.api.useWpAuth().initializing).toBe(false);
+    }
+
+    // Rejected: cleared and user stays null
+    {
+      const fetch = vi.fn(async (url) => (String(url).includes('/token/validate') ? { ok: false } : { ok: true, json: async () => ({}) }));
+      const r = runtime(provider, undefined, undefined, undefined, false, { token: validToken, fetch });
+      await flush(r);
+      expect(fetch.mock.calls.filter(([url]) => String(url).includes('/token/validate'))).toHaveLength(1);
+      expect(r.window.localStorage.getItem('forgewp_jwt_token')).toBeNull();
+      expect(provider ? r.state[2] : r.api.useWpUser()).toBeNull();
+      expect(provider ? r.state[3] : r.api.useWpAuth().initializing).toBe(false);
+    }
+
+    // Unreachable: retains token for retry, fails closed (user=null), exposes error
+    {
+      const fetch = vi.fn().mockRejectedValue(new Error('Offline'));
+      const r = runtime(provider, undefined, undefined, undefined, false, { token: validToken, fetch });
+      await flush(r);
+      expect(fetch.mock.calls.filter(([url]) => String(url).includes('/token/validate'))).toHaveLength(1);
+      expect(r.window.localStorage.getItem('forgewp_jwt_token')).toBe(validToken);
+      expect(provider ? r.state[2] : r.api.useWpUser()).toBeNull();
+      expect(provider ? r.state[3] : r.api.useWpAuth().initializing).toBe(false);
+      expect(provider ? r.state[5] : r.api.useWpAuth().error).toContain('Unable to verify session');
+    }
+
+    // Valid: restores user and clears error
+    {
+      const fetch = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
+      const r = runtime(provider, undefined, undefined, undefined, false, { token: validToken, fetch });
+      await flush(r);
+      expect(fetch.mock.calls.filter(([url]) => String(url).includes('/token/validate'))).toHaveLength(1);
+      expect(r.window.localStorage.getItem('forgewp_jwt_token')).toBe(validToken);
+      expect((provider ? r.state[2] : r.api.useWpUser())?.username).toBe('member');
+      expect(provider ? r.state[3] : r.api.useWpAuth().initializing).toBe(false);
+      expect(provider ? r.state[5] : r.api.useWpAuth().error).toBeNull();
     }
   });
 });

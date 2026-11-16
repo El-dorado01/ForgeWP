@@ -110,3 +110,32 @@ it('reports failed resend delivery and permits a later successful retry', () => 
   expect(run('resend', { ...request, mailFail: true }).results[0].code).toBe('rest_verification_mail_failed');
   expect(run('resend', request).results[0].success).toBe(true);
 });
+
+it('revokes prior unused verification tokens on successful resend while preserving them on mail failure', () => {
+  const sendFn = php.slice(php.indexOf('function forgewp_send_email_verification('), php.indexOf('function forgewp_rest_lost_password('));
+  const res = spawnSync('php', ['-r', `
+    define('DAY_IN_SECONDS', 86400); $tokens=array(); $seq=0; $fail=false;
+    class User { public $ID=7; public $user_login='member'; public $user_email='member@example.test'; }
+    function wp_generate_password($l,$s){global $seq;return 'tok'.(++$seq);}
+    function forgewp_get_frontend_origin(){return 'https://example.test';}
+    function get_option($k,$d=''){return $d;} function get_bloginfo($k){return 'Test';} function is_email($e){return true;}
+    function wp_mail($t,$s,$b,$h){global $fail;return !$fail;}
+    function get_transient($k){global $tokens;return isset($tokens[$k])?$tokens[$k]:false;}
+    function set_transient($k,$v,$e){global $tokens;$tokens[$k]=$v;}
+    function delete_transient($k){global $tokens;unset($tokens[$k]);}
+    ${sendFn}
+    $u = new User();
+    forgewp_send_email_verification($u);
+    $afterFirst = $tokens;
+    $fail = true; forgewp_send_email_verification($u);
+    $afterFailedResend = $tokens;
+    $fail = false; forgewp_send_email_verification($u);
+    echo json_encode(array('first'=>$afterFirst,'failed'=>$afterFailedResend,'second'=>$tokens));
+  `], { encoding: 'utf8' });
+  expect(res.status, res.stderr).toBe(0);
+  const out = JSON.parse(res.stdout);
+  expect(out.first.forgewp_verify_email_tok1).toBe(7);
+  expect(out.failed.forgewp_verify_email_tok1).toBe(7);
+  expect(out.second.forgewp_verify_email_tok1).toBeUndefined();
+  expect(out.second.forgewp_verify_email_tok3).toBe(7);
+});

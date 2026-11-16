@@ -61,7 +61,7 @@ if (type === "ecommerce") {
 
       // 1. Add dependency to package.json
       const isWorkspace = existsSync(path.join(projectRoot, "..", "..", "pnpm-workspace.yaml")) || existsSync(path.join(projectRoot, "..", "pnpm-workspace.yaml"));
-      const versionToUse = isWorkspace ? "workspace:*" : "^0.4.2";
+      const versionToUse = isWorkspace ? "workspace:*" : "^0.1.1";
 
       if (!packageJson.dependencies) {
         packageJson.dependencies = {};
@@ -599,7 +599,7 @@ if (type === "auth") {
     if (!packageJson.dependencies) packageJson.dependencies = {};
     if (!packageJson.dependencies['@forgewp/auth']) {
       const isWorkspace = existsSync(path.join(projectRoot, '..', 'pnpm-workspace.yaml'));
-      packageJson.dependencies['@forgewp/auth'] = isWorkspace ? 'workspace:*' : '^0.1.0';
+      packageJson.dependencies['@forgewp/auth'] = isWorkspace ? 'workspace:*' : '^0.1.2';
       writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf8');
       console.log(pc.green(`   ✅ Added @forgewp/auth to package.json dependencies`));
     }

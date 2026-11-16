@@ -944,6 +944,7 @@ function forgewp_rest_verify_email( $request ) {
         return new WP_Error( 'rest_invalid_token', 'Invalid or expired verification token.', array( 'status' => 400 ) );
     }
     delete_transient( 'forgewp_verify_email_' . $token );
+    delete_transient( 'forgewp_verify_email_user_' . $user_id );
     update_user_meta( $user_id, 'forgewp_email_verified', '1' );
 
     wp_set_current_user( $user_id );
@@ -1000,7 +1001,6 @@ function forgewp_send_email_verification( $user ) {
     }
 
     $token = wp_generate_password( 32, false );
-    set_transient( 'forgewp_verify_email_' . $token, $user->ID, DAY_IN_SECONDS );
 
     $origin = forgewp_get_frontend_origin();
     $verification_url = $origin . '/verify-email?userId=' . $user->ID . '&token=' . $token;
@@ -1028,7 +1028,14 @@ function forgewp_send_email_verification( $user ) {
     $sent = wp_mail( $email, $subject, $body, $headers );
     if ( ! $sent ) {
         error_log( '[ForgeWP Auth] wp_mail failed to send verification email to ' . $email );
+        return false;
     }
+    $prev_token = get_transient( 'forgewp_verify_email_user_' . $user->ID );
+    if ( is_string( $prev_token ) && ! empty( $prev_token ) && $prev_token !== $token ) {
+        delete_transient( 'forgewp_verify_email_' . $prev_token );
+    }
+    set_transient( 'forgewp_verify_email_' . $token, $user->ID, DAY_IN_SECONDS );
+    set_transient( 'forgewp_verify_email_user_' . $user->ID, $token, DAY_IN_SECONDS );
     return $sent;
 }
 

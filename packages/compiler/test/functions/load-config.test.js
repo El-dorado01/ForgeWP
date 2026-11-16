@@ -89,4 +89,20 @@ export const form = defineWpForm({
     expect(result['test-form'].fields.name.label).toBe('Name');
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it('validates auth.emails.passwordReset shape and string fields in loadConfig', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgewp-cfg-reset-'));
+    try {
+      for (const [val, msg] of [
+        ['"bad"', 'auth.emails.passwordReset must be an object'],
+        ['{ subject: 123 }', 'auth.emails.passwordReset.subject must be a string'],
+        ['{ body: false }', 'auth.emails.passwordReset.body must be a string'],
+      ]) {
+        fs.writeFileSync(path.join(tmpDir, 'wp.config.ts'), `export default { name: 'T', slug: 't', version: '1.0.0', description: 'd', textDomain: 't', configVersion: 1, auth: { emails: { passwordReset: ${val} } } };`, 'utf8');
+        await expect(loadConfig(tmpDir)).rejects.toThrow(msg);
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

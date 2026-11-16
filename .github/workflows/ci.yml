@@ -37,5 +37,8 @@ jobs:
       - name: Compiler adapter type tests
         run: pnpm --filter @forgewp/compiler run test:adapter-types
 
+      - name: Compiler test suite
+        run: pnpm --filter @forgewp/compiler test
+
       - name: Export smoke test
         run: pnpm export
