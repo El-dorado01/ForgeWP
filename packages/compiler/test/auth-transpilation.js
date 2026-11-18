@@ -282,7 +282,7 @@ function testJwtAuthPackageSource() {
   const sessionUrlContent = fs.readFileSync(sessionUrlPath, 'utf8');
 
   assert(sessionUrlContent.includes('function decodeJwt'), 'session-url.ts should declare decodeJwt helper');
-  assert(authContent.includes('function isJwtAuthEnabled'), 'components.tsx should declare isJwtAuthEnabled detector');
+  assert(sessionUrlContent.includes('function isJwtAuthEnabled'), 'session-url.ts should declare the shared JWT detector');
   assert(authContent.includes('isJwtAuthEnabled()'), 'WpAuthProvider should check isJwtAuthEnabled()');
   assert(authContent.includes('jwt-auth/v1/token'), 'WpAuthProvider should reference jwt-auth/v1/token endpoints');
 

@@ -641,22 +641,22 @@ function forgewp_auth_register_rest_routes() {
     register_rest_route( 'forgewp/v1', '/auth/login', array(
         'methods'             => 'POST',
         'callback'            => 'forgewp_rest_login',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'forgewp_auth_write_permission',
     ) );
     register_rest_route( 'forgewp/v1', '/auth/signup', array(
         'methods'             => 'POST',
         'callback'            => 'forgewp_rest_signup',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'forgewp_auth_write_permission',
     ) );
     register_rest_route( 'forgewp/v1', '/auth/register', array(
         'methods'             => 'POST',
         'callback'            => 'forgewp_rest_signup',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'forgewp_auth_write_permission',
     ) );
     register_rest_route( 'forgewp/v1', '/auth/logout', array(
         'methods'             => 'POST',
         'callback'            => 'forgewp_rest_logout',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'forgewp_auth_write_permission',
     ) );
     register_rest_route( 'forgewp/v1', '/auth/me', array(
         'methods'             => 'GET',
@@ -671,23 +671,105 @@ function forgewp_auth_register_rest_routes() {
     register_rest_route( 'forgewp/v1', '/auth/verify-email', array(
         'methods'             => 'POST',
         'callback'            => 'forgewp_rest_verify_email',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'forgewp_auth_write_permission',
     ) );
     register_rest_route( 'forgewp/v1', '/auth/resend-verification', array(
         'methods'             => 'POST',
         'callback'            => 'forgewp_rest_resend_verification',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'forgewp_auth_write_permission',
     ) );
     register_rest_route( 'forgewp/v1', '/auth/lost-password', array(
         'methods'             => 'POST',
         'callback'            => 'forgewp_rest_lost_password',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'forgewp_auth_write_permission',
     ) );
     register_rest_route( 'forgewp/v1', '/auth/reset-password', array(
         'methods'             => 'POST',
         'callback'            => 'forgewp_rest_reset_password',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'forgewp_auth_write_permission',
     ) );
+}
+
+/** Compare origins without trusting request Host or forwarded headers. */
+function forgewp_auth_url_origin( $url ) {
+    if ( ! is_string( $url ) || preg_match( '/[\\x00-\\x20\\x7f]/', $url ) ) {
+        return '';
+    }
+    $parts = wp_parse_url( $url );
+    if ( ! is_array( $parts ) || empty( $parts['scheme'] ) || empty( $parts['host'] ) || isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
+        return '';
+    }
+    $scheme = strtolower( $parts['scheme'] );
+    if ( ! in_array( $scheme, array( 'http', 'https' ), true ) ) {
+        return '';
+    }
+    $port = isset( $parts['port'] ) ? intval( $parts['port'] ) : ( $scheme === 'https' ? 443 : 80 );
+    return $scheme . '://' . strtolower( $parts['host'] ) . ':' . $port;
+}
+
+/** Best-effort per-peer limits; use an edge/WAF for atomic distributed enforcement. */
+function forgewp_auth_rate_limit( $request ) {
+    $action = strtolower( basename( $request->get_route() ) );
+    if ( $action === 'register' ) $action = 'signup';
+    if ( in_array( $action, array( 'lost-password', 'resend-verification' ), true ) ) $action = 'mail';
+    $rules = array(
+        'login' => array( 'limit' => 20, 'window' => 60 ),
+        'signup' => array( 'limit' => 5, 'window' => 600 ),
+        'mail' => array( 'limit' => 5, 'window' => 600 ),
+        'verify-email' => array( 'limit' => 20, 'window' => 600 ),
+        'reset-password' => array( 'limit' => 10, 'window' => 600 ),
+    );
+    if ( ! isset( $rules[$action] ) ) return true;
+    $rule = apply_filters( 'forgewp_auth_rate_limit', $rules[$action], $action, $request );
+    if ( $rule === false ) return true; // Explicit site-owner opt-out for an external limiter.
+    if ( ! is_array( $rule ) || ! isset( $rule['limit'], $rule['window'] ) || ! is_int( $rule['limit'] ) || ! is_int( $rule['window'] ) || $rule['limit'] < 1 || $rule['window'] < 1 ) {
+        return new WP_Error( 'rest_auth_rate_limit_config', 'Authentication is temporarily unavailable.', array( 'status' => 503 ) );
+    }
+    $peer = isset( $_SERVER['REMOTE_ADDR'] ) && filter_var( $_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP ) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
+    $key = 'forgewp_auth_rate_' . hash_hmac( 'sha256', $action . '|' . $peer, wp_salt( 'auth' ) );
+    $now = time();
+    $bucket = get_transient( $key );
+    if ( ! is_array( $bucket ) || ! isset( $bucket['count'], $bucket['until'] ) || $bucket['until'] <= $now ) {
+        $bucket = array( 'count' => 0, 'until' => $now + $rule['window'] );
+    }
+    if ( $bucket['count'] >= $rule['limit'] ) {
+        return new WP_Error( 'rest_auth_rate_limited', 'Too many account requests. Please try again later.', array( 'status' => 429, 'retryAfter' => max( 1, $bucket['until'] - $now ) ) );
+    }
+    $bucket['count']++;
+    set_transient( $key, $bucket, max( 1, $bucket['until'] - $now ) );
+    return true;
+}
+
+/** Public account entry still requires JSON and a trusted browser origin. */
+function forgewp_auth_write_permission( $request ) {
+    $content_type = (string) $request->get_header( 'content-type' );
+    if ( ! preg_match( '~^application/(?:[a-z0-9!#$&^_.+-]+\\+)?json(?:\\s*;|$)~i', trim( $content_type ) ) ) {
+        return new WP_Error( 'rest_auth_json_required', 'Account requests require a JSON body.', array( 'status' => 415 ) );
+    }
+    $origin = (string) $request->get_header( 'origin' );
+    $referer = (string) $request->get_header( 'referer' );
+    $source = $origin !== '' ? $origin : $referer;
+    if ( $source !== '' ) {
+        $allowed = array( forgewp_auth_url_origin( home_url() ), forgewp_auth_url_origin( site_url() ) );
+        if ( defined( 'FORGEWP_FRONTEND_ORIGIN' ) ) $allowed[] = forgewp_auth_url_origin( FORGEWP_FRONTEND_ORIGIN );
+        $incoming = forgewp_auth_url_origin( $source );
+        if ( $incoming === '' || ! in_array( $incoming, $allowed, true ) ) {
+            return new WP_Error( 'rest_auth_origin_denied', 'This origin cannot make account requests.', array( 'status' => 403 ) );
+        }
+    } elseif ( in_array( strtolower( (string) $request->get_header( 'sec-fetch-site' ) ), array( 'cross-site', 'same-site' ), true ) ) {
+        return new WP_Error( 'rest_auth_origin_denied', 'Account requests require a trusted origin.', array( 'status' => 403 ) );
+    }
+    if ( ! is_array( $request->get_json_params() ) ) {
+        return new WP_Error( 'rest_invalid_fields', 'Account fields must be a JSON object.', array( 'status' => 400 ) );
+    }
+    if ( strtolower( basename( $request->get_route() ) ) === 'logout' ) {
+        $nonce = (string) $request->get_header( 'x-wp-nonce' );
+        if ( ! is_user_logged_in() || $nonce === '' || ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+            return new WP_Error( 'rest_auth_nonce_required', 'Sign in again before signing out.', array( 'status' => 403 ) );
+        }
+        return true;
+    }
+    return forgewp_auth_rate_limit( $request );
 }
 
 function forgewp_rest_auth_config() {
@@ -707,8 +789,30 @@ function forgewp_get_frontend_origin() {
     return rtrim( $origin, '/' );
 }
 
+/** Run inside wp_signon's authentication phase, before any cookie is issued. */
+function forgewp_auth_verified_login( $user ) {
+    if ( ! ( $user instanceof WP_User ) ) return $user;
+    $verification_enabled = get_option( 'forgewp_auth_email_verification_enabled', '${defaultEmailVerificationEnabled}' ) === '1';
+    $block_login = get_option( 'forgewp_auth_block_login_until_verified', '${defaultBlockLoginUntilVerified}' ) === '1';
+    if ( $verification_enabled && $block_login ) {
+        $verified_meta = get_user_meta( $user->ID, 'forgewp_email_verified', true );
+        if ( $verified_meta !== '1' && $verified_meta !== true ) {
+            return new WP_Error( 'rest_unverified_email', 'Please verify your email address before logging in.', array( 'status' => 403 ) );
+        }
+    }
+    return $user;
+}
+
 function forgewp_rest_login( $request ) {
     $params = $request->get_json_params();
+    if ( ! is_array( $params ) ) {
+        return new WP_Error( 'rest_invalid_fields', 'Account fields must be a JSON object.', array( 'status' => 400 ) );
+    }
+    foreach ( array( 'credential', 'username', 'email', 'user', 'password', 'user_password' ) as $field ) {
+        if ( array_key_exists( $field, $params ) && ! is_string( $params[$field] ) ) {
+            return new WP_Error( 'rest_invalid_fields', 'Account fields must be text values.', array( 'status' => 400 ) );
+        }
+    }
     $login_field = get_option( 'forgewp_auth_login_field', '${defaultLoginField}' );
 
     $username = '';
@@ -758,23 +862,16 @@ function forgewp_rest_login( $request ) {
         'remember'      => true,
     );
 
-    $user = wp_signon( $creds, is_ssl() );
-
-    if ( is_wp_error( $user ) ) {
-        return new WP_Error( 'rest_login_failed', $user->get_error_message(), array( 'status' => 403 ) );
+    add_filter( 'authenticate', 'forgewp_auth_verified_login', PHP_INT_MAX, 1 );
+    try {
+        $user = wp_signon( $creds, is_ssl() );
+    } finally {
+        remove_filter( 'authenticate', 'forgewp_auth_verified_login', PHP_INT_MAX );
     }
 
-    // Check email verification if enabled
-    $verification_enabled = get_option( 'forgewp_auth_email_verification_enabled', '${defaultEmailVerificationEnabled}' ) === '1';
-    $block_login = get_option( 'forgewp_auth_block_login_until_verified', '${defaultBlockLoginUntilVerified}' ) === '1';
-
-    if ( $verification_enabled && $block_login ) {
-        $verified_meta = get_user_meta( $user->ID, 'forgewp_email_verified', true );
-        $email_verified = ( $verified_meta === '1' ) || ( $verified_meta === true );
-        if ( ! $email_verified ) {
-            wp_logout();
-            return new WP_Error( 'rest_unverified_email', 'Please verify your email address before logging in.', array( 'status' => 403 ) );
-        }
+    if ( is_wp_error( $user ) ) {
+        if ( $user->get_error_code() === 'rest_unverified_email' ) return $user;
+        return new WP_Error( 'rest_login_failed', $user->get_error_message(), array( 'status' => 403 ) );
     }
 
     wp_set_current_user( $user->ID );
@@ -798,6 +895,14 @@ function forgewp_rest_signup( $request ) {
     }
 
     $params = $request->get_json_params();
+    if ( ! is_array( $params ) ) {
+        return new WP_Error( 'rest_invalid_fields', 'Account fields must be a JSON object.', array( 'status' => 400 ) );
+    }
+    foreach ( array( 'email', 'username', 'password', 'displayName' ) as $field ) {
+        if ( array_key_exists( $field, $params ) && ! is_string( $params[$field] ) ) {
+            return new WP_Error( 'rest_invalid_fields', 'Account fields must be text values.', array( 'status' => 400 ) );
+        }
+    }
     $email = isset( $params['email'] ) ? sanitize_email( $params['email'] ) : '';
     $username = isset( $params['username'] ) ? sanitize_user( $params['username'] ) : '';
     $password = isset( $params['password'] ) ? $params['password'] : '';
@@ -932,6 +1037,9 @@ function forgewp_rest_me() {
 
 function forgewp_rest_verify_email( $request ) {
     $params = $request->get_json_params();
+    if ( ! is_array( $params ) || ( array_key_exists( 'token', $params ) && ! is_string( $params['token'] ) ) || ( isset( $params['userId'] ) && filter_var( $params['userId'], FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) ) === false ) ) {
+        return new WP_Error( 'rest_invalid_fields', 'A numeric user ID and text token are required.', array( 'status' => 400 ) );
+    }
     $user_id = isset( $params['userId'] ) ? intval( $params['userId'] ) : 0;
     $token = isset( $params['token'] ) ? sanitize_text_field( $params['token'] ) : '';
 
@@ -962,6 +1070,14 @@ function forgewp_rest_verify_email( $request ) {
 
 function forgewp_rest_resend_verification( $request ) {
     $params = $request->get_json_params();
+    if ( ! is_array( $params ) ) {
+        return new WP_Error( 'rest_invalid_fields', 'Account fields must be a JSON object.', array( 'status' => 400 ) );
+    }
+    foreach ( array( 'email', 'username' ) as $field ) {
+        if ( array_key_exists( $field, $params ) && ! is_string( $params[$field] ) ) {
+            return new WP_Error( 'rest_invalid_fields', 'Account fields must be text values.', array( 'status' => 400 ) );
+        }
+    }
     $input = isset( $params['email'] ) ? sanitize_text_field( $params['email'] ) : '';
     if ( empty( $input ) && isset( $params['username'] ) ) {
         $input = sanitize_text_field( $params['username'] );
@@ -1068,7 +1184,8 @@ function forgewp_rest_lost_password( $request ) {
     $errors = retrieve_password( $user_login );
 
     if ( is_wp_error( $errors ) ) {
-        return new WP_Error( 'rest_recovery_failed', $errors->get_error_message(), array( 'status' => 400 ) );
+        // Keep account/delivery details server-side; public responses must agree.
+        do_action( 'forgewp_auth_recovery_error', $errors );
     }
 
     return rest_ensure_response( array( 'success' => true ) );
@@ -1148,12 +1265,14 @@ function forgewp_auth_head_hydration() {
     $payload = forgewp_get_current_user_hydration_payload();
     $login_field = get_option( 'forgewp_auth_login_field', '${defaultLoginField}' );
     $verification_enabled = get_option( 'forgewp_auth_email_verification_enabled', '${defaultEmailVerificationEnabled}' ) === '1';
+    $rest_nonce = wp_create_nonce( 'wp_rest' );
     
     $session_data = array(
         'loggedIn' => ! empty( $payload ),
         'user' => $payload,
         'loginField' => $login_field,
         'emailVerificationEnabled' => $verification_enabled,
+        'restNonce' => $rest_nonce,
     );
     ?>
     <script type="application/json" id="forgewp-session">
@@ -1166,7 +1285,7 @@ function forgewp_auth_head_hydration() {
         window.forgeWpHydration.currentUser = <?php echo wp_json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
         window.forgeWpHydration.loginField = <?php echo wp_json_encode($login_field); ?>;
         window.forgeWpHydration.emailVerificationEnabled = <?php echo wp_json_encode($verification_enabled); ?>;
-        window.forgeWpHydration.restNonce = <?php echo wp_json_encode(wp_create_nonce('wp_rest')); ?>;
+        window.forgeWpHydration.restNonce = <?php echo wp_json_encode($rest_nonce); ?>;
     </script>
     <?php
 }

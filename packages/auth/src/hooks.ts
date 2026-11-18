@@ -1,6 +1,6 @@
 import { consumePreviewResetToken } from './password-preview.js';
 import { registerPreviewUser } from './registration-preview.js';
-import { normalizeAuthBase, decodeJwt, readValidStoredJwt, restoreJwtSession, userFromJwtPayload } from './session-url.js';
+import { getAuthApiBase as getStandAloneApiBaseUrl, isJwtAuthEnabled as isStandaloneJwtEnabled, cookieLogoutRequest, safeAuthRedirect, decodeJwt, readValidStoredJwt, restoreJwtSession, userFromJwtPayload } from './session-url.js';
 import React from 'react';
 
 export function stripHtml(text: any): string | null {
@@ -109,48 +109,6 @@ function notifyAuthSubscribers() {
   globalListeners.forEach((fn) => fn());
 }
 
-function getStandAloneApiBaseUrl(): string {
-  if (typeof window !== 'undefined' && window.FORGEWP_API_URL) {
-    return normalizeAuthBase(window.FORGEWP_API_URL);
-  }
-  try {
-    // @ts-ignore
-    const fwUrl = import.meta.env.FORGEWP_API_URL;
-    if (fwUrl) return normalizeAuthBase(fwUrl);
-  } catch (e) {}
-  try {
-    // @ts-ignore
-    const viteUrl = import.meta.env.VITE_WP_API_URL;
-    if (viteUrl) return normalizeAuthBase(viteUrl);
-  } catch (e) {}
-  if (typeof window !== 'undefined') {
-    const homeUrl = window.forgeWpHydration?.siteSettings?.options?.home;
-    if (homeUrl) {
-      try {
-        return normalizeAuthBase(new URL(homeUrl).pathname);
-      } catch (e) {}
-    }
-  }
-  return '';
-}
-
-function isStandaloneJwtEnabled(): boolean {
-  if (typeof window !== 'undefined' && window.FORGEWP_JWT_AUTH === true) {
-    return true;
-  }
-  try {
-    // @ts-ignore
-    const fwJwt = import.meta.env.FORGEWP_JWT_AUTH;
-    if (fwJwt === true || fwJwt === 'true') return true;
-  } catch (e) {}
-  try {
-    // @ts-ignore
-    const viteJwt = import.meta.env.VITE_WP_JWT_AUTH;
-    if (viteJwt === 'true') return true;
-  } catch (e) {}
-  return false;
-}
-
 // Initialize standalone state
 const compileTimeMockUser: WpUser = {
   id: 1,
@@ -235,10 +193,12 @@ export function useWpAuth() {
         loading: globalLoading,
         initializing: globalInitializing,
         error: globalError,
-    notice: globalNotice,
+        notice: globalNotice,
       });
     };
     globalListeners.add(handler);
+    // Restoration can finish between render and effect subscription.
+    handler();
     return () => {
       globalListeners.delete(handler);
     };
@@ -267,6 +227,14 @@ export function useWpAuth() {
     globalLoading = true;
     globalError = null;
     notifyAuthSubscribers();
+
+    const targetRedirect = safeAuthRedirect(redirectUrl);
+    if (redirectUrl !== undefined && !targetRedirect) {
+      globalError = 'Choose a login destination on this site.';
+      globalLoading = false;
+      notifyAuthSubscribers();
+      return false;
+    }
 
     const trimmedUsername = username.trim();
     const loginField = window.forgeWpHydration?.loginField || 'usernameAndEmail';
@@ -312,8 +280,8 @@ export function useWpAuth() {
         window.localStorage.setItem('forgewp_auth_session', JSON.stringify(found));
         globalLoading = false;
         notifyAuthSubscribers();
-        if (redirectUrl) {
-          window.location.href = redirectUrl;
+        if (targetRedirect) {
+          window.location.href = targetRedirect;
         } else {
           window.location.reload();
         }
@@ -354,8 +322,8 @@ export function useWpAuth() {
             });
             globalLoading = false;
             notifyAuthSubscribers();
-            if (redirectUrl) {
-              window.location.href = redirectUrl;
+            if (targetRedirect) {
+              window.location.href = targetRedirect;
             } else {
               window.location.reload();
             }
@@ -395,8 +363,8 @@ export function useWpAuth() {
           globalUser = userObj;
           globalLoading = false;
           notifyAuthSubscribers();
-          if (redirectUrl) {
-            window.location.href = redirectUrl;
+          if (targetRedirect) {
+            window.location.href = targetRedirect;
           } else {
             window.location.reload();
           }
@@ -436,7 +404,7 @@ export function useWpAuth() {
       }
 
       try {
-        const res = await fetch(`${getStandAloneApiBaseUrl()}/wp-json/forgewp/v1/auth/logout`, { method: 'POST' });
+        const res = await fetch(`${getStandAloneApiBaseUrl()}/wp-json/forgewp/v1/auth/logout`, cookieLogoutRequest());
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.message || 'Logout failed. Please try again.');
@@ -846,6 +814,8 @@ export function useWpUser(): WpUser | null {
       setStandaloneUser(globalUser);
     };
     globalListeners.add(handler);
+    // Catch a session update that happened before this consumer subscribed.
+    handler();
     return () => {
       globalListeners.delete(handler);
     };

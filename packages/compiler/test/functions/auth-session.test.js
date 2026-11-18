@@ -10,7 +10,7 @@ const viteRequire = createRequire(fs.realpathSync(path.join(packages, 'starter/n
 const { buildSync } = viteRequire('esbuild');
 const user = { id: 7, username: 'member', email: 'member@example.test', displayName: 'Member', roles: ['subscriber'], avatarUrl: '' };
 
-function runtime(provider, home = 'https://example.test/members/', explicit, preview, server = false, jwt = null) {
+function runtime(provider, home = 'https://example.test/members/', explicit, preview, server = false, jwt = null, config = {}) {
   const state = [];
   const effects = [];
   let cursor = 0;
@@ -33,21 +33,123 @@ function runtime(provider, home = 'https://example.test/members/', explicit, pre
     ...(preview ? { _forgeWpAuthPreview: preview, _forgeWpMockUsers: [], _forgeWpMockRoles: { subscriber: ['read'] } } : {}),
     ...(explicit ? { FORGEWP_API_URL: explicit } : {}),
     ...(jwt ? { FORGEWP_JWT_AUTH: true } : {}),
+    ...config.browser,
   };
   const fetch = jwt?.fetch || vi.fn().mockResolvedValue({ ok: true });
   const source = buildSync({
     entryPoints: [path.join(packages, 'auth/src', provider ? 'components.tsx' : 'hooks.ts')],
     bundle: true, platform: 'node', format: 'cjs', write: false, external: ['react'],
-    define: { 'import.meta.env': JSON.stringify({ DEV: Boolean(preview) }) }, logLevel: 'silent',
+    define: { 'import.meta.env': JSON.stringify({ DEV: Boolean(preview), ...config.vite }) }, logLevel: 'silent',
   }).outputFiles[0].text;
-  const context = vm.createContext({ module: { exports: {} }, exports: {}, require: () => React, window: server ? undefined : window, document: { getElementById: () => null }, fetch, URL, atob, console, setTimeout: preview ? (fn) => fn() : setTimeout });
+  const context = vm.createContext({ module: { exports: {} }, exports: {}, require: () => React, window: server ? undefined : window, document: { getElementById: () => config.session ? { textContent: config.session } : null }, ...(config.process ? { process: { env: config.process } } : {}), fetch, URL, atob, console, setTimeout: preview ? (fn) => fn() : setTimeout });
   vm.runInContext(source, context);
   const api = context.module.exports;
   const actions = provider ? api.WpAuthProvider({ children: null }).value : api.useWpAuth();
   return { actions, fetch, window, state, effects, api, setInitialText: (value) => { initialText = value; }, setContext: (value) => { contextValue = value; } };
 }
 
+it.each(['valid', 'rejected', 'offline'])('synchronizes standalone subscribers when JWT restoration is already %s before effects attach', async (status) => {
+  const token = `hdr.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600, data: { user: { id: 7, user_login: 'member' } } })).toString('base64url')}.sig`;
+  const fetch = status === 'offline' ? vi.fn().mockRejectedValue(new Error('Offline')) : vi.fn().mockResolvedValue({ ok: status === 'valid' });
+  const r = runtime(false, undefined, undefined, undefined, false, { token, fetch });
+  r.api.useWpUser();
+  // Let the request finish before React runs either consumer's subscription effect.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(r.state[0].initializing).toBe(true);
+  expect(r.state[1]).toBeNull();
+  for (const effect of r.effects) effect();
+  expect(r.state[0].initializing).toBe(false);
+  expect(r.state[1]?.username || null).toBe(status === 'valid' ? 'member' : null);
+  expect(r.state[0].error).toBe(status === 'offline' ? 'Unable to verify session. Check your connection and try again.' : null);
+});
+
 describe.each([false, true])('Auth session parity (provider=%s)', (provider) => {
+  it('sends cookie logout JSON with the hydrated nonce while preserving same-origin credentials', async () => {
+    for (const source of ['global', 'session-script']) {
+      const r = runtime(provider, undefined, undefined, undefined, false, null, source === 'session-script' ? { session: JSON.stringify({ user, restNonce: 'fixture-rest-nonce' }) } : {});
+      if (source === 'global') r.window.forgeWpHydration.restNonce = 'fixture-rest-nonce';
+      await r.actions.logout();
+      expect(r.fetch).toHaveBeenCalledWith('/members/wp-json/forgewp/v1/auth/logout', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': 'fixture-rest-nonce' }, body: '{}',
+      });
+    }
+  });
+
+  it('keeps the session on a missing/expired nonce rejection and exposes recovery feedback', async () => {
+    const r = runtime(provider);
+    r.fetch.mockResolvedValue({ ok: false, json: async () => ({ message: 'Sign in again before signing out.' }) });
+    await r.actions.logout();
+    expect(provider ? r.state[2] : r.api.useWpUser()).toEqual(user);
+    expect(r.window.location.reload).not.toHaveBeenCalled();
+    expect(provider ? r.state[5] : r.api.useWpAuth().error).toBe('Sign in again before signing out.');
+  });
+
+  it.each([false, true])('rejects unsafe redirects before authenticating (preview=%s)', async (preview) => {
+    for (const destination of ['javascript:alert(1)', 'data:text/html,unsafe', '//evil.test/path', 'https://evil.test/path', 'http://localhost:5173@evil.test/', '/\\evil.test/', '/dash\nboard']) {
+      const r = runtime(provider, undefined, undefined, preview ? {} : undefined);
+      r.window._forgeWpMockUsers = [user];
+      expect(await r.actions.login('member', 'password', destination)).toBe(false);
+      expect(r.fetch).not.toHaveBeenCalled();
+      expect(r.window.location.href).toBe('');
+      expect(r.window.location.reload).not.toHaveBeenCalled();
+      expect(r.window.localStorage.getItem('forgewp_auth_session')).toBeNull();
+    }
+  });
+
+  it.each([false, true])('accepts same-origin redirects including paths, queries and fragments (preview=%s)', async (preview) => {
+    for (const destination of ['/dashboard?tab=1#account', 'http://localhost:5173/dashboard?tab=1#account']) {
+      const r = runtime(provider, undefined, undefined, preview ? {} : undefined);
+      r.window._forgeWpMockUsers = [user];
+      r.fetch.mockResolvedValue({ ok: true, json: async () => ({ user }) });
+      expect(await r.actions.login('member', 'password', destination)).toBe(true);
+      expect(r.window.location.href).toBe('http://localhost:5173/dashboard?tab=1#account');
+      expect(r.window.location.reload).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each([
+    ['browser wins', { browser: { FORGEWP_API_URL: ' https://browser.test/wp/// ' }, vite: { FORGEWP_API_URL: 'https://vite.test' }, process: { FORGEWP_API_URL: 'https://process.test' } }, 'https://browser.test/wp'],
+    ['ForgeWP Vite variable wins', { vite: { FORGEWP_API_URL: 'https://forge.test/wp/', VITE_WP_API_URL: 'https://vite.test' }, process: { FORGEWP_API_URL: 'https://process.test' } }, 'https://forge.test/wp'],
+    ['Vite alias wins over process', { vite: { VITE_WP_API_URL: 'https://vite.test/wp/' }, process: { FORGEWP_API_URL: 'https://process.test' } }, 'https://vite.test/wp'],
+    ['process ForgeWP alias wins', { process: { FORGEWP_API_URL: 'https://process.test/wp/', NEXT_PUBLIC_WP_API_URL: 'https://next.test', WP_API_URL: 'https://wp.test' } }, 'https://process.test/wp'],
+    ['process Next alias wins', { process: { NEXT_PUBLIC_WP_API_URL: 'https://next.test/wp/', WP_API_URL: 'https://wp.test' } }, 'https://next.test/wp'],
+    ['process WordPress alias', { process: { WP_API_URL: 'https://wp.test/wp/' } }, 'https://wp.test/wp'],
+    ['blank and non-string values fall through', { browser: { FORGEWP_API_URL: 42 }, vite: { FORGEWP_API_URL: '  ', VITE_WP_API_URL: false }, process: { WP_API_URL: 'https://fallback.test/' } }, 'https://fallback.test'],
+    ['hydrated home is the final fallback', {}, '/members'],
+    ['root-relative explicit base', { browser: { FORGEWP_API_URL: '/wordpress///' } }, '/wordpress'],
+  ])('resolves API configuration consistently: %s', async (_name, config, expected) => {
+    const r = runtime(provider, undefined, undefined, undefined, false, null, config);
+    expect(await r.actions.forgotPassword('member')).toBe(true);
+    expect(r.fetch).toHaveBeenCalledWith(`${expected}/wp-json/forgewp/v1/auth/lost-password`, expect.any(Object));
+  });
+
+  it('resolves process configuration without browser globals during SSR', async () => {
+    const r = runtime(provider, undefined, undefined, undefined, true, null, { process: { NEXT_PUBLIC_WP_API_URL: 'https://ssr.test/wp/' } });
+    expect(await r.actions.forgotPassword('member')).toBe(true);
+    expect(r.fetch).toHaveBeenCalledWith('https://ssr.test/wp/wp-json/forgewp/v1/auth/lost-password', expect.any(Object));
+  });
+
+  it.each([
+    ['browser false overrides Vite true', { browser: { FORGEWP_JWT_AUTH: false }, vite: { FORGEWP_JWT_AUTH: 'true' } }, false],
+    ['browser true overrides Vite false', { browser: { FORGEWP_JWT_AUTH: true }, vite: { FORGEWP_JWT_AUTH: 'false' } }, true],
+    ['Vite false overrides aliases', { vite: { FORGEWP_JWT_AUTH: 'false', VITE_WP_JWT_AUTH: 'true' }, process: { FORGEWP_JWT_AUTH: 'true' } }, false],
+    ['Vite true overrides process false', { vite: { VITE_WP_JWT_AUTH: 'true' }, process: { FORGEWP_JWT_AUTH: 'false' } }, true],
+    ['process ForgeWP true', { process: { FORGEWP_JWT_AUTH: 'true' } }, true],
+    ['process ForgeWP false overrides Next true', { process: { FORGEWP_JWT_AUTH: 'false', NEXT_PUBLIC_WP_JWT_AUTH: 'true' } }, false],
+    ['process Next true', { process: { NEXT_PUBLIC_WP_JWT_AUTH: 'true' } }, true],
+    ['process WordPress true', { process: { WP_JWT_AUTH: 'true' } }, true],
+    ['invalid and empty values fall through', { browser: { FORGEWP_JWT_AUTH: 'invalid' }, vite: { FORGEWP_JWT_AUTH: '' }, process: { WP_JWT_AUTH: 'true' } }, true],
+    ['unset defaults to cookies', {}, false],
+  ])('resolves JWT configuration consistently: %s', async (_name, config, enabled) => {
+    const token = `hdr.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600, data: { user: { id: 7, user_login: 'member' } } })).toString('base64url')}.sig`;
+    const r = runtime(provider, undefined, undefined, undefined, false, { token }, { ...config, browser: { FORGEWP_JWT_AUTH: undefined, ...config.browser } });
+    for (const effect of r.effects) effect();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const validations = r.fetch.mock.calls.filter(([url]) => String(url).includes('/token/validate'));
+    expect(validations).toHaveLength(enabled ? 1 : 0);
+    expect(r.window.localStorage.getItem('forgewp_jwt_token')).toBe(token);
+  });
+
   it('creates usable recovery links and consumes preview reset tokens once', async () => {
     const r = runtime(provider, undefined, undefined, {});
     r.window._forgeWpMockUsers = [user];

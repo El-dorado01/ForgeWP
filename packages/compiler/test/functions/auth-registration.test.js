@@ -55,6 +55,23 @@ it('rejects missing, expired, mismatched and consumed verification tokens even f
   expect(result.results[1].code).toBe('rest_invalid_token');
 });
 
+it('rejects malformed signup, resend and verification values before creating accounts or sessions', () => {
+  for (const field of ['email', 'username', 'password', 'displayName']) {
+    const out = run('signup', { params: { username: 'member', email: 'member@example.test', password: 'password', [field]: [] } });
+    expect(out.results[0].code).toBe('rest_invalid_fields');
+    expect(out.created).toBe(0);
+    expect(out.cookies).toBe(0);
+  }
+  for (const params of [{ email: [] }, { username: {} }]) {
+    expect(run('resend', { params }).results[0].code).toBe('rest_invalid_fields');
+  }
+  for (const params of [{ userId: [], token: 'token' }, { userId: 7, token: [] }, { userId: '7suffix', token: 'token' }]) {
+    const out = run('verify', { params, tokens: { forgewp_verify_email_token: 7 } });
+    expect(out.results[0].code).toBe('rest_invalid_fields');
+    expect(out.cookies).toBe(0);
+  }
+});
+
 it('rejects unapproved and non-scalar signup metadata before creating an account', () => {
   for (const metadata of [{ wp_capabilities: 'administrator' }, { session_tokens: 'x' }, { forgewp_email_verified: '1' }, { first_name: ['x'] }, 'not an object']) {
     const result = run('signup', { params: { username: 'member', email: 'member@example.test', password: 'password', metadata } });

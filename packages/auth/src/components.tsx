@@ -1,6 +1,6 @@
 import { consumePreviewResetToken } from './password-preview.js';
 import { registerPreviewUser } from './registration-preview.js';
-import { normalizeAuthBase, decodeJwt, readValidStoredJwt, restoreJwtSession, userFromJwtPayload } from './session-url.js';
+import { getAuthApiBase as getApiBaseUrl, isJwtAuthEnabled, cookieLogoutRequest, safeAuthRedirect, decodeJwt, readValidStoredJwt, restoreJwtSession, userFromJwtPayload } from './session-url.js';
 import React from 'react';
 import { WpUser, WpAuthContext, useWpUser, useWpCapability, useWpAuth, WpPageConfig, stripHtml } from './hooks.js';
 
@@ -8,67 +8,6 @@ const IS_DEV =
   typeof import.meta !== 'undefined' &&
   // @ts-ignore
   import.meta.env?.DEV === true;
-
-function getApiBaseUrl(): string {
-  if (typeof window !== 'undefined' && (window as any).FORGEWP_API_URL) {
-    return normalizeAuthBase((window as any).FORGEWP_API_URL);
-  }
-  try {
-    // @ts-ignore
-    const fwUrl = import.meta.env.FORGEWP_API_URL;
-    if (fwUrl) return normalizeAuthBase(fwUrl);
-  } catch (e) {}
-  try {
-    // @ts-ignore
-    const viteUrl = import.meta.env.VITE_WP_API_URL;
-    if (viteUrl) return normalizeAuthBase(viteUrl);
-  } catch (e) {}
-  try {
-    if (typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.env) {
-      const processEnv = (globalThis as any).process.env;
-      const envUrl = processEnv.FORGEWP_API_URL || processEnv.NEXT_PUBLIC_WP_API_URL || processEnv.WP_API_URL;
-      if (envUrl) return normalizeAuthBase(envUrl);
-    }
-  } catch (e) {}
-  if (typeof window !== 'undefined') {
-    const homeUrl = (window as any).forgeWpHydration?.siteSettings?.options?.home;
-    if (homeUrl) {
-      try {
-        return normalizeAuthBase(new URL(homeUrl).pathname);
-      } catch (e) {}
-    }
-  }
-  return '';
-}
-
-function isJwtAuthEnabled(): boolean {
-  if (typeof window !== 'undefined' && (window as any).FORGEWP_JWT_AUTH === true) {
-    return true;
-  }
-  try {
-    // @ts-ignore
-    const fwJwt = import.meta.env.FORGEWP_JWT_AUTH;
-    if (fwJwt === true || fwJwt === 'true') return true;
-  } catch (e) {}
-  try {
-    // @ts-ignore
-    const viteJwt = import.meta.env.VITE_WP_JWT_AUTH;
-    if (viteJwt === 'true') return true;
-  } catch (e) {}
-  try {
-    if (typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.env) {
-      const processEnv = (globalThis as any).process.env;
-      if (
-        processEnv.FORGEWP_JWT_AUTH === 'true' ||
-        processEnv.NEXT_PUBLIC_WP_JWT_AUTH === 'true' ||
-        processEnv.WP_JWT_AUTH === 'true'
-      ) {
-        return true;
-      }
-    }
-  } catch (e) {}
-  return false;
-}
 
 function resolveMockUserCapabilities(user: WpUser): WpUser {
   if (typeof window === 'undefined') return user;
@@ -310,6 +249,13 @@ export function WpAuthProvider({
     setLoading(true);
     setError(null);
 
+    const targetRedirect = safeAuthRedirect(redirectUrl);
+    if (redirectUrl !== undefined && !targetRedirect) {
+      setError('Choose a login destination on this site.');
+      setLoading(false);
+      return false;
+    }
+
     const trimmedUsername = username.trim();
 
     if (loginField === 'usernameOnly' && trimmedUsername.includes('@')) {
@@ -353,8 +299,8 @@ export function WpAuthProvider({
         window.localStorage.setItem('forgewp_auth_session', JSON.stringify(userWithCaps));
         setLoading(false);
         if (typeof window !== 'undefined') {
-          if (redirectUrl) {
-            window.location.href = redirectUrl;
+          if (targetRedirect) {
+            window.location.href = targetRedirect;
           } else {
             window.location.reload();
           }
@@ -397,8 +343,8 @@ export function WpAuthProvider({
             setUser(loggedUser);
             setLoading(false);
             if (typeof window !== 'undefined') {
-              if (redirectUrl) {
-                window.location.href = redirectUrl;
+              if (targetRedirect) {
+                window.location.href = targetRedirect;
               } else {
                 window.location.reload();
               }
@@ -436,8 +382,8 @@ export function WpAuthProvider({
           setUser(userObj);
           setLoading(false);
           if (typeof window !== 'undefined') {
-            if (redirectUrl) {
-              window.location.href = redirectUrl;
+            if (targetRedirect) {
+              window.location.href = targetRedirect;
             } else {
               window.location.reload();
             }
@@ -474,7 +420,7 @@ export function WpAuthProvider({
       }
 
       try {
-        const res = await fetch(`${getApiBaseUrl()}/wp-json/forgewp/v1/auth/logout`, { method: 'POST' });
+        const res = await fetch(`${getApiBaseUrl()}/wp-json/forgewp/v1/auth/logout`, cookieLogoutRequest());
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.message || 'Logout failed. Please try again.');
@@ -1294,7 +1240,7 @@ export function WpPasswordResetForm({
     try {
       const ok = await auth.forgotPassword(emailOrUsername.trim());
       if (ok) {
-        setSuccessMsg(IS_DEV ? 'Check the preview email log for your reset link.' : 'Password recovery request accepted. Check your inbox for the reset link.');
+        setSuccessMsg(IS_DEV ? 'Check the preview email log for your reset link.' : 'If the account is eligible, a password reset link will be sent. Check your inbox.');
         if (onSuccess) onSuccess();
       } else {
         setFormErr('Unable to request a reset link. Please try again.');
