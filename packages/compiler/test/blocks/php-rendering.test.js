@@ -179,7 +179,7 @@ export default defineBlock({
       },
       {
         themeRoot: fileURLToPath(
-          new URL('../../../../hospitality/', import.meta.url),
+          new URL('../../../../projects/hospitality/', import.meta.url),
         ),
       },
     );

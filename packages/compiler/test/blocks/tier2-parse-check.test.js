@@ -27,7 +27,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../../..');
-const hc24 = (rel) => fs.readFileSync(path.join(repoRoot, 'hotelchecker24', rel), 'utf8');
+const hc24 = (rel) => fs.readFileSync(path.join(repoRoot, 'projects/hotelchecker24', rel), 'utf8');
 
 const isMangled = (out) => out.includes('") : ("') || out.includes('`)}`');
 

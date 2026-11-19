@@ -112,7 +112,7 @@ function handleClickOutside(event) {
 
 describe('scanner: block JSDoc boundary + rewriteAttrRefsSafely', () => {
   it('matches exactly one @forgewp-block JSDoc in HeroSection.tsx and extracts the correct title', () => {
-    const hero = fs.readFileSync(path.join(repoRoot, 'hotelchecker24/src/components/HeroSection.tsx'), 'utf8');
+    const hero = fs.readFileSync(path.join(repoRoot, 'projects/hotelchecker24/src/components/HeroSection.tsx'), 'utf8');
     const blockRegex =
       /\/\*\*((?:(?!\*\/)[\s\S])*?@forgewp-block(?:(?!\*\/)[\s\S])*?)\*\/[\s\r\n]*(?:export\s+(?:interface|type)\s+[A-Za-z0-9_$-]+\s*=?\s*\{[\s\S]*?\}[\s\r\n]*)?export\s+(?:default\s+)?(?:function|const)\s+([A-Za-z0-9_$-]+)/g;
 

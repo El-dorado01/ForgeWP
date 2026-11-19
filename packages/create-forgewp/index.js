@@ -416,7 +416,7 @@ async function main() {
 
   const stepNum = config.install ? '2' : '3';
   const stepNumPlus = config.install ? '3' : '4';
-  const stepNumBuild = config.install ? '4' : '5';
+  const stepNumExport = config.install ? '4' : '5';
 
   console.log(
     `  │ ${stepNum}. Run the interactive Vite local developer server:`,
@@ -427,8 +427,8 @@ async function main() {
     `  │ ${stepNumPlus}. Edit code inside src/ and design presets inside wp.config.ts.`,
   );
   console.log(`  │`);
-  console.log(`  │ ${stepNumBuild}. Export theme to WordPress (.zip):`);
-  console.log(`  │    ${pc.cyan(run('build'))}`);
+  console.log(`  │ ${stepNumExport}. Export theme to WordPress (.zip):`);
+  console.log(`  │    ${pc.cyan(run('export'))}`);
   console.log(`  │`);
   console.log(
     `  │ ${pc.yellow('💡 Tip:')} You can customize your layout boundaries, color palette,`,

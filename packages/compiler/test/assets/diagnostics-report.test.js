@@ -83,7 +83,7 @@ export function Banner() {
   });
 
   it('scans real comfortable-decor project and identifies used and unused font weights', () => {
-    const comfortableDecorRoot = path.resolve(__dirname, '../../../comfortable-decor');
+    const comfortableDecorRoot = path.resolve(__dirname, '../../../../projects/comfortable-decor');
     if (fs.existsSync(comfortableDecorRoot)) {
       const { usedWeights } = scanFontWeightUsage(comfortableDecorRoot);
       expect(usedWeights.has(400)).toBe(true);

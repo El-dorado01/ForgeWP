@@ -256,7 +256,7 @@ describe('resolveIslandComponent — named export matching', () => {
 });
 
 describe('comfortable-decor theme — mixed motion helpers stay static', () => {
-  const themeRoot = fileURLToPath(new URL('../../../../comfortable-decor/', import.meta.url));
+  const themeRoot = fileURLToPath(new URL('../../../../projects/comfortable-decor/', import.meta.url));
   const revealFile = path.join(themeRoot, 'src/components/motion/reveal.tsx');
   const microFile = path.join(themeRoot, 'src/components/motion/micro.tsx');
 

@@ -36,7 +36,7 @@ import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../../..');
-const hc24Root = path.join(repoRoot, 'hotelchecker24');
+const hc24Root = path.join(repoRoot, 'projects/hotelchecker24');
 
 const TARGET_SLUGS = [
   'about-hero',

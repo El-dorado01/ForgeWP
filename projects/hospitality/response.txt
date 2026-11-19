@@ -1,0 +1,12 @@
+﻿Subject: Hospitality 2035 – access needed for the remaining checks
+
+Hi Roland and Ilkin,
+
+The WordPress administrator password appears to have been changed, as the previous login credentials no longer work. Stripe sandbox access has also been removed from my account.
+
+Without this access, I cannot complete the remaining configuration and payment checks. Please restore WordPress administrator access and invite my account back to the Stripe sandbox so the outstanding work can continue.
+
+Please share any updated login details through the agreed secure channel.
+
+Best regards,
+[Your Name]

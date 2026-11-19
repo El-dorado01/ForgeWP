@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '../../..');
 
 const hero = readFileSync(
-  path.join(root, 'hotelchecker24/src/components/HeroSection.tsx'),
+  path.join(root, 'projects/hotelchecker24/src/components/HeroSection.tsx'),
   'utf8',
 );
 

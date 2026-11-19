@@ -1,0 +1,147 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "535193aa9a27a64b583eee47f9d5834b",
+    "packages": [
+        {
+            "name": "setasign/fpdi",
+            "version": "v2.6.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Setasign/FPDI.git",
+                "reference": "d97ade6368aa0b51b6316d5dc16a567e2bf60167"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Setasign/FPDI/zipball/d97ade6368aa0b51b6316d5dc16a567e2bf60167",
+                "reference": "d97ade6368aa0b51b6316d5dc16a567e2bf60167",
+                "shasum": ""
+            },
+            "require": {
+                "ext-zlib": "*",
+                "php": ">=7.2 <=8.6.99999"
+            },
+            "conflict": {
+                "setasign/tfpdf": "<1.31"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^8.5.52",
+                "setasign/fpdf": "^1.9.0",
+                "setasign/tfpdf": "~1.33",
+                "tecnickcom/tcpdf": "^6.8"
+            },
+            "suggest": {
+                "setasign/fpdf": "FPDI will extend this class but as it is also possible to use TCPDF or tFPDF as an alternative. There's no fixed dependency configured."
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "setasign\\Fpdi\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Jan Slabon",
+                    "email": "jan.slabon@setasign.com",
+                    "homepage": "https://www.setasign.com"
+                },
+                {
+                    "name": "Maximilian Kresse",
+                    "email": "maximilian.kresse@setasign.com",
+                    "homepage": "https://www.setasign.com"
+                }
+            ],
+            "description": "FPDI is a collection of PHP classes facilitating developers to read pages from existing PDF documents and use them as templates in FPDF. Because it is also possible to use FPDI with TCPDF, there are no fixed dependencies defined. Please see suggestions for packages which evaluates the dependencies automatically.",
+            "homepage": "https://www.setasign.com/fpdi",
+            "keywords": [
+                "fpdf",
+                "fpdi",
+                "pdf"
+            ],
+            "support": {
+                "issues": "https://github.com/Setasign/FPDI/issues",
+                "source": "https://github.com/Setasign/FPDI/tree/v2.6.9"
+            },
+            "funding": [
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/setasign/fpdi",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2026-10-13T07:36:28+00:00"
+        },
+        {
+            "name": "setasign/tfpdf",
+            "version": "v1.34",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Setasign/tFPDF.git",
+                "reference": "69b06444b929e0d54ffbb5efcadfe97ecbad831b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Setasign/tFPDF/zipball/69b06444b929e0d54ffbb5efcadfe97ecbad831b",
+                "reference": "69b06444b929e0d54ffbb5efcadfe97ecbad831b",
+                "shasum": ""
+            },
+            "type": "library",
+            "autoload": {
+                "classmap": [
+                    "tfpdf.php",
+                    "font/unifont/ttfonts.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "LGPL-2.1"
+            ],
+            "authors": [
+                {
+                    "name": "Ian Back"
+                },
+                {
+                    "name": "Tycho Veltmeijer",
+                    "email": "tfpdf@tychoveltmeijer.nl",
+                    "role": "Maintainer"
+                },
+                {
+                    "name": "Olivier Plathey",
+                    "email": "oliver@fpdf.org",
+                    "homepage": "http://fpdf.org/"
+                }
+            ],
+            "description": "This class is a modified version of FPDF that adds UTF-8 support. The latest version is based on FPDF 1.85.",
+            "homepage": "http://fpdf.org/en/script/script92.php",
+            "keywords": [
+                "fpdf",
+                "pdf",
+                "tfpdf",
+                "unicode"
+            ],
+            "support": {
+                "issues": "https://github.com/Setasign/tFPDF/issues",
+                "source": "https://github.com/Setasign/tFPDF/tree/v1.34"
+            },
+            "time": "2026-10-12T08:18:19+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": {},
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": {
+        "php": ">=8.1",
+        "ext-mbstring": "*"
+    },
+    "platform-dev": {},
+    "plugin-api-version": "2.9.0"
+}

@@ -1,6 +1,6 @@
 ﻿# ForgeWP UX and Content Model: Remaining Work
 
-Scope: live WordPress acceptance, Bing submission, and companion WordPress plugin export. Completed implementation and documentation tasks are removed from this brief; it tracks remaining work only. WooCommerce remains a separate workstream.
+Scope: live WordPress acceptance, component-install UX, remaining module documentation, Bing submission, and companion WordPress plugin export. Completed implementation and documentation tasks are removed from this brief; it tracks remaining work only. WooCommerce remains a separate workstream.
 
 Preview reset tokens have no real expiry and do not replace mock login credentials. Account creation, simulated mail and preview sessions must remain distinct from WordPress accounts, inbox delivery and server-authorized sessions.
 
@@ -16,9 +16,18 @@ Preview reset tokens have no real expiry and do not replace mock login credentia
 
 Generated-PHP tests use WordPress stand-ins. They verify call ordering and error paths, not real password hashing, WordPress expiry, cookie behavior or inbox delivery.
 
+- [ ] Verify native Forms and stored-submission access with real WordPress roles, plus keyboard/narrow-admin editing and notification/receipt delivery and failure behavior. The generated implementation exists in `packages/compiler/lib/functions/forms.js`; the staging work recorded in [the forms plan](docs/archive/FORGEWP_NATIVE_FORMS_WORDPRESS_FIRST_IMPLEMENTATION_PLAN.md) remains open. Acceptance: configured capabilities govern both editing and submission access, admin controls are usable, and mail failures match the documented response contract.
+- [ ] Verify Forms CSV downloads, personal-data export/erasure and scheduled retention in WordPress. CSV, privacy hooks and WP-Cron cleanup are implemented in `packages/compiler/lib/functions/forms.js`; permanent deletion is opt-in. Acceptance: exports respect permissions/field selection, privacy requests target the right records, and cleanup follows the agreed retention policy before deletion is enabled.
+
+## Component installation UX
+
+- [ ] Define and implement an inspectable, recoverable component-install plan. `packages/compiler/lib/add-component.js` currently invokes upstream installation, writes local overrides, then processes Tailwind plugins; the local metadata contract is not a general dependency installer. A later failure can leave a partially changed project. Acceptance: a dry run identifies sources/files/dependencies, local registry dependency fields have an explicit supported contract, and failure tests establish rollback or precise recovery instructions. The [registry review](docs/archive/component-registry-ux-review.md) records the proposal; this item does not claim transactional installs already exist.
+- [ ] Make upstream overwrite behavior explicit and test it independently from local overrides. `add-component.js` protects existing ForgeWP-local files unless `--overwrite` is supplied, but delegates upstream components to `shadcn add --yes`. Acceptance: existing customized upstream files are tested against the selected CLI, help accurately states flag scope, and update/replacement behavior is documented without implying that local protection covers upstream installs.
+
 ## Public documentation discoverability
 
 - [ ] Verify domain ownership in Bing Webmaster Tools and submit `https://www.forgewp.dev/sitemap.xml`. This requires the owner's account or DNS access.
+- [ ] Review the Adapters, Agents, Webhooks and separate CLI-module documentation previews against their actual implementations before publishing them as guides. The docs project's `lib/docs-publication.ts` currently publishes only Core and Auth; the Core CLI reference is already included. Acceptance: each promoted module has accurate APIs/examples and verification, while unimplemented features remain clearly labeled proposals.
 
 Crawler eligibility and reader exports can support retrieval. They do not guarantee model training, automatic whole-site crawling, indexing or recommendations.
 

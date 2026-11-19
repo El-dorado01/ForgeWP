@@ -1,0 +1,117 @@
+Hello Stefanie,
+
+Thank you very much for your feedback and for fixing the problem with PDF creation.
+
+I can confirm that the attached email has been received, confirming the purchase of the study at a price of €249.00 net plus 19% VAT (a total of €296.31 gross) . I am also attaching two further emails that I just received in connection with the functional tests.
+
+This is a welcome step forward. Now we should ensure that the entire ordering and licensing process is fully automated and reliable.
+
+1. Stripe Webhook
+
+I have since checked the Stripe sandbox. The webhook for hospitality2035.de is active and appears to be working correctly again.
+
+Stripe reports eight event submissions this week with no failed deliveries. Today's events payment_intent.created , payment_intent.succeeded , and charge.succeeded were also confirmed with an HTTP status of 200 OK.
+
+This seems to have resolved the previous problem with webhook transmission.
+
+However, there is a second webhook in the sandbox that points to a different domain and has a 100% failure rate. Please check whether this is still needed or belongs to a previous development environment.
+
+Please also confirm that the webhook configuration is correctly set up for productive Stripe operation.
+
+2. Final functional test
+
+I suggest that we conduct a final new test purchase together with Ilkin and check the following functions:
+
+Successful payment processing via Stripe
+Automatic generation and assignment of the license number
+Correct personalization of the study with licensee, license number and license scope
+Automatic invoice creation and delivery
+Automatic dispatch of the personalized study to the buyer
+Receipt of the sales and license notification at DICON
+Flawless processing of Stripe webhook events
+The crucial point is that the entire process after the purchase functions without any manual intervention .
+
+3. Legal requirements at checkout
+
+Please also check whether the required checkboxes for agreeing to the terms and conditions and the express consent to the early commencement of the digital service, including the declaration on the expiry of the right of withdrawal, have now been correctly integrated.
+
+4. Discount code for the German Hotel Association (IHA)
+
+Another important point is the functionality of the intended discount code “Hospitality_2035” .
+
+This code is intended to give buyers from the IHA network a 20% discount on the regular net price of the study.
+
+The price for a single license would therefore be as follows:
+
+Regular net price: €249.00
+Discount (20%): €49.80
+Reduced net price: €199.20
+Plus 19% VAT: €37.85
+Final price (gross): €237.05
+Please let me know when the discount code is expected to be functional and whether the correct calculation and invoicing can already be tested.
+
+I would like to pass the discount code on to the IHA as soon as possible so that the association can use it in connection with the study presentation and its member communication.
+
+5. Schedule and final approval
+
+In view of the upcoming study presentation on November 9th, it is important to resolve the remaining open issues as soon as possible.
+
+Please give me a brief update on when we can conduct the final test purchase together with Ilkin and, in particular, when the discount code will be ready for use.
+
+Furthermore, the address of the Mama Shelter in Zurich needs to be corrected; it is: Schulstr. 44, 8050 Zurich (Atelier 3) – could you please change this address?
+
+Once all functions have been successfully tested, we can finally release the sales process.
+
+Thank you very much for your support and the implementation so far.
+
+Best regards from
+
+Roland
+
+
+
+Good evening Stefanie,
+
+Due to the renewed error message from Stripe this evening, I checked the webhook configuration of our Stripe account. I am also forwarding the corresponding warning message from Stripe to you.
+
+The examination yielded the following results:
+
+1. Webhook of the regular website
+
+https://hospitality2035.de/index.php?edd-listener=stripe
+
+Status: Active
+Error rate: 0%
+The event transmissions are successfully delivered in the Stripe sandbox.
+2. Webhook of the previous development environment
+
+https://hospitality2035-zrf3nvyltb.live-website.com/index.php?edd-listener=stripe
+
+Status: Active
+Error rate: 100%
+In the current weekly overview, 24 out of 24 transmissions failed.
+The transfer attempts are met with the HTTP status code 302. The server is apparently forwarding the requests instead of processing them properly.
+Stripe has announced that it will stop redelivery attempts on November 5, 2026.
+My preliminary assessment:
+
+The faulty webhook appears to originate from the earlier development or test environment and may no longer be needed.
+
+The webhook for our regular website works flawlessly in the sandbox with regard to event delivery. However, this does not yet definitively confirm whether the entire order processing, including personalized PDF, license number, invoice, and automated email, will function correctly.
+
+Further action:
+
+Please briefly confirm whether the webhook from the previous development environment is still needed.
+
+If not, I can deactivate or delete it in the Stripe dashboard tomorrow morning. However, I don't want to do this without your prior confirmation.
+
+Furthermore, it would be important for you to double-check that the webhook is correctly set up in the production Stripe account and that the fully automated purchase process is working.
+
+With our study presentation on November 9th in mind, we should ensure that all ordering and delivery processes function reliably.
+
+I would need to give the IHA a discount code – can I do that tomorrow?
+
+And it would be important for the address of the Mama Shelter in Zurich to be changed – could you please do that?
+
+Thank you very much and best regards
+
+Roland

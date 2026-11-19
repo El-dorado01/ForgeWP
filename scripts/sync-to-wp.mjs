@@ -21,7 +21,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const THEME_NAME = process.argv[2] || 'forgewp-starter';
 const THEME_ROOT = THEME_NAME === 'forgewp-starter'
   ? path.resolve(__dirname, '../packages/starter')
-  : path.resolve(__dirname, `../${THEME_NAME}`);
+  : fs.existsSync(path.resolve(__dirname, `../projects/${THEME_NAME}`))
+    ? path.resolve(__dirname, `../projects/${THEME_NAME}`)
+    : path.resolve(__dirname, `../${THEME_NAME}`);
 let themeSlug = THEME_NAME;
 const configPath = path.join(THEME_ROOT, 'wp.config.ts');
 if (fs.existsSync(configPath)) {

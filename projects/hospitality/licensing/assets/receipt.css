@@ -1,0 +1,105 @@
+/* Plugin-owned receipt details survive theme changes. */
+.h2035-receipt-license {
+  box-sizing: border-box;
+  display: block;
+  clear: both;
+  grid-column: 1 / -1;
+  flex-basis: 100%;
+  width: 100%;
+  min-width: 0;
+  margin: 1.5rem 0;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid var(--wp--preset--color--accent, #e11d48);
+  background: #f8fafc;
+  color: #0f172a;
+  text-align: left;
+  font-family: inherit;
+  break-inside: avoid;
+}
+
+.h2035-receipt-license .h2035-receipt-license__title {
+  margin: 0 0 1rem;
+  padding: 0;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.h2035-receipt-license .h2035-receipt-license__details {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+.h2035-receipt-license .h2035-receipt-license__row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.4fr) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.5rem 1.5rem;
+  padding: 0.75rem 0;
+}
+
+.h2035-receipt-license .h2035-receipt-license__row + .h2035-receipt-license__row {
+  border-top: 1px solid #e2e8f0;
+}
+
+.h2035-receipt-license .h2035-receipt-license__row dt,
+.h2035-receipt-license .h2035-receipt-license__row dd {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.h2035-receipt-license .h2035-receipt-license__row dt {
+  color: #475569;
+  font-weight: 600;
+}
+
+.h2035-receipt-license .h2035-receipt-license__row dd {
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.h2035-receipt-license .h2035-receipt-license__number {
+  font-variant-numeric: tabular-nums;
+}
+
+.h2035-receipt-license .h2035-invoice-link {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  margin-bottom: 0.3rem;
+  border: 1px solid #e11d48;
+  background: #e11d48;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.h2035-receipt-license .h2035-invoice-link:hover {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
+}
+
+.h2035-receipt-license .h2035-invoice-link:focus-visible {
+  outline: 2px solid #e11d48;
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .h2035-receipt-license {
+    padding: 1rem;
+  }
+
+  .h2035-receipt-license .h2035-receipt-license__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+}

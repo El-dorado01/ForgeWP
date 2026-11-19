@@ -1,0 +1,17 @@
+{
+  "master": "../../public/assets/client-assets/Studie_Hospitality_2035_08102026_Kurz.pdf",
+  "output": "../output/hospitality-2035-personalized-preview-pink.pdf",
+  "preview": true,
+  "license_page": {
+    "position": "before",
+    "title": "Hospitality 2035 – Lizenznachweis",
+    "margin_mm": 22,
+    "type": "Einzellizenz – vorläufiger Mustertext",
+    "scope": "Muster für die persönliche geschäftliche Nutzung durch eine Person. Der verbindliche Lizenzumfang wird von DICON bereitgestellt."
+  },
+  "license": {
+    "holder": "Musterunternehmen Müller & Partner GmbH",
+    "number": "TEST-H2035-000001",
+    "order_reference": "TESTBESTELLUNG – keine Zahlung"
+  }
+}

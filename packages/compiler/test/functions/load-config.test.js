@@ -29,7 +29,7 @@ import { scanForFormSchemas } from '../../lib/hydration/form-schemas.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../../..');
-const hc24Root = path.join(repoRoot, 'hotelchecker24');
+const hc24Root = path.join(repoRoot, 'projects/hotelchecker24');
 
 const hc24Available = fs.existsSync(path.join(hc24Root, 'wp.config.ts'));
 
