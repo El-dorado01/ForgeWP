@@ -678,6 +678,22 @@ ${phpArgs}
       ?>`;
     },
   );
+  processed = processed.replace(
+    /__FORGEWP_ROUTELINK:([~a-zA-Z0-9-]+):([^:_"'\s<>]*):([^:_"'\s<>]*):([^:_"'\s<>]*)__/g,
+    (match, routeSlug, encFallback, encQuery, encHash) => {
+      const slug =
+        routeSlug === '~home'
+          ? '__home__'
+          : routeSlug === '~unknown'
+            ? ''
+            : routeSlug;
+      const fallback = decodeURIComponent(encFallback || '/');
+      const query = decodeURIComponent(encQuery || '');
+      const hash = decodeURIComponent(encHash || '');
+      const escPhp = (s) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      return `<?php echo esc_url( forgewp_resolve_route_url('${escPhp(slug)}', '${escPhp(fallback)}', '${escPhp(query)}', '${escPhp(hash)}') ); ?>`;
+    },
+  );
 
   // ── Auto-hide social media container if no social links exist ──
   let searchIndex = 0;

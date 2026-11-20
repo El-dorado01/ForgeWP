@@ -118,16 +118,69 @@ Tests cover async dispatch, existing-build reuse, missing hooks, malformed
 results, failure propagation, and both existing Vite manifest locations for
 React and HTML. The full starter export fixture checks the generated themes.
 
+### Route/markup contract foundation
+
+`ForgeWPStaticMarkup` now supports additive `routes?: ForgeWPStaticRoute[]` and
+`layout?: ForgeWPStaticLayout` fields while keeping legacy React and HTML markup
+objects unchanged. `renderStaticMarkup` validates the returned markup and route
+records (path normalization, duplicate paths, colliding `templateSlug`s, dynamic
+bracket segments, and route asset shapes). `export-theme.js` forwards `routes`
+and `layout` to `generate-theme.js` and `validate-export.js`, which generate and
+validate `page-<templateSlug>.php`, `forgewp-static/template-<templateSlug>.html`,
+`forgewp-static/template-<templateSlug>-head.html`, and `functions.php` page
+provisioning without requiring `.forgewp/template-*.html` files on disk.
+`validate-export.js` also resolves island scanning through the active framework
+adapter instead of assuming Vite's `dist/.vite/manifest.json`.
+
+`packages/compiler/lib/next-route-extractor.js` proves fixed-route extraction
+from Next's documented static export (`out/`) against `projects/nextjs-adapter-fixture`:
+`/` and `/about/` extract shared `<header>` and `<footer>` into `headerHtml` and
+`footerHtml`, preserve `<main id="details">` on `/about/`, retain per-route
+`<head>` metadata (`<title>`, favicon, JSON-LD) while stripping duplicate
+charset/viewport and Next runtime links, verify local stylesheets in
+`assets.stylesheets`, and strip/account for Next client chunks and `self.__next_f`
+RSC Flight payloads separately without treating them as a native WordPress runtime.
+No Next adapter name or `create-forgewp` option is enabled yet.
+
+### Import-binding-aware `next/link` and fixed-route permalink mapping
+
+`packages/compiler/lib/next-link-transform.js` resolves `next/link` by lexical
+module/symbol identity via Babel scope (`import Link from 'next/link'`, aliases
+such as `NextLink`, `{ default as NavLink }`, and namespace `<NS.default>`),
+ignoring shadowed local variables, custom `./Link`, plain `<a>`, and
+`@forgewp/react` `Link`/`WpLink` (which are tracked separately). It also traces
+`@forgewp/react` `useWpPageLink(slug, fallback)` calls (including aliases).
+
+Static internal destinations (including string literals, static templates, and
+static `{ pathname, query, hash }` objects, with or without trailing slashes)
+map against known `ForgeWPStaticRoute` records into collision-safe
+`__FORGEWP_ROUTELINK:<slug>:<fallback>:<query>:<hash>__` tokens. `markup-processor.js`
+compiles those tokens to `forgewp_resolve_route_url()` in `functions.php`, which
+resolves live WordPress permalinks via `forgewp_resolve_route_page_id()` (so
+wp-admin slug renames work without rebuilding), preserves query strings and
+fragments across both Pretty and Plain (`?page_id=N`) permalinks, supports
+Polylang localized home URLs, and uses `home_url(...)` fallbacks so subdirectory
+installs stay valid. External URLs, `mailto:`/`tel:`, `#hash`, and `?query`
+destinations remain verbatim. Unknown internal routes emit a `NEXT_LINK_UNKNOWN_ROUTE`
+warning and fall back via `home_url(...)`; dynamic `href` expressions emit an
+actionable `NEXT_LINK_DYNAMIC_HREF` error diagnostic instead of silently rewriting.
+
 | API / owner | Current evidence | Native WordPress | Decoupled WordPress |
 | --- | --- | --- | --- |
-| Next App Router fixed routes/layout | Local fixture and Next build | Pending route/export contract | Live transport pending |
-| Next CSS / metadata | Next output inspected | Pending asset/head mapping | Ordinary Next output only |
-| `next/link` / Next | Local query/fragment navigation; Windows prefetch defect | Pending import-aware transformation | WordPress permalink mapping pending |
+| Next App Router fixed routes/layout | Local fixture, Next build, and fixed-route extractor + `generateTheme` integration test | Fixed-route markup/PHP generation verified in compiler tests; live WP acceptance pending | Live transport pending |
+| Next CSS / metadata | Extracted from `out/`; CSS verified on disk and head metadata sanitized; RSC/client scripts stripped & inventoried | Packaged CSS + per-route `head.html` verified in compiler tests; live WP acceptance pending | Ordinary Next output only |
+| `next/link` / Next | AST binding transform (aliases/namespaces/shadowing/object href), fixture rewrite + PHP 8 runtime tests (root, subdirectory, renamed slug, Plain permalink, deleted fallback, Polylang); Linux emits `/about/__next.about.__PAGE__.txt` (Windows defect remains) | Compiler + PHP 8 stand-in tests passing; live WP acceptance pending | WordPress permalink mapping pending |
 | CMS fixtures / ForgeWP | Server-only JSON boundary; existing loader test | Live bindings pending | REST/server transport pending |
 | `defineBlock`, `WpEditable` / ForgeWP | Local preview and shared compiler tests | WP registration/save acceptance pending | Shared editor packaging pending |
-| `useWpPageLink` / ForgeWP | Local fallback only | Live permalink integration pending | Live permalink integration pending |
-| Client Components / Next | One mounted local block preview | Island contract pending | Broader boundary tests pending |
+| `useWpPageLink` / ForgeWP | Traced by lexical binding in Next fixture and resolved via `forgewp_resolve_route_url` in compiler + PHP 8 tests | Live WP acceptance pending | Live permalink integration pending |
+| Client Components / Next | One mounted local block preview | Island contract pending (Next client bundles are explicitly NOT enqueued) | Broader boundary tests pending |
 | Auth, Forms, SEO, WooCommerce | Existing adapter contracts must be audited | No Next parity claim | No Next parity claim |
-| Server Actions, handlers, middleware, dynamic routes, ISR | Not investigated in this slice | Diagnostic/equivalent required | Next behavior must be verified |
+| Server Actions, handlers, middleware, dynamic routes, ISR | Dynamic `[...]` segments rejected explicitly by fixed-route extractor | Diagnostic/equivalent required | Next behavior must be verified |
+
+### Open fixture and DX gaps to resolve
+
+1. **Trailing slashes in authored links (`trailingSlash: true`):** The research fixture currently enables `trailingSlash: true` in `next.config.ts` and writes `/about/` in links. Developers should be able to author ordinary `/about` links without trailing slashes regardless of `trailingSlash` config; permalink mapping must normalize both forms, and the Windows `trailingSlash: true` static-export defect ([#85374](https://github.com/vercel/next.js/issues/85374)) should be factored into the recommended Next config/version range.
+2. **Typed `cms/mock-data.ts` (`defineWpPosts`) in Next Server Components:** The fixture currently imports legacy `cms/mock-data.json` as a zero-dependency shortcut instead of `cms/mock-data.ts` with `defineWpPosts` (from `@forgewp/react/config`), matching `packages/starter/cms/mock-data.ts`. Switch the fixture and verify server-only bundling without pulling client hooks or triggering `WpIcon` dynamic-dependency warnings.
+3. **Page route templates vs. `cms/mock-data` `page` records:** In ForgeWP, route/page files (`src/app/pages/*.tsx` in React, `src/app/**/page.tsx` in Next) own layout/template code, while `cms/mock-data.(ts|json)` owns local WordPress post/page/CPT records (used by `useWpQuery`/context locally and optionally seeded via `seed.mockData`) and `cms/editables/**` owns named page fields. Right now, `getPage()` in the Next fixture bakes `mock-data.json` strings at build time instead of compiling to live WordPress reads, and auto-created WordPress pages (`routing.js`) do not automatically reconcile with `mock-data` `page` records when `seed.mockData` is off. Define one clear, live-bound contract across native and decoupled modes so `cms/mock-data.ts` pages, `cms/editables`, and compiled page templates never conflict or confuse authors.
 
 Reference: [Next static exports](https://nextjs.org/docs/app/guides/static-exports).

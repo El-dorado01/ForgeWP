@@ -49,3 +49,43 @@ if (_adapter.buildAssets && _adapter.readBuildAssets) {
   void build;
   void existing;
 }
+
+// Route records and layout metadata are additive on ForgeWPStaticMarkup.
+const _routeMarkup: ForgeWPStaticMarkup = {
+  appHtml: '<main>Home</main>',
+  headerHtml: '<header>Nav</header>',
+  footerHtml: '<footer>Foot</footer>',
+  headHtml: '<title>Fixture</title>',
+  layout: {
+    lang: 'en',
+    sharedHeaderDetected: true,
+    sharedFooterDetected: true,
+  },
+  routes: [
+    {
+      path: '/',
+      kind: 'home',
+      title: 'Home',
+      html: '<main>Home</main>',
+      headHtml: '<title>Fixture</title>',
+      layoutExtracted: true,
+      assets: {
+        stylesheets: ['_next/static/css/app.css'],
+        clientScripts: ['_next/static/chunks/main.js'],
+        strippedRuntime: { rscPayloadCount: 2, scriptCount: 1, preloadCount: 1 },
+      },
+      sourceFile: 'out/index.html',
+    },
+    {
+      path: '/about',
+      kind: 'page',
+      slug: 'about',
+      templateSlug: 'about',
+      title: 'About',
+      html: '<main id="details">About</main>',
+      headHtml: '<title>About</title>',
+      layoutExtracted: true,
+    },
+  ],
+};
+void _routeMarkup;

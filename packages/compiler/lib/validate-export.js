@@ -1,14 +1,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { scanForHydrationIslands } from './hydration/index.js';
+import { loadFrameworkAdapter } from './framework-adapter.js';
+import { resolveStaticPageRoute } from './render-static.js';
 
 /**
  * Validate exported theme package output.
- * @param {{ themeRoot: string, outDir: string, assets: any, config: any, strict?: boolean }} opts
+ * @param {{ themeRoot: string, outDir: string, assets: any, config: any, strict?: boolean, routes?: import('./index.js').ForgeWPStaticRoute[] }} opts
  */
-export async function validateExport({ themeRoot, outDir, assets, config, strict = false }) {
+export async function validateExport({ themeRoot, outDir, assets, config, strict = false, routes = [] }) {
   const summary = { missing: [], warnings: [] };
   const staticDir = path.join(outDir, 'forgewp-static');
+  const adapter = await loadFrameworkAdapter(config?.frameworkAdapter);
+  const scanAdapterIslands =
+    adapter.scanForHydrationIslands ||
+    adapter.default?.scanForHydrationIslands ||
+    scanForHydrationIslands;
 
   const requiredThemeFiles = [
     path.join(outDir, 'functions.php'),
@@ -52,7 +59,7 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
     if (assets?.cssFile) expectedAssets.push(path.join(assetsDir, path.basename(assets.cssFile)));
 
     // Hydration-related expectations
-    const islands = scanForHydrationIslands(themeRoot);
+    const islands = scanAdapterIslands(themeRoot);
 
     if (islands.length > 0 && assets?.jsFile) {
       expectedAssets.push(path.join(assetsDir, path.basename(assets.jsFile)));
@@ -148,12 +155,31 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
     summary.missing.push('theme.json');
   }
 
-  // Validate generated page templates from .forgewp/template-*.html
+  // Validate generated page templates from adapter routes and legacy .forgewp/template-*.html
+  const validatedSlugs = new Set();
+  if (Array.isArray(routes)) {
+    for (const route of routes) {
+      if (!route || route.kind !== 'page') continue;
+      const resolved = resolveStaticPageRoute(route);
+      if (!resolved.templateSlug || validatedSlugs.has(resolved.templateSlug)) continue;
+      validatedSlugs.add(resolved.templateSlug);
+      const templatePhp = path.join(outDir, `page-${resolved.templateSlug}.php`);
+      if (!fs.existsSync(templatePhp)) summary.missing.push(templatePhp.replace(process.cwd() + path.sep, ''));
+      const expectedStaticTemplate = path.join(staticDir, `template-${resolved.templateSlug}.html`);
+      if (!fs.existsSync(expectedStaticTemplate)) summary.missing.push(expectedStaticTemplate.replace(process.cwd() + path.sep, ''));
+      if (resolved.headHtml) {
+        const headOutput = path.join(staticDir, `template-${resolved.templateSlug}-head.html`);
+        if (!fs.existsSync(headOutput)) summary.missing.push(headOutput.replace(process.cwd() + path.sep, ''));
+      }
+    }
+  }
+
   const templateDir = path.join(themeRoot, '.forgewp');
   if (fs.existsSync(templateDir)) {
     const templateFiles = fs.readdirSync(templateDir).filter((file) => /^template-.*\.html$/.test(file) && !file.endsWith('-head.html'));
     for (const templateFile of templateFiles) {
       const slug = templateFile.replace(/^template-(.*)\.html$/, '$1');
+      if (validatedSlugs.has(slug)) continue;
       const templatePhp = path.join(outDir, `page-${slug}.php`);
       if (!fs.existsSync(templatePhp)) summary.missing.push(templatePhp.replace(process.cwd() + path.sep, ''));
 
@@ -210,7 +236,7 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
     }
 
     // 3. Hydrator Resource Hygiene check
-    const islands = scanForHydrationIslands(themeRoot);
+    const islands = scanAdapterIslands(themeRoot);
     if (islands.length === 0) {
       const functionsPhpPath = path.join(outDir, 'functions.php');
       if (fs.existsSync(functionsPhpPath)) {
