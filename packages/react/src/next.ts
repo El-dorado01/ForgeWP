@@ -13,6 +13,11 @@
 
 export type ForgeWPNextDeploymentMode = 'native' | 'decoupled';
 
+export interface ForgeWPNextAutoHydrateOptions {
+  /** Default ForgeWP hydration trigger for auto-wrapped islands (default: `'visible'`). */
+  defaultTrigger?: 'visible' | 'load' | 'idle' | 'interaction';
+}
+
 export interface ForgeWPNextOptions {
   /**
    * Override deployment mode. Defaults to `process.env.FORGEWP_DEPLOYMENT_MODE`
@@ -23,6 +28,13 @@ export interface ForgeWPNextOptions {
    * Additional workspace or ForgeWP packages to include in `transpilePackages`.
    */
   transpilePackages?: string[];
+  /**
+   * When enabled, automatically detects interactive `'use client'` components
+   * rendered inside App Router pages (`src/app/` or `app/`) during
+   * `FORGEWP_NATIVE_EXPORT=1` and wraps them in `<Hydrate>` (excluding `src/blocks/`,
+   * `defineBlock`, `@forgewp-no-hydrate`, and components already wrapped in `<Hydrate>`).
+   */
+  autoHydrate?: boolean | ForgeWPNextAutoHydrateOptions;
 }
 
 export interface ForgeWPNextLikeConfig {
@@ -42,11 +54,12 @@ function isNativeExportEnv(): boolean {
   return (globalThis as any).process?.env?.FORGEWP_NATIVE_EXPORT === '1';
 }
 
-function resolveNextLinkIdentityLoaderPath(): string {
-  const loaderRelPath = ['.', 'next-link-identity-loader.cjs'].join('/');
+function resolveLocalLoaderPath(filename: string): string {
+  const loaderRelPath = ['.', filename].join('/');
   const rawPath = decodeURIComponent(
     new URL(loaderRelPath, import.meta.url).pathname,
   );
+  // Strip leading slash on Windows drive paths (e.g. /C:/foo -> C:/foo)
   return /^\/[A-Za-z]:\//.test(rawPath) ? rawPath.slice(1) : rawPath;
 }
 
@@ -104,6 +117,12 @@ export function withForgeWP<
   const userWebpack =
     typeof nextConfig.webpack === 'function' ? nextConfig.webpack : null;
 
+  const autoHydrateEnabled = Boolean(options.autoHydrate);
+  const autoHydrateTrigger =
+    typeof options.autoHydrate === 'object' && options.autoHydrate?.defaultTrigger
+      ? options.autoHydrate.defaultTrigger
+      : 'visible';
+
   const wrapped: ForgeWPNextLikeConfig = {
     ...nextConfig,
     ...(isDecoupled || nextConfig.output !== undefined
@@ -132,8 +151,26 @@ export function withForgeWP<
           test: /\.(tsx|jsx)$/,
           exclude: /node_modules/,
           enforce: 'pre',
-          use: [{ loader: resolveNextLinkIdentityLoaderPath() }],
+          use: [{ loader: resolveLocalLoaderPath('next-link-identity-loader.cjs') }],
         });
+
+        if (autoHydrateEnabled) {
+          config.module.rules.push({
+            test: /\.(tsx|jsx)$/,
+            exclude: /node_modules/,
+            enforce: 'pre',
+            use: [
+              {
+                loader: resolveLocalLoaderPath('next-auto-hydrate-loader.cjs'),
+                options: {
+                  projectRoot:
+                    context?.dir || (globalThis as any).process?.cwd?.() || '.',
+                  defaultTrigger: autoHydrateTrigger,
+                },
+              },
+            ],
+          });
+        }
       }
 
       return userWebpack ? userWebpack(config, context) : config;

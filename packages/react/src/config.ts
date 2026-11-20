@@ -472,6 +472,7 @@ export interface ForgeWPSeedConfig {
 
 export {
   withForgeWP,
+  type ForgeWPNextAutoHydrateOptions,
   type ForgeWPNextDeploymentMode,
   type ForgeWPNextLikeConfig,
   type ForgeWPNextOptions,

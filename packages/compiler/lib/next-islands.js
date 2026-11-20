@@ -287,6 +287,71 @@ export function scanNextHydrationIslands(themeRoot) {
   return scanNextHydrationIslandMappings(themeRoot).islands;
 }
 
+const INTERACTIVE_CLIENT_HOOK_RE =
+  /\b(?:useState|useEffect|useReducer|useRef|useLayoutEffect|useTransition|useOptimistic|useActionState)\s*\(/;
+const INTERACTIVE_CLIENT_EVENT_RE =
+  /\bon(?:Click|Change|Submit|Input|KeyDown|KeyUp|MouseEnter|MouseLeave|Focus|Blur|PointerDown|PointerUp|TouchStart)\s*=/;
+const INTERACTIVE_BROWSER_GLOBAL_RE =
+  /\b(?:window|document|localStorage|sessionStorage|IntersectionObserver|ResizeObserver)\b/;
+
+/**
+ * Determine whether a Next.js source file is an interactive `'use client'` component
+ * eligible for automatic hydration island bundling (excluding `src/blocks/`, `defineBlock`,
+ * and explicit `@forgewp-no-hydrate` opt-outs).
+ *
+ * @param {string} filePath
+ * @param {string} [source]
+ */
+export function isInteractiveNextClientFile(filePath, source) {
+  const normalized = String(filePath || '').replace(/\\/g, '/');
+  if (/(?:^|\/)blocks\//.test(normalized)) return false;
+  const code =
+    typeof source === 'string'
+      ? source
+      : existsSync(filePath)
+        ? readFileSync(filePath, 'utf8')
+        : '';
+  if (!/^\s*['"]use client['"]\s*;?/m.test(code)) return false;
+  if (/\bdefineBlock\s*\(/.test(code)) return false;
+  if (/@forgewp-no-hydrate\b|\bforgewpNoHydrate\b/.test(code)) return false;
+  return (
+    INTERACTIVE_CLIENT_HOOK_RE.test(code) ||
+    INTERACTIVE_CLIENT_EVENT_RE.test(code) ||
+    INTERACTIVE_BROWSER_GLOBAL_RE.test(code)
+  );
+}
+
+/**
+ * Scan a Next.js project for interactive `'use client'` components (outside `src/blocks/`)
+ * that are candidates for `withForgeWP({}, { autoHydrate: true })`.
+ *
+ * @param {string} themeRoot
+ */
+export function scanNextAutoHydrationIslands(themeRoot) {
+  const resolvedRoot = path.resolve(themeRoot);
+  const dirs = [
+    path.join(resolvedRoot, 'src', 'components'),
+    path.join(resolvedRoot, 'components'),
+  ].filter((d) => existsSync(d));
+
+  const found = [];
+  const seen = new Set();
+  for (const dir of dirs) {
+    for (const file of walkFiles(dir, new Set(SOURCE_EXTS))) {
+      if (!isInteractiveNextClientFile(file)) continue;
+      const stem = path.basename(file, path.extname(file));
+      const id = toKebabCase(stem === 'index' ? path.basename(path.dirname(file)) : stem);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      found.push({
+        id,
+        file: path.relative(resolvedRoot, file).replace(/\\/g, '/'),
+      });
+    }
+  }
+  return found.sort((a, b) => a.id.localeCompare(b.id));
+}
+
 /**
  * Resolve a kebab-case hydration island identifier to its component source file
  * inside a Next.js App Router project. Checks explicit import-binding mappings first
