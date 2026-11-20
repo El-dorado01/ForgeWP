@@ -30,14 +30,7 @@ export async function renderStaticMarkup(themeRoot) {
   const renderScript = path.join(__dirname, 'render-theme.mts');
   const tsconfig = path.join(themeRoot, 'tsconfig.json');
 
-  let tsxCli = 'tsx';
-  try {
-    tsxCli = require.resolve('tsx/cli');
-  } catch {
-    // fallback to PATH
-  }
-
-  const args = [tsxCli];
+  const args = [require.resolve('tsx/cli')];
   if (existsSync(tsconfig)) {
     args.push('--tsconfig', tsconfig);
   }
