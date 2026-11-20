@@ -14,6 +14,8 @@ Or with specific options:
 
 ```bash
 npx create-forgewp my-new-theme --yes --adapter html
+# Next.js App Router (native WordPress export & decoupled)
+npx create-forgewp my-next-theme --yes --adapter nextjs
 # Or
 npx create-forgewp --projectName my-new-theme --adapter react
 ```

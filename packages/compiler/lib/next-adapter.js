@@ -229,9 +229,9 @@ function assertNativeCompatible(themeRoot) {
 }
 
 /**
- * Internal experimental Next.js App Router adapter implementing ForgeWPFrameworkAdapter.
- * NOT yet registered in SUPPORTED_ADAPTERS until fixture DX, live data bindings, and
- * client island contracts are complete.
+ * Next.js App Router adapter implementing ForgeWPFrameworkAdapter.
+ * Registered under `frameworkAdapter: 'nextjs'` for fixed-route native WordPress
+ * theme export alongside decoupled Next.js deployment.
  */
 export const skipSystemBlueprints = true;
 export const skipPreExportScaffolding = true;

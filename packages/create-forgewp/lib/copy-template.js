@@ -1,27 +1,41 @@
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { REQUIRED_TEMPLATE_FILES } from './template-files.js';
+import {
+  REQUIRED_NEXTJS_TEMPLATE_FILES,
+  REQUIRED_TEMPLATE_FILES,
+} from './template-files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const COPY_EXCLUDE = new Set([
   'node_modules',
   'dist',
+  '.next',
+  'out',
   '.vite',
   '.forgewp',
   'package-lock.json',
 ]);
 
 export function resolveTemplateDir(adapter = 'react') {
-  const bundled = path.join(
-    __dirname,
-    '..',
-    adapter === 'html' ? 'template-html' : 'template',
-  );
+  const folderName =
+    adapter === 'html'
+      ? 'template-html'
+      : adapter === 'nextjs'
+        ? 'template-nextjs'
+        : 'template';
+
+  const bundled = path.join(__dirname, '..', folderName);
   if (existsSync(bundled)) {
-    validateTemplateDir(bundled);
+    validateTemplateDir(bundled, adapter);
     return bundled;
+  }
+
+  if (adapter === 'nextjs') {
+    throw new Error(
+      `ForgeWP Next.js template not found at ${bundled}.`,
+    );
   }
 
   const fromStarter = path.join(
@@ -41,9 +55,14 @@ export function resolveTemplateDir(adapter = 'react') {
 
 /**
  * @param {string} templateDir
+ * @param {string} [adapter]
  */
-export function validateTemplateDir(templateDir) {
-  const missing = REQUIRED_TEMPLATE_FILES.filter(
+export function validateTemplateDir(templateDir, adapter = 'react') {
+  const required =
+    adapter === 'nextjs'
+      ? REQUIRED_NEXTJS_TEMPLATE_FILES
+      : REQUIRED_TEMPLATE_FILES;
+  const missing = required.filter(
     (file) => !existsSync(path.join(templateDir, file)),
   );
 

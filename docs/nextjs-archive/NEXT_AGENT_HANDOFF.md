@@ -114,23 +114,30 @@ The renderer comparison demonstrates that a separate React `renderToString` prob
 - `packages/react/src/components/WpIcon.tsx` & `WpEditable.tsx`: added bundler-safe `registerIconProvider()` + `/* webpackIgnore: true */` (eliminating webpack dynamic-dependency warnings in `projects/nextjs-adapter-fixture`), and made `WpEditable` SSR/hydration safe with explicit `WpEditablePreviewProvider` opt-in. Marked all three items completed in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md`.
 - Tests: `test/functions/next-slice9.test.js` (4 tests covering PHP 8 front-page static vs. posts-index loop, `@forgewp/react/server` across all 3 modes + `php -l`, full `exportTheme(nextAdapter)` esbuild island bundling + ESM import + server-import rejection, and `WpEditable`/`WpIcon` contracts); added to `.github/workflows/nextjs-fixture.yml`.
 
+### 10. Public opt-in `nextjs` adapter, `withForgeWP()`, `create-forgewp --adapter nextjs`, and public docs
+
+- `packages/compiler/lib/framework-adapter.js`, `index.d.ts`, `types.js`, `templates/forgewp-config.ts`, `ADAPTERS.md`, `test/adapter-loader.js`: publicly registered `'nextjs'` in `SUPPORTED_ADAPTERS` (`['react', 'html', 'nextjs', 'stub']`) resolving to `./next-adapter.js`.
+- `packages/react/src/next.ts` (`@forgewp/react/next`, re-exported from `@forgewp/react/config`): added `withForgeWP()` Next.js config wrapper encapsulating boundary-selected `output: 'export'` (`FORGEWP_DEPLOYMENT_MODE=decoupled` toggle), `transpilePackages: ['@forgewp/react']`, and webpack `resolve.extensionAlias` (`.js` -> `['.ts', '.tsx', '.js']`). Switched `projects/nextjs-adapter-fixture/next.config.ts` to use `withForgeWP()` directly and marked the non-Vite source-package resolution item completed in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md`.
+- `packages/create-forgewp/`: added `template-nextjs/` (official Next.js App Router + TypeScript + `withForgeWP()` + `wp.config.ts` with `frameworkAdapter: 'nextjs'` + `cms/mock-data.ts` + `@forgewp/react/server` + `IntroBlock.tsx` + `<BlockArea />`), wired `--adapter nextjs` and interactive Next.js selection into `index.js`, `lib/copy-template.js`, `lib/apply-config.js`, `lib/template-files.js`, `package.json`, `pnpm-workspace.yaml`, and `node-runtime.test.js`.
+- Tests: `test/functions/next-slice10.test.js` (public adapter registration, `withForgeWP()`, and end-to-end `create-forgewp --adapter nextjs --yes --no-install` -> `exportTheme()` via `wp.config.ts` -> validated ZIP + `php -l`); added to `.github/workflows/nextjs-fixture.yml`.
+- Sibling `El-dorado01/forgewp-docs`: published the verified Next.js adapter guide and compatibility matrix (`content/17. Compiler Engine & Architecture/04-nextjs-adapter.md`), updated `03-config-reference.md`, `04-metadata-and-compiler-extensions.md`, and `02-create-forgewp.md`, and rebuilt `lib/docs-data.ts`.
+
 ## Validation completed
 
 Latest implementation (Linux VM, Node v24.22.3, PHP 8.2.35, pnpm 10.34.9, WordPress Playground CLI 3.1.65):
 
-- `projects/nextjs-adapter-fixture` builds with **zero webpack warnings** (`✓ Compiled successfully in 3.6s`) and passes `tsc --noEmit`.
-- `@forgewp/react` typecheck (`tsc --noEmit`), `react-package-exports.test.js`, `public-api-types.test.js`, `front-page-language.test.js`, and `next-slice9.test.js` all passed.
+- `projects/nextjs-adapter-fixture` builds with `withForgeWP()` and **zero webpack warnings** and passes `tsc --noEmit`.
+- `@forgewp/react` typecheck (`tsc --noEmit`), `test:adapter-runtime` (including `nextjs`), `test:adapter-types`, `next-slice10.test.js` (end-to-end `create-forgewp --adapter nextjs` -> `exportTheme()` -> `php -l`), `node-runtime.test.js`, `react-package-exports.test.js`, and `public-api-types.test.js` all passed.
 - Full compiler Vitest suite (`test/functions`, `test/hydration`, `test/blocks`, `test/assets`), `test:export-fixture`, and live WordPress Playground + live decoupled Next.js SSR acceptance verified.
 
-## Next implementation slice
+## Post-Slice-10 follow-ups
 
-1. **Slice 10 — Public opt-in Next.js adapter, `create-forgewp` scaffolding, and public docs:**
-   - Register `'nextjs'` in `packages/compiler/lib/framework-adapter.js` (`SUPPORTED_ADAPTERS`), `packages/compiler/lib/index.d.ts`, and `test/adapter-loader.js` + `test/adapter-contract.ts`.
-   - Provide a thin `withForgeWP()` Next.js config helper (encapsulating `FORGEWP_DEPLOYMENT_MODE` export toggle, `transpilePackages: ['@forgewp/react']`, and webpack `.js`→`.ts`/`.tsx` alias) so user apps don't copy boilerplate.
-   - Add Next.js scaffolding option to `packages/create-forgewp` (invoking pinned `create-next-app` or clean official App Router template + minimal ForgeWP overlay).
-   - Publish the verified Next.js adapter guide and compatibility matrix in `El-dorado01/forgewp-docs`.
+The fixed-route native WordPress + decoupled Next.js workflow is now publicly available via `create-forgewp --adapter nextjs` and `frameworkAdapter: 'nextjs'`. Remaining follow-ups remain explicitly scoped and documented as decoupled-only or future enhancements:
 
-Do not promise full Next feature parity. Dynamic `[...]` routes -> WordPress `single`/`archive` mapping, Server Actions, middleware, route handlers, ISR, and optional modules (Auth, Forms, SEO, WooCommerce) remain explicit follow-ups after Slice 10.
+1. Dynamic App Router segments (`[slug]`, `[...slug]`) -> WordPress `single.php` / `archive.php` hierarchy template mapping.
+2. Optional module parity audit for Next.js (Auth, Forms, SEO, WooCommerce).
+3. Turbopack compatibility verification alongside webpack (`next build --webpack` is the verified path today).
+4. Remaining shared-framework backlog items in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md` (shorthand object syntax in block editor callbacks, `useWpPageLink` subdirectory fallback normalization, `routing.js` vs. `seed.mockData` `page` reconciliation).
 
 ## Commands and environment notes
 
