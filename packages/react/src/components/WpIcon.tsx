@@ -56,7 +56,26 @@ function normalizeProvider(provider?: string): string {
   return provider;
 }
 
+export type WpIconProviderLoader = () => Promise<Record<string, any>> | Record<string, any>;
+
+const registeredProviderLoaders = new Map<string, WpIconProviderLoader>();
 const providerModuleCache = new Map<string, Promise<any> | any>();
+
+/**
+ * Register a bundler-safe icon provider loader (e.g. `registerIconProvider('lucide', () => import('lucide-react'))`)
+ * so webpack, Turbopack, Vite, and esbuild resolve the package statically without dynamic-dependency warnings.
+ */
+export function registerIconProvider(provider: string, loader: WpIconProviderLoader): void {
+  const key = normalizeProvider(provider);
+  registeredProviderLoaders.set(key, loader);
+  providerModuleCache.delete(key);
+}
+
+/** Clear registered icon providers and module cache (primarily for tests). */
+export function clearIconProviders(): void {
+  registeredProviderLoaders.clear();
+  providerModuleCache.clear();
+}
 
 function FallbackGlyph({
   slug,
@@ -97,7 +116,9 @@ function FallbackGlyph({
 /**
  * `<WpIcon>` — Isomorphic dynamic icon primitive.
  *
- * Vite / hydration: dynamically imports the provider package when present.
+ * Bundler-safe provider resolution: checks `registerIconProvider()` loaders first,
+ * falling back to runtime dynamic import (ignored by Vite & webpack static analyzers)
+ * and a neutral fallback glyph when the package is unavailable.
  * Production SSR: emits `<forgewp-icon-placeholder>` for PHP (SVG registry / dashicons).
  * Unknown provider or missing package: never crashes the tree.
  */
@@ -147,7 +168,14 @@ export function WpIcon({
       try {
         let pending = providerModuleCache.get(pkg);
         if (!pending) {
-          pending = import(/* @vite-ignore */ pkg).catch((err) => {
+          const explicitLoader =
+            registeredProviderLoaders.get(pkg) ||
+            (provider ? registeredProviderLoaders.get(provider) : undefined);
+          pending = Promise.resolve(
+            explicitLoader
+              ? explicitLoader()
+              : import(/* @vite-ignore */ /* webpackIgnore: true */ pkg),
+          ).catch((err) => {
             providerModuleCache.delete(pkg);
             throw err;
           });

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useWpPageLink } from '@forgewp/react';
+import { useWpPageLink, WpEditablePreviewProvider } from '@forgewp/react';
 import intro from '@/blocks/IntroBlock';
 // Local preview only: this state is not persisted to WordPress.
 export function IntroPreview({ initialHeading }: { initialHeading?: string } = {}) {
@@ -13,7 +13,11 @@ export function IntroPreview({ initialHeading }: { initialHeading?: string } = {
   const Edit = intro.edit;
   const Save = intro.save!;
   return <div data-preview-ready={mounted}>
-    {mounted ? <Edit attributes={attributes} setAttributes={(patch) => setAttributes((current) => ({ ...current, ...patch }))} /> : <Save attributes={attributes} />}
+    {mounted ? (
+      <WpEditablePreviewProvider enabled>
+        <Edit attributes={attributes} setAttributes={(patch) => setAttributes((current) => ({ ...current, ...patch }))} />
+      </WpEditablePreviewProvider>
+    ) : <Save attributes={attributes} />}
     <p><a data-fixture="wordpress-link" href={aboutHref}>WordPress content link (local fallback)</a></p>
     <output aria-live="polite">Preview heading: {attributes.heading}</output>
   </div>;

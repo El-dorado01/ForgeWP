@@ -28,7 +28,7 @@ export type { WpShortcodeProps } from './components/WpShortcode';
 export { BlockArea } from './components/BlockArea';
 export type { BlockAreaProps } from './components/BlockArea';
 
-export { WpEditable } from './components/WpEditable';
+export { WpEditable, WpEditablePreviewProvider } from './components/WpEditable';
 export type { WpEditableProps } from './components/WpEditable';
 
 export { Hydrate } from './components/Hydrate';
@@ -49,8 +49,8 @@ export type { WpImageProps, StaticImageData } from './components/WpImage';
 export { WpRepeater } from './components/WpRepeater';
 export type { WpRepeaterProps } from './components/WpRepeater';
 
-export { WpIcon } from './components/WpIcon';
-export type { WpIconProps } from './components/WpIcon';
+export { WpIcon, registerIconProvider, clearIconProviders } from './components/WpIcon';
+export type { WpIconProps, WpIconProviderLoader } from './components/WpIcon';
 
 export { WpFormFields } from './components/WpFormFields';
 export type {
