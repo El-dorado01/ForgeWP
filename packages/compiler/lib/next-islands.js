@@ -61,22 +61,54 @@ function loadEsbuild(themeRoot) {
   );
 }
 
+function resolveLocalImportPath(specifier, fromFile, resolvedRoot) {
+  let base = null;
+  if (specifier.startsWith('./') || specifier.startsWith('../')) {
+    base = path.resolve(path.dirname(fromFile), specifier);
+  } else if (specifier.startsWith('@/')) {
+    const srcCandidate = path.join(resolvedRoot, 'src', specifier.slice(2));
+    const rootCandidate = path.join(resolvedRoot, specifier.slice(2));
+    base = existsSync(path.dirname(srcCandidate)) ? srcCandidate : rootCandidate;
+  } else {
+    return null;
+  }
+
+  const stripped = base.replace(/\.(?:js|jsx|mjs|cjs)$/, '');
+  const candidates = [
+    base,
+    ...SOURCE_EXTS.map((ext) => `${stripped}${ext}`),
+    ...SOURCE_EXTS.map((ext) => path.join(stripped, `index${ext}`)),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (existsSync(candidate) && statSync(candidate).isFile()) {
+        return candidate;
+      }
+    } catch {}
+  }
+  return null;
+}
+
 /**
- * Discover explicit `<Hydrate>` island identifiers in a Next.js App Router project
- * (both from source JSX `<Hydrate id="...">` / `<Hydrate><MyWidget /></Hydrate>` and
- * from built static HTML `data-forgewp-hydrate="..."` markers).
- *
- * Returns `[]` when no explicit `<Hydrate>` boundaries exist, keeping exported themes
- * zero-JS by default.
+ * Discover explicit `<Hydrate>` island identifiers and their resolved source component
+ * file mappings via AST import-binding analysis (supporting aliased/namespace `Hydrate`
+ * imports, custom `id`s that differ from component filenames, conflict detection, and
+ * parse-error diagnostics).
  *
  * @param {string} themeRoot
- * @returns {string[]}
+ * @returns {{
+ *   islands: string[],
+ *   mappings: Map<string, { id: string, filePath: string, componentName: string, sourceFile: string }>,
+ *   diagnostics: Array<{ code: string, severity: 'error' | 'warning', file: string, message: string }>
+ * }}
  */
-export function scanNextHydrationIslands(themeRoot) {
+export function scanNextHydrationIslandMappings(themeRoot) {
   const resolvedRoot = path.resolve(themeRoot);
   const islands = new Set();
+  const mappings = new Map();
+  const diagnostics = [];
 
-  // 1. Scan source files under src/ or app/ for explicit <Hydrate> wrappers.
   const scanDirs = [
     path.join(resolvedRoot, 'src'),
     path.join(resolvedRoot, 'app'),
@@ -90,22 +122,92 @@ export function scanNextHydrationIslands(themeRoot) {
       seenFiles.add(file);
       const code = readFileSync(file, 'utf8');
       if (!code.includes('Hydrate')) continue;
+
+      const relFile = path.relative(resolvedRoot, file).replace(/\\/g, '/');
       let ast;
       try {
         ast = parse(code, {
           sourceType: 'module',
           plugins: ['typescript', 'jsx'],
         });
-      } catch {
-        continue;
+      } catch (err) {
+        const msg = `FORGEWP_NEXT_ISLAND_PARSE_ERROR: Failed to parse "${relFile}" while scanning <Hydrate> islands: ${err?.message || err}`;
+        diagnostics.push({
+          code: 'FORGEWP_NEXT_ISLAND_PARSE_ERROR',
+          severity: 'error',
+          file: relFile,
+          message: msg,
+        });
+        throw new Error(msg);
       }
+
+      // 1. Collect verified Hydrate import bindings and local component imports
+      const hydrateLocalNames = new Set();
+      const hydrateNamespaces = new Set();
+      const localComponentImports = new Map(); // localName -> resolvedFilePath
+
+      for (const node of ast.program.body) {
+        if (node.type !== 'ImportDeclaration') continue;
+        const src = node.source?.value || '';
+        const isForgeHydrateSource =
+          src === '@forgewp/react' ||
+          src === '@forgewp/react/server' ||
+          src.endsWith('/Hydrate') ||
+          src.endsWith('/Hydrate.tsx') ||
+          src.endsWith('/Hydrate.js');
+
+        if (isForgeHydrateSource) {
+          for (const spec of node.specifiers) {
+            if (
+              spec.type === 'ImportSpecifier' &&
+              spec.imported?.type === 'Identifier' &&
+              spec.imported.name === 'Hydrate'
+            ) {
+              hydrateLocalNames.add(spec.local.name);
+            } else if (spec.type === 'ImportDefaultSpecifier' && src.includes('Hydrate')) {
+              hydrateLocalNames.add(spec.local.name);
+            } else if (spec.type === 'ImportNamespaceSpecifier') {
+              hydrateNamespaces.add(spec.local.name);
+            }
+          }
+          continue;
+        }
+
+        const resolvedComp = resolveLocalImportPath(src, file, resolvedRoot);
+        if (resolvedComp) {
+          for (const spec of node.specifiers) {
+            if (
+              spec.type === 'ImportDefaultSpecifier' ||
+              spec.type === 'ImportSpecifier'
+            ) {
+              localComponentImports.set(spec.local.name, resolvedComp);
+            }
+          }
+        }
+      }
+
+      // If no import declaration was found (e.g. ambient/synthetic snippet), fall back to literal `Hydrate`
+      const allowLiteralFallback =
+        hydrateLocalNames.size === 0 && hydrateNamespaces.size === 0;
 
       traverse(ast, {
         JSXElement(nodePath) {
           const opening = nodePath.node.openingElement;
-          if (opening.name.type !== 'JSXIdentifier' || opening.name.name !== 'Hydrate') {
-            return;
+          let isHydrateTag = false;
+          if (opening.name.type === 'JSXIdentifier') {
+            isHydrateTag =
+              hydrateLocalNames.has(opening.name.name) ||
+              (allowLiteralFallback && opening.name.name === 'Hydrate');
+          } else if (
+            opening.name.type === 'JSXMemberExpression' &&
+            opening.name.object.type === 'JSXIdentifier' &&
+            opening.name.property.type === 'JSXIdentifier'
+          ) {
+            isHydrateTag =
+              hydrateNamespaces.has(opening.name.object.name) &&
+              opening.name.property.name === 'Hydrate';
           }
+          if (!isHydrateTag) return;
 
           let explicitId = null;
           for (const attr of opening.attributes) {
@@ -119,15 +221,35 @@ export function scanNextHydrationIslands(themeRoot) {
             }
           }
 
-          if (explicitId) {
-            islands.add(toKebabCase(explicitId));
-            return;
-          }
-
-          // Infer from first JSX element child (e.g. <Hydrate><CounterWidget /></Hydrate>)
           const childEl = nodePath.node.children.find((c) => c.type === 'JSXElement');
-          if (childEl?.openingElement?.name?.type === 'JSXIdentifier') {
-            islands.add(toKebabCase(childEl.openingElement.name.name));
+          const childName =
+            childEl?.openingElement?.name?.type === 'JSXIdentifier'
+              ? childEl.openingElement.name.name
+              : null;
+
+          const resolvedId = explicitId
+            ? toKebabCase(explicitId)
+            : childName
+              ? toKebabCase(childName)
+              : null;
+
+          if (!resolvedId) return;
+          islands.add(resolvedId);
+
+          if (childName && localComponentImports.has(childName)) {
+            const compFilePath = localComponentImports.get(childName);
+            const existing = mappings.get(resolvedId);
+            if (existing && existing.filePath !== compFilePath) {
+              throw new Error(
+                `FORGEWP_NEXT_ISLAND_CONFLICT: Hydration island id "${resolvedId}" maps to multiple components: "${path.relative(resolvedRoot, existing.filePath)}" (in ${existing.sourceFile}) and "${path.relative(resolvedRoot, compFilePath)}" (in ${relFile}). Assign distinct <Hydrate id="..."> values.`,
+              );
+            }
+            mappings.set(resolvedId, {
+              id: resolvedId,
+              filePath: compFilePath,
+              componentName: childName,
+              sourceFile: relFile,
+            });
           }
         },
       });
@@ -145,19 +267,45 @@ export function scanNextHydrationIslands(themeRoot) {
     }
   }
 
-  return Array.from(islands).sort();
+  return {
+    islands: Array.from(islands).sort(),
+    mappings,
+    diagnostics,
+  };
+}
+
+/**
+ * Discover explicit `<Hydrate>` island identifiers in a Next.js App Router project.
+ *
+ * Returns `[]` when no explicit `<Hydrate>` boundaries exist, keeping exported themes
+ * zero-JS by default.
+ *
+ * @param {string} themeRoot
+ * @returns {string[]}
+ */
+export function scanNextHydrationIslands(themeRoot) {
+  return scanNextHydrationIslandMappings(themeRoot).islands;
 }
 
 /**
  * Resolve a kebab-case hydration island identifier to its component source file
- * inside a Next.js App Router project.
+ * inside a Next.js App Router project. Checks explicit import-binding mappings first
+ * before falling back to filename conventions.
  *
  * @param {string} themeRoot
  * @param {string} kebabName
+ * @param {Map<string, { filePath: string }>} [knownMappings]
  * @returns {string | null}
  */
-export function findNextIslandComponentPath(themeRoot, kebabName) {
+export function findNextIslandComponentPath(themeRoot, kebabName, knownMappings) {
   const resolvedRoot = path.resolve(themeRoot);
+  const mapped = knownMappings
+    ? knownMappings.get(kebabName)
+    : scanNextHydrationIslandMappings(resolvedRoot).mappings.get(kebabName);
+  if (mapped?.filePath && existsSync(mapped.filePath)) {
+    return mapped.filePath;
+  }
+
   const pascal = toPascalCase(kebabName);
   const candidateDirs = [
     path.join(resolvedRoot, 'src', 'components'),
@@ -331,14 +479,15 @@ export default function Link({ href, prefetch, scroll, shallow, replace, passHre
     },
   };
 
+  const { mappings } = scanNextHydrationIslandMappings(resolvedRoot);
   const clientEntries = {};
   const assetFiles = { [runtimeRel]: runtimeRel };
 
   for (const island of uniqueIslands) {
-    const compPath = findNextIslandComponentPath(resolvedRoot, island);
+    const compPath = findNextIslandComponentPath(resolvedRoot, island, mappings);
     if (!compPath) {
       throw new Error(
-        `FORGEWP_NEXT_ISLAND_NOT_FOUND: Could not find source component for <Hydrate> island "${island}" under src/components/.`,
+        `FORGEWP_NEXT_ISLAND_NOT_FOUND: Could not find source component for <Hydrate> island "${island}" under src/components/ or via <Hydrate> import bindings.`,
       );
     }
 

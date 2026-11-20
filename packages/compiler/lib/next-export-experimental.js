@@ -17,15 +17,124 @@ import { assertZipCreated, zipTheme } from './zip-theme.js';
  * Determine the primary theme-relative CSS file path produced by packageNextAssets().
  * @param {string[]} stylesheets
  */
-function resolvePackagedCssPath(stylesheets) {
+export function resolvePackagedCssPath(stylesheets) {
   if (stylesheets.length === 0) return 'assets/next-empty.css';
   if (stylesheets.length === 1) return `assets/${path.basename(stylesheets[0])}`;
   return 'assets/next-bundle.css';
 }
 
 /**
+ * Partition extracted Next.js route stylesheets into:
+ * - `sharedStylesheets`: stylesheets present on ALL primary routes, in the exact
+ *   DOM `<head>` cascade order observed on the first primary route.
+ * - `routeOnlyByPath`: map of route path -> route-specific stylesheets in exact DOM order.
+ * - `routeAssetMap`: map of source stylesheet relPath -> theme-relative `assets/css/<name>` path.
+ *
+ * @param {import('./index.js').ForgeWPStaticRoute[]} routes
+ */
+export function partitionNextStylesheets(routes = []) {
+  const allRoutes = Array.isArray(routes) ? routes : [];
+  const primaryRoutes = allRoutes.filter((r) => r.kind !== 'not-found');
+  const scopeRoutes = primaryRoutes.length > 0 ? primaryRoutes : allRoutes;
+
+  const sharedStylesheets = [];
+  if (scopeRoutes.length > 0) {
+    const firstOrder = scopeRoutes[0].assets?.stylesheets || [];
+    const otherSets = scopeRoutes
+      .slice(1)
+      .map((r) => new Set(r.assets?.stylesheets || []));
+    for (const css of firstOrder) {
+      if (otherSets.every((set) => set.has(css))) {
+        sharedStylesheets.push(css);
+      }
+    }
+  }
+
+  const sharedSet = new Set(sharedStylesheets);
+  const routeOnlyByPath = new Map();
+  const routeAssetMap = new Map();
+  const usedBasenames = new Set();
+
+  for (const route of allRoutes) {
+    const routeOnly = (route.assets?.stylesheets || []).filter(
+      (css) => !sharedSet.has(css),
+    );
+    if (routeOnly.length > 0) {
+      routeOnlyByPath.set(route.path, routeOnly);
+      for (const rel of routeOnly) {
+        if (!routeAssetMap.has(rel)) {
+          const base = path.basename(rel);
+          let targetName = base;
+          let counter = 2;
+          while (usedBasenames.has(targetName)) {
+            const ext = path.extname(base);
+            const stem = path.basename(base, ext);
+            targetName = `${stem}-${counter}${ext}`;
+            counter += 1;
+          }
+          usedBasenames.add(targetName);
+          routeAssetMap.set(rel, `assets/css/${targetName}`);
+        }
+      }
+    }
+  }
+
+  return {
+    sharedStylesheets,
+    routeOnlyByPath,
+    routeAssetMap,
+  };
+}
+
+/**
+ * Inject route-scoped `<link rel="stylesheet">` tags into each route's `headHtml`
+ * for stylesheets that belong only to a subset of routes, preventing cross-route
+ * CSS leakage while preserving exact Next.js cascade order.
+ *
+ * @param {import('./index.js').ForgeWPStaticMarkup} markup
+ * @returns {import('./index.js').ForgeWPStaticMarkup}
+ */
+export function injectRouteScopedStylesheetLinks(markup) {
+  const routes = Array.isArray(markup?.routes) ? markup.routes : [];
+  const { routeOnlyByPath, routeAssetMap } = partitionNextStylesheets(routes);
+  if (routeOnlyByPath.size === 0) {
+    return markup;
+  }
+
+  let updatedHomeHead = markup.headHtml || '';
+  const updatedRoutes = routes.map((route) => {
+    const routeOnly = routeOnlyByPath.get(route.path);
+    if (!routeOnly || routeOnly.length === 0) return route;
+    const linksHtml = routeOnly
+      .map((rel) => {
+        const assetRel = routeAssetMap.get(rel);
+        return `<link rel="stylesheet" href="<?php echo esc_url(get_template_directory_uri()); ?>/${assetRel}" />`;
+      })
+      .join('');
+    const nextHead = `${route.headHtml || ''}${linksHtml}`;
+    if (route.kind === 'home') {
+      updatedHomeHead = `${updatedHomeHead}${linksHtml}`;
+    }
+    return {
+      ...route,
+      headHtml: nextHead,
+    };
+  });
+
+  return {
+    ...markup,
+    headHtml: updatedHomeHead,
+    routes: updatedRoutes,
+  };
+}
+
+/**
  * Package verified CSS and non-JS metadata assets from a Next.js static export (`out/`)
  * into a WordPress theme output directory.
+ *
+ * Preserves exact Next.js `<head>` cascade order for shared stylesheets and packages
+ * route-specific stylesheets individually into `assets/css/` so routes never leak
+ * styles across one another.
  *
  * Explicitly skips Next client runtime chunks (`_next/static/chunks/*.js`) so raw Next
  * bundles are never enqueued as a fake native WordPress runtime.
@@ -43,36 +152,45 @@ export function packageNextAssets(themeRoot, outDir, options = {}) {
     ? options.routes
     : extractNextStaticMarkup(resolvedRoot, { outDir: outExportDir }).routes;
 
-  const stylesheetSet = new Set();
+  const { sharedStylesheets, routeAssetMap } = partitionNextStylesheets(routes);
   const otherAssetSet = new Set();
   const skippedClientScriptSet = new Set();
 
   for (const route of routes) {
-    for (const css of route.assets?.stylesheets || []) stylesheetSet.add(css);
     for (const other of route.assets?.otherAssets || []) otherAssetSet.add(other);
     for (const script of route.assets?.clientScripts || []) skippedClientScriptSet.add(script);
   }
 
-  const stylesheets = Array.from(stylesheetSet).sort();
   const assetsOut = path.join(outDir, 'assets');
   mkdirSync(assetsOut, { recursive: true });
 
   const assetFiles = {};
-  const cssFile = resolvePackagedCssPath(stylesheets);
+  const cssFile = resolvePackagedCssPath(sharedStylesheets);
 
-  if (stylesheets.length === 0) {
-    writeFileSync(path.join(outDir, cssFile), '/* No CSS emitted by Next.js build */\n', 'utf8');
-  } else if (stylesheets.length === 1) {
-    const srcCss = path.join(outExportDir, stylesheets[0]);
+  if (sharedStylesheets.length === 0) {
+    writeFileSync(path.join(outDir, cssFile), '/* No shared CSS emitted by Next.js build */\n', 'utf8');
+  } else if (sharedStylesheets.length === 1) {
+    const srcCss = path.join(outExportDir, sharedStylesheets[0]);
     copyFileSync(srcCss, path.join(outDir, cssFile));
-    assetFiles[stylesheets[0]] = cssFile;
+    assetFiles[sharedStylesheets[0]] = cssFile;
   } else {
-    const combined = stylesheets
+    const combined = sharedStylesheets
       .map((rel) => `/* Source: ${rel} */\n${readFileSync(path.join(outExportDir, rel), 'utf8')}`)
       .join('\n\n');
     writeFileSync(path.join(outDir, cssFile), combined, 'utf8');
-    for (const rel of stylesheets) {
+    for (const rel of sharedStylesheets) {
       assetFiles[rel] = cssFile;
+    }
+  }
+
+  // Copy route-specific stylesheets individually into assets/css/
+  if (routeAssetMap.size > 0) {
+    mkdirSync(path.join(assetsOut, 'css'), { recursive: true });
+    for (const [srcRel, destRel] of routeAssetMap.entries()) {
+      const srcCss = path.join(outExportDir, srcRel);
+      if (!existsSync(srcCss)) continue;
+      copyFileSync(srcCss, path.join(outDir, destRel));
+      assetFiles[srcRel] = destRel;
     }
   }
 
@@ -89,6 +207,7 @@ export function packageNextAssets(themeRoot, outDir, options = {}) {
   return {
     cssFile,
     assetFiles,
+    routeCssFiles: Object.fromEntries(routeAssetMap),
     clientEntries: {},
     runtimeEntry: undefined,
     skippedClientScripts: Array.from(skippedClientScriptSet).sort(),

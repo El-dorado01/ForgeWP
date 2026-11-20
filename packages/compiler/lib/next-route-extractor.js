@@ -420,7 +420,7 @@ export function parseNextExportHtml(html, { outDir, sourceFile }) {
     headHtml: keptHeadParts.join(''),
     bodyHtml: cleanedBody,
     assets: {
-      stylesheets: Array.from(stylesheets).sort(),
+      stylesheets: Array.from(stylesheets),
       clientScripts: Array.from(clientScripts).sort(),
       otherAssets: Array.from(otherAssets).sort(),
       strippedRuntime,

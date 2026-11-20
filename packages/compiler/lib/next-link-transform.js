@@ -691,31 +691,51 @@ export function transformNextLinksInSource(
 }
 
 /**
- * Scan all source modules under `<themeRoot>/src` for import-verified `next/link`,
+ * Scan all source modules under `<themeRoot>/src` as well as root-level `app/`,
+ * `components/`, `lib/`, and `pages/` directories for import-verified `next/link`,
  * `@forgewp/react` `Link`/`WpLink`, and `useWpPageLink` usages.
  *
  * @param {string} themeRoot
  * @param {import('./index.js').ForgeWPStaticRoute[]} [knownRoutes]
  */
 export function scanProjectNextLinks(themeRoot, knownRoutes = []) {
-  const srcDir = path.join(path.resolve(themeRoot), 'src');
+  const resolvedRoot = path.resolve(themeRoot);
+  const scanDirs = [
+    path.join(resolvedRoot, 'src'),
+    path.join(resolvedRoot, 'app'),
+    path.join(resolvedRoot, 'components'),
+    path.join(resolvedRoot, 'lib'),
+    path.join(resolvedRoot, 'pages'),
+  ].filter((d) => existsSync(d));
+
   const allLinks = [];
   const allDiagnostics = [];
 
-  if (!existsSync(srcDir)) {
+  if (scanDirs.length === 0) {
     return { links: allLinks, diagnostics: allDiagnostics };
   }
 
+  const seenFiles = new Set();
   const walk = (dir) => {
     const entries = readdirSync(dir).sort();
     for (const entry of entries) {
-      if (entry.startsWith('.') || entry === 'node_modules') continue;
+      if (
+        entry.startsWith('.') ||
+        entry === 'node_modules' ||
+        entry === '.next' ||
+        entry === 'out' ||
+        entry === 'dist'
+      ) {
+        continue;
+      }
       const fullPath = path.join(dir, entry);
       const stat = statSync(fullPath);
       if (stat.isDirectory()) {
         walk(fullPath);
       } else if (/\.(?:tsx|ts|jsx|js)$/.test(entry) && !entry.endsWith('.d.ts')) {
-        const relPath = path.relative(themeRoot, fullPath).replace(/\\/g, '/');
+        if (seenFiles.has(fullPath)) continue;
+        seenFiles.add(fullPath);
+        const relPath = path.relative(resolvedRoot, fullPath).replace(/\\/g, '/');
         const source = readFileSync(fullPath, 'utf8');
         if (
           !source.includes('next/link') &&
@@ -735,7 +755,9 @@ export function scanProjectNextLinks(themeRoot, knownRoutes = []) {
     }
   };
 
-  walk(srcDir);
+  for (const dir of scanDirs) {
+    walk(dir);
+  }
   return { links: allLinks, diagnostics: allDiagnostics };
 }
 
@@ -746,23 +768,44 @@ function decodeHtmlAttrEntities(value) {
     .replace(/&#39;|&#x27;/g, "'");
 }
 
+const NEXT_LINK_MARKER_RE = /\s*\bdata-forgewp-next-link=(["'])1\1/i;
+
 /**
  * Rewrite `<a ... href="...">` attributes in HTML ONLY for destinations verified by AST
  * import-binding analysis (`next/link` or `@forgewp/react` `useWpPageLink`).
+ *
+ * When build-time `data-forgewp-next-link="1"` identity markers are present in the HTML
+ * (emitted by `withForgeWP()` during `FORGEWP_NATIVE_EXPORT=1`), ONLY marked anchors are
+ * rewritten and the internal marker attribute is stripped — leaving raw `<a href="...">`
+ * tags completely untouched even when they share the exact same `href`.
  */
 function rewriteVerifiedAnchorsInHtml(html, verifiedHrefToToken) {
   if (!html || verifiedHrefToToken.size === 0) {
     return { html, count: 0 };
   }
+  const hasIdentityMarkers = NEXT_LINK_MARKER_RE.test(html);
   let count = 0;
   const rewritten = html.replace(
     /<a\b([^>]*?)\bhref=(["'])([^"']*)\2([^>]*)>/gi,
     (fullMatch, before, quote, rawAttrVal, after) => {
+      const hasMarker =
+        NEXT_LINK_MARKER_RE.test(before) || NEXT_LINK_MARKER_RE.test(after);
+      const cleanBefore = before.replace(NEXT_LINK_MARKER_RE, '');
+      const cleanAfter = after.replace(NEXT_LINK_MARKER_RE, '');
+
+      if (hasIdentityMarkers && !hasMarker) {
+        return fullMatch;
+      }
+
       const decoded = decodeHtmlAttrEntities(rawAttrVal);
       const token = verifiedHrefToToken.get(decoded);
-      if (!token) return fullMatch;
+      if (!token) {
+        return hasMarker
+          ? `<a${cleanBefore}href=${quote}${rawAttrVal}${quote}${cleanAfter}>`
+          : fullMatch;
+      }
       count += 1;
-      return `<a${before}href=${quote}${token}${quote}${after}>`;
+      return `<a${cleanBefore}href=${quote}${token}${quote}${cleanAfter}>`;
     },
   );
   return { html: rewritten, count };
