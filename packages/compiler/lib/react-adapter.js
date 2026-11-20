@@ -2134,3 +2134,5 @@ export function Single${pascalCpt}Page() {
 }
 
 export { scanForHydrationIslands, findComponentPath, getHydrationRollupInputs };
+export { buildAssets, readBuildManifest as readBuildAssets } from './build-assets.js';
+export { packageAssets } from './vite-export-assets.js';

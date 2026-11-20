@@ -19,6 +19,9 @@ async function run() {
   console.log('Loading HTML adapter...');
   const htmlAdapter = await loadFrameworkAdapter('html');
   assert.strictEqual(typeof htmlAdapter.renderStaticMarkup, 'function');
+  assert.strictEqual(typeof htmlAdapter.buildAssets, 'function');
+  assert.strictEqual(typeof htmlAdapter.readBuildAssets, 'function');
+  assert.strictEqual(typeof htmlAdapter.packageAssets, 'function');
   assert.strictEqual(typeof htmlAdapter.scanForHydrationIslands, 'function');
   assert.strictEqual(typeof htmlAdapter.findComponentPath, 'function');
   assert.strictEqual(typeof htmlAdapter.getHydrationRollupInputs, 'function');
@@ -26,6 +29,9 @@ async function run() {
   console.log('Loading React adapter...');
   const reactAdapter = await loadFrameworkAdapter('react');
   assert.strictEqual(typeof reactAdapter.renderStaticMarkup, 'function');
+  assert.strictEqual(typeof reactAdapter.buildAssets, 'function');
+  assert.strictEqual(typeof reactAdapter.readBuildAssets, 'function');
+  assert.strictEqual(typeof reactAdapter.packageAssets, 'function');
   assert.strictEqual(typeof reactAdapter.scanForHydrationIslands, 'function');
   assert.strictEqual(typeof reactAdapter.findComponentPath, 'function');
   assert.strictEqual(typeof reactAdapter.getHydrationRollupInputs, 'function');

@@ -30,3 +30,22 @@ void componentPath;
 void inputs;
 void _renderPromise;
 void _renderResult;
+
+if (_adapter.packageAssets) {
+  const packaged: Promise<import('../lib/index.js').ForgeWPPackagedAssets> = Promise.resolve(
+    _adapter.packageAssets('.', './output', { islands: ['counter'] }),
+  );
+  void packaged;
+}
+
+// Build hooks are optional for render-only/testing adapters; export requires them.
+if (_adapter.buildAssets && _adapter.readBuildAssets) {
+  const build: Promise<import('../lib/index.js').ForgeWPBuildAssets> = Promise.resolve(
+    _adapter.buildAssets('.', { packageManager: 'npm', verbose: true }),
+  );
+  const existing: Promise<import('../lib/index.js').ForgeWPBuildAssets> = Promise.resolve(
+    _adapter.readBuildAssets('.'),
+  );
+  void build;
+  void existing;
+}

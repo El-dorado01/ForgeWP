@@ -307,7 +307,28 @@ export interface ForgeWPStaticMarkup {
   archiveHtml?: string;
 }
 
+export interface ForgeWPPackagedAssets {
+  /** Source asset path to theme-relative output file. */
+  assetFiles: Record<string, string>;
+  /** Island identifier to theme-relative client module. */
+  clientEntries: Record<string, string>;
+  runtimeEntry?: string;
+}
+
 export interface ForgeWPFrameworkAdapter {
+  /** Copy build output into the theme; returned paths are relative to outDir. */
+  packageAssets?(
+    themeRoot: string,
+    outDir: string,
+    options?: { islands?: string[] },
+  ): ForgeWPPackagedAssets | Promise<ForgeWPPackagedAssets>;
+  /** Build assets for export. React and HTML currently use Vite. */
+  buildAssets?(
+    themeRoot: string,
+    options?: { packageManager?: string; verbose?: boolean },
+  ): Promise<ForgeWPBuildAssets> | ForgeWPBuildAssets;
+  /** Read a completed build without invoking the build script (skipBuild). */
+  readBuildAssets?(themeRoot: string): Promise<ForgeWPBuildAssets> | ForgeWPBuildAssets;
   renderStaticMarkup(
     themeRoot: string,
   ): Promise<ForgeWPStaticMarkup> | ForgeWPStaticMarkup;

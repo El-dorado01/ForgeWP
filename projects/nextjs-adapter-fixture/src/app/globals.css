@@ -1,0 +1,7 @@
+* { box-sizing: border-box; }
+body { margin: 0; font: 18px/1.6 system-ui, sans-serif; background: #faf9f6; color: #202c34; }
+header, main, footer { max-width: 960px; margin: auto; padding: 24px; }
+nav { display: flex; gap: 24px; }
+a { color: #205b73; }
+.intro { padding: 24px; border: 1px solid #c9d3d8; border-radius: 12px; background: white; }
+footer { font-size: 14px; }

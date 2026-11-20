@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import pc from 'picocolors';
-import { buildAssets } from './build-assets.js';
+import { buildAdapterAssets } from './adapter-build.js';
 import { generateTheme } from './generate-theme.js';
 import { loadConfig } from './load-config.js';
 import { renderStaticMarkup } from './render-static.js';
@@ -82,14 +82,13 @@ export async function exportTheme(options) {
     'build',
     options.skipBuild
       ? 'Using existing build (skipBuild)'
-      : 'Building assets with Vite…',
+      : `Building assets with the ${config.frameworkAdapter || 'react'} adapter…`,
   );
-  const assets = options.skipBuild
-    ? (await import('./build-assets.js')).readBuildManifest(themeRoot)
-    : buildAssets(themeRoot, {
-        packageManager: options.packageManager,
-        verbose,
-      });
+  const assets = await buildAdapterAssets(themeRoot, config.frameworkAdapter, {
+    skipBuild: options.skipBuild,
+    packageManager: options.packageManager,
+    verbose,
+  });
 
   report(
     'render',

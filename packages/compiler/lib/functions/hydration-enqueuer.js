@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 export function buildHydrationEnqueuerPhp(config, assets, mainJs, uniqueMetaKeys, uniqueRichTextKeys, repeaterFieldsPhp, manifestPairs, optionsPairs, themeModsPairs, page_links_php, fontsEnqueue, i18nKeysPhp, headlessScript, currentUserHydrationField, defaultLoginField, providersPhp = '') {
-  const css = assets.cssFile.replace(/^assets\//, '');
+  const css = assets.cssFile.replace(/\\/g, '/');
 
   // Only forms need restUrl/restNonce/forms in the hydration payload — kept
   // out entirely for themes without a `forms` config so their generated
@@ -57,11 +57,11 @@ export function buildHydrationEnqueuerPhp(config, assets, mainJs, uniqueMetaKeys
   if (mainJs) {
     hydrationEnqueue = `
     // Enqueue React runtime entrypoint and dynamic Selective Hydration assets
-    $js_path = get_template_directory() . '/assets/${mainJs}';
+    $js_path = get_template_directory() . '/${mainJs}';
     if (file_exists($js_path)) {
         wp_enqueue_script(
             '${config.textDomain}-react-runtime',
-            $theme_uri . '/assets/${mainJs}',
+            $theme_uri . '/${mainJs}',
             array(),
             filemtime($js_path),
             true
@@ -380,13 +380,13 @@ ${repeaterFieldsPhp}
  */
 function forgewp_enqueue_assets(): void {
     $theme_uri = get_template_directory_uri();
-    $css_path = get_template_directory() . '/assets/${css}';
+    $css_path = get_template_directory() . '/${css}';
 ${fontsEnqueue}
 
     if (file_exists($css_path)) {
         wp_enqueue_style(
             '${config.textDomain}-app',
-            $theme_uri . '/assets/${css}',
+            $theme_uri . '/${css}',
             array(),
             filemtime($css_path)
         );

@@ -1,6 +1,5 @@
 import fs, {
   copyFileSync,
-  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -15,7 +14,6 @@ import { createRequire } from 'node:module';
 import {
   scanForEditableSchemas,
   scanForHydrationIslandsWithProps,
-  resolveIslandChunk,
   scanAppProviders,
 } from './hydration/index.js';
 import { loadFrameworkAdapter } from './framework-adapter.js';
@@ -57,7 +55,6 @@ import {
   FORGEWP_DEFAULT_ICON_SLUGS,
 } from './icon-registry.js';
 import { scanAssetGraph, generatePreloadTags } from './assets/index.js';
-import { rewriteThemePublicAssetUrls } from './assets/public-url.js';
 import { extractTemplateContent } from './extract-template-content.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -314,42 +311,20 @@ export async function generateTheme({
   }
 
   const assetsOut = path.join(outDir, 'assets');
-  const distAssets = path.join(themeRoot, 'dist', 'assets');
   mkdirSync(assetsOut, { recursive: true });
-  cpSync(distAssets, assetsOut, { recursive: true });
-  rewriteThemePublicAssetUrls(themeRoot, assetsOut);
-
-  // Copy all other files/folders from dist to outDir (excluding .vite, index.html, and assets)
-  const distDir = path.join(themeRoot, 'dist');
-  if (existsSync(distDir)) {
-    const items = readdirSync(distDir);
-    for (const item of items) {
-      if (item !== '.vite' && item !== 'index.html' && item !== 'assets') {
-        const srcPath = path.join(distDir, item);
-        const destPath = path.join(outDir, item);
-        cpSync(srcPath, destPath, { recursive: true });
-      }
-    }
+  if (typeof adapter.packageAssets !== 'function') {
+    throw new Error(`Framework adapter "${config.frameworkAdapter || 'react'}" does not implement packageAssets().`);
   }
-
-  const manifestPath = path.join(themeRoot, 'dist', '.vite', 'manifest.json');
-  let viteManifest = {};
-  if (existsSync(manifestPath)) {
-    try {
-      viteManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-    } catch (e) {
-      console.warn('Failed to parse Vite manifest.json:', e.message);
-    }
-  }
+  const packaged = await adapter.packageAssets(themeRoot, outDir, { islands: hydrationIslands });
 
   const replaceAssetPlaceholders = (markup) => {
     if (!markup) return '';
     return markup.replace(
       /__FORGEWP_ASSET__([a-zA-Z0-9_\-\.\/]+)/g,
       (match, srcPath) => {
-        const manifestEntry = viteManifest[srcPath];
-        if (manifestEntry && manifestEntry.file) {
-          return `<?php echo esc_url( get_template_directory_uri() ); ?>/${manifestEntry.file}`;
+        const assetFile = packaged.assetFiles[srcPath];
+        if (assetFile) {
+          return `<?php echo esc_url( get_template_directory_uri() ); ?>/${assetFile}`;
         }
         return `<?php echo esc_url( get_template_directory_uri() ); ?>/${srcPath}`;
       },
@@ -359,31 +334,12 @@ export async function generateTheme({
   let hydrationManifestJson = '{}';
   let hydrationData = null;
   if (hasHydration) {
-    if (!existsSync(manifestPath)) {
-      console.warn(
-        'Hydration manifest not found at dist/.vite/manifest.json. Hydration asset generation may be incomplete.',
-      );
-    }
-
-    const mapping = {};
-    let mainJsFile = '';
-    const entryChunk =
-      viteManifest['index.html'] ||
-      Object.values(viteManifest).find((c) => c.isEntry);
-    if (entryChunk) {
-      mainJsFile = entryChunk.file;
-    }
-
-    for (const island of hydrationIslands) {
-      const resolvedChunk = resolveIslandChunk(viteManifest, island);
-      if (resolvedChunk) {
-        mapping[island] = resolvedChunk;
-      }
-    }
+    const mapping = packaged.clientEntries;
+    const mainJsFile = packaged.runtimeEntry;
 
     if (!mainJsFile) {
       throw new Error(
-        'Hydration generation failed: could not resolve the React runtime entry chunk. Ensure Vite emitted a valid manifest and the theme entry is present.',
+        'Hydration generation failed: could not resolve the React runtime entry chunk. Ensure the adapter supplies a valid runtimeEntry.',
       );
     }
 
@@ -393,7 +349,7 @@ export async function generateTheme({
     if (missingIslands.length > 0) {
       throw new Error(
         `Hydration generation failed: missing compiled chunk for island(s): ${missingIslands.join(', ')}. ` +
-          'Verify the Hydrate component children and the corresponding Vite input files.',
+          'Verify the Hydrate component children and the adapter clientEntries mapping.',
       );
     }
 
@@ -576,7 +532,7 @@ export async function generateTheme({
     const islandName = el.getAttribute("data-forgewp-hydrate");
     const chunkPath = config.manifest?.[islandName];
     if (!chunkPath) return;
-    const scriptUrl = config.themeUri + "/assets/" + chunkPath.replace("assets/", "").replace("assets\\\\", "");
+    const scriptUrl = config.themeUri + "/" + chunkPath.replace(/\\\\/g, "/");
     
     // Inject link[rel=modulepreload]
     if (document.querySelector("link[href='" + scriptUrl + "']")) return;
@@ -618,7 +574,7 @@ export async function generateTheme({
       return;
     }
 
-    const scriptUrl = config.themeUri + "/assets/" + chunkPath.replace("assets/", "").replace("assets\\\\", "");
+    const scriptUrl = config.themeUri + "/" + chunkPath.replace(/\\\\/g, "/");
 
     import(scriptUrl)
       .then((module) => {
@@ -756,7 +712,7 @@ export async function generateTheme({
     providerComponentsPromise = Promise.all(ids.map(function (id) {
       const chunkPath = config.manifest && config.manifest[id];
       if (!chunkPath) return Promise.resolve(null);
-      const scriptUrl = config.themeUri + "/assets/" + chunkPath.replace("assets/", "").replace("assets\\\\", "");
+      const scriptUrl = config.themeUri + "/" + chunkPath.replace(/\\\\/g, "/");
       return import(scriptUrl).then(function (module) {
         return resolveExport(module, id);
       }).catch(function (err) {
@@ -784,20 +740,6 @@ export async function generateTheme({
     // Run compiler diagnostics & output detailed metrics
     const analysis = analyzeHydrationIslands(themeRoot, mapping);
     printDiagnosticsReport(analysis);
-  }
-
-  // Drop unused JS from the theme ZIP
-  const files = readdirSync(assetsOut);
-  for (const file of files) {
-    if (
-      (file.endsWith('.js') || file.endsWith('.js.map')) &&
-      file !== 'forgewp-editor.js' &&
-      file !== 'forgewp-hydrator.js'
-    ) {
-      if (!hasHydration) {
-        rmSync(path.join(assetsOut, file), { force: true });
-      }
-    }
   }
 
   // Scan all page templates for translations before processMarkup replaces them

@@ -73,3 +73,5 @@ export function onMakePage(themeRoot, { pascalCase, pc }) {
 export function onSyncRoutes(themeRoot, { pc }) {
   console.log(pc.gray(`\nℹ️  The Static HTML framework adapter uses static HTML. Route synchronization skipped.\n`));
 }
+export { buildAssets, readBuildManifest as readBuildAssets } from '../build-assets.js';
+export { packageAssets } from '../vite-export-assets.js';

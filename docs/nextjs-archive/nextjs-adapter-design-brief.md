@@ -64,6 +64,8 @@ This milestone proves the architecture. Broader launch support depends on the pa
 
 ## Agent handoff and React adapter findings
 
+The first implementation investigation is recorded in [the research findings](nextjs-adapter-research.md), with an official-scaffolder fixture and repeatable checks. This does not complete the end-to-end milestone or enable a public Next.js adapter.
+
 Start with the [architecture overview](../architecture.md), [adapter loader](../../packages/compiler/lib/framework-adapter.js), [export pipeline](../../packages/compiler/lib/export-theme.js), [React adapter](../../packages/compiler/lib/react-adapter.js), [theme generator](../../packages/compiler/lib/generate-theme.js), and [block compiler](../../packages/compiler/lib/blocks/index.js). Consult the [historical native and decoupled deployment proposal](../archive/ForgeWP_Unified_Deployment_Architecture.md) for design context. Confirm its claims against today's implementation and tests.
 
 Use the [ForgeWP development skill](../../.github/skills/forgewp-development/SKILL.md) when implementing or documenting behavior. Keep internal proposals here and synchronize the public docs when the implementation and verification exist.

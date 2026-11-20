@@ -82,7 +82,7 @@ export function buildFunctionsPhp(
       "\n                'currentUser' => forgewp_get_current_user_hydration_payload(),";
   }
 
-  const css = assets.cssFile.replace(/^assets\//, '');
+  const css = assets.cssFile.replace(/\\/g, '/');
 
   // Schema-graph integration is gated on actual plugin presence at runtime
   // (defined('WPSEO_VERSION') / class_exists('RankMath')), not a separate
@@ -853,7 +853,7 @@ FORGEWP_BLOCKS
         )
     );
 
-    $editor_css_path = get_template_directory() . '/assets/${css}';
+    $editor_css_path = get_template_directory() . '/${css}';
     $editor_css = '';
     if (file_exists($editor_css_path)) {
         $editor_css = file_get_contents($editor_css_path);
@@ -872,7 +872,7 @@ add_action('enqueue_block_editor_assets', 'forgewp_enqueue_block_editor_assets')
 function forgewp_enqueue_block_styles(): void {
     wp_enqueue_style(
         'forgewp-editor-styles',
-        get_template_directory_uri() . '/assets/${css}',
+        get_template_directory_uri() . '/${css}',
         array(),
         FORGEWP_THEME_VERSION
     );
@@ -887,7 +887,7 @@ add_action('enqueue_block_assets', 'forgewp_enqueue_block_styles');
 
 function forgewp_setup_editor_styles(): void {
     add_theme_support('editor-styles');
-    add_editor_style('assets/${css}');
+    add_editor_style('${css}');
 }
 add_action('after_setup_theme', 'forgewp_setup_editor_styles');
 `;
@@ -1135,7 +1135,7 @@ ${fieldsPhpLines.join('\n')}
 
   let mainJs = '';
   if (hydrationData && hydrationData.mainJsFile) {
-    mainJs = hydrationData.mainJsFile.replace(/^.*?[/\\]?assets[/\\]/, '');
+    mainJs = hydrationData.mainJsFile.replace(/\\/g, '/');
   }
 
   let providersPhp = '';

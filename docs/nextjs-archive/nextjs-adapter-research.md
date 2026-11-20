@@ -1,0 +1,133 @@
+# Next.js adapter: first research slice
+
+Status: experimental fixture and compiler probes, November 20, 2026. This is not
+native/decoupled adapter support. The [design brief](nextjs-adapter-design-brief.md)
+still governs the intended product.
+
+## Scaffold and authoring
+
+`projects/nextjs-adapter-fixture` was generated with the official
+`create-next-app@16.1.7`, then given a workspace dependency on `@forgewp/react`, a
+local `cms/mock-data.json`, and an explicit Gutenberg block. It keeps one ordinary
+`src/app` tree. Its two async pages consume local fixtures through a `server-only`
+module; no WordPress installation, credentials or database are needed.
+
+The prototype uses webpack explicitly and maps `.js` imports to `.ts`/`.tsx` source
+because that is how several current ForgeWP modules reference each other. This is
+fixture configuration, not a published Next adapter wrapper. No `wp.config.ts`
+pretends that `frameworkAdapter: 'nextjs'` exists.
+
+Scaffolding remains a later step: first establish the integration, then have
+`create-forgewp` invoke a pinned official scaffolder and apply the verified additions.
+An existing-app integration should share that logic and preserve authored files.
+
+## Export contract findings
+
+The adapter loader currently resolves React, HTML and the stub. `export-theme.js`
+builds before adapter rendering using `build-assets.js`, which requires a Vite
+manifest. `generate-theme.js` copies `dist/assets`. React hydration also consumes
+the Vite manifest. Adding a loader entry alone would not make Next export work.
+
+The Next fixture builds with documented `output: 'export'`. This is a comparison
+input, not the proposed WordPress output format. A second probe manually renders
+the same fixed pages/layout through React in Node.
+
+| Evidence | Next build | Separate renderer probe |
+| --- | --- | --- |
+| Root layout and local CMS titles | Present | Present |
+| Client block's initial content | Present | Present |
+| Global stylesheet | Present and resolves | Absent; CSS deliberately ignored |
+| Metadata title | Present | Absent; metadata exports not processed |
+| Configured trailing slash in Next link | Preserved | Lost |
+| Next RSC bootstrap | Present | Absent |
+| Recognized live WordPress bindings | Not implemented | Not implemented |
+
+The separate probe explicitly substitutes `server-only` within a Node-only bundle;
+it does not preserve RSC isolation or implement async nested components. It must not
+be used as an export implementation. Neither probe establishes arbitrary Next API
+compatibility or editable identity from rendered HTML.
+
+**Working direction:** retain Next's build as the route/asset/metadata reference;
+investigate a source-aware native transformation with explicit live-content and
+client-boundary contracts. Do not copy Next's browser runtime into WordPress and
+assume it will preserve later WordPress edits. Do not select the separate renderer
+as the production path until the observed fidelity losses are addressed.
+
+## Verification so far
+
+- `next dev --webpack` serves both `/` and `/about/` with the expected shared layout
+  and fixture content, with no WordPress service running.
+- Next production build and its TypeScript check complete. The root package import
+  reports a dynamic-dependency warning from `WpIcon`; icon providers are not verified.
+- `check:next-output` verifies both routes, layout, CMS titles, links and CSS files.
+- `check:renderers` records the comparison above in the fixture's `.forgewp/`.
+- The focused compiler test validates the fixture's `forgewp/next-intro` identity,
+  heading default, generated RichText callback and escaped PHP attribute read.
+  Compilation uses a scratch copy; it does not write generated wrappers into the app.
+  The new test and adjacent page-link/local-block-preview tests pass (20 tests);
+  the existing React/HTML runtime adapter contract check also passes.
+- Headless Chrome completes local heading editing, Next navigation with query and
+  fragment, the WordPress-link fallback, and direct route reload without recorded
+  runtime/hydration errors. The strict production browser check is **not green**:
+  the Windows build lacks the requested `/about/__next.about.__PAGE__.txt` file,
+  while emitting `/about/__next.about/__PAGE__.txt`. This matches the upstream
+  [Windows static-export report](https://github.com/vercel/next.js/issues/85374).
+  The test keeps this failure visible and saves a report before asserting.
+
+No live WordPress acceptance has run. Public docs and adapter selection remain
+unchanged. The original end-to-end milestone is still incomplete.
+
+`.github/workflows/nextjs-fixture.yml` runs the compiler probe, Next build, renderer
+comparison and strict browser check on Linux for relevant changes and on manual
+dispatch. This workflow has been added but has not yet been executed on GitHub.
+
+## Next bounded steps
+
+1. Confirm the pinned fixture in Linux CI and choose the tested version range;
+   include the Windows static-export regression in that decision.
+2. Define an adapter-owned build result (routes, markup, asset inventory and client
+   entries) that can represent both the existing Vite result and Next output.
+   Preserve React/HTML fixture behavior before routing export through this contract.
+3. Trace module bindings for `next/link`, aliases and explicit WordPress links;
+   define native fixed-route permalink mapping, including subdirectory installs.
+4. Preserve declared editable/block identities through the native renderer and
+   package the existing compiled block definitions. Verify a disposable WordPress
+   installation, editor save/reload and frontend updates without a Next process.
+5. Add live WordPress data transport for the Next frontend and prove the round trip
+   between deployment modes before adding public scaffolding or a switch control.
+
+## Compatibility ledger
+
+### Build dispatch foundation
+
+Export now asks the selected adapter to `buildAssets` or `readBuildAssets`
+(`skipBuild`) instead of invoking the Vite builder directly. React and HTML
+explicitly reuse the existing Vite implementation. Missing hooks fail clearly;
+async implementations are supported. Static rendering remains adapter-owned via
+`renderStaticMarkup`.
+
+This is the first part of bounded step 2, not the completed Next build contract.
+The result still contains the existing CSS/JS entry paths. Asset copying and client-entry resolution now belong to the adapter `packageAssets` hook.
+React and HTML share a Vite helper; theme generation consumes source-file mappings,
+island module paths, and the runtime entry. Hydration module URLs now use those
+theme-relative paths instead of assuming an `assets/` prefix. Route records and
+a Next-compatible native client runtime are still required before Next export can
+be enabled. No new adapter selection or scaffolding option is exposed.
+
+Tests cover async dispatch, existing-build reuse, missing hooks, malformed
+results, failure propagation, and both existing Vite manifest locations for
+React and HTML. The full starter export fixture checks the generated themes.
+
+| API / owner | Current evidence | Native WordPress | Decoupled WordPress |
+| --- | --- | --- | --- |
+| Next App Router fixed routes/layout | Local fixture and Next build | Pending route/export contract | Live transport pending |
+| Next CSS / metadata | Next output inspected | Pending asset/head mapping | Ordinary Next output only |
+| `next/link` / Next | Local query/fragment navigation; Windows prefetch defect | Pending import-aware transformation | WordPress permalink mapping pending |
+| CMS fixtures / ForgeWP | Server-only JSON boundary; existing loader test | Live bindings pending | REST/server transport pending |
+| `defineBlock`, `WpEditable` / ForgeWP | Local preview and shared compiler tests | WP registration/save acceptance pending | Shared editor packaging pending |
+| `useWpPageLink` / ForgeWP | Local fallback only | Live permalink integration pending | Live permalink integration pending |
+| Client Components / Next | One mounted local block preview | Island contract pending | Broader boundary tests pending |
+| Auth, Forms, SEO, WooCommerce | Existing adapter contracts must be audited | No Next parity claim | No Next parity claim |
+| Server Actions, handlers, middleware, dynamic routes, ISR | Not investigated in this slice | Diagnostic/equivalent required | Next behavior must be verified |
+
+Reference: [Next static exports](https://nextjs.org/docs/app/guides/static-exports).

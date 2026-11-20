@@ -1,0 +1,26 @@
+{
+  "name": "@forgewp/nextjs-adapter-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "typecheck": "tsc --noEmit",
+    "check:next-output": "node scripts/check-output.mjs",
+    "check:browser": "node scripts/check-browser.mjs",
+    "check:renderers": "node scripts/compare-renderers.mjs"
+  },
+  "dependencies": {
+    "@forgewp/react": "workspace:*",
+    "next": "16.1.7",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.19",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.5",
+    "typescript": "^5.8.3"
+  }
+}
