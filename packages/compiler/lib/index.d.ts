@@ -342,6 +342,23 @@ export interface ForgeWPStaticLayout {
   sharedFooterDetected?: boolean;
 }
 
+export interface ForgeWPHierarchyTemplate {
+  /** WordPress hierarchy template basename without .php (e.g. 'single-project', 'archive-project'). */
+  templateName: string;
+  /** WordPress hierarchy role. */
+  kind: 'single' | 'archive';
+  /** WordPress post type slug (e.g. 'post', 'project'). */
+  postType: string;
+  /** Rendered template HTML cleaned of framework runtime scripts. */
+  html: string;
+  /** Optional template-specific <head> metadata HTML. */
+  headHtml?: string;
+  /** True when the adapter already split shared layout chrome out of template html. */
+  layoutExtracted?: boolean;
+  /** Source artifact path relative to themeRoot (for diagnostics). */
+  sourceFile?: string;
+}
+
 export interface ForgeWPStaticMarkup {
   appHtml: string;
   headerHtml?: string;
@@ -353,6 +370,8 @@ export interface ForgeWPStaticMarkup {
   archiveHtml?: string;
   /** Optional adapter-owned fixed route records; preserves legacy .forgewp/template-*.html flow when omitted. */
   routes?: ForgeWPStaticRoute[];
+  /** Optional adapter-owned WordPress hierarchy templates (single-<cpt>, archive-<cpt>). */
+  hierarchyTemplates?: ForgeWPHierarchyTemplate[];
   /** Optional shared document/layout metadata discovered by the adapter. */
   layout?: ForgeWPStaticLayout;
 }

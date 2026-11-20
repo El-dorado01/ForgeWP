@@ -4,6 +4,7 @@ import {
   normalizeStaticRoutePath,
   validateStaticMarkup,
 } from './render-static.js';
+import { discoverNextDynamicHierarchy } from './next-dynamic-routes.js';
 
 const NOT_FOUND_CANDIDATES = [
   '404.html',
@@ -539,13 +540,48 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
   }
 
   const discovered = discoverNextExportHtmlFiles(outDir);
+  const dynamicHierarchy = discoverNextDynamicHierarchy(resolvedRoot, {
+    postTypes: options.postTypes || {},
+  });
+
+  const singleByBasePath = new Map(
+    dynamicHierarchy.singleRoutes.map((item) => [item.basePath, item]),
+  );
+  const archiveByRoutePath = new Map(
+    dynamicHierarchy.archiveRoutes.map((item) => [item.routePath, item]),
+  );
+
+  const classifyDiscoveredEntry = (entry) => {
+    if (entry.kind !== 'page') return { role: 'fixed' };
+    const archiveMatch = archiveByRoutePath.get(entry.routePath);
+    if (archiveMatch) {
+      return { role: 'archive', meta: archiveMatch };
+    }
+    for (const [basePath, singleMeta] of singleByBasePath.entries()) {
+      if (basePath === '/') {
+        // Root-level /[slug] only matches single-segment non-empty paths
+        if (/^\/[^/]+$/.test(entry.routePath)) {
+          return { role: 'single', meta: singleMeta };
+        }
+      } else if (entry.routePath.startsWith(`${basePath}/`)) {
+        const remainder = entry.routePath.slice(basePath.length + 1);
+        if (remainder && !remainder.includes('/')) {
+          return { role: 'single', meta: singleMeta };
+        }
+      }
+    }
+    return { role: 'fixed' };
+  };
+
   const parsedRoutes = discovered.map((entry) => {
     const sourceFile = path.relative(resolvedRoot, entry.fullPath).replace(/\\/g, '/');
     const rawHtml = readFileSync(entry.fullPath, 'utf8');
     const parsed = parseNextExportHtml(rawHtml, { outDir, sourceFile });
+    const classification = classifyDiscoveredEntry(entry);
     return {
       ...entry,
       sourceFile,
+      classification,
       ...parsed,
     };
   });
@@ -591,11 +627,10 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
     sharedFooterDetected = true;
   }
 
-  const routes = parsedRoutes.map((entry) => {
-    let body = entry.bodyHtml;
+  const stripSharedChrome = (bodyHtml) => {
+    let body = bodyHtml;
     let matchedHeader = !sharedHeaderDetected;
     let matchedFooter = !sharedFooterDetected;
-
     if (sharedHeaderDetected) {
       const leading = extractLeadingBalancedElement(body, 'header');
       if (leading && leading.element === headerHtml) {
@@ -603,7 +638,6 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
         matchedHeader = true;
       }
     }
-
     if (sharedFooterDetected) {
       const trailing = extractTrailingBalancedElement(body, 'footer');
       if (trailing && trailing.element === footerHtml) {
@@ -611,10 +645,65 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
         matchedFooter = true;
       }
     }
-
     const ownsShell =
       (sharedHeaderDetected && !matchedHeader) ||
       (sharedFooterDetected && !matchedFooter);
+    return { body, ownsShell };
+  };
+
+  let singleHtml = '';
+  let singleHeadHtml = '';
+  let archiveHtml = '';
+  const hierarchyTemplates = [];
+  const seenHierarchyTemplates = new Set();
+  const routes = [];
+
+  for (const entry of parsedRoutes) {
+    const { body, ownsShell } = stripSharedChrome(entry.bodyHtml);
+
+    if (entry.classification.role === 'single') {
+      const meta = entry.classification.meta;
+      if (meta.templateName === 'single') {
+        if (!singleHtml) {
+          singleHtml = body;
+          singleHeadHtml = entry.headHtml || '';
+        }
+      } else if (!seenHierarchyTemplates.has(meta.templateName)) {
+        seenHierarchyTemplates.add(meta.templateName);
+        hierarchyTemplates.push({
+          templateName: meta.templateName,
+          kind: 'single',
+          postType: meta.postType,
+          html: body,
+          headHtml: entry.headHtml || '',
+          layoutExtracted: !ownsShell,
+          sourceFile: entry.sourceFile,
+        });
+      }
+      continue;
+    }
+
+    if (entry.classification.role === 'archive') {
+      const meta = entry.classification.meta;
+      if (meta.templateName === 'archive') {
+        if (!archiveHtml) {
+          archiveHtml = body;
+        }
+      } else if (!seenHierarchyTemplates.has(meta.templateName)) {
+        seenHierarchyTemplates.add(meta.templateName);
+        hierarchyTemplates.push({
+          templateName: meta.templateName,
+          kind: 'archive',
+          postType: meta.postType,
+          html: body,
+          headHtml: entry.headHtml || '',
+          layoutExtracted: !ownsShell,
+          sourceFile: entry.sourceFile,
+        });
+      }
+      continue;
+    }
+
     const headingText = extractFirstHeadingText(body);
 
     let title;
@@ -655,8 +744,8 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
       routeRecord.templateSlug = slug.split('/').filter(Boolean).join('-').toLowerCase();
     }
 
-    return routeRecord;
-  });
+    routes.push(routeRecord);
+  }
 
   const homeRoute = routes.find((route) => route.kind === 'home');
   const notFoundRoute = routes.find((route) => route.kind === 'not-found');
@@ -666,11 +755,12 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
     headerHtml,
     footerHtml,
     headHtml: homeRoute.headHtml || '',
-    singleHtml: '',
-    singleHeadHtml: '',
+    singleHtml,
+    singleHeadHtml,
     notFoundHtml: notFoundRoute?.html || '',
-    archiveHtml: '',
+    archiveHtml,
     routes,
+    ...(hierarchyTemplates.length > 0 ? { hierarchyTemplates } : {}),
     layout: {
       ...(homeParsed.lang ? { lang: homeParsed.lang } : {}),
       sharedHeaderDetected,

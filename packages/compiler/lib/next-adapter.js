@@ -9,6 +9,8 @@ import {
   findNextIslandComponentPath,
   scanNextHydrationIslands,
 } from './next-islands.js';
+import { discoverNextDynamicHierarchy } from './next-dynamic-routes.js';
+import { loadConfig } from './load-config.js';
 
 const NEXT_CONFIG_CANDIDATES = [
   'next.config.ts',
@@ -107,29 +109,21 @@ export function diagnoseNextNativeCompatibility(themeRoot) {
   // 2. App Router structure (dynamic segments, route handlers)
   const appDir = resolveAppDir(resolvedRoot);
   if (appDir) {
-    const appFiles = walkSourceFiles(appDir.abs, resolvedRoot);
-    const reportedDynamicDirs = new Set();
-    for (const file of appFiles) {
-      const relWithinApp = file.rel.slice(appDir.rel.length + 1);
-      const segments = relWithinApp.split('/');
-      const dynamicSeg = segments.find((seg) => /^\[.+\]$/.test(seg));
-      if (dynamicSeg) {
-        const dynamicKey = segments.slice(0, segments.indexOf(dynamicSeg) + 1).join('/');
-        if (!reportedDynamicDirs.has(dynamicKey)) {
-          reportedDynamicDirs.add(dynamicKey);
-          diagnostics.push({
-            code: 'NEXT_NATIVE_DYNAMIC_ROUTE',
-            severity: 'error',
-            file: `${appDir.rel}/${dynamicKey}`,
-            feature: 'Dynamic App Router segment',
-            affectedMode: 'native',
-            message: `Dynamic route segment "${appDir.rel}/${dynamicKey}" is not supported by the fixed-route native WordPress exporter yet.`,
-            suggestion:
-              'Keep dynamic App Router segments in decoupled mode, or wait for WordPress single/archive hierarchy template mapping.',
-          });
-        }
-      }
+    const dynamicHierarchy = discoverNextDynamicHierarchy(resolvedRoot);
+    for (const unsupported of dynamicHierarchy.unsupportedDynamic) {
+      diagnostics.push({
+        code: 'NEXT_NATIVE_DYNAMIC_ROUTE',
+        severity: 'error',
+        file: unsupported.file,
+        feature: 'Dynamic App Router segment',
+        affectedMode: 'native',
+        message: unsupported.reason,
+        suggestion: unsupported.suggestion,
+      });
+    }
 
+    const appFiles = walkSourceFiles(appDir.abs, resolvedRoot);
+    for (const file of appFiles) {
       const baseName = path.basename(file.rel);
       if (/^route\.(ts|tsx|js|jsx|mjs)$/.test(baseName)) {
         diagnostics.push({
@@ -286,7 +280,14 @@ export async function buildAssets(themeRoot, options = {}) {
 export async function renderStaticMarkup(themeRoot) {
   const resolvedRoot = path.resolve(themeRoot);
   assertNativeCompatible(resolvedRoot);
-  const extracted = extractNextStaticMarkup(resolvedRoot);
+  let postTypes = {};
+  try {
+    const cfg = await loadConfig(resolvedRoot);
+    if (cfg && cfg.postTypes) postTypes = cfg.postTypes;
+  } catch {
+    // Optional when called without wp.config.ts (e.g. unit fixtures)
+  }
+  const extracted = extractNextStaticMarkup(resolvedRoot, { postTypes });
   const rewritten = applyVerifiedNextLinksToMarkup(extracted, {
     themeRoot: resolvedRoot,
   });

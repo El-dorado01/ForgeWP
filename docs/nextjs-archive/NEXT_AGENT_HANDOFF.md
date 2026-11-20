@@ -132,15 +132,14 @@ Latest implementation (Linux VM, Node v24.22.3, PHP 8.2.35, pnpm 10.34.9, WordPr
 
 ## Post-Slice-10 follow-ups
 
-The fixed-route native WordPress + decoupled Next.js workflow, `forgewp init`, adapter-aware `doctor`/`repair`/`clean`/`analyze`, `make:block`/`make:page`/`make:island`, and standardized `create-forgewp --adapter nextjs` boilerplates are now implemented and verified. Remaining follow-ups to make the Next.js adapter comprehensive:
+The fixed-route native WordPress + decoupled Next.js workflow, `forgewp init`, adapter-aware `doctor`/`repair`/`clean`/`analyze`, `make:block`/`make:page`/`make:island`, standardized `create-forgewp --adapter nextjs` boilerplates, and **single-segment dynamic App Router routes (`[slug]` → `single.php`/`single-<cpt>.php`, paired/explicit archives → `archive.php`/`archive-<cpt>.php`, plus `getPosts`, `getLivePost`, `getStaticParams`, and `WpServerLoop` in `@forgewp/react/server`)** are now implemented and verified. Remaining follow-ups:
 
-1. Dynamic App Router segments (`[slug]`, `[...slug]`) -> WordPress `single.php` / `archive.php` hierarchy template mapping.
-2. Smart auto-detection & auto-wrapping of interactive `'use client'` islands during `FORGEWP_NATIVE_EXPORT=1` inside `withForgeWP()` (excluding `src/blocks/`, preserving explicit `<Hydrate>` overrides).
-3. `next/image` and `next/font` native WordPress compilation/self-hosting support.
-4. WordPress Navigation Menus & Site Info helpers (`wpClient.getMenu()`, `wpClient.getSiteInfo()`) in `@forgewp/react/server`.
-5. Optional module parity audit for Next.js (Forms, SEO, Auth, WooCommerce).
-6. Turbopack compatibility verification alongside webpack (`next build --webpack` is the verified path today).
-7. Remaining shared-framework backlog items in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md` (shorthand object syntax in block editor callbacks, `useWpPageLink` subdirectory fallback normalization, `routing.js` vs. `seed.mockData` `page` reconciliation).
+1. Smart auto-detection & auto-wrapping of interactive `'use client'` islands during `FORGEWP_NATIVE_EXPORT=1` inside `withForgeWP()` (excluding `src/blocks/`, preserving explicit `<Hydrate>` overrides).
+2. `next/image` and `next/font` native WordPress compilation/self-hosting support.
+3. WordPress Navigation Menus & Site Info helpers (`wpClient.getMenu()`, `wpClient.getSiteInfo()`) in `@forgewp/react/server`.
+4. Optional module parity audit for Next.js (Forms, SEO, Auth, WooCommerce).
+5. Turbopack compatibility verification alongside webpack (`next build --webpack` is the verified path today).
+6. Catch-all `[...slug]` / taxonomy hierarchy templates and remaining shared-framework backlog items in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md`.
 
 ## Commands and environment notes
 

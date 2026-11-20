@@ -59,6 +59,21 @@ export interface WpServerClientOptions {
   next?: { revalidate?: number | false; tags?: string[] };
 }
 
+export interface WpServerPostRecord {
+  id: number;
+  slug: string;
+  postType: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  date: string;
+  author: string;
+  permalink: string;
+  featuredImage: string;
+  blocks: WpServerBlockNode[];
+  source: 'fixture' | 'wordpress' | 'native';
+}
+
 export interface WpServerClient {
   getMode(): 'fixture' | 'decoupled' | 'native';
   getPage(
@@ -69,6 +84,19 @@ export interface WpServerClient {
     slug: string,
     options?: { preview?: boolean },
   ): Promise<WpServerPageRecord | null>;
+  getPosts(
+    postType?: string,
+    options?: { basePath?: string; perPage?: number },
+  ): Promise<WpServerPostRecord[]>;
+  getLivePost(
+    postType: string,
+    slug: string,
+    options?: { basePath?: string },
+  ): Promise<WpServerPostRecord | null>;
+  getStaticParams(
+    postType?: string,
+    paramName?: string,
+  ): Promise<Array<Record<string, string>>>;
   getRoutes(): Promise<{
     homeUrl: string;
     basePath: string;
@@ -418,6 +446,116 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       return appendQueryAndFragment(match ? match.path : fallbackPath, opts);
     },
 
+    async getPosts(postType = 'post', opts = {}) {
+      const cleanType = String(postType || 'post').trim() || 'post';
+      const defaultBase =
+        opts.basePath !== undefined
+          ? opts.basePath.replace(/\/+$/, '')
+          : cleanType === 'post'
+            ? '/blog'
+            : `/${cleanType}s`;
+
+      const wpBase = resolveWpBase();
+      if (wpBase && !isNativeWordPressExport()) {
+        const restBase =
+          cleanType === 'post' ? 'posts' : cleanType === 'page' ? 'pages' : cleanType;
+        const perPage = opts.perPage ?? 20;
+        const { data: raw } = await wpFetchJson(
+          wpBase,
+          `/wp-json/wp/v2/${encodeURIComponent(restBase)}?per_page=${perPage}&_embed=1`,
+        );
+        if (Array.isArray(raw)) {
+          return raw.map((item: any) => {
+            const slug = String(item.slug || item.id || '');
+            const renderedTitle =
+              typeof item.title === 'object' ? item.title?.rendered : item.title;
+            const renderedContent =
+              typeof item.content === 'object' ? item.content?.rendered : item.content;
+            const renderedExcerpt =
+              typeof item.excerpt === 'object' ? item.excerpt?.rendered : item.excerpt;
+            const mediaUrl =
+              item._embedded?.['wp:featuredmedia']?.[0]?.source_url || '';
+            const authorName = item._embedded?.author?.[0]?.name || '';
+            return {
+              id: Number(item.id || 0),
+              slug,
+              postType: cleanType,
+              title: stripTags(String(renderedTitle || '')),
+              excerpt: stripTags(String(renderedExcerpt || '')),
+              content: String(renderedContent || ''),
+              date: String(item.date || ''),
+              author: String(authorName || ''),
+              permalink: `${defaultBase}/${slug}`,
+              featuredImage: String(mediaUrl || ''),
+              blocks: Array.isArray(item.forgewp_blocks) ? item.forgewp_blocks : [],
+              source: 'wordpress' as const,
+            };
+          });
+        }
+      }
+
+      const list = Array.isArray((fixtures as any)?.[cleanType])
+        ? (fixtures as any)[cleanType]
+        : [];
+      return list.map((item: any, idx: number) => {
+        const slug = String(item.slug || `item-${idx + 1}`);
+        const img =
+          typeof item.featuredImage === 'string'
+            ? item.featuredImage
+            : item.featuredImage?.url || '';
+        return {
+          id: Number(item.id ?? idx + 1),
+          slug,
+          postType: cleanType,
+          title: String(item.title || ''),
+          excerpt: String(item.excerpt || ''),
+          content: String(item.content || ''),
+          date: String(item.date || ''),
+          author: String(item.author || ''),
+          permalink: `${defaultBase}/${slug}`,
+          featuredImage: String(img),
+          blocks: Array.isArray(item.blocks) ? item.blocks : [],
+          source: 'fixture' as const,
+        };
+      });
+    },
+
+    async getLivePost(postType, slug, opts = {}) {
+      const cleanType = String(postType || 'post').trim() || 'post';
+      if (isNativeWordPressExport()) {
+        return {
+          id: 0,
+          slug: String(slug || ''),
+          postType: cleanType,
+          title: '__FORGEWP_THE_TITLE__',
+          excerpt: '__FORGEWP_THE_EXCERPT__',
+          content: '__FORGEWP_THE_CONTENT__',
+          date: '__FORGEWP_THE_DATE__',
+          author: '__FORGEWP_THE_AUTHOR__',
+          permalink: '__FORGEWP_THE_PERMALINK__',
+          featuredImage: '__FORGEWP_THE_POST_THUMBNAIL_URL__',
+          blocks: [],
+          source: 'native' as const,
+        };
+      }
+      const posts = await this.getPosts(cleanType, opts);
+      const target = String(slug || '').replace(/^\/+|\/+$/g, '');
+      return posts.find((p) => p.slug === target) ?? null;
+    },
+
+    async getStaticParams(postType = 'post', paramName = 'slug') {
+      const cleanType = String(postType || 'post').trim() || 'post';
+      const posts = await this.getPosts(cleanType);
+      if (isNativeWordPressExport()) {
+        const sampleSlug = posts[0]?.slug || 'sample-post';
+        return [{ [paramName]: sampleSlug }];
+      }
+      if (posts.length === 0) {
+        return [{ [paramName]: 'sample-post' }];
+      }
+      return posts.map((p) => ({ [paramName]: p.slug }));
+    },
+
     getOption(key, defaultValue = '') {
       const safeKey = sanitizeTokenKey(key);
       if (isNativeWordPressExport()) {
@@ -438,6 +576,85 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         : defaultValue;
     },
   };
+}
+
+export interface WpServerLoopProps {
+  /** WordPress post type slug (default: 'post'). */
+  postType?: string;
+  /** Posts array rendered in local dev / decoupled mode. */
+  posts: WpServerPostRecord[];
+  /**
+   * When true (default), compiles to the main WordPress archive loop (`have_posts()`).
+   * Set to false when embedding a custom `WP_Query` feed inside a static page.
+   */
+  useMainQuery?: boolean;
+  /** Optional `posts_per_page` when `useMainQuery` is false. */
+  postsPerPage?: number;
+  /** Render function for each post item. */
+  renderItem: (post: WpServerPostRecord, index: number) => React.ReactNode;
+}
+
+const NATIVE_LOOP_TOKEN_POST: WpServerPostRecord = {
+  id: 0,
+  slug: '__forgewp-loop-item__',
+  postType: 'post',
+  title: '__FORGEWP_THE_TITLE__',
+  excerpt: '__FORGEWP_THE_EXCERPT__',
+  content: '__FORGEWP_THE_CONTENT__',
+  date: '__FORGEWP_THE_DATE__',
+  author: '__FORGEWP_THE_AUTHOR__',
+  permalink: '__FORGEWP_THE_PERMALINK__',
+  featuredImage: '__FORGEWP_THE_POST_THUMBNAIL_URL__',
+  blocks: [],
+  source: 'native',
+};
+
+/**
+ * Pure-TypeScript, Server-Component-safe WordPress post loop for Next.js App Router.
+ *
+ * - Local dev & decoupled mode: renders `posts.map(renderItem)`.
+ * - Native WordPress export (`FORGEWP_NATIVE_EXPORT=1`): emits ForgeWP loop markers
+ *   around a single token-populated item so `markup-processor.js` compiles it to
+ *   a native WordPress `have_posts()` or `WP_Query` PHP loop.
+ */
+export function WpServerLoop({
+  postType = 'post',
+  posts,
+  useMainQuery = true,
+  postsPerPage = 10,
+  renderItem,
+}: WpServerLoopProps): React.ReactElement {
+  if (isNativeWordPressExport()) {
+    const tokenItem: WpServerPostRecord = {
+      ...NATIVE_LOOP_TOKEN_POST,
+      postType,
+    };
+    if (useMainQuery) {
+      return React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('forgewp-loop-start'),
+        renderItem(tokenItem, 0),
+        React.createElement('forgewp-loop-end'),
+      );
+    }
+    return React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('forgewp-query-loop-start', {
+        'data-post-type': postType,
+        'data-posts-per-page': String(postsPerPage),
+      }),
+      renderItem(tokenItem, 0),
+      React.createElement('forgewp-query-loop-end'),
+    );
+  }
+
+  return React.createElement(
+    React.Fragment,
+    null,
+    ...(Array.isArray(posts) ? posts.map((post, i) => renderItem(post, i)) : []),
+  );
 }
 
 export interface ServerBlockAreaProps {
