@@ -132,7 +132,7 @@ Latest implementation (Linux VM, Node v24.22.3, PHP 8.2.35, pnpm 10.34.9, WordPr
 
 ## Post-Slice-10 follow-ups
 
-The fixed-route native WordPress + decoupled Next.js workflow, `forgewp init`, adapter-aware `doctor`/`repair`/`clean`/`analyze`, `make:block`/`make:page`/`make:island`, standardized `create-forgewp --adapter nextjs` boilerplates, and **single-segment dynamic App Router routes (`[slug]` → `single.php`/`single-<cpt>.php`, paired/explicit archives → `archive.php`/`archive-<cpt>.php`, plus `getPosts`, `getLivePost`, `getStaticParams`, and `WpServerLoop` in `@forgewp/react/server`)** are now implemented and verified. Remaining follow-ups:
+The fixed-route native WordPress + decoupled Next.js workflow, `forgewp init`, adapter-aware `doctor`/`repair`/`clean`/`analyze`, `make:block`/`make:page`/`make:island`, standardized `create-forgewp --adapter nextjs` boilerplates, the 6 adapter hardening fixes (`test/functions/next-adapter-hardening.test.js`), and **single-segment dynamic App Router routes (`[slug]` → `single.php`/`single-<cpt>.php`, paired/explicit archives → `archive.php`/`archive-<cpt>.php`, plus `getPosts`, `getLivePost`, `getStaticParams`, and `WpServerLoop` in `@forgewp/react/server`)** are now implemented and verified. Remaining follow-ups:
 
 1. Smart auto-detection & auto-wrapping of interactive `'use client'` islands during `FORGEWP_NATIVE_EXPORT=1` inside `withForgeWP()` (excluding `src/blocks/`, preserving explicit `<Hydrate>` overrides).
 2. `next/image` and `next/font` native WordPress compilation/self-hosting support.
