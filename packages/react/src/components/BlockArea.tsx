@@ -16,7 +16,12 @@ export interface BlockAreaProps {
  */
 export function BlockArea({ name, previewBlocks = {} }: BlockAreaProps) {
   const post = React.useContext(WpPostContext);
-  if (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime) {
+  const isCompileTime =
+    (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime) ||
+    (typeof globalThis !== 'undefined' &&
+      ((globalThis as any)._forgeWpCompileTime ||
+        (globalThis as any).process?.env?.FORGEWP_NATIVE_EXPORT === '1'));
+  if (isCompileTime) {
     return React.createElement('forgewp-block-area', {
       'data-name': name,
     });

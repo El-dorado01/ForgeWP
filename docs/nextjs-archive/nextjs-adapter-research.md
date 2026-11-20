@@ -165,13 +165,35 @@ destinations remain verbatim. Unknown internal routes emit a `NEXT_LINK_UNKNOWN_
 warning and fall back via `home_url(...)`; dynamic `href` expressions emit an
 actionable `NEXT_LINK_DYNAMIC_HREF` error diagnostic instead of silently rewriting.
 
+### Experimental native block, `WpEditable`, `BlockArea`, and ZIP pipeline
+
+`packages/compiler/lib/blocks/index.js` now resolves `block.json` `editorStyle`
+from the adapter's theme-relative `assets.cssFile` (instead of assuming Vite's
+`assets/index-*.css`), so compiled Gutenberg blocks in non-Vite themes point to
+their real packaged CSS. `packages/react/src/components/BlockArea.tsx` also
+recognizes `FORGEWP_NATIVE_EXPORT=1` / `globalThis._forgeWpCompileTime` during
+Node/SSR builds so `<BlockArea />` compiles to `<?php the_content(); ?>` in
+Next.js native export while keeping local dev preview intact.
+
+`packages/compiler/lib/next-export-experimental.js` provides an internal
+experimental export harness (`packageNextAssets`, `readCompiledBlockIdentities`,
+`exportNextExperimentalTheme`) without adding a public adapter name yet. Against
+`projects/nextjs-adapter-fixture`, it packages verified Next CSS (skipping Next
+JS client chunks), rewrites import-verified `next/link` and `useWpPageLink`
+anchors, compiles `src/blocks/IntroBlock.tsx` (`forgewp/next-intro`), emits a
+validated WordPress theme ZIP, proves the real generated `assets/forgewp-editor.js`
+registers `forgewp/next-intro` with working `RichText` inline editing in Node VM,
+and proves the real generated `blocks/next-intro/render.php` renders live edited
+attributes in PHP 8 without rebuilding. Live WordPress activation and Gutenberg
+database persistence still require a disposable WordPress acceptance run.
+
 | API / owner | Current evidence | Native WordPress | Decoupled WordPress |
 | --- | --- | --- | --- |
-| Next App Router fixed routes/layout | Local fixture, Next build, and fixed-route extractor + `generateTheme` integration test | Fixed-route markup/PHP generation verified in compiler tests; live WP acceptance pending | Live transport pending |
-| Next CSS / metadata | Extracted from `out/`; CSS verified on disk and head metadata sanitized; RSC/client scripts stripped & inventoried | Packaged CSS + per-route `head.html` verified in compiler tests; live WP acceptance pending | Ordinary Next output only |
+| Next App Router fixed routes/layout | Local fixture, Next build, and fixed-route extractor + `generateTheme` integration test | Fixed-route markup/PHP generation & ZIP packaging verified in compiler tests; live WP acceptance pending | Live transport pending |
+| Next CSS / metadata | Extracted from `out/`; CSS packaged (single or bundled), head metadata sanitized, RSC/client scripts stripped & inventoried | Packaged CSS + per-route `head.html` verified in compiler tests; live WP acceptance pending | Ordinary Next output only |
 | `next/link` / Next | AST binding transform (aliases/namespaces/shadowing/object href), fixture rewrite + PHP 8 runtime tests (root, subdirectory, renamed slug, Plain permalink, deleted fallback, Polylang); Linux emits `/about/__next.about.__PAGE__.txt` (Windows defect remains) | Compiler + PHP 8 stand-in tests passing; live WP acceptance pending | WordPress permalink mapping pending |
 | CMS fixtures / ForgeWP | Server-only JSON boundary; existing loader test | Live bindings pending | REST/server transport pending |
-| `defineBlock`, `WpEditable` / ForgeWP | Local preview and shared compiler tests | WP registration/save acceptance pending | Shared editor packaging pending |
+| `defineBlock`, `WpEditable`, `BlockArea` / ForgeWP | Compiled in experimental ZIP export with real Next `editorStyle`, verified generated `forgewp-editor.js` RichText VM edit + PHP 8 live `render.php` + SSR `BlockArea` -> `the_content()` | Compiler, editor-VM & PHP 8 stand-in tests passing; live WP Gutenberg save/reload acceptance pending | Shared editor packaging pending |
 | `useWpPageLink` / ForgeWP | Traced by lexical binding in Next fixture and resolved via `forgewp_resolve_route_url` in compiler + PHP 8 tests | Live WP acceptance pending | Live permalink integration pending |
 | Client Components / Next | One mounted local block preview | Island contract pending (Next client bundles are explicitly NOT enqueued) | Broader boundary tests pending |
 | Auth, Forms, SEO, WooCommerce | Existing adapter contracts must be audited | No Next parity claim | No Next parity claim |

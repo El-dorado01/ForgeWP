@@ -96,6 +96,7 @@ export async function generateTheme({
   archiveHtml = '',
   routes = [],
   layout = null,
+  adapter: explicitAdapter = null,
   assets,
   assetGraph,
   preserveOutDir = false,
@@ -261,7 +262,8 @@ export async function generateTheme({
       );
   }
 
-  const adapter = await loadFrameworkAdapter(config.frameworkAdapter);
+  const adapter =
+    explicitAdapter || (await loadFrameworkAdapter(config.frameworkAdapter));
   const scanForHydrationIslands =
     adapter.scanForHydrationIslands || adapter.default?.scanForHydrationIslands;
 
@@ -1014,7 +1016,10 @@ export async function generateTheme({
 
   // Dynamic Gutenberg blocks compilation (Phase 5)
   // Pass strict so from/pick issues fail export only when `forgewp export --strict`
-  const compiledBlocks = compileBlocks(themeRoot, outDir, { strict: !!strict });
+  const compiledBlocks = compileBlocks(themeRoot, outDir, {
+    strict: !!strict,
+    cssFile: assets?.cssFile,
+  });
 
   const iconRegistryJson = JSON.stringify(buildEditorIconRegistry());
   const defaultIconSlugsJson = JSON.stringify(FORGEWP_DEFAULT_ICON_SLUGS);

@@ -67,14 +67,22 @@ function findThemeCssFile(outDir) {
   const assetsDir = path.join(outDir, 'assets');
   if (existsSync(assetsDir)) {
     const files = readdirSync(assetsDir);
-    const cssFile = files.find(
-      (f) => f.startsWith('index-') && f.endsWith('.css'),
-    );
+    const cssFile =
+      files.find((f) => f.startsWith('index-') && f.endsWith('.css')) ||
+      files.find((f) => f.endsWith('.css'));
     if (cssFile) {
       return cssFile;
     }
   }
   return 'index.css';
+}
+
+function resolveBlockEditorStyle(outDir, configuredCssFile) {
+  if (typeof configuredCssFile === 'string' && configuredCssFile.trim()) {
+    const normalized = configuredCssFile.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+    return `file:../../${normalized}`;
+  }
+  return `file:../../assets/${findThemeCssFile(outDir)}`;
 }
 
 /**
@@ -404,7 +412,7 @@ export function compileBlocks(themeRoot, outDir, options = {}) {
     flush: false,
   });
 
-  const cssFile = findThemeCssFile(outDir);
+  const editorStyle = resolveBlockEditorStyle(outDir, options.cssFile);
 
   const handcraftedDir = path.join(themeRoot, 'src', 'blocks');
   const generatedDir = path.join(themeRoot, 'src', 'blocks', 'generated');
@@ -488,7 +496,7 @@ export function compileBlocks(themeRoot, outDir, options = {}) {
             supports: {
               html: false,
             },
-            editorStyle: `file:../../assets/${cssFile}`,
+            editorStyle,
             render: 'file:./render.php',
             // Compile-time metadata used by generateReactCreateElement to resolve icon components
             importMap,
@@ -520,7 +528,7 @@ export function compileBlocks(themeRoot, outDir, options = {}) {
               settings.supports = {};
             }
             settings.supports.html = false;
-            settings.editorStyle = `file:../../assets/${cssFile}`;
+            settings.editorStyle = editorStyle;
             settings.name = settings.name
               ? settings.name.includes('/')
                 ? settings.name

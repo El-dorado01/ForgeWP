@@ -6,12 +6,12 @@ import { resolveStaticPageRoute } from './render-static.js';
 
 /**
  * Validate exported theme package output.
- * @param {{ themeRoot: string, outDir: string, assets: any, config: any, strict?: boolean, routes?: import('./index.js').ForgeWPStaticRoute[] }} opts
+ * @param {{ themeRoot: string, outDir: string, assets: any, config: any, strict?: boolean, routes?: import('./index.js').ForgeWPStaticRoute[], adapter?: any }} opts
  */
-export async function validateExport({ themeRoot, outDir, assets, config, strict = false, routes = [] }) {
+export async function validateExport({ themeRoot, outDir, assets, config, strict = false, routes = [], adapter: explicitAdapter = null }) {
   const summary = { missing: [], warnings: [] };
   const staticDir = path.join(outDir, 'forgewp-static');
-  const adapter = await loadFrameworkAdapter(config?.frameworkAdapter);
+  const adapter = explicitAdapter || (await loadFrameworkAdapter(config?.frameworkAdapter));
   const scanAdapterIslands =
     adapter.scanForHydrationIslands ||
     adapter.default?.scanForHydrationIslands ||
@@ -56,7 +56,14 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
     summary.missing.push(assetsDir.replace(process.cwd() + path.sep, ''));
   } else {
     const expectedAssets = [path.join(assetsDir, 'forgewp-editor.js')];
-    if (assets?.cssFile) expectedAssets.push(path.join(assetsDir, path.basename(assets.cssFile)));
+    if (assets?.cssFile) {
+      const normalizedCss = assets.cssFile.replace(/\\/g, '/').replace(/^\/+/, '');
+      expectedAssets.push(
+        normalizedCss.includes('/')
+          ? path.join(outDir, normalizedCss)
+          : path.join(assetsDir, path.basename(normalizedCss)),
+      );
+    }
 
     // Hydration-related expectations
     const islands = scanAdapterIslands(themeRoot);

@@ -82,15 +82,23 @@ The renderer comparison demonstrates that a separate React `renderToString` prob
 - `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md`: recorded two verified shared-framework findings observed during this work (subdirectory-safe fallbacks in legacy `forgewp_resolve_page_link`/`__FORGEWP_PAGELINK_*__`, and clarifying/reconciling `routing.js` auto-created template Pages vs. `cms/mock-data` `page` records).
 - Tests: `test/functions/next-link-transform.test.js` (6 tests, including real `projects/nextjs-adapter-fixture` scan/rewrite/`generateTheme` integration, `php -l` linting, and PHP 8.2 execution covering root, subdirectory, renamed-slug, Plain permalink, deleted-page fallback, unknown internal route, and Polylang home resolution); added to `.github/workflows/nextjs-fixture.yml`.
 
+### 6. Native Gutenberg blocks, `WpEditable`, `BlockArea` SSR, and experimental ZIP export
+
+- `packages/compiler/lib/blocks/index.js` & `generate-theme.js`: `compileBlocks` now accepts theme-relative `cssFile` (`assets?.cssFile`) via `resolveBlockEditorStyle` instead of assuming Vite's `assets/index-*.css`, so compiled `blocks/<slug>/block.json` `editorStyle` resolves to the real packaged Next CSS (preserving React/Vite output byte-for-byte). `generateTheme` and `validateExport` also accept an optional `adapter` override without adding public adapter names yet.
+- `packages/react/src/components/BlockArea.tsx`: checks `globalThis._forgeWpCompileTime` and `(globalThis as any).process?.env?.FORGEWP_NATIVE_EXPORT === '1'` in Node/SSR so `<BlockArea />` compiles to `<forgewp-block-area>` -> `<?php the_content(); ?>` during Next native export while keeping local dev preview and browser-only `@forgewp/react` typechecking clean.
+- `packages/compiler/lib/next-export-experimental.js`: internal experimental native export harness (`packageNextAssets`, `readCompiledBlockIdentities`, `exportNextExperimentalTheme`) wiring route extraction, verified `next/link` & `useWpPageLink` permalink rewriting, CSS-only asset packaging (single or bundled, skipping Next JS runtime chunks), Gutenberg block compilation (`src/blocks/IntroBlock.tsx` -> `forgewp/next-intro`), `generateTheme`, `validateExport`, and ZIP packaging.
+- `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md`: recorded `validateCriticalFiles()` preflight adapter-hook finding (recorded only; existing React preflight unchanged).
+- Tests: `test/functions/next-export-blocks.test.js` (3 tests: `BlockArea` SSR native export -> `the_content()`, multi-CSS bundling with matching `block.json` `editorStyle`, and full `projects/nextjs-adapter-fixture` ZIP export verifying `assets/forgewp-editor.js` RichText inline editing in Node VM with localized `forgeWpBlocks` from `functions.php`, live `blocks/next-intro/render.php` execution in PHP 8.2 without rebuilding, and `php -l` across every generated PHP/template file); added to `.github/workflows/nextjs-fixture.yml`.
+
 ## Validation completed
 
 Latest implementation (Linux VM, Node v24.22.3, PHP 8.2.35, pnpm 10.34.9):
 
-- All 78 Vitest compiler test files (`test/functions`, `test/hydration`, `test/blocks`, `test/assets`) passed: **665 tests** (with `FORGEWP_REQUIRE_NEXT_FIXTURE=1`, including PHP 8.2 execution and `php -l` linting).
-- Adapter runtime contract check (`test/adapter-loader.js`), `tsconfig.test.json` typecheck, and `public-api-types.test.js` passed.
+- All 79 Vitest compiler test files (`test/functions`, `test/hydration`, `test/blocks`, `test/assets`) passed: **668 tests** (with `FORGEWP_REQUIRE_NEXT_FIXTURE=1`, including PHP 8.2 execution, editor VM verification, and `php -l` linting).
+- `@forgewp/react` typecheck (`pnpm --filter @forgewp/react run typecheck`), `nextjs-adapter-fixture` typecheck, adapter runtime contract check (`test/adapter-loader.js`), `tsconfig.test.json` typecheck, and `public-api-types.test.js` passed.
 - React and HTML starter production builds and full export fixture (`pnpm --filter @forgewp/compiler run test:export-fixture`) passed (React: 0 missing/warnings; HTML: 0 missing, existing optional empty header/footer warnings).
 - Next.js fixture Linux build (`next build --webpack`), `check:next-output`, and `check:renderers` passed; Linux build emits `out/about/__next.about.__PAGE__.txt` cleanly. (Headless Chrome `check:browser` timed out at browser startup inside the container sandbox; verify in GitHub Actions Linux CI.)
-- Sibling `forgewp-docs` repo was not accessible (`403` on clone) from this session; sync the additive `ForgeWPStaticMarkup.routes`/`layout` note to `forgewp-docs/content/18. API Reference/04-metadata-and-compiler-extensions.md` once access is enabled.
+- Sibling `forgewp-docs` repo was not accessible (`403` on clone) and pushing `El-dorado01/ForgeWP` returned `403` (read-only GitHub connection in this session); local branches `feat/nextjs-route-contract-and-links` and `feat/nextjs-blocks-native-pipeline` are ready to push once write access is enabled.
 - `git diff --check` passed.
 
 Earlier fixture evidence:
@@ -100,9 +108,9 @@ Earlier fixture evidence:
 
 ## Next implementation slice
 
-1. Preserve declared Gutenberg block and `WpEditable` identities through the native Next pipeline (compiling and packaging `src/blocks/IntroBlock.tsx` alongside fixed-route output, and ensuring saved WordPress block edits appear on the frontend without rebuilding).
-2. Wire an internal/experimental Next export harness (reviewing `validateCriticalFiles`, island splitting, and block scaffolding assumptions) and verify the exported ZIP on a disposable live WordPress installation (install, activate, edit inline in Gutenberg, save/reload, confirm frontend update with no Next server).
-3. Address the open fixture DX gaps recorded in `nextjs-adapter-research.md` (`cms/mock-data.ts` with `defineWpPosts`, authored `/about` without forced trailing slashes, and live WordPress data bindings for decoupled + native round-trip verification) before exposing a supported Next adapter name.
+1. Run a disposable live WordPress acceptance test using the ZIP produced by `exportNextExperimentalTheme` on `projects/nextjs-adapter-fixture` (install ZIP, activate, verify `/` and `/about/` routing & CSS with no Next process, edit `forgewp/next-intro` inline in Gutenberg, save/reload, confirm live frontend update without rebuilding).
+2. Implement the decoupled WordPress server-side data transport (reading the same WordPress database/content & block definitions in Next.js) and prove the native -> decoupled -> native round trip without changing app source or losing edits.
+3. Address the open fixture DX gaps (`cms/mock-data.ts` with `defineWpPosts`, authored `/about` without forced trailing slashes, `validateCriticalFiles` adapter preflight) before exposing a supported Next adapter name in `framework-adapter.js` or `create-forgewp`.
 
 Linux fixture CI/version validation also remains pending. Do not promise full Next feature parity. Server Actions, middleware, route handlers, dynamic routes, ISR, auth/forms/SEO/WooCommerce parity, and client boundaries require explicit investigation/diagnostics.
 
