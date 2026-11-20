@@ -1637,6 +1637,145 @@ function forgewp_get_menu_id_for_lang($location, $lang = '') {
     
     return null;
 }
+
+/**
+ * Serialize parsed WordPress blocks into a JSON-safe tree for decoupled frontends.
+ */
+if (!function_exists('forgewp_serialize_rest_blocks')) {
+    function forgewp_serialize_rest_blocks($blocks) {
+        if (!is_array($blocks)) {
+            return array();
+        }
+        $out = array();
+        foreach ($blocks as $block) {
+            if (!is_array($block)) {
+                continue;
+            }
+            $name = isset($block['blockName']) ? $block['blockName'] : null;
+            $inner_html = isset($block['innerHTML']) ? (string) $block['innerHTML'] : '';
+            if ($name === null && trim($inner_html) === '') {
+                continue;
+            }
+            $attrs = (isset($block['attrs']) && is_array($block['attrs'])) ? $block['attrs'] : array();
+            $inner_blocks = isset($block['innerBlocks']) ? forgewp_serialize_rest_blocks($block['innerBlocks']) : array();
+            $out[] = array(
+                'blockName'   => $name,
+                'attrs'       => empty($attrs) ? (object) array() : $attrs,
+                'innerHTML'   => $inner_html,
+                'innerBlocks' => $inner_blocks,
+            );
+        }
+        return $out;
+    }
+}
+
+/**
+ * Expose read-only ForgeWP route identity (forgewp_route_id), structured block trees
+ * (forgewp_blocks), and published route permalink mappings (/wp-json/forgewp/v1/routes)
+ * so decoupled frontends read the same WordPress content and block identities without
+ * requiring admin credentials on public visitor requests.
+ */
+if (!function_exists('forgewp_register_decoupled_rest_bridge')) {
+    function forgewp_register_decoupled_rest_bridge() {
+        register_rest_field('page', 'forgewp_route_id', array(
+            'get_callback' => function ($post_arr) {
+                $post_id = isset($post_arr['id']) ? (int) $post_arr['id'] : 0;
+                if ($post_id <= 0) {
+                    return '';
+                }
+                $route_id = get_post_meta($post_id, 'forgewp_route_id', true);
+                return is_string($route_id) ? $route_id : '';
+            },
+            'update_callback' => null,
+            'schema' => array(
+                'description' => 'Durable ForgeWP route identifier assigned to this page.',
+                'type'        => 'string',
+                'context'     => array('view', 'edit'),
+            ),
+        ));
+
+        $rest_post_types = get_post_types(array('show_in_rest' => true), 'names');
+        foreach ($rest_post_types as $post_type) {
+            register_rest_field($post_type, 'forgewp_blocks', array(
+                'get_callback' => function ($post_arr) {
+                    $post_id = isset($post_arr['id']) ? (int) $post_arr['id'] : 0;
+                    if ($post_id <= 0) {
+                        return array();
+                    }
+                    $post = get_post($post_id);
+                    if (!$post) {
+                        return array();
+                    }
+                    $is_public_published = ($post->post_status === 'publish' && empty($post->post_password));
+                    if (!$is_public_published && !current_user_can('read_post', $post_id)) {
+                        return array();
+                    }
+                    if (!function_exists('parse_blocks')) {
+                        return array();
+                    }
+                    return forgewp_serialize_rest_blocks(parse_blocks((string) $post->post_content));
+                },
+                'update_callback' => null,
+                'schema' => array(
+                    'description' => 'Structured Gutenberg block tree for decoupled ForgeWP frontends.',
+                    'type'        => 'array',
+                    'context'     => array('view', 'edit'),
+                ),
+            ));
+        }
+
+        register_rest_route('forgewp/v1', '/routes', array(
+            'methods'             => 'GET',
+            'permission_callback' => '__return_true',
+            'callback'            => function () {
+                $home_url = home_url('/');
+                $parsed_home = wp_parse_url($home_url);
+                $base_path = isset($parsed_home['path']) ? rtrim($parsed_home['path'], '/') : '';
+                $pages = get_posts(array(
+                    'post_type'      => 'page',
+                    'post_status'    => 'publish',
+                    'posts_per_page' => 200,
+                    'meta_key'       => 'forgewp_route_id',
+                    'orderby'        => 'menu_order title',
+                    'order'          => 'ASC',
+                ));
+                $routes = array();
+                foreach ($pages as $page) {
+                    if (!empty($page->post_password)) {
+                        continue;
+                    }
+                    $route_id = (string) get_post_meta($page->ID, 'forgewp_route_id', true);
+                    if ($route_id === '') {
+                        continue;
+                    }
+                    $permalink = get_permalink($page->ID);
+                    $parsed_link = wp_parse_url($permalink);
+                    $raw_path = isset($parsed_link['path']) ? $parsed_link['path'] : '/';
+                    if ($base_path !== '' && ($raw_path === $base_path || strpos($raw_path, $base_path . '/') === 0)) {
+                        $rel_path = substr($raw_path, strlen($base_path));
+                        $rel_path = $rel_path === '' ? '/' : $rel_path;
+                    } else {
+                        $rel_path = $raw_path;
+                    }
+                    $routes[] = array(
+                        'routeId'   => $route_id,
+                        'id'        => (int) $page->ID,
+                        'slug'      => (string) $page->post_name,
+                        'title'     => html_entity_decode(wp_strip_all_tags(get_the_title($page->ID)), ENT_QUOTES, 'UTF-8'),
+                        'path'      => $rel_path,
+                        'permalink' => $permalink,
+                    );
+                }
+                return rest_ensure_response(array(
+                    'homeUrl'  => $home_url,
+                    'basePath' => $base_path,
+                    'routes'   => $routes,
+                ));
+            },
+        ));
+    }
+    add_action('rest_api_init', 'forgewp_register_decoupled_rest_bridge');
+}
 `;
 
   // Append auto-generated Theme Options admin settings page
