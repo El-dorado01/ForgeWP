@@ -1,8 +1,9 @@
 import type { NextConfig } from 'next';
-// Research fixture: Next's static output is evidence, not a WordPress export.
+// Deployment choice lives at the boundary: static export by default for native extraction,
+// or full Next.js server when FORGEWP_DEPLOYMENT_MODE=decoupled.
+const isDecoupled = process.env.FORGEWP_DEPLOYMENT_MODE === 'decoupled';
 const nextConfig: NextConfig = {
-  output: 'export',
-  trailingSlash: true,
+  ...(isDecoupled ? {} : { output: 'export' }),
   transpilePackages: ['@forgewp/react'],
   webpack(config) {
     config.resolve.extensionAlias = {

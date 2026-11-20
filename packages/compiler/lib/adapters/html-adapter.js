@@ -43,7 +43,14 @@ export function getHydrationRollupInputs(themeRoot) {
 }
 
 export function getCriticalFiles(themeRoot) {
-  return ['src/main.tsx'];
+  return [
+    'wp.config.ts',
+    'index.html',
+    'package.json',
+    'src/main.tsx',
+    'src/app/layout.tsx',
+    'src/app/routes.tsx',
+  ];
 }
 
 export async function onFresh(themeRoot) {

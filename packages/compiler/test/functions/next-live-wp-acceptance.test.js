@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,7 +7,9 @@ import { fileURLToPath } from 'node:url';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { exportNextExperimentalTheme } from '../../lib/next-export-experimental.js';
+import { exportTheme } from '../../lib/export-theme.js';
+import * as nextAdapter from '../../lib/next-adapter.js';
+import { readCompiledBlockIdentities } from '../../lib/next-export-experimental.js';
 import {
   createWordPressContentClient,
   resolveBlockRenderNodes,
@@ -47,22 +49,32 @@ function stopProcessGroup(child) {
 
 describe('Live disposable WordPress acceptance & native <-> decoupled round trip', () => {
   it.skipIf(!runLiveWp || !existsSync(fixtureOutIndex))(
-    'installs exported Next.js theme ZIP on real WordPress, proves Gutenberg edits, decoupled transport, draft auth boundary, renamed slugs, and native round trip',
+    'exports via real exportTheme(nextAdapter), installs ZIP on real WordPress, proves Gutenberg edits, live decoupled Next.js App Router SSR server, draft auth boundary, renamed slugs, and native round trip',
     async () => {
       const tmp = mkdtempSync(path.join(os.tmpdir(), 'forgewp-live-wp-acceptance-'));
+      const fixtureTsconfigPath = path.join(nextFixtureRoot, 'tsconfig.json');
+      const originalTsconfig = existsSync(fixtureTsconfigPath)
+        ? readFileSync(fixtureTsconfigPath, 'utf8')
+        : null;
       let child = null;
+      let nextChild = null;
       try {
-        const outDir = path.join(tmp, 'forgewp-next-fixture');
-        const zipPath = path.join(tmp, 'forgewp-next-fixture.zip');
+        const fixtureCopy = path.join(tmp, 'fixture');
+        cpSync(nextFixtureRoot, fixtureCopy, {
+          recursive: true,
+          filter: (src) => {
+            const base = path.basename(src);
+            return base !== 'node_modules' && base !== '.next' && base !== '.forgewp';
+          },
+        });
         const blueprintPath = path.join(tmp, 'blueprint.json');
         const port = await getFreePort();
         const wpUrl = `http://127.0.0.1:${port}`;
 
-        // 1. Export the real Next.js fixture into an installable WordPress theme ZIP.
-        const exported = await exportNextExperimentalTheme({
-          themeRoot: nextFixtureRoot,
-          outDir,
-          zipPath,
+        // 1. Export the real Next.js fixture through the real exportTheme() pipeline using next-adapter.
+        const exported = await exportTheme({
+          themeRoot: fixtureCopy,
+          adapter: nextAdapter,
           config: {
             name: 'ForgeWP Next Fixture',
             slug: 'forgewp-next-fixture',
@@ -70,10 +82,16 @@ describe('Live disposable WordPress acceptance & native <-> decoupled round trip
             version: '1.0.0',
             description: 'Live disposable WordPress acceptance test',
           },
+          skipBuild: true,
+          validate: true,
           strict: true,
+          zip: true,
         });
+        const zipPath = path.join(tmp, 'forgewp-next-fixture.zip');
+        cpSync(exported.zipPath, zipPath);
+        const compiledBlocks = readCompiledBlockIdentities(exported.outDir);
         expect(existsSync(zipPath)).toBe(true);
-        expect(exported.blocks.some((b) => b.name === 'forgewp/next-intro')).toBe(true);
+        expect(compiledBlocks.some((b) => b.name === 'forgewp/next-intro')).toBe(true);
 
         // 2. Boot a disposable WordPress instance installing & activating the exported ZIP.
         const blueprint = {
@@ -256,7 +274,7 @@ describe('Live disposable WordPress acceptance & native <-> decoupled round trip
         const switchCheck = await verifyDeploymentSwitch({
           wpUrl,
           auth,
-          expectedBlocks: exported.blocks,
+          expectedBlocks: compiledBlocks,
           expectedRoutes: ['about'],
           probePageSlug: 'intro-live',
         });
@@ -291,7 +309,7 @@ describe('Live disposable WordPress acceptance & native <-> decoupled round trip
         );
 
         // Decoupled route resolution follows durable forgewp_route_id across wp-admin slug renames!
-        const resolvedAboutHref = await publicClient.resolveRouteHref('about', '/about/', {
+        const resolvedAboutHref = await publicClient.resolveRouteHref('about', '/about', {
           query: 'from=home',
           fragment: 'details',
         });
@@ -299,6 +317,88 @@ describe('Live disposable WordPress acceptance & native <-> decoupled round trip
         const decoupledAbout = await publicClient.getPageBySlug('about');
         expect(decoupledAbout?.slug).toBe('our-story');
         expect(decoupledAbout?.routeId).toBe('about');
+
+        // 5b. LIVE DECOUPLED NEXT.JS APP ROUTER HTTP SERVER:
+        //     Create a published WordPress 'home' page with forgewp/next-intro, boot the real
+        //     Next.js server pointed at WordPress, verify SSR reads Edit 1, save Edit 2 in WP,
+        //     and verify the next Next.js HTTP response reflects Edit 2 with zero rebuild/restart!
+        const wpHomeCreateRes = await fetch(`${wpUrl}/wp-json/wp/v2/pages`, {
+          method: 'POST',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: 'Live WordPress Home Title',
+            slug: 'home',
+            status: 'publish',
+            content: '<!-- wp:forgewp/next-intro {"heading":"Next SSR Live Edit 1"} /-->',
+          }),
+        });
+        expect(wpHomeCreateRes.status).toBe(201);
+        const wpHomePage = await wpHomeCreateRes.json();
+
+        const nextPort = await getFreePort();
+        const nextUrl = `http://127.0.0.1:${nextPort}`;
+        const nextBin = path.join(nextFixtureRoot, 'node_modules', '.bin', 'next');
+        let nextLogs = '';
+        nextChild = spawn(
+          nextBin,
+          ['dev', '--webpack', '--hostname', '127.0.0.1', '--port', String(nextPort)],
+          {
+            cwd: nextFixtureRoot,
+            detached: true,
+            env: {
+              ...process.env,
+              FORGEWP_DEPLOYMENT_MODE: 'decoupled',
+              FORGEWP_WP_URL: wpUrl,
+              NEXT_TELEMETRY_DISABLED: '1',
+            },
+            stdio: ['ignore', 'pipe', 'pipe'],
+          },
+        );
+        nextChild.stdout.on('data', (d) => {
+          nextLogs += d.toString();
+        });
+        nextChild.stderr.on('data', (d) => {
+          nextLogs += d.toString();
+        });
+
+        const nextDeadline = Date.now() + 90_000;
+        let nextHomeHtml1 = '';
+        while (Date.now() < nextDeadline) {
+          try {
+            const res = await fetch(`${nextUrl}/`);
+            if (res.ok) {
+              nextHomeHtml1 = await res.text();
+              if (nextHomeHtml1.includes('Next SSR Live Edit 1')) break;
+            }
+          } catch {}
+          await new Promise((r) => setTimeout(r, 750));
+        }
+        expect(nextHomeHtml1, `Next.js decoupled server did not render live WP Edit 1:\n${nextLogs}`).toContain(
+          'Live WordPress Home Title',
+        );
+        expect(nextHomeHtml1).toContain('Next SSR Live Edit 1');
+
+        // Next.js /about route resolves the wp-admin-renamed 'our-story' page via forgewp_route_id!
+        const nextAboutRes = await fetch(`${nextUrl}/about`);
+        expect(nextAboutRes.status).toBe(200);
+        const nextAboutHtml = await nextAboutRes.text();
+        expect(nextAboutHtml).toContain('id="details"');
+
+        // Update the WordPress 'home' page block without restarting Next.js -> live SSR updates immediately.
+        const wpHomeEdit2 = await fetch(`${wpUrl}/wp-json/wp/v2/pages/${wpHomePage.id}`, {
+          method: 'POST',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: '<!-- wp:forgewp/next-intro {"heading":"Next SSR Live Edit 2"} /-->',
+          }),
+        });
+        expect(wpHomeEdit2.status).toBe(200);
+        const nextHomeHtml2 = await (await fetch(`${nextUrl}/`)).text();
+        expect(nextHomeHtml2).toContain('Next SSR Live Edit 2');
+        expect(nextHomeHtml2).not.toContain('Next SSR Live Edit 1');
+
+        stopProcessGroup(nextChild);
+        nextChild = null;
 
         // 6. GUTENBERG EDIT #2 (While in Decoupled Mode — reflected live without rebuilding).
         const edit2Res = await fetch(`${wpUrl}/wp-json/wp/v2/pages/${createdPage.id}`, {
@@ -382,11 +482,15 @@ describe('Live disposable WordPress acceptance & native <-> decoupled round trip
         const nativeAfterFailedSwitch = await (await fetch(`${wpUrl}/intro-live/`)).text();
         expect(nativeAfterFailedSwitch).toContain('Edit 2 saved in Gutenberg (decoupled)');
       } finally {
+        stopProcessGroup(nextChild);
         stopProcessGroup(child);
         await new Promise((r) => setTimeout(r, 300));
+        if (originalTsconfig !== null) {
+          writeFileSync(fixtureTsconfigPath, originalTsconfig, 'utf8');
+        }
         rmSync(tmp, { recursive: true, force: true });
       }
     },
-    180_000,
+    240_000,
   );
 });

@@ -1,0 +1,20 @@
+import { defineWpPosts } from '@forgewp/react/config';
+
+export const mockData = defineWpPosts({
+  page: [
+    {
+      id: 1,
+      slug: 'home',
+      title: 'A standard Next.js app',
+      content: 'Local CMS content without a WordPress database.',
+    },
+    {
+      id: 2,
+      slug: 'about',
+      title: 'About the adapter fixture',
+      content: 'Shared layouts and fixed routes are the first compatibility slice.',
+    },
+  ],
+});
+
+export default mockData;
