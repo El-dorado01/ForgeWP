@@ -40,6 +40,10 @@ jobs:
         run: pnpm --filter @forgewp/nextjs-adapter-fixture build
       - name: Check route and asset output
         run: pnpm --filter @forgewp/nextjs-adapter-fixture check:next-output
+      - name: Next.js route/markup contract extraction and theme integration
+        env:
+          FORGEWP_REQUIRE_NEXT_FIXTURE: '1'
+        run: pnpm --filter @forgewp/compiler exec vitest run test/functions/render-static.test.js test/functions/next-route-extractor.test.js test/functions/adapter-routes-integration.test.js test/functions/next-link-transform.test.js test/functions/next-export-blocks.test.js
       - name: Compare rendering approaches
         run: pnpm --filter @forgewp/nextjs-adapter-fixture check:renderers
       - name: Check local editing and navigation in Chrome

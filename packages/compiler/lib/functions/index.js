@@ -1383,6 +1383,44 @@ function forgewp_resolve_page_link($slug, $fallback = '') {
 }
 
 /**
+ * Resolve a fixed internal route URL at runtime with WordPress permalink lookup,
+ * subdirectory-safe home_url() fallback, and Plain/Pretty-permalink-safe query & fragment joining.
+ */
+if (!function_exists('forgewp_resolve_route_url')) {
+    function forgewp_resolve_route_url($route_slug, $fallback_path = '/', $query = '', $fragment = '') {
+        $base_url = '';
+        if ($route_slug === '__home__') {
+            $base_url = function_exists('pll_home_url')
+                ? pll_home_url(function_exists('pll_current_language') ? pll_current_language() : '')
+                : home_url('/');
+        } elseif ($route_slug !== '') {
+            $target_id = forgewp_resolve_route_page_id($route_slug);
+            if ($target_id) {
+                $base_url = get_permalink($target_id);
+            }
+        }
+
+        if (empty($base_url)) {
+            $clean_fallback = '/' . ltrim((string) $fallback_path, '/');
+            $base_url = home_url($clean_fallback);
+        }
+
+        $clean_query = ltrim((string) $query, '?&');
+        if ($clean_query !== '') {
+            $separator = (strpos($base_url, '?') !== false) ? '&' : '?';
+            $base_url .= $separator . $clean_query;
+        }
+
+        $clean_fragment = ltrim((string) $fragment, '#');
+        if ($clean_fragment !== '') {
+            $base_url .= '#' . $clean_fragment;
+        }
+
+        return $base_url;
+    }
+}
+
+/**
  * Resolves "the front page" for the CURRENT language — used anywhere a
  * value needs to be read from the front page's own post meta while NOT
  * necessarily viewing the front page itself (e.g. a front-page-sourced icon

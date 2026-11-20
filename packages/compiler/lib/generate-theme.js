@@ -56,6 +56,7 @@ import {
 } from './icon-registry.js';
 import { scanAssetGraph, generatePreloadTags } from './assets/index.js';
 import { extractTemplateContent } from './extract-template-content.js';
+import { resolveStaticPageRoute } from './render-static.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -75,6 +76,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * @param {string} [options.singleHtml]
  * @param {string} [options.notFoundHtml]
  * @param {string} [options.archiveHtml]
+ * @param {import('./index.js').ForgeWPStaticRoute[]} [options.routes]
+ * @param {import('./index.js').ForgeWPStaticLayout | null} [options.layout]
  * @param {import('./types.js').ForgeWPBuildAssets} options.assets
  * @param {boolean} [options.strict] Fail export on editable from/pick issues
  * @param {boolean} [options.preserveOutDir] Keep assets already generated in the output directory
@@ -91,11 +94,26 @@ export async function generateTheme({
   singleHtml = '',
   notFoundHtml = '',
   archiveHtml = '',
+  routes = [],
+  layout = null,
+  adapter: explicitAdapter = null,
   assets,
   assetGraph,
   preserveOutDir = false,
   strict = false,
 }) {
+  const staticRoutes = Array.isArray(routes) ? routes : [];
+  const homeRoute = staticRoutes.find((r) => r && r.kind === 'home') || null;
+  const notFoundRoute =
+    staticRoutes.find((r) => r && r.kind === 'not-found') || null;
+  const adapterPageRoutes = staticRoutes
+    .filter((r) => r && r.kind === 'page')
+    .map(resolveStaticPageRoute);
+  const effectiveAppHtml = appHtml || homeRoute?.html || '';
+  const effectiveHeadHtml = headHtml || homeRoute?.headHtml || '';
+  const effectiveNotFoundHtml = notFoundHtml || notFoundRoute?.html || '';
+  void layout;
+
   if (!preserveOutDir && existsSync(outDir)) {
     rmSync(outDir, { recursive: true, force: true });
   }
@@ -191,6 +209,9 @@ export async function generateTheme({
 
   // Map compiled Page templates to menu paths, including nested menu items.
   const forgewpDir = path.join(themeRoot, '.forgewp');
+  const adapterTemplateSlugs = new Set(
+    adapterPageRoutes.map((route) => route.templateSlug),
+  );
   const pageTemplateSlugs = existsSync(forgewpDir)
     ? readdirSync(forgewpDir)
         .filter(
@@ -200,8 +221,22 @@ export async function generateTheme({
             !file.includes('-head'),
         )
         .map((file) => file.replace(/^template-|\.html$/g, ''))
+        .filter((slug) => !adapterTemplateSlugs.has(slug))
     : [];
-  const pagesToAutoCreate = collectPageTemplateRoutes(pageTemplateSlugs, menus);
+  const pagesToAutoCreate = adapterPageRoutes.map((route) => ({
+    title: route.title,
+    slug: route.slug,
+    template: `page-${route.templateSlug}.php`,
+  }));
+  const existingAutoCreateSlugs = new Set(
+    pagesToAutoCreate.map((page) => page.slug),
+  );
+  for (const page of collectPageTemplateRoutes(pageTemplateSlugs, menus)) {
+    if (!existingAutoCreateSlugs.has(page.slug)) {
+      pagesToAutoCreate.push(page);
+      existingAutoCreateSlugs.add(page.slug);
+    }
+  }
 
   // Menu + routes.tsx paths that have no compiled template still need a WP page,
   // or redirect_canonical will steal similar CPT slugs (about → about-a-chair).
@@ -227,7 +262,8 @@ export async function generateTheme({
       );
   }
 
-  const adapter = await loadFrameworkAdapter(config.frameworkAdapter);
+  const adapter =
+    explicitAdapter || (await loadFrameworkAdapter(config.frameworkAdapter));
   const scanForHydrationIslands =
     adapter.scanForHydrationIslands || adapter.default?.scanForHydrationIslands;
 
@@ -760,12 +796,17 @@ export async function generateTheme({
     }
   };
 
-  scanForI18nKeys(appHtml);
+  scanForI18nKeys(effectiveAppHtml);
   scanForI18nKeys(headerHtml);
   scanForI18nKeys(footerHtml);
   scanForI18nKeys(singleHtml);
-  scanForI18nKeys(notFoundHtml);
+  scanForI18nKeys(effectiveNotFoundHtml);
   scanForI18nKeys(archiveHtml);
+  for (const route of staticRoutes) {
+    if (route && typeof route.html === 'string') {
+      scanForI18nKeys(route.html);
+    }
+  }
 
   if (existsSync(forgewpDir)) {
     const templateFiles = readdirSync(forgewpDir);
@@ -790,7 +831,7 @@ export async function generateTheme({
   // Fix nav links and split markup
   const processedApp = injectAutoHydrationMarkers(
     processMarkup(
-      appHtml,
+      effectiveAppHtml,
       config.textDomain,
       getRichTextKeysForSlug('front-page'),
       effectiveAssetGraph,
@@ -813,12 +854,16 @@ export async function generateTheme({
     ),
   );
 
-  // Extract content (App markup minus Header/Footer, unless the page owns its shell)
-  let contentHtml = extractTemplateContent(
-    processedApp,
-    processedHeader,
-    processedFooter,
-  );
+  // Extract content (App markup minus Header/Footer, unless the page owns its shell
+  // or the adapter already extracted shared layout chrome)
+  let contentHtml = homeRoute?.layoutExtracted
+    ? processedApp
+    : extractTemplateContent(
+        processedApp,
+        processedHeader,
+        processedFooter,
+        { ownsShell: homeRoute?.ownsShell === true },
+      );
   contentHtml = contentHtml.replace(
     /<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g,
     '',
@@ -865,20 +910,23 @@ export async function generateTheme({
 
   // Process 404 template if exists
   let processedNotFound = '';
-  if (notFoundHtml) {
+  if (effectiveNotFoundHtml) {
     processedNotFound = injectAutoHydrationMarkers(
       processMarkup(
-        notFoundHtml,
+        effectiveNotFoundHtml,
         config.textDomain,
         richTextFieldKeys,
         effectiveAssetGraph,
       ),
     );
-    processedNotFound = extractTemplateContent(
-      processedNotFound,
-      processedHeader,
-      processedFooter,
-    );
+    processedNotFound = notFoundRoute?.layoutExtracted
+      ? processedNotFound
+      : extractTemplateContent(
+          processedNotFound,
+          processedHeader,
+          processedFooter,
+          { ownsShell: notFoundRoute?.ownsShell === true },
+        );
     processedNotFound = processedNotFound.replace(
       /<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g,
       '',
@@ -906,10 +954,10 @@ export async function generateTheme({
     replaceAssetPlaceholders(cleanFooter),
     'utf8',
   );
-  if (headHtml) {
+  if (effectiveHeadHtml) {
     writeFileSync(
       path.join(staticDir, 'head.html'),
-      replaceAssetPlaceholders(headHtml),
+      replaceAssetPlaceholders(effectiveHeadHtml),
       'utf8',
     );
   }
@@ -968,7 +1016,10 @@ export async function generateTheme({
 
   // Dynamic Gutenberg blocks compilation (Phase 5)
   // Pass strict so from/pick issues fail export only when `forgewp export --strict`
-  const compiledBlocks = compileBlocks(themeRoot, outDir, { strict: !!strict });
+  const compiledBlocks = compileBlocks(themeRoot, outDir, {
+    strict: !!strict,
+    cssFile: assets?.cssFile,
+  });
 
   const iconRegistryJson = JSON.stringify(buildEditorIconRegistry());
   const defaultIconSlugsJson = JSON.stringify(FORGEWP_DEFAULT_ICON_SLUGS);
@@ -2026,8 +2077,9 @@ if (window.forgeWpBlocks) {
   writeFileSync(path.join(outDir, 'single.php'), buildSinglePhp(), 'utf8');
   writeFileSync(path.join(outDir, '404.php'), build404Php(), 'utf8');
   const frontPageOwnsShell =
-    typeof appHtml === 'string' &&
-    appHtml.includes('data-forgewp-owns-shell="true"');
+    homeRoute?.ownsShell === true ||
+    (typeof effectiveAppHtml === 'string' &&
+      effectiveAppHtml.includes('data-forgewp-owns-shell="true"'));
   writeFileSync(
     path.join(outDir, 'front-page.php'),
     buildIndexPhp({ ownsShell: frontPageOwnsShell }),
@@ -2145,7 +2197,15 @@ get_footer();
     authGates: [],
   };
 
-  // Dynamic Custom Page Templates Compiler
+  // Dynamic Custom Page Templates Compiler (adapter-provided routes + legacy .forgewp/template-*.html)
+  const pageTemplateEntries = adapterPageRoutes.map((route) => ({
+    file: `template-${route.templateSlug}.html`,
+    slug: `template-${route.templateSlug}`,
+    rawHtml: route.html,
+    rawHeadHtml: route.headHtml || '',
+    ownsShell: route.ownsShell === true,
+    layoutExtracted: route.layoutExtracted === true,
+  }));
   if (existsSync(forgewpDir)) {
     const templateFiles = readdirSync(forgewpDir);
     for (const file of templateFiles) {
@@ -2154,8 +2214,24 @@ get_footer();
         file.endsWith('.html') &&
         !file.includes('-head')
       ) {
-        const slug = file.replace('.html', '');
-        const rawHtml = readFileSync(path.join(forgewpDir, file), 'utf8');
+        const templateSlug = file.replace(/^template-|\.html$/g, '');
+        if (adapterTemplateSlugs.has(templateSlug)) continue;
+        const headFile = file.replace('.html', '-head.html');
+        const headPath = path.join(forgewpDir, headFile);
+        pageTemplateEntries.push({
+          file,
+          slug: file.replace('.html', ''),
+          rawHtml: readFileSync(path.join(forgewpDir, file), 'utf8'),
+          rawHeadHtml: existsSync(headPath) ? readFileSync(headPath, 'utf8') : '',
+          ownsShell: false,
+          layoutExtracted: false,
+        });
+      }
+    }
+  }
+
+  for (const templateEntry of pageTemplateEntries) {
+        const { file, slug, rawHtml, rawHeadHtml } = templateEntry;
 
         let isProtected = false;
         let allowedCapability = null;
@@ -2305,9 +2381,9 @@ if ( ! current_user_can( '${allowed}' ) ) {
           );
         }
 
-        let pageConfigHeader = true;
-        let pageConfigFooter = true;
-        let pageConfigLayout = 'default';
+        let pageConfigHeader = !templateEntry.ownsShell;
+        let pageConfigFooter = !templateEntry.ownsShell;
+        let pageConfigLayout = templateEntry.ownsShell ? 'blank' : 'default';
 
         const configMatch = rawHtml.match(
           /<forgewp-page-config\s*([^>]*)\/?>/i,
@@ -2355,12 +2431,14 @@ if ( ! current_user_can( '${allowed}' ) ) {
         );
         const layoutIsBlank =
           pageConfigLayout === 'blank' || pageConfigLayout === 'false';
-        processedHtml = extractTemplateContent(
-          processedHtml,
-          processedHeader,
-          processedFooter,
-          { ownsShell: layoutIsBlank },
-        );
+        processedHtml = templateEntry.layoutExtracted
+          ? processedHtml
+          : extractTemplateContent(
+              processedHtml,
+              processedHeader,
+              processedFooter,
+              { ownsShell: layoutIsBlank },
+            );
         processedHtml = processedHtml.replace(
           /<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g,
           '',
@@ -2388,12 +2466,10 @@ if ( ! current_user_can( '${allowed}' ) ) {
         );
 
         const headFile = file.replace('.html', '-head.html');
-        if (existsSync(path.join(forgewpDir, headFile))) {
+        if (rawHeadHtml) {
           writeFileSync(
             path.join(staticDir, headFile),
-            replaceAssetPlaceholders(
-              readFileSync(path.join(forgewpDir, headFile), 'utf8'),
-            ),
+            replaceAssetPlaceholders(rawHeadHtml),
             'utf8',
           );
         }
@@ -2463,8 +2539,6 @@ ${footerCall}
           phpContent,
           'utf8',
         );
-      }
-    }
   }
 
   // Dynamic theme.json compiler (Phase 5)

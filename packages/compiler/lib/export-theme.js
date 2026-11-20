@@ -143,6 +143,8 @@ export async function exportTheme(options) {
     notFoundHtml: markup.notFoundHtml,
     archiveHtml: markup.archiveHtml,
     singleHtml: markup.singleHtml,
+    routes: markup.routes,
+    layout: markup.layout,
     assets,
     assetGraph,
     preserveOutDir: true,
@@ -166,6 +168,7 @@ export async function exportTheme(options) {
       assets,
       config,
       strict,
+      routes: markup.routes,
     });
 
     if (validation.warnings && validation.warnings.length > 0) {

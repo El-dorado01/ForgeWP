@@ -296,6 +296,52 @@ export interface ForgeWPBuildAssets {
   jsFile?: string;
 }
 
+export interface ForgeWPStaticRouteAssets {
+  /** Build-relative stylesheet paths referenced by this route. */
+  stylesheets: string[];
+  /** Client runtime or module script paths referenced by this route, kept separate from native HTML. */
+  clientScripts: string[];
+  /** Build-relative non-CSS/JS assets referenced by route metadata (e.g. favicon). */
+  otherAssets?: string[];
+  /** Framework runtime payloads intentionally stripped from native HTML (e.g. Next RSC flight scripts). */
+  strippedRuntime?: {
+    rscPayloadCount?: number;
+    scriptCount?: number;
+    preloadCount?: number;
+  };
+}
+
+export interface ForgeWPStaticRoute {
+  /** Normalized route path starting with '/', e.g. '/', '/about', '/docs/intro'. */
+  path: string;
+  /** Route role in WordPress theme generation. */
+  kind: 'home' | 'page' | 'not-found';
+  /** WordPress page slug path for 'page' routes (e.g. 'about', 'docs/intro'). */
+  slug?: string;
+  /** Template identifier used for page-<templateSlug>.php and template-<templateSlug>.html. */
+  templateSlug?: string;
+  /** Human-readable route title for WordPress page provisioning and template headers. */
+  title?: string;
+  /** Rendered route HTML cleaned of framework runtime scripts. */
+  html: string;
+  /** Route-specific <head> metadata HTML (title, meta, icons, JSON-LD). */
+  headHtml?: string;
+  /** True when route markup owns its full document shell and should omit get_header()/get_footer(). */
+  ownsShell?: boolean;
+  /** True when the adapter already split shared layout chrome out of route html. */
+  layoutExtracted?: boolean;
+  /** Route-level asset and stripped client-runtime ownership inventory. */
+  assets?: ForgeWPStaticRouteAssets;
+  /** Source artifact path relative to themeRoot (for diagnostics). */
+  sourceFile?: string;
+}
+
+export interface ForgeWPStaticLayout {
+  lang?: string;
+  sharedHeaderDetected?: boolean;
+  sharedFooterDetected?: boolean;
+}
+
 export interface ForgeWPStaticMarkup {
   appHtml: string;
   headerHtml?: string;
@@ -305,6 +351,10 @@ export interface ForgeWPStaticMarkup {
   singleHeadHtml?: string;
   notFoundHtml?: string;
   archiveHtml?: string;
+  /** Optional adapter-owned fixed route records; preserves legacy .forgewp/template-*.html flow when omitted. */
+  routes?: ForgeWPStaticRoute[];
+  /** Optional shared document/layout metadata discovered by the adapter. */
+  layout?: ForgeWPStaticLayout;
 }
 
 export interface ForgeWPPackagedAssets {
@@ -427,6 +477,7 @@ export interface ForgeWPValidationOptions {
   assets: ForgeWPBuildAssets;
   config: ForgeWPThemeConfig;
   strict?: boolean;
+  routes?: ForgeWPStaticRoute[];
 }
 
 export interface ForgeWPValidationResult {
