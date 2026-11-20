@@ -34,12 +34,13 @@ Usage:
 
 Options:
   -y, --yes           Use defaults (skip prompts)
-  --adapter [name]    Select the adapter to scaffold (react or html)
+  --adapter [name]    Select the adapter to scaffold (react, nextjs, or html)
   --no-install        Skip dependency install
   -h, --help          Show help
 
 Examples:
   npx create-forgewp my-theme
+  npx create-forgewp my-next-theme --adapter nextjs
   npx create-forgewp --projectName my-theme
   npx create-forgewp --yes
 `);
@@ -115,7 +116,7 @@ function parseArgs(argv) {
     }
   }
 
-  if (!['react', 'html'].includes(args.adapter)) {
+  if (!['react', 'html', 'nextjs'].includes(args.adapter)) {
     console.error(pc.red(`Unsupported adapter: ${args.adapter}`));
     process.exit(1);
   }
@@ -148,10 +149,11 @@ async function gatherConfig(cli, defaults) {
         name: 'adapter',
         message: `${pc.cyan('✔')} Framework adapter`,
         choices: [
-          { title: 'React', value: 'react' },
-          { title: 'HTML', value: 'html' },
+          { title: 'React (Vite + React 19)', value: 'react' },
+          { title: 'Next.js (App Router — Native WordPress & Decoupled)', value: 'nextjs' },
+          { title: 'HTML (Static HTML)', value: 'html' },
         ],
-        initial: cli.adapter === 'html' ? 1 : 0,
+        initial: cli.adapter === 'nextjs' ? 1 : cli.adapter === 'html' ? 2 : 0,
       },
       {
         type: (prev) => prev === 'react' ? 'select' : null,
@@ -213,11 +215,13 @@ async function gatherConfig(cli, defaults) {
     description:
       adapter === 'html'
         ? `A premium static HTML theme built with ForgeWP.`
-        : `A premium block-theme built with React, Tailwind CSS, and ForgeWP.`,
+        : adapter === 'nextjs'
+          ? `A WordPress theme built with Next.js App Router and ForgeWP.`
+          : `A premium block-theme built with React, Tailwind CSS, and ForgeWP.`,
     textDomain: slug,
     adapter,
     style: response.style ?? defaults.style,
-    features: response.features ?? defaults.features,
+    features: adapter === 'react' ? (response.features ?? defaults.features) : [],
     install: response.install ?? false,
     packageManager: response.packageManager ?? detectPackageManager(),
   };
@@ -350,15 +354,21 @@ async function main() {
   }
 
   const slug = slugify(path.basename(projectDirName));
+  const adapter = cli.adapter || 'react';
   const defaults = {
     packageName: slug,
     themeName: titleCaseFromSlug(slug),
     slug,
-    description: `A premium block-theme built with React, Tailwind CSS, and ForgeWP.`,
+    description:
+      adapter === 'html'
+        ? `A premium static HTML theme built with ForgeWP.`
+        : adapter === 'nextjs'
+          ? `A WordPress theme built with Next.js App Router and ForgeWP.`
+          : `A premium block-theme built with React, Tailwind CSS, and ForgeWP.`,
     textDomain: slug,
-    adapter: cli.adapter || 'react',
+    adapter,
     style: cli.style || 'shadcn',
-    features: ['ecommerce'],
+    features: adapter === 'react' ? ['ecommerce'] : [],
     version: '0.1.0',
     install: !cli.noInstall,
     packageManager: detectPackageManager(),
@@ -418,9 +428,12 @@ async function main() {
   const stepNumPlus = config.install ? '3' : '4';
   const stepNumExport = config.install ? '4' : '5';
 
-  console.log(
-    `  │ ${stepNum}. Run the interactive Vite local developer server:`,
-  );
+  const devServerLabel =
+    config.adapter === 'nextjs'
+      ? 'Run the Next.js local developer server:'
+      : 'Run the interactive Vite local developer server:';
+
+  console.log(`  │ ${stepNum}. ${devServerLabel}`);
   console.log(`  │    ${pc.cyan(run('dev'))}`);
   console.log(`  │`);
   console.log(

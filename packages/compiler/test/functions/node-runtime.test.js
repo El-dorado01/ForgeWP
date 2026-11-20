@@ -8,8 +8,8 @@ it('enforces exact dependency version boundaries, excluding Node 23', () => {
   for (const version of ['22.18.0', '22.21.1', '24.11.0', '25.0.0']) expect(isSupportedNode(version)).toBe(true);
 });
 
-it('keeps workspace, compiler, creator and both starter copies aligned with dependency engines', () => {
-  for (const file of ['../../package.json', 'package.json', '../create-forgewp/package.json', '../starter/package.json', '../html-starter/package.json', '../create-forgewp/template/package.json', '../create-forgewp/template-html/package.json']) {
+it('keeps workspace, compiler, creator and all starter copies aligned with dependency engines', () => {
+  for (const file of ['../../package.json', 'package.json', '../create-forgewp/package.json', '../starter/package.json', '../html-starter/package.json', '../create-forgewp/template/package.json', '../create-forgewp/template-html/package.json', '../create-forgewp/template-nextjs/package.json']) {
     expect(JSON.parse(fs.readFileSync(path.resolve(file), 'utf8')).engines.node).toBe(SUPPORTED_NODE_RANGE);
   }
   expect(JSON.parse(fs.readFileSync('node_modules/@babel/parser/package.json', 'utf8')).engines.node).toBe(SUPPORTED_NODE_RANGE);

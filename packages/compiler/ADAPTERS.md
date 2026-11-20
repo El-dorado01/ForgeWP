@@ -22,7 +22,8 @@ Optional helpers may include:
 
 ## Current adapters
 
-- `react` — the default adapter used by ForgeWP today.
+- `react` — the default Vite + React 19 adapter used by ForgeWP today.
+- `nextjs` — the Next.js App Router adapter supporting fixed-route native WordPress theme export (`withForgeWP()`, `@forgewp/react/server`, `<Hydrate>` esbuild islands, `defineBlock`) and decoupled Next.js deployment.
 - `html` — a concrete static HTML proof-of-concept adapter.
 - `stub` — a minimal example adapter stub for onboarding new framework support.
 

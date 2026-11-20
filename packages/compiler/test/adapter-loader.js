@@ -36,6 +36,22 @@ async function run() {
   assert.strictEqual(typeof reactAdapter.findComponentPath, 'function');
   assert.strictEqual(typeof reactAdapter.getHydrationRollupInputs, 'function');
 
+  console.log('Loading Next.js adapter...');
+  const nextPath = resolveFrameworkAdapter('nextjs');
+  assert(
+    nextPath.endsWith('next-adapter.js'),
+    'nextjs adapter should resolve to next-adapter.js',
+  );
+  const nextAdapter = await loadFrameworkAdapter('nextjs');
+  assert.strictEqual(typeof nextAdapter.renderStaticMarkup, 'function');
+  assert.strictEqual(typeof nextAdapter.buildAssets, 'function');
+  assert.strictEqual(typeof nextAdapter.readBuildAssets, 'function');
+  assert.strictEqual(typeof nextAdapter.packageAssets, 'function');
+  assert.strictEqual(typeof nextAdapter.scanForHydrationIslands, 'function');
+  assert.strictEqual(typeof nextAdapter.findComponentPath, 'function');
+  assert.strictEqual(typeof nextAdapter.getHydrationRollupInputs, 'function');
+  assert.strictEqual(typeof nextAdapter.getCriticalFiles, 'function');
+
   console.log('Runtime adapter contract check passed.');
 }
 

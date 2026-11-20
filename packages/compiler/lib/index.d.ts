@@ -223,7 +223,7 @@ export interface ForgeWPThemeConfig {
       rankMath?: boolean;
     };
   };
-  frameworkAdapter?: 'react' | 'html' | 'stub';
+  frameworkAdapter?: 'react' | 'html' | 'nextjs' | 'stub';
   style?: 'forgewp' | 'shadcn';
   /** Declare menu location keys. Labels come from settings.menus; use cms/menus.ts for starter entries. */
   menus?: Record<string, string>;

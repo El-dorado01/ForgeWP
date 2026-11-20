@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-const SUPPORTED_ADAPTERS = ['react', 'html', 'stub'];
+const SUPPORTED_ADAPTERS = ['react', 'html', 'nextjs', 'stub'];
 
 /**
  * Resolve the adapter module path for a known framework adapter.
@@ -13,6 +13,10 @@ export function resolveFrameworkAdapter(adapterName = 'react') {
 
   if (adapterName === 'html') {
     return './adapters/html-adapter.js';
+  }
+
+  if (adapterName === 'nextjs') {
+    return './next-adapter.js';
   }
 
   if (adapterName === 'stub') {

@@ -63,7 +63,7 @@ export interface ForgeWPThemeConfig {
       rankMath?: boolean;
     };
   };
-  frameworkAdapter?: 'react' | 'html' | 'stub';
+  frameworkAdapter?: 'react' | 'html' | 'nextjs' | 'stub';
   style?: 'forgewp' | 'shadcn';
   headless?: {
     apiUrl?: string;

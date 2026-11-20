@@ -11,6 +11,8 @@
  *   live bindings (`getLivePage`, `getOption`, `getField`), compiling to native PHP calls.
  */
 
+import React from 'react';
+
 export interface WpServerBlockNode {
   blockName: string | null;
   attrs?: Record<string, unknown>;
@@ -436,4 +438,56 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         : defaultValue;
     },
   };
+}
+
+export interface ServerBlockAreaProps {
+  name: string;
+  /** Optional HTML content to render in local dev or decoupled mode. */
+  content?: string;
+  /** Optional custom fallback/children for local dev or decoupled mode. */
+  children?: React.ReactNode;
+}
+
+/**
+ * Server-Component-safe Gutenberg BlockArea for Next.js App Router pages.
+ *
+ * - During native WordPress export (`FORGEWP_NATIVE_EXPORT=1`): emits
+ *   `<forgewp-block-area data-name="..." />`, which compiles to `<?php the_content(); ?>`.
+ * - During local development or decoupled Next.js mode: renders `children` if provided,
+ *   or `content` HTML if provided, or a clean Gutenberg slot placeholder.
+ */
+export function BlockArea({
+  name,
+  content,
+  children,
+}: ServerBlockAreaProps): React.ReactElement {
+  if (isNativeWordPressExport()) {
+    return React.createElement('forgewp-block-area', { 'data-name': name });
+  }
+
+  if (children !== undefined && children !== null) {
+    return React.createElement('div', { 'data-forgewp-block-area': name }, children);
+  }
+
+  if (typeof content === 'string' && content.trim().length > 0) {
+    return React.createElement('div', {
+      'data-forgewp-block-area': name,
+      dangerouslySetInnerHTML: { __html: content },
+    });
+  }
+
+  return React.createElement(
+    'div',
+    {
+      'data-forgewp-block-area': name,
+      style: {
+        border: '1px dashed currentColor',
+        borderRadius: '0.5rem',
+        padding: '1.25rem',
+        margin: '1.25rem 0',
+        opacity: 0.8,
+      },
+    },
+    React.createElement('strong', null, `Gutenberg Block Area — ${name}`),
+  );
 }

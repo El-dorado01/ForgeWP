@@ -21,6 +21,12 @@
       "import": "./src/server.ts",
       "require": "./src/server.ts",
       "default": "./src/server.ts"
+    },
+    "./next": {
+      "types": "./src/next.ts",
+      "import": "./src/next.ts",
+      "require": "./src/next.ts",
+      "default": "./src/next.ts"
     }
   },
   "scripts": {

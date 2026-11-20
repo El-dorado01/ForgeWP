@@ -469,3 +469,10 @@ export interface ForgeWPSeedConfig {
    */
   developmentOnly?: boolean;
 }
+
+export {
+  withForgeWP,
+  type ForgeWPNextDeploymentMode,
+  type ForgeWPNextLikeConfig,
+  type ForgeWPNextOptions,
+} from './next.js';

@@ -34,7 +34,8 @@ export function applyProjectConfig(targetDir, config) {
   pkg.private = true;
   pkg.version = version;
 
-  const features = config.features || [];
+  const isReactAdapter = (config.adapter || 'react') === 'react';
+  const features = isReactAdapter ? (config.features || []) : [];
   const hasEcommerce = features.includes('ecommerce');
   const hasAuth = features.includes('auth');
 
@@ -134,10 +135,18 @@ export function applyProjectConfig(targetDir, config) {
     writeFileSync(wpConfigPath, content, 'utf8');
   }
 
-  replaceInFile(path.join(targetDir, 'index.html'), [
-    ['ForgeWP Starter', themeName],
-    ['ForgeWP HTML Starter', themeName],
-  ]);
+  const indexHtmlPath = path.join(targetDir, 'index.html');
+  if (existsSync(indexHtmlPath)) {
+    replaceInFile(indexHtmlPath, [
+      ['ForgeWP Starter', themeName],
+      ['ForgeWP HTML Starter', themeName],
+    ]);
+  }
+
+  const nextLayoutPath = path.join(targetDir, 'src', 'app', 'layout.tsx');
+  if (config.adapter === 'nextjs' && existsSync(nextLayoutPath)) {
+    replaceInFile(nextLayoutPath, [['ForgeWP Next Starter', themeName]]);
+  }
 
   const tsConfigPath = path.join(targetDir, 'tsconfig.json');
   if (existsSync(tsConfigPath)) {
