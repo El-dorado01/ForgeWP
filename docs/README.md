@@ -1,10 +1,11 @@
 # ForgeWP project documentation
 
-This folder keeps the framework's design history out of the repository root. Start with these three guides rather than reading the archive as a current specification.
+This folder keeps the framework's design history out of the repository root. Use the guides below to find current architecture, design plans, and historical context.
 
 | Guide | Use it for |
 | --- | --- |
 | [Architecture overview](architecture.md) | The current theme-authoring model, package boundaries and links to implementation |
+| [Next.js adapter design brief](nextjs-archive/nextjs-adapter-design-brief.md) | Goals, design rules, deployment modes, and the agent handoff |
 | [Design history](history.md) | How the proposals relate, which discussions to consult, and how to interpret old plans |
 | [Remaining work](../FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md) | The active UX/content-model acceptance and improvement tracker |
 | [Public documentation](https://www.forgewp.dev/docs/core/getting-started/introduction) | Installation, supported APIs, recipes and usage guidance |
