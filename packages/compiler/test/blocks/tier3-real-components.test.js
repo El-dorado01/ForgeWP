@@ -29,7 +29,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
@@ -88,7 +87,7 @@ beforeAll(async () => {
   // are large and this is read-only lookup.
   const hc24NodeModules = path.join(hc24Root, 'node_modules');
   if (fs.existsSync(hc24NodeModules)) {
-    execSync(`cmd /c mklink /j "${path.join(themeRoot, 'node_modules')}" "${hc24NodeModules}"`);
+    fs.symlinkSync(hc24NodeModules, path.join(themeRoot, 'node_modules'), 'junction');
   }
 
   const { compileBlocks } = await import(
@@ -112,13 +111,6 @@ beforeAll(async () => {
 
 afterAll(() => {
   if (!tmpRoot) return;
-  // Unlink the node_modules junction explicitly before the recursive
-  // removal below — junctions point at the real hotelchecker24/node_modules,
-  // and an unlink (not a recursive delete) is what removes just the link.
-  const themeNodeModules = path.join(tmpRoot, 'theme', 'node_modules');
-  if (fs.existsSync(themeNodeModules)) {
-    try { fs.rmdirSync(themeNodeModules); } catch { /* not a junction / already gone */ }
-  }
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 });
 
