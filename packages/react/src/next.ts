@@ -38,6 +38,18 @@ function readEnvDeploymentMode(): ForgeWPNextDeploymentMode {
   return raw === 'decoupled' ? 'decoupled' : 'native';
 }
 
+function isNativeExportEnv(): boolean {
+  return (globalThis as any).process?.env?.FORGEWP_NATIVE_EXPORT === '1';
+}
+
+function resolveNextLinkIdentityLoaderPath(): string {
+  const loaderRelPath = ['.', 'next-link-identity-loader.cjs'].join('/');
+  const rawPath = decodeURIComponent(
+    new URL(loaderRelPath, import.meta.url).pathname,
+  );
+  return /^\/[A-Za-z]:\//.test(rawPath) ? rawPath.slice(1) : rawPath;
+}
+
 /**
  * Wrap a Next.js configuration object with ForgeWP's required build and module
  * resolution settings for both native WordPress theme export and decoupled
@@ -59,7 +71,24 @@ function readEnvDeploymentMode(): ForgeWPNextDeploymentMode {
 export function withForgeWP<
   T extends ForgeWPNextLikeConfig = ForgeWPNextLikeConfig,
 >(nextConfig: T = {} as T, options: ForgeWPNextOptions = {}): T {
-  const mode = options.deploymentMode ?? readEnvDeploymentMode();
+  const nativeExport = isNativeExportEnv();
+
+  if (nativeExport) {
+    if (options.deploymentMode === 'decoupled') {
+      throw new Error(
+        `FORGEWP_NEXT_MODE_CONFLICT: withForgeWP() received deploymentMode: 'decoupled' during FORGEWP_NATIVE_EXPORT=1. Native WordPress theme export requires static export mode.`,
+      );
+    }
+    if (nextConfig.output !== undefined && nextConfig.output !== 'export') {
+      throw new Error(
+        `FORGEWP_NEXT_OUTPUT_CONFLICT: withForgeWP() received output: '${nextConfig.output}' during FORGEWP_NATIVE_EXPORT=1. Native WordPress theme export requires output: 'export'.`,
+      );
+    }
+  }
+
+  const mode = nativeExport
+    ? 'native'
+    : (options.deploymentMode ?? readEnvDeploymentMode());
   const isDecoupled = mode === 'decoupled';
 
   const existingTranspile = Array.isArray(nextConfig.transpilePackages)
@@ -93,6 +122,20 @@ export function withForgeWP<
           new Set(['.tsx', ...(existingAlias['.jsx'] || []), '.jsx']),
         ),
       };
+
+      if (!isDecoupled && nativeExport) {
+        config.module = config.module || {};
+        config.module.rules = Array.isArray(config.module.rules)
+          ? config.module.rules
+          : [];
+        config.module.rules.push({
+          test: /\.(tsx|jsx)$/,
+          exclude: /node_modules/,
+          enforce: 'pre',
+          use: [{ loader: resolveNextLinkIdentityLoaderPath() }],
+        });
+      }
+
       return userWebpack ? userWebpack(config, context) : config;
     },
   };

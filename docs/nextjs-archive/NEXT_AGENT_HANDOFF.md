@@ -132,7 +132,7 @@ Latest implementation (Linux VM, Node v24.22.3, PHP 8.2.35, pnpm 10.34.9, WordPr
 
 ## Post-Slice-10 follow-ups
 
-The fixed-route native WordPress + decoupled Next.js workflow, `forgewp init`, adapter-aware `doctor`/`repair`/`clean`/`analyze`, `make:block`/`make:page`/`make:island`, and standardized `create-forgewp --adapter nextjs` boilerplates are now implemented and verified. Remaining follow-ups to make the Next.js adapter comprehensive:
+The fixed-route native WordPress + decoupled Next.js workflow, `forgewp init`, adapter-aware `doctor`/`repair`/`clean`/`analyze`, `make:block`/`make:page`/`make:island`, standardized `create-forgewp --adapter nextjs` boilerplates, and the 6 adapter hardening fixes (build-mode/stale `out/` freshness guard, CSS cascade order & per-route scoping, root `app/` link scanning, `<Link>` vs. raw `<a>` identity preservation, import-binding island mapping + conflict/parse diagnostics, and single-pass `out/` extraction — verified by `test/functions/next-adapter-hardening.test.js`) are now implemented and verified. Remaining follow-ups to make the Next.js adapter comprehensive:
 
 1. Dynamic App Router segments (`[slug]`, `[...slug]`) -> WordPress `single.php` / `archive.php` hierarchy template mapping.
 2. Smart auto-detection & auto-wrapping of interactive `'use client'` islands during `FORGEWP_NATIVE_EXPORT=1` inside `withForgeWP()` (excluding `src/blocks/`, preserving explicit `<Hydrate>` overrides).
