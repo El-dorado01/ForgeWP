@@ -4,16 +4,16 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'ForgeWP Next Starter',
-  description: 'A WordPress theme built with Next.js App Router and ForgeWP.',
+  description: 'A minimalist WordPress theme starter built with Next.js App Router and ForgeWP.',
 };
 
-function ForgeWPLogoMark({ size = 20 }: { size?: number }) {
+function ForgeWPMark() {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 44 40"
-      width={size}
-      height={Math.round((size * 40) / 44)}
+      width="24"
+      height="22"
       fill="none"
       aria-hidden="true"
     >
@@ -34,37 +34,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
-        <header className="site-header">
-          <div className="site-header-inner">
-            <Link href="/" className="brand-link">
-              <span className="brand-mark">
-                <ForgeWPLogoMark size={18} />
-              </span>
-              <span>ForgeWP Next Starter</span>
-              <span className="brand-tag">Next.js</span>
-            </Link>
-            <nav className="site-nav" aria-label="Primary">
-              <Link href="/">Home</Link>
-              <Link href="/about">About</Link>
-              <Link href="/about" className="nav-cta">
-                Architecture
-              </Link>
-            </nav>
-          </div>
+      <body className="fwp-page">
+        <header className="fwp-header">
+          <Link href="/" className="fwp-brand-link">
+            <ForgeWPMark />
+            <span className="fwp-wordmark">ForgeWP</span>
+          </Link>
+          <span className="fwp-pill">Next.js</span>
         </header>
         {children}
-        <footer className="site-footer">
-          <div className="site-footer-inner">
-            <span className="footer-brand">
-              <ForgeWPLogoMark size={16} />
-              <span>Built with ForgeWP + Next.js App Router</span>
-            </span>
-            <div className="footer-links">
-              <Link href="/">Home</Link>
-              <Link href="/about">About</Link>
-            </div>
-          </div>
+        <footer className="fwp-footer">
+          <span>ForgeWP Next Starter</span>
+          <span>·</span>
+          <Link href="/">Home</Link>
+          <span>·</span>
+          <Link href="/about">About</Link>
         </footer>
       </body>
     </html>
