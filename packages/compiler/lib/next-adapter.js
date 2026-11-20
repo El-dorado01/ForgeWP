@@ -1,14 +1,21 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { extractNextStaticMarkup } from './next-route-extractor.js';
 import { applyVerifiedNextLinksToMarkup } from './next-link-transform.js';
-import { packageNextAssets } from './next-export-experimental.js';
+import {
+  injectRouteScopedStylesheetLinks,
+  packageNextAssets,
+  partitionNextStylesheets,
+  resolvePackagedCssPath,
+} from './next-export-experimental.js';
 import {
   bundleNextIslands,
   findNextIslandComponentPath,
   scanNextHydrationIslands,
 } from './next-islands.js';
+import { discoverNextDynamicHierarchy } from './next-dynamic-routes.js';
+import { loadConfig } from './load-config.js';
 
 const NEXT_CONFIG_CANDIDATES = [
   'next.config.ts',
@@ -70,10 +77,45 @@ function resolveAppDir(themeRoot) {
   return null;
 }
 
-function resolvePackagedCssPath(stylesheets) {
-  if (stylesheets.length === 0) return 'assets/next-empty.css';
-  if (stylesheets.length === 1) return `assets/${path.basename(stylesheets[0])}`;
-  return 'assets/next-bundle.css';
+/**
+ * Single-pass `out/` extraction cache keyed by themeRoot + out/index.html fingerprint
+ * so `readBuildAssets`, `renderStaticMarkup`, and `packageAssets` share one validated
+ * route & asset inventory per export run instead of re-parsing `out/` three times.
+ */
+const extractionCache = new Map();
+
+function getOutDirFingerprint(resolvedRoot) {
+  const outDir = path.join(resolvedRoot, 'out');
+  const indexHtml = path.join(outDir, 'index.html');
+  if (!existsSync(indexHtml)) return null;
+  try {
+    const dirStat = statSync(outDir);
+    const idxStat = statSync(indexHtml);
+    return `${dirStat.mtimeMs}:${idxStat.mtimeMs}:${idxStat.size}`;
+  } catch {
+    return null;
+  }
+}
+
+export function clearNextExtractionCache(themeRoot) {
+  if (themeRoot) {
+    extractionCache.delete(path.resolve(themeRoot));
+  } else {
+    extractionCache.clear();
+  }
+}
+
+function getCachedNextStaticMarkup(resolvedRoot) {
+  const fingerprint = getOutDirFingerprint(resolvedRoot);
+  const cached = extractionCache.get(resolvedRoot);
+  if (cached && fingerprint && cached.fingerprint === fingerprint) {
+    return cached.extracted;
+  }
+  const extracted = extractNextStaticMarkup(resolvedRoot);
+  if (fingerprint) {
+    extractionCache.set(resolvedRoot, { fingerprint, extracted });
+  }
+  return extracted;
 }
 
 /**
@@ -107,29 +149,21 @@ export function diagnoseNextNativeCompatibility(themeRoot) {
   // 2. App Router structure (dynamic segments, route handlers)
   const appDir = resolveAppDir(resolvedRoot);
   if (appDir) {
-    const appFiles = walkSourceFiles(appDir.abs, resolvedRoot);
-    const reportedDynamicDirs = new Set();
-    for (const file of appFiles) {
-      const relWithinApp = file.rel.slice(appDir.rel.length + 1);
-      const segments = relWithinApp.split('/');
-      const dynamicSeg = segments.find((seg) => /^\[.+\]$/.test(seg));
-      if (dynamicSeg) {
-        const dynamicKey = segments.slice(0, segments.indexOf(dynamicSeg) + 1).join('/');
-        if (!reportedDynamicDirs.has(dynamicKey)) {
-          reportedDynamicDirs.add(dynamicKey);
-          diagnostics.push({
-            code: 'NEXT_NATIVE_DYNAMIC_ROUTE',
-            severity: 'error',
-            file: `${appDir.rel}/${dynamicKey}`,
-            feature: 'Dynamic App Router segment',
-            affectedMode: 'native',
-            message: `Dynamic route segment "${appDir.rel}/${dynamicKey}" is not supported by the fixed-route native WordPress exporter yet.`,
-            suggestion:
-              'Keep dynamic App Router segments in decoupled mode, or wait for WordPress single/archive hierarchy template mapping.',
-          });
-        }
-      }
+    const dynamicHierarchy = discoverNextDynamicHierarchy(resolvedRoot);
+    for (const unsupported of dynamicHierarchy.unsupportedDynamic) {
+      diagnostics.push({
+        code: 'NEXT_NATIVE_DYNAMIC_ROUTE',
+        severity: 'error',
+        file: unsupported.file,
+        feature: 'Dynamic App Router segment',
+        affectedMode: 'native',
+        message: unsupported.reason,
+        suggestion: unsupported.suggestion,
+      });
+    }
 
+    const appFiles = walkSourceFiles(appDir.abs, resolvedRoot);
+    for (const file of appFiles) {
       const baseName = path.basename(file.rel);
       if (/^route\.(ts|tsx|js|jsx|mjs)$/.test(baseName)) {
         diagnostics.push({
@@ -250,12 +284,10 @@ export function getCriticalFiles(themeRoot) {
 export async function readBuildAssets(themeRoot) {
   const resolvedRoot = path.resolve(themeRoot);
   assertNativeCompatible(resolvedRoot);
-  const extracted = extractNextStaticMarkup(resolvedRoot);
-  const stylesheets = Array.from(
-    new Set(extracted.routes.flatMap((route) => route.assets?.stylesheets || [])),
-  ).sort();
+  const extracted = getCachedNextStaticMarkup(resolvedRoot);
+  const { sharedStylesheets } = partitionNextStylesheets(extracted.routes);
   return {
-    cssFile: resolvePackagedCssPath(stylesheets),
+    cssFile: resolvePackagedCssPath(sharedStylesheets),
   };
 }
 
@@ -263,12 +295,27 @@ export async function buildAssets(themeRoot, options = {}) {
   const resolvedRoot = path.resolve(themeRoot);
   assertNativeCompatible(resolvedRoot);
 
+  if (process.env.FORGEWP_DEPLOYMENT_MODE === 'decoupled') {
+    throw new Error(
+      `FORGEWP_NEXT_MODE_CONFLICT: Cannot run native WordPress theme export while FORGEWP_DEPLOYMENT_MODE=decoupled is set in the environment. Unset FORGEWP_DEPLOYMENT_MODE (or set it to "native") before running forgewp export.`,
+    );
+  }
+
+  // Clear any stale out/ directory and cached extraction before running Next build
+  // so a non-export build can never silently reuse stale static HTML from a prior run.
+  const outDir = path.join(resolvedRoot, 'out');
+  clearNextExtractionCache(resolvedRoot);
+  if (existsSync(outDir)) {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+
   const pm = options.packageManager || 'pnpm';
   const result = spawnSync(pm, ['run', 'build'], {
     cwd: resolvedRoot,
     env: {
       ...process.env,
       FORGEWP_NATIVE_EXPORT: '1',
+      FORGEWP_DEPLOYMENT_MODE: 'native',
       NEXT_TELEMETRY_DISABLED: '1',
     },
     encoding: 'utf8',
@@ -280,14 +327,31 @@ export async function buildAssets(themeRoot, options = {}) {
     throw new Error(`Next.js build failed during native WordPress export:\n${detail}`);
   }
 
+  if (!existsSync(path.join(outDir, 'index.html'))) {
+    throw new Error(
+      `FORGEWP_NEXT_STATIC_EXPORT_MISSING: Next.js build completed without producing a fresh "out/index.html" static export. Verify next.config.* uses withForgeWP() without overriding output to a non-export mode.`,
+    );
+  }
+
   return readBuildAssets(resolvedRoot);
 }
 
 export async function renderStaticMarkup(themeRoot) {
   const resolvedRoot = path.resolve(themeRoot);
   assertNativeCompatible(resolvedRoot);
-  const extracted = extractNextStaticMarkup(resolvedRoot);
-  const rewritten = applyVerifiedNextLinksToMarkup(extracted, {
+  let postTypes = {};
+  try {
+    const cfg = await loadConfig(resolvedRoot);
+    if (cfg && cfg.postTypes) postTypes = cfg.postTypes;
+  } catch {
+    // Optional when called without wp.config.ts (e.g. unit fixtures)
+  }
+  const extracted =
+    Object.keys(postTypes).length > 0
+      ? extractNextStaticMarkup(resolvedRoot, { postTypes })
+      : getCachedNextStaticMarkup(resolvedRoot);
+  const withScopedCss = injectRouteScopedStylesheetLinks(extracted);
+  const rewritten = applyVerifiedNextLinksToMarkup(withScopedCss, {
     themeRoot: resolvedRoot,
   });
 
@@ -304,7 +368,10 @@ export async function renderStaticMarkup(themeRoot) {
 
 export async function packageAssets(themeRoot, outDir, options = {}) {
   const resolvedRoot = path.resolve(themeRoot);
-  const packaged = packageNextAssets(resolvedRoot, outDir);
+  const extracted = getCachedNextStaticMarkup(resolvedRoot);
+  const packaged = packageNextAssets(resolvedRoot, outDir, {
+    routes: extracted.routes,
+  });
   const islands = Array.isArray(options?.islands)
     ? options.islands
     : scanNextHydrationIslands(resolvedRoot);

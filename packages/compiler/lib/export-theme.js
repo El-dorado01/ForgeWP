@@ -160,6 +160,7 @@ export async function exportTheme(options) {
     archiveHtml: markup.archiveHtml,
     singleHtml: markup.singleHtml,
     routes: markup.routes,
+    hierarchyTemplates: markup.hierarchyTemplates,
     layout: markup.layout,
     adapter,
     assets,

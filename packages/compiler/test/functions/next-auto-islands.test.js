@@ -212,17 +212,23 @@ export default function HomePage() {
         { resolve: {}, module: { rules: [] } },
         { dir: '/tmp/app' },
       );
-      expect(exportWebpack.module.rules).toHaveLength(1);
-      expect(exportWebpack.module.rules[0].enforce).toBe('pre');
-      expect(exportWebpack.module.rules[0].use[0].loader).toContain(
-        'next-auto-hydrate-loader.cjs',
+      const autoRule = exportWebpack.module.rules.find((r) =>
+        r.use?.[0]?.loader?.includes('next-auto-hydrate-loader.cjs'),
       );
-      expect(exportWebpack.module.rules[0].use[0].options).toEqual({
+      expect(autoRule).toBeTruthy();
+      expect(autoRule.enforce).toBe('pre');
+      expect(autoRule.use[0].options).toEqual({
         projectRoot: '/tmp/app',
         defaultTrigger: 'interaction',
       });
 
-      // In decoupled mode -> never injected even if FORGEWP_NATIVE_EXPORT=1
+      // Explicit decoupled mode during FORGEWP_NATIVE_EXPORT=1 throws FORGEWP_NEXT_MODE_CONFLICT
+      expect(() =>
+        withForgeWP({}, { deploymentMode: 'decoupled', autoHydrate: true }),
+      ).toThrow(/FORGEWP_NEXT_MODE_CONFLICT/);
+
+      // In decoupled mode (normal dev/server) -> zero pre-loaders injected
+      delete process.env.FORGEWP_NATIVE_EXPORT;
       const decoupledCfg = withForgeWP(
         {},
         { deploymentMode: 'decoupled', autoHydrate: true },

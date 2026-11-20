@@ -95,6 +95,7 @@ export async function generateTheme({
   notFoundHtml = '',
   archiveHtml = '',
   routes = [],
+  hierarchyTemplates = [],
   layout = null,
   adapter: explicitAdapter = null,
   assets,
@@ -2189,6 +2190,90 @@ get_footer();
           `[ForgeWP Compiler] Wrote dynamic WP template ${name}.php`,
         );
       }
+    }
+  }
+
+  // Adapter-provided dynamic WP hierarchy templates (e.g. Next.js single-<cpt>, archive-<cpt>)
+  if (Array.isArray(hierarchyTemplates) && hierarchyTemplates.length > 0) {
+    for (const tpl of hierarchyTemplates) {
+      if (!tpl || typeof tpl.templateName !== 'string' || typeof tpl.html !== 'string') {
+        continue;
+      }
+      const name = tpl.templateName.replace(/\.php$/i, '');
+      const file = `${name}.html`;
+      let processedHtml = injectAutoHydrationMarkers(
+        processMarkup(
+          tpl.html,
+          config.textDomain,
+          getRichTextKeysForSlug(`${name}-page`),
+          effectiveAssetGraph,
+        ),
+      );
+      if (!tpl.layoutExtracted) {
+        processedHtml = extractTemplateContent(
+          processedHtml,
+          processedHeader,
+          processedFooter,
+        );
+      }
+      processedHtml = processedHtml.replace(
+        /<div\b[^>]*data-forgewp-hydrate="(navbar|site-header|site-footer)"[^>]*>\s*<\/div>/g,
+        '',
+      );
+      processedHtml = processedHtml.replace(
+        /<\/?forgewp-content-boundary\b[^>]*>/gi,
+        '',
+      );
+      const finalHtml = replaceAssetPlaceholders(processedHtml);
+      writeFileSync(path.join(staticDir, file), finalHtml, 'utf8');
+
+      if (typeof tpl.headHtml === 'string' && tpl.headHtml.trim()) {
+        writeFileSync(
+          path.join(staticDir, `${name}-head.html`),
+          replaceAssetPlaceholders(tpl.headHtml),
+          'utf8',
+        );
+      }
+
+      const isSingle = tpl.kind === 'single' || name.startsWith('single-');
+      const hasEmbeddedLoop = /\bhave_posts\s*\(\s*\)/.test(finalHtml);
+      const phpLoop = isSingle
+        ? `    if (have_posts()) {
+        while (have_posts()) {
+            the_post();
+            include $markup_file;
+        }
+    } else {
+        include $markup_file;
+    }`
+        : hasEmbeddedLoop
+          ? `    include $markup_file;`
+          : `    if (have_posts()) {
+        while (have_posts()) {
+            the_post();
+            include $markup_file;
+        }
+    } else {
+        include $markup_file;
+    }`;
+
+      const phpContent = `<?php
+/**
+ * Dynamic ${name} template
+ *
+ * @package ${config.textDomain}
+ */
+
+get_header();
+
+$markup_file = get_template_directory() . '/forgewp-static/${file}';
+if (file_exists($markup_file)) {
+${phpLoop}
+}
+
+get_footer();
+`;
+      writeFileSync(path.join(outDir, `${name}.php`), phpContent, 'utf8');
     }
   }
 

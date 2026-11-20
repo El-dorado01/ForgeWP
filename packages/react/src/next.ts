@@ -54,8 +54,8 @@ function isNativeExportEnv(): boolean {
   return (globalThis as any).process?.env?.FORGEWP_NATIVE_EXPORT === '1';
 }
 
-function resolveAutoHydrateLoaderPath(): string {
-  const loaderRelPath = ['.', 'next-auto-hydrate-loader.cjs'].join('/');
+function resolveLocalLoaderPath(filename: string): string {
+  const loaderRelPath = ['.', filename].join('/');
   const rawPath = decodeURIComponent(
     new URL(loaderRelPath, import.meta.url).pathname,
   );
@@ -84,7 +84,24 @@ function resolveAutoHydrateLoaderPath(): string {
 export function withForgeWP<
   T extends ForgeWPNextLikeConfig = ForgeWPNextLikeConfig,
 >(nextConfig: T = {} as T, options: ForgeWPNextOptions = {}): T {
-  const mode = options.deploymentMode ?? readEnvDeploymentMode();
+  const nativeExport = isNativeExportEnv();
+
+  if (nativeExport) {
+    if (options.deploymentMode === 'decoupled') {
+      throw new Error(
+        `FORGEWP_NEXT_MODE_CONFLICT: withForgeWP() received deploymentMode: 'decoupled' during FORGEWP_NATIVE_EXPORT=1. Native WordPress theme export requires static export mode.`,
+      );
+    }
+    if (nextConfig.output !== undefined && nextConfig.output !== 'export') {
+      throw new Error(
+        `FORGEWP_NEXT_OUTPUT_CONFLICT: withForgeWP() received output: '${nextConfig.output}' during FORGEWP_NATIVE_EXPORT=1. Native WordPress theme export requires output: 'export'.`,
+      );
+    }
+  }
+
+  const mode = nativeExport
+    ? 'native'
+    : (options.deploymentMode ?? readEnvDeploymentMode());
   const isDecoupled = mode === 'decoupled';
 
   const existingTranspile = Array.isArray(nextConfig.transpilePackages)
@@ -125,7 +142,7 @@ export function withForgeWP<
         ),
       };
 
-      if (autoHydrateEnabled && !isDecoupled && isNativeExportEnv()) {
+      if (!isDecoupled && nativeExport) {
         config.module = config.module || {};
         config.module.rules = Array.isArray(config.module.rules)
           ? config.module.rules
@@ -134,17 +151,26 @@ export function withForgeWP<
           test: /\.(tsx|jsx)$/,
           exclude: /node_modules/,
           enforce: 'pre',
-          use: [
-            {
-              loader: resolveAutoHydrateLoaderPath(),
-              options: {
-                projectRoot:
-                  context?.dir || (globalThis as any).process?.cwd?.() || '.',
-                defaultTrigger: autoHydrateTrigger,
-              },
-            },
-          ],
+          use: [{ loader: resolveLocalLoaderPath('next-link-identity-loader.cjs') }],
         });
+
+        if (autoHydrateEnabled) {
+          config.module.rules.push({
+            test: /\.(tsx|jsx)$/,
+            exclude: /node_modules/,
+            enforce: 'pre',
+            use: [
+              {
+                loader: resolveLocalLoaderPath('next-auto-hydrate-loader.cjs'),
+                options: {
+                  projectRoot:
+                    context?.dir || (globalThis as any).process?.cwd?.() || '.',
+                  defaultTrigger: autoHydrateTrigger,
+                },
+              },
+            ],
+          });
+        }
       }
 
       return userWebpack ? userWebpack(config, context) : config;
