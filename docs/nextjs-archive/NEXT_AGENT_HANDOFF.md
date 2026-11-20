@@ -96,36 +96,41 @@ The renderer comparison demonstrates that a separate React `renderToString` prob
 - `packages/compiler/lib/functions/routing.js`: fixed a live-WordPress-discovered bug in `forgewp_auto_create_pages_and_menus()` where renaming a provisioned page slug in wp-admin caused the `init` hook to recreate a duplicate stub page at the old slug; lookup now matches existing pages by durable `forgewp_route_id` before falling back to `get_page_by_path()`.
 - `packages/compiler/lib/next-decoupled-transport.js`: experimental server-side WordPress content client (`createWordPressContentClient`), serialized Gutenberg block parser (`parseSerializedBlocks`), shared `defineBlock` render matcher (`resolveBlockRenderNodes`), subdirectory basePath normalizer (`normalizeWpBaseUrl`, `stripWpBasePath`), and read-only deployment-switch preflight & rollback validator (`verifyDeploymentSwitch`). Operates in zero-WordPress fixture mode when `wpUrl` is omitted, blocks server credentials in browser runtimes (`FORGEWP_CLIENT_BUNDLE_CREDENTIAL_GUARD`), and rejects unauthenticated draft previews (`FORGEWP_PREVIEW_AUTH_REQUIRED`).
 - `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md`: recorded verified `front-page.php` (`buildIndexPhp`) loop-context finding for `<BlockArea />` on static front pages.
-- Sibling `El-dorado01/forgewp-docs`: synced additive `ForgeWPStaticMarkup.routes`/`layout`, `ForgeWPPackagedAssets`, and `ForgeWPValidationOptions.routes` notes in `content/18. API Reference/04-metadata-and-compiler-extensions.md` and rebuilt `lib/docs-data.ts` (PR #1).
-- Tests: `test/functions/next-decoupled-transport.test.js` (7 unit/contract/PHP 8 tests) and `test/functions/next-live-wp-acceptance.test.js` (`FORGEWP_LIVE_WP_ACCEPTANCE=1`, booting real disposable WordPress via `@wp-playground/cli`, installing & activating the exported fixture ZIP, verifying `/` and `/about/` routing & CSS with no Next process, Gutenberg Edit #1 save/reload/live frontend, wp-admin slug rename `/about` -> `/our-story`, decoupled reads + shared `IntroBlock.tsx` rendering, Gutenberg Edit #2 live in decoupled mode, draft authorization boundary, native switch-back displaying Edit #2, and failed-switch rollback preserving content); both wired into `.github/workflows/nextjs-fixture.yml`.
+- Sibling `El-dorado01/forgewp-docs`: synced additive `ForgeWPStaticMarkup.routes`/`layout`, `ForgeWPPackagedAssets`, and `ForgeWPValidationOptions.routes` notes in `content/18. API Reference/04-metadata-and-compiler-extensions.md` and rebuilt `lib/docs-data.ts` (PR #1, merged).
+- Tests: `test/functions/next-decoupled-transport.test.js` (7 unit/contract/PHP 8 tests) and `test/functions/next-live-wp-acceptance.test.js` (`FORGEWP_LIVE_WP_ACCEPTANCE=1`, wired into `.github/workflows/nextjs-fixture.yml`).
+
+### 8. Adapter-aware preflight, internal `next-adapter.js`, native diagnostics, fixture DX cleanup, and live decoupled Next.js SSR verification
+
+- `packages/compiler/lib/validate.js`, `export-theme.js`, `adapter-build.js`, `render-static.js`, `react-adapter.js`, `adapters/html-adapter.js`, `bin/doctor.js`, and `index.d.ts`: routed `validateCriticalFiles()` preflight through `adapter.getCriticalFiles(themeRoot)` and loaded config/adapter before preflight in `exportTheme()`. React/HTML preflight checks remain unchanged, while custom/Next adapters validate only their declared entry files and opt out of Vite blueprint restoration and `src/blocks/generated/` pre-scaffolding. Marked the `validateCriticalFiles()` item completed in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md`.
+- `packages/compiler/lib/next-adapter.js`: internal `ForgeWPFrameworkAdapter` implementation (`getCriticalFiles`, `buildAssets`, `readBuildAssets`, `renderStaticMarkup`, `packageAssets`, `scanForHydrationIslands`, `findComponentPath`, `getHydrationRollupInputs`) plus `diagnoseNextNativeCompatibility()` detecting unsupported native features (`NEXT_NATIVE_DYNAMIC_ROUTE`, `NEXT_NATIVE_ROUTE_HANDLER`, `NEXT_NATIVE_MIDDLEWARE`, `NEXT_NATIVE_SERVER_ACTION`, `NEXT_NATIVE_DYNAMIC_RUNTIME_API`, and warning `NEXT_NATIVE_ISR_REVALIDATE`). `SUPPORTED_ADAPTERS` remains `['react', 'html', 'stub']` until Slice 10.
+- `projects/nextjs-adapter-fixture/`: dropped forced `trailingSlash: true` in `next.config.ts` (supporting ordinary `/about` links and boundary-selected `FORGEWP_DEPLOYMENT_MODE=decoupled`), replaced `cms/mock-data.json` with typed `cms/mock-data.ts` (`defineWpPosts` from `@forgewp/react/config`), and wired `src/lib/content.ts` to read typed local fixtures when `FORGEWP_WP_URL` is unset or live WordPress REST + `forgewp_route_id` + `forgewp_blocks` when `FORGEWP_WP_URL` is configured. Updated `scripts/check-output.mjs`, `check-browser.mjs`, and `compare-renderers.mjs`.
+- Tests: `test/functions/next-adapter.test.js` (3 tests: adapter-aware preflight, native compatibility diagnostics, and real `exportTheme({ adapter: nextAdapter })` end-to-end export on `projects/nextjs-adapter-fixture` without mutating app source) and upgraded `test/functions/next-live-wp-acceptance.test.js` to export through real `exportTheme(nextAdapter)` AND boot a real decoupled Next.js App Router HTTP server (`next dev --webpack` with `FORGEWP_DEPLOYMENT_MODE=decoupled FORGEWP_WP_URL=...`) verifying live WordPress Edit #1, wp-admin renamed `/about` -> `/our-story`, and immediate Edit #2 SSR reflection with zero Next.js restart; added to `.github/workflows/nextjs-fixture.yml`.
 
 ## Validation completed
 
 Latest implementation (Linux VM, Node v24.22.3, PHP 8.2.35, pnpm 10.34.9, WordPress Playground CLI 3.1.65):
 
-- `El-dorado01/ForgeWP` PR #3 (`nextjs-adapter-slices-4-5-6`) CI passed all 4 checks on GitHub Actions Linux (`build`, `validate-export`, `nextjs-fixture` including Chrome `check:browser`, `GitGuardian`).
-- `El-dorado01/forgewp-docs` PR #1 passed `pnpm run check:core-reference`, `pnpm run build` (282 static pages), and `pnpm run typecheck`.
-- Live disposable WordPress acceptance (`FORGEWP_LIVE_WP_ACCEPTANCE=1 vitest run test/functions/next-live-wp-acceptance.test.js`) passed end-to-end against real WordPress (PHP 8.3 + SQLite via Playground) with zero Next server running during native checks and full native -> decoupled -> native round-trip verification.
-- Decoupled transport unit, contract, and PHP 8 tests (`test/functions/next-decoupled-transport.test.js`) passed: **7 tests**.
-- Adapter runtime contract check (`test:adapter-runtime`), `tsconfig.test.json` typecheck (`test:adapter-types`), and `@forgewp/react` typecheck passed.
-- Full Vitest compiler test suite and `git diff --check` verified.
+- `El-dorado01/ForgeWP` PR #3 & PR #5 and `El-dorado01/forgewp-docs` PR #1 merged cleanly to `main` with all CI checks passing.
+- Live disposable WordPress + live decoupled Next.js App Router SSR acceptance (`FORGEWP_LIVE_WP_ACCEPTANCE=1 vitest run test/functions/next-live-wp-acceptance.test.js`): **passed** end-to-end (~59s) using real `exportTheme(nextAdapter)` ZIP, real WordPress Playground, and real Next.js App Router HTTP server.
+- All Next.js adapter & preflight Vitest suites (`validate-critical-files`, `render-static`, `next-route-extractor`, `adapter-routes-integration`, `next-link-transform`, `next-export-blocks`, `next-decoupled-transport`, `next-adapter`): **all passed**.
+- Next.js fixture build (`next build --webpack` without `trailingSlash: true`, with typed `cms/mock-data.ts`), `typecheck`, `check:next-output`, and `check:renderers` passed.
+- Adapter runtime contract check (`test:adapter-runtime`), `tsconfig.test.json` typecheck (`test:adapter-types`), `test:public-api`, and full starter export fixture (`test:export-fixture`) verified.
 
 Earlier fixture evidence:
 
-- Chrome on Windows exercised local editing, navigation, fallback link and reload without recorded hydration/runtime errors, while strict `check:browser` remained red on Windows due to upstream [Next.js #85374](https://github.com/vercel/next.js/issues/85374).
 - Interactive Gutenberg browser UI clicks inside wp-admin (vs. WordPress REST API saves + `assets/forgewp-editor.js` VM RichText tests) remain optional manual polish.
 
 ## Next implementation slice
 
-1. Address the open fixture DX gaps recorded in `nextjs-adapter-research.md`:
-   - Allow authored `/about` links without forcing `trailingSlash: true` in `next.config.ts` (and evaluate the Windows [#85374](https://github.com/vercel/next.js/issues/85374) impact).
-   - Switch `projects/nextjs-adapter-fixture` from `cms/mock-data.json` to typed `cms/mock-data.ts` (`defineWpPosts`) and connect its `src/lib/content.ts` boundary cleanly for local dev + decoupled Next server verification.
-   - Route `validateCriticalFiles()` preflight through `adapter.getCriticalFiles?.(themeRoot)` so non-Vite adapters validate only their own required entry files.
-2. Promote the internal Next.js export hooks (`next-route-extractor.js`, `next-link-transform.js`, `next-export-experimental.js`, `next-decoupled-transport.js`) into a clean `next-adapter.js` implementing `ForgeWPFrameworkAdapter` (with clear diagnostics for unsupported Next features such as Server Actions, middleware, route handlers, dynamic `[...]` segments, and ISR) before exposing a supported adapter name or `create-forgewp` option.
+1. **Slice 9 — Live WordPress data bindings, `'use client'` islands, and shared-framework fixes:**
+   - Fix the logged `front-page.php` (`buildIndexPhp`) `the_post()` loop-context gap so `<BlockArea />` renders live Gutenberg blocks on a static front page without requiring `template-forgewp-builder.php`.
+   - Define the unified Server Component live-data binding contract (local `cms/mock-data.ts` in dev, live WordPress REST in decoupled mode, compiled live PHP reads in native mode).
+   - Define and test `'use client'` → ForgeWP hydration island bundling for native WordPress export (without shipping Next's RSC client runtime).
+   - Resolve the remaining shared-framework packaging friction in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md` (`@forgewp/react` `.js`→`.ts` resolution, `WpIcon` webpack warnings, `WpEditable` SSR preview boundary).
+2. **Slice 10 — Public opt-in support, scaffolding, and docs:**
+   - Register `'nextjs'` in `framework-adapter.js` (`SUPPORTED_ADAPTERS`), add Next scaffolding in `create-forgewp`, and publish the verified compatibility matrix in `forgewp-docs`.
 
 Do not promise full Next feature parity. Server Actions, middleware, route handlers, dynamic routes, ISR, auth/forms/SEO/WooCommerce parity, and client boundaries require explicit investigation/diagnostics.
-
-The current contracts cover adapter-owned build, render (with additive fixed-route records), asset packaging, decoupled REST reads, and deployment-switch preflight hooks. Build entry assets still use the existing CSS/JS shape. Framework preflight, island splitting and block scaffolding still retain React/Vite assumptions and need review before enabling public Next export.
 
 ## Commands and environment notes
 

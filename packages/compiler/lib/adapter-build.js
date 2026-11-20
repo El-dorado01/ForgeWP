@@ -2,7 +2,7 @@ import { loadFrameworkAdapter } from './framework-adapter.js';
 
 /** Build through the selected adapter; never assume an unknown adapter uses Vite. */
 export async function buildAdapterAssets(themeRoot, adapterName = 'react', options = {}) {
-  const adapter = await loadFrameworkAdapter(adapterName);
+  const adapter = options.adapter || (await loadFrameworkAdapter(adapterName));
   const hookName = options.skipBuild ? 'readBuildAssets' : 'buildAssets';
   if (typeof adapter[hookName] !== 'function') {
     throw new Error(`Framework adapter "${adapterName}" does not implement ${hookName}().`);

@@ -16,7 +16,14 @@ const server = http.createServer((req, res) => {
     const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
     let file = path.resolve(out, '.' + pathname);
     if (file !== out && !file.startsWith(out + path.sep)) { res.writeHead(403).end(); return; }
-    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, req.headers.rsc ? 'index.txt' : 'index.html');
+    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) {
+      const idx = path.join(file, req.headers.rsc ? 'index.txt' : 'index.html');
+      const sibling = file + (req.headers.rsc ? '.txt' : '.html');
+      file = fs.existsSync(idx) ? idx : fs.existsSync(sibling) ? sibling : idx;
+    } else if (!fs.existsSync(file) && !path.extname(file)) {
+      const ext = req.headers.rsc ? '.txt' : '.html';
+      if (fs.existsSync(file + ext)) file = file + ext;
+    }
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
       missing.push(pathname); res.writeHead(404).end('Not found'); return;
     }
@@ -40,7 +47,7 @@ try {
   await chrome.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   await chrome.wait(() => chrome.evaluate(`document.querySelector('output').textContent === 'Preview heading: Edited locally'`), 'local edit callback');
   await chrome.screenshot(path.join(artifacts, 'edited-preview.png'));
-  await chrome.click('a[href="/about/?from=home#details"]');
+  await chrome.click('a[href="/about?from=home#details"]');
   await chrome.wait(() => chrome.evaluate(`document.querySelector('h1')?.textContent === 'About the adapter fixture'`), 'Next link navigation');
   assert.equal(await chrome.evaluate('location.search + location.hash'), '?from=home#details');
   assert.equal(await chrome.evaluate(`document.querySelectorAll('[data-fixture="shared-layout"]').length`), 1);

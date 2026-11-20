@@ -181,8 +181,8 @@ export function validateStaticMarkup(markup, adapterName = 'react') {
  * @param {string} themeRoot
  * @param {string} [adapterName]
  */
-export async function renderStaticMarkup(themeRoot, adapterName = 'react') {
-  const adapter = await loadFrameworkAdapter(adapterName);
+export async function renderStaticMarkup(themeRoot, adapterName = 'react', options = {}) {
+  const adapter = options.adapter || (await loadFrameworkAdapter(adapterName));
   if (typeof adapter.renderStaticMarkup !== 'function') {
     throw new Error(
       `Framework adapter must expose renderStaticMarkup() - adapter=${adapterName}`,

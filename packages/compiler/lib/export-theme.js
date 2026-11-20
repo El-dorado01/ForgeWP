@@ -2,6 +2,7 @@ import path from 'node:path';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import pc from 'picocolors';
 import { buildAdapterAssets } from './adapter-build.js';
+import { loadFrameworkAdapter } from './framework-adapter.js';
 import { generateTheme } from './generate-theme.js';
 import { loadConfig } from './load-config.js';
 import { renderStaticMarkup } from './render-static.js';
@@ -34,24 +35,36 @@ export async function exportTheme(options) {
   const strict = !!options.strict;
   const verbose = process.env.FORGEWP_VERBOSE === '1';
 
-  // Run Preflight Safeguards and Self-Healing checks
-  validateCriticalFiles(themeRoot);
+  if (!options.config && !existsSync(path.join(themeRoot, 'wp.config.ts'))) {
+    throw new Error(
+      `Critical project file is missing: ${pc.bold('wp.config.ts')}\n` +
+        `  Description: Theme configuration file\n\n` +
+        `  👉 To fix this, please restore the file from your version control (Git) or re-create it from the original ForgeWP theme template.`,
+    );
+  }
 
-  // Auto-split components mixing static/attribute-driven content with genuine
-  // interactivity into a static shell + extracted islands, before anything
-  // below (block wrapper generation, Vite's Rollup entry resolution) reads
-  // component source or decides what needs a hydration bundle.
-  splitInteractiveIslands(themeRoot);
+  const config = options.config || (await loadConfig(themeRoot));
+  const adapter =
+    options.adapter || (await loadFrameworkAdapter(config.frameworkAdapter));
 
-  // Pre-scaffold block wrappers so Vite receives them in Rollup inputs.
-  // Defer editable-issue flush to compileBlocks (generateTheme) so --strict applies once.
-  scanAndGenerateBlocks(themeRoot, {
-    strict: false,
-    resetIssues: true,
-    flush: false,
-  });
+  // Run adapter-aware Preflight Safeguards and Self-Healing checks
+  validateCriticalFiles(themeRoot, { adapter });
 
-  const config = await loadConfig(themeRoot);
+  if (!adapter.skipPreExportScaffolding) {
+    // Auto-split components mixing static/attribute-driven content with genuine
+    // interactivity into a static shell + extracted islands, before anything
+    // below (block wrapper generation, Vite's Rollup entry resolution) reads
+    // component source or decides what needs a hydration bundle.
+    splitInteractiveIslands(themeRoot);
+
+    // Pre-scaffold block wrappers so Vite receives them in Rollup inputs.
+    // Defer editable-issue flush to compileBlocks (generateTheme) so --strict applies once.
+    scanAndGenerateBlocks(themeRoot, {
+      strict: false,
+      resetIssues: true,
+      flush: false,
+    });
+  }
 
   function report(stage, message, level = 'dim') {
     if (options.onProgress && typeof options.onProgress === 'function') {
@@ -88,13 +101,16 @@ export async function exportTheme(options) {
     skipBuild: options.skipBuild,
     packageManager: options.packageManager,
     verbose,
+    adapter,
   });
 
   report(
     'render',
     `Rendering ${config.frameworkAdapter || 'React'} app to static HTML…`,
   );
-  const markup = await renderStaticMarkup(themeRoot, config.frameworkAdapter);
+  const markup = await renderStaticMarkup(themeRoot, config.frameworkAdapter, {
+    adapter,
+  });
 
   const outDir = path.join(themeRoot, '.forgewp', 'out', config.slug);
   const zipPath = path.join(themeRoot, '.forgewp', `${config.slug}.zip`);
@@ -145,6 +161,7 @@ export async function exportTheme(options) {
     singleHtml: markup.singleHtml,
     routes: markup.routes,
     layout: markup.layout,
+    adapter,
     assets,
     assetGraph,
     preserveOutDir: true,
@@ -169,6 +186,7 @@ export async function exportTheme(options) {
       config,
       strict,
       routes: markup.routes,
+      adapter,
     });
 
     if (validation.warnings && validation.warnings.length > 0) {

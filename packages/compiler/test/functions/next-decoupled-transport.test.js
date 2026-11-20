@@ -16,16 +16,7 @@ import {
 } from '../../lib/next-decoupled-transport.js';
 import { buildFunctionsPhp } from '../../lib/functions/index.js';
 import introBlock from '../../../../projects/nextjs-adapter-fixture/src/blocks/IntroBlock.tsx';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '../../../..');
-const fixtureMockPath = path.join(
-  repoRoot,
-  'projects',
-  'nextjs-adapter-fixture',
-  'cms',
-  'mock-data.json',
-);
+import fixtureMockData from '../../../../projects/nextjs-adapter-fixture/cms/mock-data.ts';
 
 function extractPhpFunction(phpSource, functionName) {
   const start = phpSource.indexOf(`function ${functionName}(`);
@@ -46,8 +37,7 @@ function extractPhpFunction(phpSource, functionName) {
 
 describe('Next.js decoupled WordPress server-side transport', () => {
   it('reads local fixture data with zero WordPress database when wpUrl is omitted', async () => {
-    const fixtures = JSON.parse(readFileSync(fixtureMockPath, 'utf8'));
-    const client = createWordPressContentClient({ fixtures });
+    const client = createWordPressContentClient({ fixtures: fixtureMockData });
 
     expect(client.getMode()).toBe('fixture');
     const home = await client.getPageBySlug('home');

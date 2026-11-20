@@ -42,7 +42,7 @@ describe('extractNextStaticMarkup', () => {
     // Shared layout chrome extracted once and not duplicated into route bodies.
     expect(markup.headerHtml).toContain('data-fixture="shared-layout"');
     expect(markup.headerHtml).toContain('<a href="/">Home</a>');
-    expect(markup.headerHtml).toContain('<a href="/about/">About</a>');
+    expect(markup.headerHtml).toContain('<a href="/about">About</a>');
     expect(markup.footerHtml).toContain('Next.js adapter research; native export not yet supported.');
 
     expect(markup.routes.map((route) => [route.kind, route.path])).toEqual([
@@ -58,7 +58,7 @@ describe('extractNextStaticMarkup', () => {
     expect(home.html).toBe(markup.appHtml);
     expect(home.html).toContain('A standard Next.js app');
     expect(home.html).toContain('An editable introduction');
-    expect(home.html).toContain('href="/about/?from=home#details"');
+    expect(home.html).toContain('href="/about?from=home#details"');
     expect(home.html).not.toContain('data-fixture="shared-layout"');
     expect(home.html).not.toContain('<footer>');
     expect(home.html).not.toContain('self.__next_f');
@@ -76,7 +76,7 @@ describe('extractNextStaticMarkup', () => {
     expect(about.html).not.toContain('self.__next_f');
     expect(about.html).not.toContain('_next/static/');
     expect(about.layoutExtracted).toBe(true);
-    expect(about.sourceFile).toBe('out/about/index.html');
+    expect(about.sourceFile).toBe('out/about.html');
 
     // Head metadata preserves title & favicon while stripping duplicate viewport/charset and Next scripts/CSS links.
     expect(markup.headHtml).toContain('<title>ForgeWP Next.js research fixture</title>');

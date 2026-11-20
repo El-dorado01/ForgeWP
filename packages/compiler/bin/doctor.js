@@ -57,13 +57,10 @@ runCheck("Node.js Runtime Environment", () => {
 
 // 2. User Editable Files
 runCheck("User Configuration & HTML Layout", () => {
-  const critical = ["wp.config.ts", "package.json", "index.html"];
-  if (adapter && typeof adapter.getCriticalFiles === "function") {
-    const adapterFiles = adapter.getCriticalFiles(projectRoot);
-    if (Array.isArray(adapterFiles)) {
-      critical.push(...adapterFiles);
-    }
-  }
+  const critical =
+    adapter && typeof adapter.getCriticalFiles === "function"
+      ? Array.from(new Set(adapter.getCriticalFiles(projectRoot)))
+      : ["wp.config.ts", "package.json", "index.html"];
   for (const f of critical) {
     if (!existsSync(path.join(projectRoot, f))) {
       throw new Error(`Critical file "${f}" is missing from project root!`);

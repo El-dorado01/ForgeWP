@@ -26,8 +26,8 @@ isolated loopback port, use a temporary browser profile, and close both afterwar
 ## What this exercises
 
 - Two fixed App Router routes sharing one root layout, global CSS and metadata.
-- Async Server Component reads from cms/mock-data.json through a server-only local
-  loader. The existing ForgeWP mock loader also reads that same JSON shape.
+- Async Server Component reads from typed cms/mock-data.ts (`defineWpPosts`) through
+  a server-only loader (switching to live WordPress REST when `FORGEWP_WP_URL` is set).
 - An aliased next/link import with a query and fragment.
 - An explicit useWpPageLink content link, using only its local fallback here.
 - A client preview of a declared Gutenberg block with a WpEditable heading.

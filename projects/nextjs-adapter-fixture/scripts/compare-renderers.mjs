@@ -50,8 +50,8 @@ assert(/href="\/about\/?\?from=home#details"/.test(rendered.home));
 assert(rendered.home.includes('An editable introduction'));
 const comparison = {
   scope: 'Two fixed App Router pages; root layout; local async reads; next/link; client component prerender only.',
-  nextBuild: { containsFlightBootstrap: nextHome.includes('self.__next_f'), containsStylesheet: nextHome.includes('rel="stylesheet"'), containsMetadata: nextHome.includes('<title>ForgeWP Next.js research fixture</title>'), preservesConfiguredTrailingSlash: nextHome.includes('href="/about/?from=home#details"') },
-  separateRenderer: { containsFlightBootstrap: rendered.home.includes('self.__next_f'), containsStylesheet: rendered.home.includes('rel="stylesheet"'), containsMetadata: rendered.home.includes('<title>ForgeWP Next.js research fixture</title>'), preservesConfiguredTrailingSlash: rendered.home.includes('href="/about/?from=home#details"') },
+  nextBuild: { containsFlightBootstrap: nextHome.includes('self.__next_f'), containsStylesheet: nextHome.includes('rel="stylesheet"'), containsMetadata: nextHome.includes('<title>ForgeWP Next.js research fixture</title>'), preservesAuthoredLink: nextHome.includes('href="/about?from=home#details"') },
+  separateRenderer: { containsFlightBootstrap: rendered.home.includes('self.__next_f'), containsStylesheet: rendered.home.includes('rel="stylesheet"'), containsMetadata: rendered.home.includes('<title>ForgeWP Next.js research fixture</title>'), preservesAuthoredLink: rendered.home.includes('href="/about?from=home#details"') },
   limits: ['No native PHP or WordPress runtime generated.', 'Separate renderer ignores CSS, metadata exports and server/client boundaries; it is not production-safe.', 'Neither approach preserves editable/live binding identity from HTML alone.', 'No dynamic routes, request APIs, async nested components or Next navigation hooks verified.'],
 };
 fs.writeFileSync(path.join(resultDir, 'renderer-comparison.json'), JSON.stringify(comparison, null, 2));

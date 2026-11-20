@@ -544,7 +544,10 @@ export function loadConfig(themeRoot: string): Promise<ForgeWPThemeConfig>;
 
 export function defineConfig(config: ForgeWPThemeConfig): ForgeWPThemeConfig;
 
-export function validateCriticalFiles(themeRoot: string): void;
+export function validateCriticalFiles(
+  themeRoot: string,
+  options?: { adapter?: ForgeWPFrameworkAdapter; restoreBlueprints?: boolean },
+): void;
 
 export function scanForHydrationIslands(themeRoot: string): string[];
 

@@ -187,12 +187,12 @@ describe('adapter-owned routes integration with generateTheme', () => {
         const functionsPhp = readFileSync(path.join(outDir, 'functions.php'), 'utf8');
 
         expect(headerStatic).toContain('data-fixture="shared-layout"');
-        expect(headerStatic).toContain('href="/about/"');
+        expect(headerStatic).toContain('href="/about"');
         expect(footerStatic).toContain('Next.js adapter research; native export not yet supported.');
 
         expect(homeStatic).toContain('<main><h1>A standard Next.js app</h1>');
         expect(homeStatic).toContain('An editable introduction');
-        expect(homeStatic).toContain('href="/about/?from=home#details"');
+        expect(homeStatic).toContain('href="/about?from=home#details"');
         expect(homeStatic).not.toContain('data-fixture="shared-layout"');
         expect(homeStatic).not.toContain('self.__next_f');
         expect(homeStatic).not.toContain('_next/static/chunks');

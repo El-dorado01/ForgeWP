@@ -439,7 +439,7 @@ echo forgewp_resolve_route_url('__home__', '/', 'ref=nav', 'top');
         const headerOut = readFileSync(path.join(outDir, 'forgewp-static', 'header.html'), 'utf8');
         const contentOut = readFileSync(path.join(outDir, 'forgewp-static', 'content.html'), 'utf8');
 
-        // Verified next/link and useWpPageLink anchors compiled to runtime PHP permalink resolution.
+        // Verified next/link and useWpPageLink anchors (authored as /about) normalized to WordPress runtime permalink resolution.
         expect(headerOut).toContain("forgewp_resolve_route_url('__home__', '/', '', '')");
         expect(headerOut).toContain("forgewp_resolve_route_url('about', '/about/', '', '')");
         expect(contentOut).toContain("forgewp_resolve_route_url('about', '/about/', 'from=home', 'details')");
