@@ -1,9 +1,4 @@
 packages:
-  - "../../../../tmp/forgewp-create-nextjs-KxtQPQ/my-next-theme"
-  - "../../../../tmp/forgewp-create-nextjs-POCdgZ/my-next-theme"
-  - "../../../../tmp/forgewp-create-nextjs-aeX4zf/my-next-theme"
-  - "../../../../tmp/forgewp-create-nextjs-XnyKwX/my-next-theme"
-  - "../../../../tmp/forgewp-create-nextjs-jT9uQk/my-next-theme"
   - "projects/*"
   - "packages/*"
   # CLI bundle (no deps until install); kept out of hoisted workspace installs

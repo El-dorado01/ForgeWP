@@ -132,12 +132,13 @@ Latest implementation (Linux VM, Node v24.22.3, PHP 8.2.35, pnpm 10.34.9, WordPr
 
 ## Post-Slice-10 follow-ups
 
-The fixed-route native WordPress + decoupled Next.js workflow is now publicly available via `create-forgewp --adapter nextjs` and `frameworkAdapter: 'nextjs'`. Remaining follow-ups remain explicitly scoped and documented as decoupled-only or future enhancements:
+The fixed-route native WordPress + decoupled Next.js workflow, `forgewp init`, adapter-aware `doctor`/`repair`/`clean`/`analyze`, `make:block`/`make:page`/`make:island`, and standardized `create-forgewp --adapter nextjs` boilerplates are now implemented and verified. Remaining follow-ups to make the Next.js adapter comprehensive:
 
 1. Dynamic App Router segments (`[slug]`, `[...slug]`) -> WordPress `single.php` / `archive.php` hierarchy template mapping.
 2. Optional module parity audit for Next.js (Auth, Forms, SEO, WooCommerce).
 3. Turbopack compatibility verification alongside webpack (`next build --webpack` is the verified path today).
-4. Remaining shared-framework backlog items in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md` (shorthand object syntax in block editor callbacks, `useWpPageLink` subdirectory fallback normalization, `routing.js` vs. `seed.mockData` `page` reconciliation).
+4. `next/image` and `next/font` native WordPress compilation/self-hosting support.
+5. Remaining shared-framework backlog items in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md` (shorthand object syntax in block editor callbacks, `useWpPageLink` subdirectory fallback normalization, `routing.js` vs. `seed.mockData` `page` reconciliation).
 
 ## Commands and environment notes
 

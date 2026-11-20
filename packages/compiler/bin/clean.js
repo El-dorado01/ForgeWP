@@ -10,7 +10,9 @@ const projectRoot = process.cwd();
 const foldersToClean = [
   ".forgewp",
   "dist",
-  ".vite"
+  ".vite",
+  ".next",
+  "out"
 ];
 
 let cleanedCount = 0;

@@ -15,6 +15,7 @@ if (!isSupportedNode()) {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const subcommands = {
+  init: path.join(__dirname, 'init.js'),
   add: path.join(__dirname, 'add.js'),
   'make:block': path.join(__dirname, 'make-block.js'),
   'make:section': path.join(__dirname, 'make-section.js'),
@@ -155,6 +156,7 @@ function printHelp() {
     pnpm forgewp <command> [options]
 
   ${pc.bold('Commands:')}
+    ${pc.cyan('init [--dry-run]')}         Audit & integrate ForgeWP into an existing Next.js App Router app
     ${pc.cyan('add <component>')}          Add a component; --overwrite replaces local ForgeWP source
     ${pc.cyan('make:block <Name>')}        Scaffold a type-safe Gutenberg Block via defineBlock()
     ${pc.cyan('make:section <Name>')}      Scaffold a shared editable page/block section

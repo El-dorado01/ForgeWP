@@ -7,6 +7,7 @@ import pc from "picocolors";
 import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
+import { diagnoseNextNativeCompatibility } from "../lib/next-adapter.js";
 import { scanForHydrationIslands, runStaticLintChecks } from "../lib/hydration/index.js";
 import { analyzeHydrationIslands, printDiagnosticsReport } from "../lib/diagnostics.js";
 
@@ -19,9 +20,11 @@ let warningsFound = 0;
 // Load configuration and framework adapter
 let frameworkAdapter = "react";
 let adapter = null;
+let loadedConfig = null;
 let configLoadError = null;
 try {
   const config = await loadConfig(projectRoot);
+  loadedConfig = config;
   frameworkAdapter = config.frameworkAdapter || "react";
   const adapterModule = await loadFrameworkAdapter(frameworkAdapter);
   adapter = adapterModule.default || adapterModule;
@@ -91,6 +94,9 @@ runCheck("Mock Database Schema Integration", () => {
 
 // 4. System Files Integrity Check
 runCheck("System Internal Framework Libraries", () => {
+  if (adapter?.skipSystemBlueprints) {
+    return null;
+  }
   const systemFiles = Object.keys(SYSTEM_BLUEPRINTS);
   const missing = [];
   for (const sf of systemFiles) {
@@ -110,20 +116,72 @@ runCheck("System Internal Framework Libraries", () => {
   return null;
 });
 
-// 5. Tailwind Integration Check
-runCheck("Tailwind Styling Architecture", () => {
+// 4.5 Next.js Native vs. Decoupled Compatibility Audit
+if (frameworkAdapter === "nextjs") {
+  runCheck("Next.js Config & Native Compatibility", () => {
+    const nextConfigFile = ["next.config.ts", "next.config.mjs", "next.config.js", "next.config.cjs"].find((f) =>
+      existsSync(path.join(projectRoot, f)),
+    );
+    const warnings = [];
+    if (nextConfigFile) {
+      const cfgSrc = readFileSync(path.join(projectRoot, nextConfigFile), "utf8");
+      if (!/\bwithForgeWP\b/.test(cfgSrc)) {
+        warnings.push(
+          `${nextConfigFile} does not use withForgeWP() from @forgewp/react/next. Run "pnpm forgewp init" to wrap it automatically.`,
+        );
+      }
+    }
+    const compat = diagnoseNextNativeCompatibility(projectRoot);
+    if (!compat.ok) {
+      console.log("");
+      for (const err of compat.errors) {
+        console.log(pc.yellow(`     [${err.code}] ${err.file}: ${err.message}`));
+        console.log(pc.dim(`       → ${err.suggestion}`));
+      }
+      warnings.push(
+        `Found ${compat.errors.length} server-only Next.js feature(s). Use decoupled mode (FORGEWP_DEPLOYMENT_MODE=decoupled) or refactor them for native WordPress export.`,
+      );
+    }
+    for (const w of compat.warnings) {
+      warnings.push(`[${w.code}] ${w.file}: ${w.message}`);
+    }
+    return warnings.length > 0 ? warnings.join("\n        👉 ") : null;
+  });
+}
+
+// 5. Tailwind / Global CSS Integration Check
+runCheck("Global Stylesheet Architecture", () => {
   const cssFile1 = path.join(projectRoot, "src", "index.css");
   const cssFile2 = path.join(projectRoot, "src", "app", "globals.css");
-  if (!existsSync(cssFile1) && !existsSync(cssFile2)) {
-    return `Style sheet (src/index.css or src/app/globals.css) is missing. Please ensure your Tailwind styles are loaded.`;
+  const cssFile3 = path.join(projectRoot, "app", "globals.css");
+  if (!existsSync(cssFile1) && !existsSync(cssFile2) && !existsSync(cssFile3)) {
+    return `Style sheet (src/index.css or src/app/globals.css) is missing. Please ensure your styles are loaded.`;
   }
   return null;
 });
 
 // 6. Active Hydration Islands Diagnostics
 runCheck("Selective Hydration Islands Diagnostics", () => {
-  const islands = scanForHydrationIslands(projectRoot);
+  const islands =
+    adapter && typeof adapter.scanForHydrationIslands === "function"
+      ? adapter.scanForHydrationIslands(projectRoot)
+      : scanForHydrationIslands(projectRoot);
   if (islands.length === 0) {
+    return null;
+  }
+
+  if (frameworkAdapter === "nextjs") {
+    const slug = loadedConfig?.slug || path.basename(projectRoot);
+    const islandsOutDir = path.join(projectRoot, ".forgewp", "out", slug, "assets", "islands");
+    if (!existsSync(islandsOutDir)) {
+      return `Found ${islands.length} explicit Next.js hydration island(s) (${islands.join(", ")}), but no exported theme output yet. Run "pnpm forgewp export" to bundle and verify them.`;
+    }
+    const missingChunks = islands.filter(
+      (island) => !existsSync(path.join(islandsOutDir, `${island}.js`)),
+    );
+    if (missingChunks.length > 0) {
+      return `Missing bundled Next.js island chunk(s): ${missingChunks.join(", ")}. Re-run "pnpm forgewp export".`;
+    }
     return null;
   }
 
@@ -184,7 +242,13 @@ runCheck("Selective Hydration Islands Diagnostics", () => {
 
 // 7. Static Code Lint & SEO Best Practices
 runCheck("Static Code Lint & SEO Best Practices", () => {
-  const violations = runStaticLintChecks(projectRoot);
+  const rawViolations = runStaticLintChecks(projectRoot);
+  const violations =
+    frameworkAdapter === "nextjs"
+      ? rawViolations.filter(
+          (v) => !String(v.message || "").includes("Missing SEO <WpHead>"),
+        )
+      : rawViolations;
   if (violations.length === 0) {
     return null;
   }

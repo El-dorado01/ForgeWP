@@ -5,6 +5,7 @@ import path from "node:path";
 import pc from "picocolors";
 import { exec } from "node:child_process";
 import { loadConfig } from "../lib/load-config.js";
+import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
 import { scanForHydrationIslandsWithProps, runStaticLintChecks } from "../lib/hydration-scanner.js";
 import { analyzeHydrationIslands, generateVisualReport } from "../lib/diagnostics.js";
 
@@ -13,8 +14,9 @@ console.log(`\n📊 ${pc.bold(pc.bgCyan(pc.black("  FORGEWP HYDRATION ANALYZER  
 const projectRoot = process.cwd();
 
 async function main() {
-  // 1. Load config
-  let config = { name: "Starter Theme", slug: "starter", version: "1.0.0" };
+  // 1. Load config & framework adapter
+  let config = { name: "Starter Theme", slug: "starter", version: "1.0.0", frameworkAdapter: "react" };
+  let adapter = null;
   try {
     const loaded = await loadConfig(projectRoot);
     if (loaded) {
@@ -22,72 +24,104 @@ async function main() {
         name: loaded.name || config.name,
         slug: loaded.slug || config.slug,
         version: loaded.version || config.version,
+        frameworkAdapter: loaded.frameworkAdapter || "react",
       };
     }
+    const adapterMod = await loadFrameworkAdapter(config.frameworkAdapter);
+    adapter = adapterMod.default || adapterMod;
   } catch (err) {
     console.warn(pc.yellow(`⚠️  Could not load wp.config.ts, using fallback values.`));
   }
 
   // 2. Scan islands
-  const islands = scanForHydrationIslandsWithProps(projectRoot);
+  const isNextAdapter = config.frameworkAdapter === "nextjs";
+  const islands = isNextAdapter && typeof adapter?.scanForHydrationIslands === "function"
+    ? adapter.scanForHydrationIslands(projectRoot).map((name) => ({
+        name,
+        file: adapter.findComponentPath?.(projectRoot, name) || name,
+        trigger: "visible",
+        preload: "none",
+        media: null,
+        connection: null,
+        clientOnly: false,
+      }))
+    : scanForHydrationIslandsWithProps(projectRoot);
+
   if (islands.length === 0) {
     console.log(pc.yellow("⚠️  No hydration islands detected in src/app page files."));
     console.log(`   Wrap components in ${pc.bold("<Hydrate>")} to scan them.\n`);
     process.exit(0);
   }
 
-  // 3. Resolve manifest
-  const manifestPath = path.join(projectRoot, "dist", ".vite", "manifest.json");
-  const manifestPathAlt = path.join(projectRoot, "dist", "manifest.json");
-  const targetManifest = existsSync(manifestPath)
-    ? manifestPath
-    : existsSync(manifestPathAlt)
-    ? manifestPathAlt
-    : null;
-
-  if (!targetManifest) {
-    console.log(pc.red(`❌ ${pc.bold("Vite Manifest Not Found")}`));
-    console.log(pc.yellow(`   Could not locate "dist/.vite/manifest.json" or "dist/manifest.json".`));
-    console.log(pc.cyan(`   💡 Fix: Run "pnpm forgewp export" first to compile assets.\n`));
-    process.exit(1);
-  }
-
-  let viteManifest = {};
-  try {
-    viteManifest = JSON.parse(readFileSync(targetManifest, "utf8"));
-  } catch (e) {
-    console.error(pc.red(`❌ Failed to parse Vite manifest: ${e.message}`));
-    process.exit(1);
-  }
-
-  // 4. Map island kebab-case name to manifest chunk path
+  // 3. Resolve manifest / chunk mapping
   const mapping = {};
-  for (const island of islands) {
-    const name = island.name;
-    const pascalName = name
-      .split("-")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join("");
-
-    let resolvedChunk = null;
-    for (const [key, value] of Object.entries(viteManifest)) {
-      const fileBasename = path.basename(value.file || '');
-      const cleanName = fileBasename.replace(/-[A-Za-z0-9_-]+\.js$/, '');
-      if (
-        key.endsWith(`/${pascalName}.tsx`) ||
-        key.endsWith(`/${pascalName}.ts`) ||
-        key.endsWith(`/${name}.tsx`) ||
-        key.endsWith(`/${name}.ts`) ||
-        cleanName === name ||
-        cleanName === pascalName.toLowerCase()
-      ) {
-        resolvedChunk = value.file;
-        break;
+  if (isNextAdapter) {
+    const outRoot = path.join(projectRoot, ".forgewp", "out", config.slug);
+    const islandsDir = path.join(outRoot, "assets", "islands");
+    if (!existsSync(islandsDir)) {
+      console.log(pc.red(`❌ ${pc.bold("Exported Next.js Islands Not Found")}`));
+      console.log(pc.yellow(`   Could not locate "${path.relative(projectRoot, islandsDir)}".`));
+      console.log(pc.cyan(`   💡 Fix: Run "pnpm forgewp export" first to bundle islands with esbuild.\n`));
+      process.exit(1);
+    }
+    for (const island of islands) {
+      const chunkAbs = path.join(islandsDir, `${island.name}.js`);
+      if (existsSync(chunkAbs)) {
+        mapping[island.name] = path.relative(path.join(projectRoot, "dist"), chunkAbs);
       }
     }
+  } else {
+    const manifestPath = path.join(projectRoot, "dist", ".vite", "manifest.json");
+    const manifestPathAlt = path.join(projectRoot, "dist", "manifest.json");
+    const targetManifest = existsSync(manifestPath)
+      ? manifestPath
+      : existsSync(manifestPathAlt)
+      ? manifestPathAlt
+      : null;
 
-    if (resolvedChunk) {
-      mapping[name] = resolvedChunk;
+    if (!targetManifest) {
+      console.log(pc.red(`❌ ${pc.bold("Vite Manifest Not Found")}`));
+      console.log(pc.yellow(`   Could not locate "dist/.vite/manifest.json" or "dist/manifest.json".`));
+      console.log(pc.cyan(`   💡 Fix: Run "pnpm forgewp export" first to compile assets.\n`));
+      process.exit(1);
+    }
+
+    let viteManifest = {};
+    try {
+      viteManifest = JSON.parse(readFileSync(targetManifest, "utf8"));
+    } catch (e) {
+      console.error(pc.red(`❌ Failed to parse Vite manifest: ${e.message}`));
+      process.exit(1);
+    }
+
+    // 4. Map island kebab-case name to manifest chunk path
+    for (const island of islands) {
+      const name = island.name;
+      const pascalName = name
+        .split("-")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join("");
+
+      let resolvedChunk = null;
+      for (const [key, value] of Object.entries(viteManifest)) {
+        const fileBasename = path.basename(value.file || '');
+        const cleanName = fileBasename.replace(/-[A-Za-z0-9_-]+\.js$/, '');
+        if (
+          key.endsWith(`/${pascalName}.tsx`) ||
+          key.endsWith(`/${pascalName}.ts`) ||
+          key.endsWith(`/${name}.tsx`) ||
+          key.endsWith(`/${name}.ts`) ||
+          cleanName === name ||
+          cleanName === pascalName.toLowerCase()
+        ) {
+          resolvedChunk = value.file;
+          break;
+        }
+      }
+
+      if (resolvedChunk) {
+        mapping[name] = resolvedChunk;
+      }
     }
   }
 

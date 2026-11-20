@@ -330,3 +330,202 @@ export function findComponentPath(themeRoot, kebabName) {
 export function getHydrationRollupInputs() {
   return {};
 }
+
+function toKebabCase(name) {
+  return String(name || '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+}
+
+/**
+ * Scaffold a Next.js-compatible Gutenberg block (`'use client'` + `defineBlock` + `WpEditable`)
+ * in `src/blocks/<Name>.tsx`.
+ */
+export async function onMakeBlock(
+  themeRoot,
+  { pascalCase, readableTitle, attributesList = ['title', 'description'], pc },
+) {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const resolvedRoot = path.resolve(themeRoot);
+  const blocksDir = path.join(resolvedRoot, 'src', 'blocks');
+  mkdirSync(blocksDir, { recursive: true });
+
+  const slug = toKebabCase(pascalCase);
+  const filePath = path.join(blocksDir, `${pascalCase}.tsx`);
+  if (existsSync(filePath)) {
+    throw new Error(`Block already exists at ${path.relative(resolvedRoot, filePath)}.`);
+  }
+
+  const attrEntries = attributesList
+    .map(
+      (attr) =>
+        `    ${attr}: { type: 'string' as const, default: ${JSON.stringify(`Default ${attr}`)} },`,
+    )
+    .join('\n');
+
+  const editFields = attributesList
+    .map(
+      (attr, idx) =>
+        `      <WpEditable\n        tagName="${idx === 0 ? 'h2' : 'p'}"\n        value={attributes.${attr}}\n        onChange={(value) => setAttributes({ ${attr}: value })}\n      />`,
+    )
+    .join('\n');
+
+  const saveFields = attributesList
+    .map((attr, idx) =>
+      idx === 0
+        ? `      <h2>{attributes.${attr}}</h2>`
+        : `      <p>{attributes.${attr}}</p>`,
+    )
+    .join('\n');
+
+  const source = `'use client';
+
+import { defineBlock, WpEditable } from '@forgewp/react';
+
+export const ${pascalCase} = defineBlock({
+  name: ${JSON.stringify(slug)},
+  title: ${JSON.stringify(readableTitle || pascalCase)},
+  category: 'text',
+  attributes: {
+${attrEntries}
+  },
+  edit: ({ attributes, setAttributes }) => (
+    <section className="forgewp-block-${slug}">
+${editFields}
+    </section>
+  ),
+  save: ({ attributes }) => (
+    <section className="forgewp-block-${slug}">
+${saveFields}
+    </section>
+  ),
+});
+
+export default ${pascalCase};
+`;
+
+  writeFileSync(filePath, source, 'utf8');
+  if (pc) {
+    console.log(pc.green(`\n✅ Created Next.js Gutenberg block: ${path.relative(resolvedRoot, filePath)}`));
+    console.log(pc.dim(`   Block slug: forgewp/${slug} — compiled automatically on \`pnpm export\`.`));
+  }
+}
+
+/**
+ * Scaffold a Next.js App Router fixed page (`src/app/<slug>/page.tsx` or `app/<slug>/page.tsx`)
+ * wired to `@forgewp/react/server` (`BlockArea`) and `getPageContent`.
+ */
+export async function onMakePage(themeRoot, { pascalCase, pc }) {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const resolvedRoot = path.resolve(themeRoot);
+  const appDir = resolveAppDir(resolvedRoot) || {
+    abs: path.join(resolvedRoot, 'src', 'app'),
+    rel: 'src/app',
+  };
+  const slug = toKebabCase(pascalCase);
+  const pageDir = path.join(appDir.abs, slug);
+  const pageFile = path.join(pageDir, 'page.tsx');
+  if (existsSync(pageFile)) {
+    throw new Error(`Page already exists at ${path.relative(resolvedRoot, pageFile)}.`);
+  }
+
+  mkdirSync(pageDir, { recursive: true });
+  const hasContentHelper =
+    existsSync(path.join(resolvedRoot, 'src', 'lib', 'content.ts')) ||
+    existsSync(path.join(resolvedRoot, 'lib', 'content.ts'));
+
+  const source = hasContentHelper
+    ? `import Link from 'next/link';
+import { BlockArea } from '@forgewp/react/server';
+import { getPageContent } from '@/lib/content';
+
+export default async function ${pascalCase}Page() {
+  const page = await getPageContent(${JSON.stringify(slug)});
+
+  return (
+    <main className="site-main">
+      <h1>{page.title}</h1>
+      <BlockArea name=${JSON.stringify(`${slug}-content`)} content={page.content} />
+      <p>
+        <Link href="/">Back to Home</Link>
+      </p>
+    </main>
+  );
+}
+`
+    : `import Link from 'next/link';
+import { BlockArea } from '@forgewp/react/server';
+
+export default function ${pascalCase}Page() {
+  return (
+    <main className="site-main">
+      <h1>${pascalCase}</h1>
+      <BlockArea name=${JSON.stringify(`${slug}-content`)} />
+      <p>
+        <Link href="/">Back to Home</Link>
+      </p>
+    </main>
+  );
+}
+`;
+
+  writeFileSync(pageFile, source, 'utf8');
+  if (pc) {
+    console.log(pc.green(`\n✅ Created Next.js App Router page: ${path.relative(resolvedRoot, pageFile)}`));
+    console.log(pc.dim(`   Route: /${slug} — compiles to page-${slug}.php on \`pnpm export\`.`));
+  }
+}
+
+/**
+ * Scaffold a Next.js `'use client'` hydration island component in `src/components/<Name>.tsx`.
+ */
+export async function onMakeIsland(themeRoot, { pascalCase, pc }) {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const resolvedRoot = path.resolve(themeRoot);
+  const componentsDir = path.join(resolvedRoot, 'src', 'components');
+  mkdirSync(componentsDir, { recursive: true });
+
+  const slug = toKebabCase(pascalCase);
+  const filePath = path.join(componentsDir, `${pascalCase}.tsx`);
+  if (existsSync(filePath)) {
+    throw new Error(`Island already exists at ${path.relative(resolvedRoot, filePath)}.`);
+  }
+
+  const source = `'use client';
+
+import { useState } from 'react';
+
+export interface ${pascalCase}Props {
+  initialCount?: number;
+}
+
+export function ${pascalCase}({ initialCount = 0 }: ${pascalCase}Props) {
+  const [count, setCount] = useState(initialCount);
+
+  return (
+    <div className="forgewp-island-${slug}">
+      <button type="button" onClick={() => setCount((c) => c + 1)}>
+        ${pascalCase} count: {count}
+      </button>
+    </div>
+  );
+}
+
+export default ${pascalCase};
+`;
+
+  writeFileSync(filePath, source, 'utf8');
+  if (pc) {
+    console.log(pc.green(`\n✅ Created Next.js client island: ${path.relative(resolvedRoot, filePath)}`));
+    console.log(
+      pc.dim(
+        `   Use in any Server Component page:\n` +
+          `     import { Hydrate } from '@forgewp/react/server';\n` +
+          `     import { ${pascalCase} } from '@/components/${pascalCase}';\n` +
+          `     <Hydrate id="${slug}"><${pascalCase} /></Hydrate>`,
+      ),
+    );
+  }
+}

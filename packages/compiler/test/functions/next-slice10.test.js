@@ -122,7 +122,7 @@ describe('Slice 10: Public Next.js adapter registration, withForgeWP(), and crea
         const scaffold = spawnSync(
           process.execPath,
           [createForgewpBin, projectDir, '--adapter', 'nextjs', '--yes', '--no-install'],
-          { encoding: 'utf8' },
+          { cwd: tmp, encoding: 'utf8' },
         );
         expect(scaffold.status, scaffold.stderr || scaffold.stdout).toBe(0);
 
@@ -193,11 +193,14 @@ describe('Slice 10: Public Next.js adapter registration, withForgeWP(), and crea
           expect(result.zipPath && existsSync(result.zipPath)).toBe(true);
           expect(statSync(result.zipPath).size).toBeGreaterThan(1000);
 
-          // Static routes, live WP bindings, BlockArea, and compiled Gutenberg block present
+          // Static routes, 404, live WP bindings, BlockArea, compiled Gutenberg block, and esbuild island present
           expect(existsSync(path.join(result.outDir, 'front-page.php'))).toBe(true);
           expect(existsSync(path.join(result.outDir, 'page-about.php'))).toBe(true);
+          expect(existsSync(path.join(result.outDir, '404.php'))).toBe(true);
           expect(existsSync(path.join(result.outDir, 'blocks', 'hero-intro', 'block.json'))).toBe(true);
           expect(existsSync(path.join(result.outDir, 'blocks', 'hero-intro', 'render.php'))).toBe(true);
+          expect(existsSync(path.join(result.outDir, 'assets', 'forgewp-hydrator.js'))).toBe(true);
+          expect(existsSync(path.join(result.outDir, 'assets', 'islands', 'counter-island.js'))).toBe(true);
 
           const homeStatic = readFileSync(
             path.join(result.outDir, 'forgewp-static', 'content.html'),
