@@ -15,6 +15,12 @@
       "import": "./src/config.ts",
       "require": "./src/config.ts",
       "default": "./src/config.ts"
+    },
+    "./server": {
+      "types": "./src/server.ts",
+      "import": "./src/server.ts",
+      "require": "./src/server.ts",
+      "default": "./src/server.ts"
     }
   },
   "scripts": {

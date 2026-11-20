@@ -68,9 +68,11 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
     // Hydration-related expectations
     const islands = scanAdapterIslands(themeRoot);
 
-    if (islands.length > 0 && assets?.jsFile) {
-      expectedAssets.push(path.join(assetsDir, path.basename(assets.jsFile)));
+    if (islands.length > 0) {
       expectedAssets.push(path.join(assetsDir, 'forgewp-hydrator.js'));
+      if (assets?.jsFile) {
+        expectedAssets.push(path.join(assetsDir, path.basename(assets.jsFile)));
+      }
     }
 
     for (const assetPath of expectedAssets) {
@@ -85,13 +87,38 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
     let viteManifest = null;
 
     if (islands.length > 0) {
-      if (!hydrationManifestPath) {
-        summary.missing.push('dist/.vite/manifest.json');
-      } else {
+      if (hydrationManifestPath) {
         try {
           viteManifest = JSON.parse(fs.readFileSync(hydrationManifestPath, 'utf8'));
         } catch (err) {
           summary.missing.push(`${hydrationManifestPath.replace(process.cwd() + path.sep, '')} (invalid JSON)`);
+        }
+      } else {
+        // Non-Vite adapters (e.g. Next.js) package hydration islands directly into outDir
+        // without emitting a Vite dist/.vite/manifest.json. Verify localized manifest entries exist on disk.
+        const functionsPhpPathCheck = path.join(outDir, 'functions.php');
+        const functionsPhpCheck = fs.existsSync(functionsPhpPathCheck)
+          ? fs.readFileSync(functionsPhpPathCheck, 'utf8')
+          : '';
+        const hasAdapterHydrationManifest = functionsPhpCheck.includes('forgeWpHydration');
+        if (!hasAdapterHydrationManifest) {
+          summary.missing.push('dist/.vite/manifest.json');
+        } else {
+          for (const island of islands) {
+            const escaped = island.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const entryMatch = functionsPhpCheck.match(
+              new RegExp(`['"]${escaped}['"]\\s*(?:=>|:)\\s*['"]([^'"]+)['"]`),
+            );
+            if (!entryMatch) {
+              summary.missing.push(`hydration asset for ${island}`);
+              continue;
+            }
+            const relChunk = entryMatch[1].replace(/^\/+/, '');
+            const chunkPath = path.join(outDir, relChunk);
+            if (!fs.existsSync(chunkPath)) {
+              summary.missing.push(chunkPath.replace(process.cwd() + path.sep, ''));
+            }
+          }
         }
       }
     }

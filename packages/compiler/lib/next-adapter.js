@@ -4,6 +4,11 @@ import path from 'node:path';
 import { extractNextStaticMarkup } from './next-route-extractor.js';
 import { applyVerifiedNextLinksToMarkup } from './next-link-transform.js';
 import { packageNextAssets } from './next-export-experimental.js';
+import {
+  bundleNextIslands,
+  findNextIslandComponentPath,
+  scanNextHydrationIslands,
+} from './next-islands.js';
 
 const NEXT_CONFIG_CANDIDATES = [
   'next.config.ts',
@@ -297,22 +302,29 @@ export async function renderStaticMarkup(themeRoot) {
   return rewritten.markup;
 }
 
-export async function packageAssets(themeRoot, outDir) {
+export async function packageAssets(themeRoot, outDir, options = {}) {
   const resolvedRoot = path.resolve(themeRoot);
   const packaged = packageNextAssets(resolvedRoot, outDir);
+  const islands = Array.isArray(options?.islands)
+    ? options.islands
+    : scanNextHydrationIslands(resolvedRoot);
+  const bundled = await bundleNextIslands(resolvedRoot, outDir, islands);
   return {
-    assetFiles: packaged.assetFiles,
-    clientEntries: packaged.clientEntries,
-    runtimeEntry: packaged.runtimeEntry,
+    assetFiles: {
+      ...packaged.assetFiles,
+      ...bundled.assetFiles,
+    },
+    clientEntries: bundled.clientEntries,
+    runtimeEntry: bundled.runtimeEntry,
   };
 }
 
-export function scanForHydrationIslands() {
-  return [];
+export function scanForHydrationIslands(themeRoot) {
+  return scanNextHydrationIslands(themeRoot);
 }
 
-export function findComponentPath() {
-  return null;
+export function findComponentPath(themeRoot, kebabName) {
+  return findNextIslandComponentPath(themeRoot, kebabName);
 }
 
 export function getHydrationRollupInputs() {

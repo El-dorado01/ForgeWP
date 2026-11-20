@@ -379,7 +379,14 @@ ${LINK_RESET_CSS}
     $markup_file = get_template_directory() . '/forgewp-static/content.html';
 
     if (is_front_page() && file_exists($markup_file)) {
-        include $markup_file;
+        if (is_page() && have_posts()) {
+            while (have_posts()) {
+                the_post();
+                include $markup_file;
+            }
+        } else {
+            include $markup_file;
+        }
     } elseif (have_posts()) {
         echo '<main class="px-6 py-12">';
         while (have_posts()) {
@@ -460,7 +467,14 @@ if ($forgewp_use_builder && have_posts()) {
     $markup_file = get_template_directory() . '/forgewp-static/content.html';
 
     if (is_front_page() && file_exists($markup_file)) {
-        include $markup_file;
+        if (is_page() && have_posts()) {
+            while (have_posts()) {
+                the_post();
+                include $markup_file;
+            }
+        } else {
+            include $markup_file;
+        }
     } elseif (have_posts()) {
         echo '<main class="px-6 py-12">';
         while (have_posts()) {
