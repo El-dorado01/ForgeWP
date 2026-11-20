@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "next dev --webpack",
+    "dev:decoupled": "FORGEWP_DEPLOYMENT_MODE=decoupled next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
     "typecheck": "tsc --noEmit",

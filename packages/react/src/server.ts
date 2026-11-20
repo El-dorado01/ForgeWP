@@ -491,3 +491,107 @@ export function BlockArea({
     React.createElement('strong', null, `Gutenberg Block Area — ${name}`),
   );
 }
+
+export interface ServerHydrateProps {
+  trigger?: 'load' | 'visible' | 'interaction' | 'idle' | 'click' | 'hover';
+  id?: string;
+  clientOnly?: boolean;
+  preload?: 'near-visible' | 'none';
+  media?: string;
+  connection?: 'fast' | 'any';
+  className?: string;
+  style?: React.CSSProperties;
+  slotChildren?: boolean;
+  needsProviders?: boolean;
+  children: React.ReactElement;
+}
+
+/**
+ * Pure-TypeScript, Server-Component-safe `<Hydrate>` boundary for Next.js App Router.
+ * Emits the exact `data-forgewp-hydrate` marker attributes consumed by `next-islands.js`
+ * and `assets/forgewp-hydrator.js` without requiring JSX compilation or client hooks.
+ */
+export function Hydrate({
+  trigger = 'visible',
+  id,
+  clientOnly = false,
+  preload = 'none',
+  media,
+  connection = 'any',
+  className,
+  style,
+  slotChildren = false,
+  needsProviders = false,
+  children,
+}: ServerHydrateProps): React.ReactElement | null {
+  if (!children || typeof children !== 'object') {
+    return null;
+  }
+
+  const type = children.type as any;
+  const inferredName = type?.displayName || type?.name;
+  const resolvedName = id || inferredName || 'dynamic-island';
+  const kebabName = resolvedName
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase();
+
+  let propsData = '{}';
+  if (children.props) {
+    try {
+      const { children: _ignoredChildren, ...serializableProps } =
+        (children.props as any) || {};
+      const seen = new WeakSet();
+      propsData =
+        JSON.stringify(serializableProps, (key, value) => {
+          if (
+            key === 'children' ||
+            typeof value === 'function' ||
+            typeof value === 'symbol'
+          ) {
+            return undefined;
+          }
+          if (typeof value === 'object' && value !== null) {
+            if ((value as any).$$typeof || seen.has(value)) {
+              return undefined;
+            }
+            seen.add(value);
+          }
+          return value;
+        }) || '{}';
+    } catch {
+      propsData = '{}';
+    }
+  }
+
+  const isSSR =
+    typeof window === 'undefined' ||
+    Boolean((window as any)._forgeWpCompileTime) ||
+    isNativeWordPressExport();
+  const shouldRender = !clientOnly || !isSSR;
+
+  const childProps = (children as any)?.props || {};
+  const childStyle = childProps.style;
+  const mergedStyle: React.CSSProperties = {
+    display: (style && style.display) || 'contents',
+    ...(typeof childStyle === 'object' && childStyle !== null ? childStyle : {}),
+    ...style,
+  };
+
+  return React.createElement(
+    'div',
+    {
+      'data-forgewp-hydrate': kebabName,
+      'data-forgewp-trigger': trigger,
+      'data-forgewp-props': propsData,
+      'data-forgewp-client-only': clientOnly ? 'true' : undefined,
+      'data-forgewp-preload': preload !== 'none' ? preload : undefined,
+      'data-forgewp-media': media || undefined,
+      'data-forgewp-connection': connection !== 'any' ? connection : undefined,
+      'data-forgewp-slot-children': slotChildren ? 'true' : undefined,
+      'data-forgewp-needs-providers': needsProviders ? 'true' : undefined,
+      className,
+      style: mergedStyle,
+    },
+    shouldRender ? children : null,
+  );
+}
