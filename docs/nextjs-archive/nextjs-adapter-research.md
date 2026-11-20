@@ -187,14 +187,41 @@ and proves the real generated `blocks/next-intro/render.php` renders live edited
 attributes in PHP 8 without rebuilding. Live WordPress activation and Gutenberg
 database persistence still require a disposable WordPress acceptance run.
 
+### Live WordPress acceptance, decoupled server-side transport, and native <-> decoupled round trip
+
+`packages/compiler/lib/functions/index.js` now emits a read-only REST bridge
+(`forgewp_route_id` on `page`, `forgewp_blocks` on REST-enabled post types gated
+by `publish`/non-password or `read_post` capability, and
+`GET /wp-json/forgewp/v1/routes` for published route permalink mappings with
+subdirectory basePath stripping). Live WordPress testing also uncovered and fixed
+a bug in `packages/compiler/lib/functions/routing.js` where renaming a
+provisioned page slug in wp-admin caused `forgewp_auto_create_pages_and_menus()`
+on `init` to recreate a duplicate stub page at the old slug; lookup now matches
+by durable `forgewp_route_id` before `get_page_by_path()`.
+
+`packages/compiler/lib/next-decoupled-transport.js` provides an experimental
+server-side WordPress content client (`createWordPressContentClient`),
+serialized Gutenberg block parser (`parseSerializedBlocks`), shared
+`defineBlock` render matcher (`resolveBlockRenderNodes`), and read-only
+deployment-switch preflight & rollback validator (`verifyDeploymentSwitch`).
+`test/functions/next-live-wp-acceptance.test.js` (`FORGEWP_LIVE_WP_ACCEPTANCE=1`)
+boots a real disposable WordPress instance via `@wp-playground/cli`, installs
+and activates the ZIP exported from `projects/nextjs-adapter-fixture`, and
+verifies native routing/CSS with no Next server, Gutenberg REST save/reload and
+live frontend update without rebuilding, wp-admin slug rename survival across
+both modes, unauthenticated decoupled reads rendering via the same
+`IntroBlock.tsx` component, draft authorization boundaries, Gutenberg Edit #2
+reflected live in decoupled mode and back in native mode, and failed-switch
+rollback leaving WordPress content untouched.
+
 | API / owner | Current evidence | Native WordPress | Decoupled WordPress |
 | --- | --- | --- | --- |
-| Next App Router fixed routes/layout | Local fixture, Next build, and fixed-route extractor + `generateTheme` integration test | Fixed-route markup/PHP generation & ZIP packaging verified in compiler tests; live WP acceptance pending | Live transport pending |
-| Next CSS / metadata | Extracted from `out/`; CSS packaged (single or bundled), head metadata sanitized, RSC/client scripts stripped & inventoried | Packaged CSS + per-route `head.html` verified in compiler tests; live WP acceptance pending | Ordinary Next output only |
-| `next/link` / Next | AST binding transform (aliases/namespaces/shadowing/object href), fixture rewrite + PHP 8 runtime tests (root, subdirectory, renamed slug, Plain permalink, deleted fallback, Polylang); Linux emits `/about/__next.about.__PAGE__.txt` (Windows defect remains) | Compiler + PHP 8 stand-in tests passing; live WP acceptance pending | WordPress permalink mapping pending |
-| CMS fixtures / ForgeWP | Server-only JSON boundary; existing loader test | Live bindings pending | REST/server transport pending |
-| `defineBlock`, `WpEditable`, `BlockArea` / ForgeWP | Compiled in experimental ZIP export with real Next `editorStyle`, verified generated `forgewp-editor.js` RichText VM edit + PHP 8 live `render.php` + SSR `BlockArea` -> `the_content()` | Compiler, editor-VM & PHP 8 stand-in tests passing; live WP Gutenberg save/reload acceptance pending | Shared editor packaging pending |
-| `useWpPageLink` / ForgeWP | Traced by lexical binding in Next fixture and resolved via `forgewp_resolve_route_url` in compiler + PHP 8 tests | Live WP acceptance pending | Live permalink integration pending |
+| Next App Router fixed routes/layout | Local fixture, Linux CI Chrome `check:browser`, fixed-route extractor, and live disposable WordPress acceptance (`/` and `/about/`) | Verified on live WordPress Playground with no Next server running | Live REST route/page transport verified against the same WordPress DB |
+| Next CSS / metadata | Extracted from `out/`; packaged CSS (`200 text/css`) enqueued on live WordPress; head metadata sanitized; RSC/client scripts stripped & inventoried | Verified on live WordPress Playground (`/_next/` absent) | Ordinary Next output only |
+| `next/link` / Next | AST binding transform, PHP 8 runtime tests, and live WordPress acceptance including wp-admin slug rename (`/about` -> `/our-story`) | Verified on live WordPress Playground (updates without rebuild) | Verified via `/wp-json/forgewp/v1/routes` + `forgewp_route_id` |
+| CMS fixtures / ForgeWP | Local fixture mode when `wpUrl` omitted; live REST reads + draft auth boundary verified on WordPress Playground | Static snapshot for fixture `getPage()`; live block content via Gutenberg/PHP | Server-side WordPress REST transport verified |
+| `defineBlock`, `WpEditable`, `BlockArea` / ForgeWP | Compiled with real Next `editorStyle`; verified `forgewp-editor.js` RichText VM edit, live WordPress `block-types` registration, REST save/reload, live PHP render, and decoupled React `IntroBlock.tsx` render across Edit #1 and Edit #2 | Verified on live WordPress Playground without rebuilding | Shared `defineBlock` rendering from `forgewp_blocks` verified against live WordPress |
+| `useWpPageLink` / ForgeWP | Traced by lexical binding in Next fixture and verified on live WordPress Playground including slug rename | Verified on live WordPress Playground | `resolveRouteHref()` verified against live WordPress |
 | Client Components / Next | One mounted local block preview | Island contract pending (Next client bundles are explicitly NOT enqueued) | Broader boundary tests pending |
 | Auth, Forms, SEO, WooCommerce | Existing adapter contracts must be audited | No Next parity claim | No Next parity claim |
 | Server Actions, handlers, middleware, dynamic routes, ISR | Dynamic `[...]` segments rejected explicitly by fixed-route extractor | Diagnostic/equivalent required | Next behavior must be verified |

@@ -69,22 +69,39 @@ ${pagesPhpArray}
 
     foreach ($pages as $p) {
         $slug_path = trim($p['slug'], '/');
-        $parent_id = 0;
-        $post_name = $slug_path;
-        if (strpos($slug_path, '/') !== false) {
-            $parts = explode('/', $slug_path);
-            $post_name = array_pop($parts);
-            $parent_path = implode('/', $parts);
-            $parent_id = forgewp_ensure_route_parent_page($parent_path);
-            if ($parent_id <= 0) {
-                error_log('[ForgeWP] Could not provision parent path for route: ' . $slug_path);
-                continue;
+        $route_id = preg_replace('/^page-|\.php$/', '', $p['template']);
+        $existing_page = null;
+        if (!empty($route_id) && $route_id !== 'placeholder') {
+            $route_matches = get_posts(array(
+                'post_type'      => 'page',
+                'post_status'    => array('publish', 'draft', 'pending', 'private', 'future'),
+                'meta_key'       => 'forgewp_route_id',
+                'meta_value'     => $route_id,
+                'posts_per_page' => 1,
+                'lang'           => '',
+            ));
+            if (!empty($route_matches)) {
+                $existing_page = $route_matches[0];
             }
         }
+        if (!$existing_page) {
+            $existing_page = get_page_by_path($slug_path, OBJECT, 'page');
+        }
 
-        $existing_page = get_page_by_path($slug_path, OBJECT, 'page');
         $page_id = 0;
         if (!$existing_page) {
+            $parent_id = 0;
+            $post_name = $slug_path;
+            if (strpos($slug_path, '/') !== false) {
+                $parts = explode('/', $slug_path);
+                $post_name = array_pop($parts);
+                $parent_path = implode('/', $parts);
+                $parent_id = forgewp_ensure_route_parent_page($parent_path);
+                if ($parent_id <= 0) {
+                    error_log('[ForgeWP] Could not provision parent path for route: ' . $slug_path);
+                    continue;
+                }
+            }
             $page_args = array(
                 'post_title'    => $p['title'],
                 'post_name'     => $post_name,
