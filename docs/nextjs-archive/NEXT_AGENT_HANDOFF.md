@@ -134,8 +134,8 @@ Latest implementation (Linux VM, Node v24.22.3, PHP 8.2.35, pnpm 10.34.9, WordPr
 
 The fixed-route native WordPress + decoupled Next.js workflow, `forgewp init`, adapter-aware `doctor`/`repair`/`clean`/`analyze`, `make:block`/`make:page`/`make:island`, and standardized `create-forgewp --adapter nextjs` boilerplates are now implemented and verified. Remaining follow-ups to make the Next.js adapter comprehensive:
 
-1. Dynamic App Router segments (`[slug]`, `[...slug]`) -> WordPress `single.php` / `archive.php` hierarchy template mapping.
-2. Smart auto-detection & auto-wrapping of interactive `'use client'` islands during `FORGEWP_NATIVE_EXPORT=1` inside `withForgeWP()` (excluding `src/blocks/`, preserving explicit `<Hydrate>` overrides).
+1. Dynamic App Router segments (`[slug]`, `[...slug]`) -> WordPress `single.php` / `archive.php` hierarchy template mapping (implemented on PR #11).
+2. ~~Smart auto-detection & auto-wrapping of interactive `'use client'` islands during `FORGEWP_NATIVE_EXPORT=1` inside `withForgeWP()`~~ — **Implemented** via `withForgeWP({}, { autoHydrate: true | { defaultTrigger } })`, `packages/react/src/next-auto-hydrate-loader.cjs`, and `packages/compiler/lib/next-islands.js` (`isInteractiveNextClientFile`, `scanNextAutoHydrationIslands`), verified by `test/functions/next-auto-islands.test.js`.
 3. `next/image` and `next/font` native WordPress compilation/self-hosting support.
 4. WordPress Navigation Menus & Site Info helpers (`wpClient.getMenu()`, `wpClient.getSiteInfo()`) in `@forgewp/react/server`.
 5. Optional module parity audit for Next.js (Forms, SEO, Auth, WooCommerce).
