@@ -156,7 +156,15 @@ export default defineConfig(async (): Promise<UserConfig> => {
       port: 5173,
       open: true,
       watch: {
-        ignored: ['**/cms/email-logs.json', '**/cms/users.json', '**/cms/sessions.json'],
+        // Export output (.forgewp) and build output (dist) are rewritten by `forgewp export`;
+        // watching them crashes the dev server mid-export on Windows.
+        ignored: [
+          '**/cms/email-logs.json',
+          '**/cms/users.json',
+          '**/cms/sessions.json',
+          '**/.forgewp/**',
+          '**/dist/**',
+        ],
       },
     },
     build: {
