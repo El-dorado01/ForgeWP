@@ -12,7 +12,7 @@ function parseNextLinkBindings(source) {
   const localNames = new Set();
   const namespaceNames = new Set();
   const importRe =
-    /^\s*import\s+(?!type\b)([\s\S]*?)\s+from\s+['"]next\/link['"]\s*;?/gm;
+    /^\s*import\s+(?!type\b)([^;]*?)\s+from\s+['"]next\/link['"]\s*;?/gm;
   let match;
   while ((match = importRe.exec(source))) {
     const clause = match[1].trim();

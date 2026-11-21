@@ -153,32 +153,39 @@ describe('Slice 10: Public Next.js adapter registration, withForgeWP(), and crea
 
         // Reuse installed workspace Next.js + React + @forgewp/react + @forgewp/compiler dependencies
         if (existsSync(nextFixtureNodeModules)) {
-          const projectNodeModules = path.join(projectDir, 'node_modules');
-          const { mkdirSync } = await import('node:fs');
-          mkdirSync(path.join(projectNodeModules, '@forgewp'), { recursive: true });
           const linkType = process.platform === 'win32' ? 'junction' : 'dir';
-          for (const entry of readdirSync(nextFixtureNodeModules)) {
-            if (entry === '@forgewp') continue;
-            symlinkSync(
-              path.join(nextFixtureNodeModules, entry),
-              path.join(projectNodeModules, entry),
-              linkType,
-            );
-          }
           symlinkSync(
-            path.join(repoRoot, 'packages', 'react'),
-            path.join(projectNodeModules, '@forgewp', 'react'),
-            linkType,
-          );
-          symlinkSync(
-            path.join(repoRoot, 'packages', 'compiler'),
-            path.join(projectNodeModules, '@forgewp', 'compiler'),
+            nextFixtureNodeModules,
+            path.join(projectDir, 'node_modules'),
             linkType,
           );
 
+          // Allow Turbopack to follow symlinked workspace node_modules in this /tmp test fixture
+          const { writeFileSync } = await import('node:fs');
+          const nextConfigPath = path.join(projectDir, 'next.config.ts');
+          const origNextConfig = readFileSync(nextConfigPath, 'utf8');
+          writeFileSync(
+            nextConfigPath,
+            origNextConfig.replace(
+              'withForgeWP({',
+              `withForgeWP({\n  turbopack: { root: ${JSON.stringify(path.parse(repoRoot).root)} },`,
+            ),
+            'utf8',
+          );
+          const tsconfigPath = path.join(projectDir, 'tsconfig.json');
+          const tsconfig = JSON.parse(readFileSync(tsconfigPath, 'utf8'));
+          tsconfig.compilerOptions = tsconfig.compilerOptions || {};
+          tsconfig.compilerOptions.paths = {
+            ...(tsconfig.compilerOptions.paths || {}),
+            '@forgewp/compiler/define-config': [
+              path.join(repoRoot, 'packages', 'compiler', 'lib', 'define-config.d.ts'),
+            ],
+          };
+          writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2), 'utf8');
+
           // Call exportTheme() with ONLY themeRoot + packageManager: 'npm' —
           // no explicit adapter or config override! It must load wp.config.ts,
-          // resolve frameworkAdapter: 'nextjs', run `next build --webpack` with
+          // resolve frameworkAdapter: 'nextjs', run `next build` (Turbopack) with
           // FORGEWP_NATIVE_EXPORT=1, compile blocks, rewrite links, validate, and zip.
           const result = await exportTheme({
             themeRoot: projectDir,

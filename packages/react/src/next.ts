@@ -55,12 +55,14 @@ function isNativeExportEnv(): boolean {
 }
 
 function resolveLocalLoaderPath(filename: string): string {
-  const loaderRelPath = ['.', filename].join('/');
-  const rawPath = decodeURIComponent(
-    new URL(loaderRelPath, import.meta.url).pathname,
-  );
+  const selfUrl = String(import.meta.url || '');
+  const withoutProtocol = selfUrl.replace(/^file:\/\//i, '');
+  const decoded = decodeURIComponent(withoutProtocol);
   // Strip leading slash on Windows drive paths (e.g. /C:/foo -> C:/foo)
-  return /^\/[A-Za-z]:\//.test(rawPath) ? rawPath.slice(1) : rawPath;
+  const normalized = /^\/[A-Za-z]:\//.test(decoded) ? decoded.slice(1) : decoded;
+  const lastSlash = normalized.lastIndexOf('/');
+  const dir = lastSlash >= 0 ? normalized.slice(0, lastSlash) : '.';
+  return `${dir}/${filename}`;
 }
 
 /**
@@ -129,6 +131,71 @@ export function withForgeWP<
     nextConfig.images?.unoptimized === undefined &&
     !nextConfig.images?.loader;
 
+  const existingTurbopack =
+    nextConfig.turbopack && typeof nextConfig.turbopack === 'object'
+      ? nextConfig.turbopack
+      : {};
+  const existingTurboRules =
+    existingTurbopack.rules && typeof existingTurbopack.rules === 'object'
+      ? existingTurbopack.rules
+      : {};
+
+  const tsExtLoader = {
+    loader: resolveLocalLoaderPath('next-ts-ext-loader.cjs'),
+  };
+
+  const nativeExportLoaders: Array<{
+    loader: string;
+    options?: Record<string, any>;
+  }> = [];
+  if (!isDecoupled && nativeExport) {
+    nativeExportLoaders.push({
+      loader: resolveLocalLoaderPath('next-link-identity-loader.cjs'),
+    });
+    if (autoHydrateEnabled) {
+      nativeExportLoaders.push({
+        loader: resolveLocalLoaderPath('next-auto-hydrate-loader.cjs'),
+        options: {
+          projectRoot: (globalThis as any).process?.cwd?.() || '.',
+          defaultTrigger: autoHydrateTrigger,
+        },
+      });
+    }
+  }
+
+  const mergeTurboRule = (
+    glob: string,
+    extraLoaders: Array<{ loader: string; options?: Record<string, any> }>,
+    defaultCondition?: Record<string, any>,
+  ) => {
+    const prev = existingTurboRules[glob];
+    const prevLoaders = Array.isArray(prev?.loaders) ? prev.loaders : [];
+    const condition = prev?.condition ?? defaultCondition;
+    return {
+      ...(prev && typeof prev === 'object' ? prev : {}),
+      ...(condition ? { condition } : {}),
+      loaders: [...prevLoaders, ...extraLoaders],
+    };
+  };
+
+  const turbopackRules: Record<string, any> = {
+    ...existingTurboRules,
+    '*.ts': mergeTurboRule('*.ts', [tsExtLoader]),
+    '*.tsx': mergeTurboRule('*.tsx', [tsExtLoader, ...nativeExportLoaders]),
+    ...(nativeExportLoaders.length > 0
+      ? {
+          '*.jsx': mergeTurboRule('*.jsx', nativeExportLoaders, {
+            not: 'foreign',
+          }),
+        }
+      : {}),
+  };
+
+  const turbopackConfig: Record<string, any> = {
+    ...existingTurbopack,
+    rules: turbopackRules,
+  };
+
   const wrapped: ForgeWPNextLikeConfig = {
     ...nextConfig,
     ...(isDecoupled || nextConfig.output !== undefined
@@ -138,6 +205,7 @@ export function withForgeWP<
       ? { images: { ...(nextConfig.images || {}), unoptimized: true } }
       : {}),
     transpilePackages,
+    turbopack: turbopackConfig,
     webpack(config: any, context: any) {
       config.resolve = config.resolve || {};
       const existingAlias = config.resolve.extensionAlias || {};
