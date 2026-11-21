@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" fill="none">
+  <g transform="translate(2 4)">
+    <path d="M5 0H40.2Q44 0 41.19 2.56L33 10H5A5 5 0 0 1 5 0Z" fill="#09090b" />
+    <path d="M5 15H22.6Q26.4 15 23.59 17.56L15.4 25H5A5 5 0 0 1 5 15Z" fill="#09090b" />
+    <circle cx="39" cy="20" r="5" fill="#f97316" />
+    <path d="M5 30H13Q16.8 30 13.99 32.56L5.8 40H5A5 5 0 0 1 5 30Z" fill="#09090b" />
+  </g>
+</svg>

@@ -2,6 +2,10 @@
 @import 'tailwindcss';
 @plugin "tailwindcss-animate";
 
+/* The starter welcome page is dark by default; `light:` styles apply once the
+   "d" hotkey adds .light to <html> (src/components/theme-hotkey.tsx). */
+@custom-variant light (&:where(.light, .light *));
+
 @theme {
   /* Font Family Mappings */
   --font-sans: var(
@@ -20,6 +24,10 @@
   --color-accent: var(--wp--preset--color--accent, #f59e0b);
   --color-bg-light: var(--wp--preset--color--background, #fafafa);
   --color-text-slate: var(--wp--preset--color--text, #0f172a);
+
+  /* ForgeWP's own brand orange (logo dot), used by the starter welcome page.
+     Separate from --color-brand/--color-primary, which belong to your theme. */
+  --color-forgewp: #f97316;
 
   /* Shadcn Core Theme Compatibility (Tailwind v4) */
   --color-background: var(--wp--preset--color--background, #fafafa);
@@ -68,5 +76,58 @@ body.admin-bar header.fixed.top-0 {
 @media screen and (max-width: 782px) {
   body.admin-bar header.fixed.top-0 {
     top: 46px;
+  }
+}
+
+/* ── Starter home: contour wave (src/app/page.tsx) ───────────────────────────
+   Fades in from the top and from the text side, so it never touches the top edge.
+   Each line sways slightly out of phase with its neighbours (a slow fabric ripple)
+   while its dashes drift along the line. Pure CSS; disabled for reduced motion. */
+.forgewp-wave {
+  mask-image:
+    linear-gradient(to bottom, transparent 0%, #000 22%),
+    linear-gradient(to right, transparent 0%, #000 40%);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+}
+
+.forgewp-wave path:not([data-solid]) {
+  stroke: #e7e5e4;
+}
+
+.light .forgewp-wave path:not([data-solid]) {
+  stroke: #18181b;
+}
+
+.forgewp-wave path {
+  animation:
+    forgewp-wave-sway 9s ease-in-out calc(var(--wave-i) * -0.6s) infinite,
+    forgewp-wave-flow var(--wave-flow) linear infinite;
+  will-change: transform;
+}
+
+.forgewp-wave path[data-solid] {
+  animation: forgewp-wave-sway 9s ease-in-out calc(var(--wave-i) * -0.6s) infinite;
+}
+
+@keyframes forgewp-wave-sway {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-16px, 6px, 0);
+  }
+}
+
+@keyframes forgewp-wave-flow {
+  to {
+    stroke-dashoffset: calc(var(--wave-period) * -1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forgewp-wave path {
+    animation: none;
   }
 }

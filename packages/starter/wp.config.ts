@@ -12,7 +12,7 @@ export default defineConfig({
   configVersion: 1,
   options: siteOptions,
   themeMods: themeMods,
-  // favicon: '/Logo/favicon.svg',
+  favicon: '/favicon.svg',
   // plugins: [
   //   seoPlugin({
   //     sitemaps: {

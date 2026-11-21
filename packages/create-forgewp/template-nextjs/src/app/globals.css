@@ -1,23 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap');
+
 :root {
-  --bg: #fafafa;
-  --surface: #ffffff;
-  --fg: #0f172a;
-  --muted: #64748b;
-  --border: #f1f5f9;
-  --border-strong: #e2e8f0;
-  --primary: #f97316;
-  --primary-end: #f59e0b;
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+  --bg: #0f1117;
+  --fg: #f5f5f4;
+  --text: #a8a29e;
+  --link: #d6d3d1;
+  --divider: #3a3d45;
+  --tile-border: #2a2d35;
+  --wave-ink: #e7e5e4;
+  /* ForgeWP brand orange (logo dot) and the amber it blends into. */
+  --forgewp: #f97316;
+  --forgewp-amber: #f59e0b;
+  --radius: 4px;
+  --font-sans: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --font-heading: 'Space Grotesk', var(--font-sans);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* ── Light theme ─────────────────────────────────────────────────────────
+   Dark is the default. Pressing "d" toggles light (ThemeHotkey adds .light or
+   .dark to <html> and remembers the choice). Logo tiles stay white. */
+:root.light {
+  color-scheme: light;
+  --bg: #f6f5f3;
+  --fg: #020617;
+  --text: #57534e;
+  --link: #344154;
+  --divider: #d6d3d1;
+  --tile-border: #e7e5e4;
+  --wave-ink: #18181b;
 }
 
 * {
   box-sizing: border-box;
 }
 
+/* Keep overflow on <html> so .fwp-page (the <body>) clips the wave artwork itself;
+   otherwise the browser hands body's overflow to the viewport and the page scrolls. */
+html {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
-  min-height: 100vh;
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-sans);
@@ -25,361 +51,283 @@ body {
 }
 
 ::selection {
-  background: var(--primary);
+  background: var(--forgewp);
   color: #ffffff;
 }
 
-/* ── Centered Single-Viewport Shell ─────────────────────────────────── */
+/* ── Page shell: one screen, top bar / hero ─────────────────────────── */
 .fwp-page {
   position: relative;
-  min-height: 100vh;
-  width: 100%;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem 1.5rem;
+  min-height: 100vh;
   overflow: hidden;
+  padding: 20px;
 }
 
-.fwp-page::before {
-  content: '';
-  position: fixed;
-  left: -12rem;
-  top: -12rem;
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(249, 115, 22, 0.13) 0%, transparent 70%);
-  filter: blur(48px);
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* ── Minimal Centered Brand Header ──────────────────────────────────── */
+/* Centred top bar: ForgeWP | framework logo */
 .fwp-header {
-  position: relative;
-  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.65rem;
-  padding-bottom: 1.5rem;
+  gap: 20px;
 }
 
-.fwp-brand-link {
+.fwp-header-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--divider);
+}
+
+.fwp-brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 10px;
+  color: var(--fg);
+  font-family: var(--font-heading);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
   text-decoration: none;
-}
-
-.fwp-wordmark {
-  margin: 0;
-  font-size: 1.85rem;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  line-height: 1;
-  background: linear-gradient(90deg, var(--primary), var(--primary-end));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
   user-select: none;
 }
 
-.fwp-pill {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 0.22rem 0.5rem;
-  border: 1px solid rgba(249, 115, 22, 0.25);
-  color: var(--primary);
-  background: rgba(249, 115, 22, 0.05);
+.fwp-brand-mark {
+  height: 24px;
+  width: auto;
 }
 
-/* ── Main Sharp-Edged Card ──────────────────────────────────────────── */
-.fwp-card {
-  position: relative;
-  z-index: 10;
-  width: 100%;
-  max-width: 64rem;
-  min-height: 430px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: 0 20px 35px -15px rgba(15, 23, 42, 0.08);
-  padding: 2.5rem;
+/* The mark's bars follow the text colour so they stay visible in dark mode. */
+.fwp-brand-mark g {
+  fill: var(--fg);
+}
+
+.fwp-logo-tile {
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+  background: #ffffff;
 }
 
-.fwp-grid {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3.5rem;
+.fwp-logo-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.fwp-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────── */
+.fwp-hero {
+  display: flex;
+  flex: 1;
   align-items: center;
+  padding-block: 40px;
 }
 
-/* ── Left Column ────────────────────────────────────────────────────── */
+.fwp-hero-copy {
+  max-width: 36rem;
+}
+
 .fwp-headline {
-  margin: 0 0 1rem;
-  font-size: clamp(1.85rem, 3vw, 2.35rem);
-  font-weight: 900;
-  line-height: 1.08;
-  letter-spacing: -0.03em;
-  text-transform: uppercase;
+  margin: 0 0 16px;
+  font-family: var(--font-heading);
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
   color: var(--fg);
 }
 
+.fwp-accent {
+  color: var(--forgewp);
+}
+
 .fwp-lead {
-  margin: 0 0 1.5rem;
-  font-size: 0.875rem;
-  line-height: 1.65;
-  color: var(--muted);
-  max-width: 34rem;
+  max-width: 28rem;
+  margin: 0 0 44px;
+  font-size: 14px;
+  line-height: 1.625;
+  color: var(--text);
 }
 
 .fwp-lead p {
   margin: 0;
 }
 
+/* CTAs match the forgewp.dev landing hero. */
 .fwp-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.85rem;
+  align-items: center;
+  gap: 16px 26px;
 }
 
-.fwp-btn-primary,
-.fwp-btn-secondary {
-  position: relative;
+.fwp-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.85rem 1.4rem;
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  padding: 14px 22px;
+  border-radius: var(--radius);
+  background: linear-gradient(
+    110deg,
+    color-mix(in oklab, var(--forgewp) 10%, transparent),
+    color-mix(in oklab, var(--forgewp-amber) 10%, transparent)
+  );
+  box-shadow: 0 1px 2px #0000000d;
+  color: var(--forgewp);
+  font-size: 16px;
+  font-weight: 600;
   text-decoration: none;
-  cursor: pointer;
-  overflow: hidden;
-  transition: color 0.35s ease, border-color 0.2s ease, background-color 0.2s ease;
+  transition: background 0.2s;
 }
 
-.fwp-btn-primary {
-  color: var(--primary);
-  background: transparent;
-  border: 1px solid var(--primary);
+.fwp-button:hover {
+  background: linear-gradient(
+    110deg,
+    color-mix(in oklab, var(--forgewp) 16%, transparent),
+    color-mix(in oklab, var(--forgewp-amber) 16%, transparent)
+  );
 }
 
-.fwp-btn-primary::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  width: 0;
-  background: var(--primary);
-  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-  z-index: 0;
-}
-
-.fwp-btn-primary:hover {
-  color: #ffffff;
-}
-
-.fwp-btn-primary:hover::before {
-  width: 100%;
-}
-
-.fwp-btn-primary > span {
-  position: relative;
-  z-index: 1;
-}
-
-.fwp-btn-secondary {
-  color: var(--fg);
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-}
-
-.fwp-btn-secondary:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-/* ── Right Column Stacked Cards ─────────────────────────────────────── */
-.fwp-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  width: 100%;
-}
-
-.fwp-tile {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  padding: 1.25rem 1.4rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: 0 8px 20px -12px rgba(15, 23, 42, 0.08);
-  text-decoration: none;
-  color: inherit;
-  overflow: hidden;
-  transition: box-shadow 0.35s ease, border-color 0.35s ease;
-}
-
-.fwp-tile::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 2px;
-  width: 0;
-  background: linear-gradient(90deg, var(--primary), var(--primary-end));
-  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.fwp-tile:hover {
-  box-shadow: 0 0 18px rgba(249, 115, 22, 0.09);
-  border-color: rgba(249, 115, 22, 0.18);
-}
-
-.fwp-tile:hover::before {
-  width: 100%;
-}
-
-.fwp-tile-icon {
-  flex-shrink: 0;
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: 9999px;
+.fwp-text-link {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(249, 115, 22, 0.06);
-  border: 1px solid rgba(249, 115, 22, 0.14);
-  color: var(--primary);
-}
-
-.fwp-tile-body {
-  flex: 1;
-  padding-right: 1.5rem;
-}
-
-.fwp-tile-title {
-  margin: 0 0 0.35rem;
-  font-size: 1rem;
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  text-transform: uppercase;
-  color: var(--fg);
-}
-
-.fwp-tile-desc {
-  margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.55;
-  color: var(--muted);
-}
-
-.fwp-tile-arrow {
-  position: absolute;
-  right: 1.25rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--primary);
-  opacity: 0.4;
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.fwp-tile:hover .fwp-tile-arrow {
-  opacity: 1;
-  transform: translate(4px, -50%);
-}
-
-/* ── Minimal Counter Island Controls ────────────────────────────────── */
-.fwp-island-row {
-  margin-top: 0.75rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.fwp-mini-btn {
-  appearance: none;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--fg);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 0.3rem 0.65rem;
-  cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
-}
-
-.fwp-mini-btn:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-}
-
-.fwp-mini-btn-accent {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: #ffffff;
-}
-
-.fwp-mini-btn-accent:hover {
-  background: #ea580c;
-  color: #ffffff;
-}
-
-.fwp-mini-count {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg);
-  min-width: 4.25rem;
-  text-align: center;
-}
-
-/* ── Minimal Subtle Footer Note ─────────────────────────────────────── */
-.fwp-footer {
-  position: relative;
-  z-index: 10;
-  margin-top: 1.5rem;
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #94a3b8;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.fwp-footer a {
-  color: inherit;
+  gap: 11px;
+  color: var(--link);
+  font-size: 16px;
   text-decoration: none;
+  transition: color 0.2s;
 }
 
-.fwp-footer a:hover {
-  color: var(--primary);
+.fwp-text-link:hover {
+  color: var(--forgewp);
 }
 
-@media (max-width: 860px) {
-  .fwp-grid {
-    grid-template-columns: 1fr;
-    gap: 2rem;
+/* ── Contour wave (src/components/WaveLines.tsx) ─────────────────────────
+   Fades in from the top and from the text side, so it never touches the top edge.
+   Each line sways slightly out of phase with its neighbours (a slow fabric ripple)
+   while its dashes drift along the line. Pure CSS; disabled for reduced motion. */
+.fwp-wave {
+  position: absolute;
+  z-index: -1;
+  top: 64px;
+  right: -96px;
+  width: 460px;
+  height: 440px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.forgewp-wave {
+  mask-image:
+    linear-gradient(to bottom, transparent 0%, #000 22%),
+    linear-gradient(to right, transparent 0%, #000 40%);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+}
+
+.forgewp-wave path:not([data-solid]) {
+  stroke: var(--wave-ink);
+}
+
+.forgewp-wave path {
+  animation:
+    forgewp-wave-sway 9s ease-in-out calc(var(--wave-i) * -0.6s) infinite,
+    forgewp-wave-flow var(--wave-flow) linear infinite;
+  will-change: transform;
+}
+
+.forgewp-wave path[data-solid] {
+  animation: forgewp-wave-sway 9s ease-in-out calc(var(--wave-i) * -0.6s) infinite;
+}
+
+@keyframes forgewp-wave-sway {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
   }
+  50% {
+    transform: translate3d(-16px, 6px, 0);
+  }
+}
 
-  .fwp-card {
-    padding: 1.75rem;
-    min-height: auto;
+@keyframes forgewp-wave-flow {
+  to {
+    stroke-dashoffset: calc(var(--wave-period) * -1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forgewp-wave path {
+    animation: none;
+  }
+}
+
+/* ── Breakpoints ─────────────────────────────────────────────────────── */
+@media (min-width: 640px) {
+  .fwp-page {
+    padding: 24px 40px;
+  }
+  .fwp-headline {
+    font-size: 48px;
+  }
+  .fwp-lead {
+    font-size: 15px;
+  }
+  .fwp-wave {
+    top: 80px;
+    right: -24px;
+    width: 600px;
+    height: 600px;
+    opacity: 0.6;
+  }
+}
+
+@media (min-width: 1024px) {
+  .fwp-page {
+    padding-inline: 64px;
+  }
+  .fwp-hero {
+    padding-block: 16px;
+  }
+  .fwp-wave {
+    top: 9%;
+    right: -16px;
+    width: 56%;
+    height: 96%;
+    opacity: 1;
+  }
+}
+
+@media (min-width: 1280px) {
+  .fwp-headline {
+    font-size: 60px;
+  }
+}
+
+/* Short desktop windows: tighten so the whole page fits without scrolling. */
+@media (min-width: 1024px) and (max-height: 720px) {
+  .fwp-page {
+    padding-block: 16px;
+  }
+  .fwp-hero {
+    padding-block: 8px;
+  }
+  .fwp-headline {
+    margin-bottom: 12px;
+    font-size: 44px;
+  }
+  .fwp-lead {
+    margin-bottom: 32px;
+    font-size: 14px;
   }
 }
