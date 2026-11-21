@@ -1,4 +1,4 @@
-import { createWpServerClient } from '@forgewp/react/server';
+import { createWpServerClient } from '@forgewp/react';
 import { mockData } from '../../cms/mock-data';
 
 export const wpClient = createWpServerClient({

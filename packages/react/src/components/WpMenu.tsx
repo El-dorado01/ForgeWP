@@ -7,12 +7,14 @@ export interface WpMenuProps {
    * Optional manual items. If not passed, it will load dynamically
    * using the useWpMenu hook for the specified location.
    */
-  items?: WpMenuItem[];
+  items?: Array<WpMenuItem | { id?: number | string; title: string; url: string; path?: string; target?: string; classes?: string[]; children?: any[] }>;
   /** Menu location key — matches a key in your cms/menus.json */
   location?: WpMenuLocation;
   className?: string;
   linkClassName?: string;
   submenuClassName?: string;
+  /** Optional `aria-label` for the `<nav>` landmark. */
+  ariaLabel?: string;
   /** Custom render function per menu item (for mega menus / rich dropdowns) */
   renderItem?: (item: WpMenuItem, index: number) => React.ReactNode;
 }
@@ -32,13 +34,14 @@ export function WpMenu({
   className = "",
   linkClassName = "",
   submenuClassName = "",
+  ariaLabel,
   renderItem,
 }: WpMenuProps) {
   const { items: dynamicItems } = useWpMenu(location);
-  const items = manualItems || dynamicItems;
+  const items = (manualItems as WpMenuItem[] | undefined) || dynamicItems;
 
   return (
-    <nav className={className}>
+    <nav className={className} aria-label={ariaLabel || undefined}>
       {items.map((item, idx) => {
         if (renderItem) {
           return <React.Fragment key={item.id ?? idx}>{renderItem(item, idx)}</React.Fragment>;

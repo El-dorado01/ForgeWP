@@ -512,7 +512,7 @@ export async function onMakePage(themeRoot, { pascalCase, pc }) {
 
   const source = hasContentHelper
     ? `import Link from 'next/link';
-import { BlockArea } from '@forgewp/react/server';
+import { BlockArea } from '@forgewp/react';
 import { getPageContent } from '@/lib/content';
 
 export default async function ${pascalCase}Page() {
@@ -530,7 +530,7 @@ export default async function ${pascalCase}Page() {
 }
 `
     : `import Link from 'next/link';
-import { BlockArea } from '@forgewp/react/server';
+import { BlockArea } from '@forgewp/react';
 
 export default function ${pascalCase}Page() {
   return (
@@ -616,7 +616,7 @@ export default ${pascalCase};
     console.log(
       pc.dim(
         `   Use in any Server Component page:\n` +
-          `     import { Hydrate } from '@forgewp/react/server';\n` +
+          `     import { Hydrate } from '@forgewp/react';\n` +
           `     import { ${pascalCase} } from '@/components/${pascalCase}';\n` +
           `     <Hydrate id="${slug}"><${pascalCase} /></Hydrate>`,
       ),
@@ -810,7 +810,7 @@ export async function onMakeLoop(
     ? '{ postsPerPage = 6 }'
     : '{ postsPerPage = 6 }: { postsPerPage?: number }';
 
-  const source = `import { WpServerLoop } from '@forgewp/react/server';
+  const source = `import { WpQueryLoop } from '@forgewp/react';
 import { wpClient } from '@/lib/content';
 
 export async function ${pascalCase}(${propsSig}) {
@@ -818,7 +818,7 @@ export async function ${pascalCase}(${propsSig}) {
 
   return (
     <section className="forgewp-loop-${toKebabCase(postType)}">
-      <WpServerLoop
+      <WpQueryLoop
         postType=${JSON.stringify(postType)}
         useMainQuery={false}
         postsPerPage={postsPerPage}

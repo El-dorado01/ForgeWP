@@ -6,6 +6,10 @@ export interface BlockAreaProps {
   name: string;
   /** Local-only block definitions keyed by serialized block name; does not register WordPress blocks. */
   previewBlocks?: PreviewBlocks;
+  /** Optional HTML content to render in local dev or decoupled mode. */
+  content?: string;
+  /** Optional custom fallback/children for local dev or decoupled mode. */
+  children?: React.ReactNode;
 }
 
 /**
@@ -14,7 +18,7 @@ export interface BlockAreaProps {
  * In production the ForgeWP compiler replaces this with:
  *   <?php the_content(); ?>
  */
-export function BlockArea({ name, previewBlocks = {} }: BlockAreaProps) {
+export function BlockArea({ name, previewBlocks = {}, content, children }: BlockAreaProps) {
   const post = React.useContext(WpPostContext);
   const isCompileTime =
     (typeof window !== 'undefined' && (window as any)._forgeWpCompileTime) ||
@@ -25,6 +29,14 @@ export function BlockArea({ name, previewBlocks = {} }: BlockAreaProps) {
     return React.createElement('forgewp-block-area', {
       'data-name': name,
     });
+  }
+
+  if (children !== undefined && children !== null) {
+    return <div data-forgewp-block-area={name}>{children}</div>;
+  }
+
+  if (typeof content === 'string' && content.trim().length > 0) {
+    return <div data-forgewp-block-area={name}><BlockContentPreview content={content} blocks={previewBlocks} /></div>;
   }
 
   // Dev preview: show active post content if available, otherwise show a beautiful visual placeholder
