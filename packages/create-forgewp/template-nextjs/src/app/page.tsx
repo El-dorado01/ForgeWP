@@ -46,6 +46,10 @@ export default async function HomePage() {
               <ArrowUpRightIcon />
             </a>
           </div>
+
+          <p className="fwp-hint">
+            Edit <code>src/app/page.tsx</code> and save to see your changes.
+          </p>
         </div>
       </section>
     </main>

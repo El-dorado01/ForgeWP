@@ -9,12 +9,12 @@ import type { CSSProperties } from 'react';
 export function WaveLines({ className }: { className?: string }) {
   const width = 600;
   const height = 640;
-  const count = 11;
+  const count = 17;
   const samples = 48;
 
   const lines = Array.from({ length: count }, (_, i) => {
     const t = i / (count - 1); // 0 = outer (left) edge, 1 = fold
-    const baseX = 330 + t * 340; // the fold and solid line run off the right edge
+    const baseX = 150 + t * 520; // spreads into the page centre; the solid line runs off the right edge
     const points: string[] = [];
     for (let s = 0; s <= samples; s++) {
       const v = s / samples; // 0 = top, 1 = bottom
@@ -37,7 +37,7 @@ export function WaveLines({ className }: { className?: string }) {
       className={className}
     >
       {lines.map(({ d, t }, i) => {
-        const solid = i === count - 1; // the last line is solid; the 10 before it are dashed
+        const solid = i === count - 1; // the last line is solid; the rest are dashed
         // Outer lines are dots (near-zero dash with round caps); dashes lengthen toward the fold.
         const dash = 0.01 + t * t * 9;
         const gap = 6 - t * 3.2;

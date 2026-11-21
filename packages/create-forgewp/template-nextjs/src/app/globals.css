@@ -9,6 +9,8 @@
   --divider: #3a3d45;
   --tile-border: #2a2d35;
   --wave-ink: #e7e5e4;
+  --hint: #a8a29e;
+  --hint-code: #d6d3d1;
   /* ForgeWP brand orange (logo dot) and the amber it blends into. */
   --forgewp: #f97316;
   --forgewp-amber: #f59e0b;
@@ -30,6 +32,8 @@
   --divider: #d6d3d1;
   --tile-border: #e7e5e4;
   --wave-ink: #18181b;
+  --hint: #78716c;
+  --hint-code: #1e293b;
 }
 
 * {
@@ -103,20 +107,16 @@ body {
   fill: var(--fg);
 }
 
-.fwp-logo-tile {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--tile-border);
-  border-radius: var(--radius);
-  background: #ffffff;
+/* Framework logo sits directly on the page. The Next.js mark is black, so the
+   dark theme (default) inverts it to its white variant. */
+.fwp-framework-logo {
+  width: 24px;
+  height: 24px;
+  filter: invert(1);
 }
 
-.fwp-logo-icon {
-  width: 22px;
-  height: 22px;
+:root.light .fwp-framework-logo {
+  filter: none;
 }
 
 .fwp-main {
@@ -212,6 +212,19 @@ body {
   color: var(--forgewp);
 }
 
+/* "Edit src/app/page.tsx" hint, well clear of the CTAs. */
+.fwp-hint {
+  margin: 56px 0 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--hint);
+}
+
+.fwp-hint code {
+  font-family: inherit;
+  color: var(--hint-code);
+}
+
 /* ── Contour wave (src/components/WaveLines.tsx) ─────────────────────────
    Fades in from the top and from the text side, so it never touches the top edge.
    Each line sways slightly out of phase with its neighbours (a slow fabric ripple)
@@ -302,7 +315,7 @@ body {
   .fwp-wave {
     top: 9%;
     right: -16px;
-    width: 56%;
+    width: 70%;
     height: 96%;
     opacity: 1;
   }
@@ -329,5 +342,8 @@ body {
   .fwp-lead {
     margin-bottom: 32px;
     font-size: 14px;
+  }
+  .fwp-hint {
+    margin-top: 36px;
   }
 }

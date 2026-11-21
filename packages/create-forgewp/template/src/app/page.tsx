@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 import { Hydrate, WpHead } from "@forgewp/react";
 import { ArrowUpRight, Github } from "lucide-react";
 import { ForgeWPLogo, ReactLogo, ViteLogo } from "../components/brand-logos";
@@ -14,7 +14,7 @@ export default function HomePage() {
       />
 
       {/* Contour wave artwork, fading out toward the text */}
-      <WaveLines className="forgewp-wave pointer-events-none absolute -right-24 top-16 -z-10 h-[440px] w-[460px] opacity-35 sm:-right-6 sm:top-20 sm:h-[600px] sm:w-[600px] sm:opacity-60 lg:-right-4 lg:top-[9%] lg:h-[96%] lg:w-[56%] lg:opacity-100" />
+      <WaveLines className="forgewp-wave pointer-events-none absolute -right-24 top-16 -z-10 h-[440px] w-[460px] opacity-35 sm:-right-6 sm:top-20 sm:h-[600px] sm:w-[600px] sm:opacity-60 lg:-right-4 lg:top-[9%] lg:h-[96%] lg:w-[70%] lg:opacity-100" />
 
       {/* ── HEADER: ForgeWP | stack, centred ── */}
       <div className="flex items-center justify-center gap-5">
@@ -25,14 +25,9 @@ export default function HomePage() {
           </span>
         </div>
         <span aria-hidden="true" className="h-7 w-px bg-[#3a3d45] light:bg-stone-300" />
-        <div className="flex items-center gap-1.5">
-          <LogoTile label="Vite">
-            <ViteLogo className="h-[22px] w-[22px]" />
-          </LogoTile>
-          <span aria-hidden="true" className="font-mono text-[10px] text-stone-400">+</span>
-          <LogoTile label="React">
-            <ReactLogo className="h-[22px] w-[22px]" />
-          </LogoTile>
+        <div className="flex items-center gap-3">
+          <ViteLogo className="h-6 w-6" />
+          <ReactLogo className="h-6 w-6" />
         </div>
         {/* Press "d" to toggle dark mode */}
         <Hydrate id="theme-hotkey" trigger="load">
@@ -78,19 +73,14 @@ export default function HomePage() {
               <ArrowUpRight size={16} />
             </a>
           </div>
+
+          <p className="mt-14 font-mono text-[13px] text-stone-400 light:text-stone-500 lg:[@media(max-height:720px)]:mt-9">
+            Edit{" "}
+            <code className="text-stone-300 light:text-slate-800">src/app/page.tsx</code>{" "}
+            and save to see your changes.
+          </p>
         </div>
       </section>
-    </div>
-  );
-}
-
-function LogoTile({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div
-      title={label}
-      className="flex h-10 w-10 items-center justify-center rounded-[4px] border border-[#2a2d35] bg-white light:border-stone-200"
-    >
-      {children}
     </div>
   );
 }
@@ -104,12 +94,12 @@ function LogoTile({ label, children }: { label: string; children: ReactNode }) {
 function WaveLines({ className }: { className?: string }) {
   const width = 600;
   const height = 640;
-  const count = 11;
+  const count = 17;
   const samples = 48;
 
   const lines = Array.from({ length: count }, (_, i) => {
     const t = i / (count - 1); // 0 = outer (left) edge, 1 = fold
-    const baseX = 330 + t * 340; // the fold and solid line run off the right edge
+    const baseX = 150 + t * 520; // spreads into the page centre; the solid line runs off the right edge
     const points: string[] = [];
     for (let s = 0; s <= samples; s++) {
       const v = s / samples; // 0 = top, 1 = bottom
@@ -132,7 +122,7 @@ function WaveLines({ className }: { className?: string }) {
       className={className}
     >
       {lines.map(({ d, t }, i) => {
-        const solid = i === count - 1; // the last line is solid; the 10 before it are dashed
+        const solid = i === count - 1; // the last line is solid; the rest are dashed
         // Outer lines are dots (near-zero dash with round caps); dashes lengthen toward the fold.
         const dash = 0.01 + t * t * 9;
         const gap = 6 - t * 3.2;

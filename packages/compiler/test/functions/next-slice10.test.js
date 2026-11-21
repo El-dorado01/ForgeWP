@@ -215,9 +215,9 @@ describe('Slice 10: Public Next.js adapter registration, withForgeWP(), and crea
             'utf8',
           );
           expect(homeStatic).toContain('<?php the_content(); ?>');
-          // Welcome page artwork survives native export: all 11 contour lines with motion variables
+          // Welcome page artwork survives native export: all 17 contour lines with motion variables
           expect(homeStatic).toContain('forgewp-wave');
-          expect(homeStatic.match(/--wave-period:/g)?.length).toBe(11);
+          expect(homeStatic.match(/--wave-period:/g)?.length).toBe(17);
 
           // Lint all generated PHP & static templates with php -l
           const files = walkFiles(result.outDir).filter(

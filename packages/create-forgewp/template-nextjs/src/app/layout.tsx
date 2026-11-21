@@ -31,9 +31,7 @@ export default function RootLayout({
             <span>ForgeWP</span>
           </Link>
           <span className="fwp-header-divider" aria-hidden="true" />
-          <span className="fwp-logo-tile" title="Next.js">
-            <NextLogo className="fwp-logo-icon" />
-          </span>
+          <NextLogo className="fwp-framework-logo" />
           {/* Press "d" to toggle dark mode */}
           <Hydrate id="theme-hotkey" trigger="load">
             <ThemeHotkey />
