@@ -205,8 +205,8 @@ export function writeScaffoldFile(themeRoot, tsTargetPath, tsSource) {
     writeFileSync(tsTargetPath, tsSource, 'utf8');
     return { writtenPath: tsTargetPath, isJs: false };
   }
-  const isJsx = tsTargetPath.endsWith('.tsx');
-  const jsTargetPath = isJsx
+  const isJsx = tsTargetPath.endsWith('.tsx') || tsTargetPath.endsWith('.jsx');
+  const jsTargetPath = tsTargetPath.endsWith('.tsx')
     ? tsTargetPath.slice(0, -4) + '.jsx'
     : tsTargetPath.endsWith('.ts')
       ? tsTargetPath.slice(0, -3) + '.js'

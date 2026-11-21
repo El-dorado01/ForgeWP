@@ -6,6 +6,7 @@ import { createUi } from '../lib/terminal-ui.js';
 
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { getProjectExtensions } from "../lib/project-language.js";
 
 const ui = createUi();
 const { c } = ui;
@@ -47,11 +48,16 @@ if (!cleanName) {
 }
 
 const projectRoot = process.cwd();
+const { scriptExt } = getProjectExtensions(projectRoot);
 const wpDir = path.join(projectRoot, "cms");
-const mockDataTsPath = path.join(wpDir, "mock-data.ts");
+const existingScriptMock = ["mock-data.ts", "mock-data.js", "mock-data.mjs"].find((name) =>
+  existsSync(path.join(wpDir, name)),
+);
+const mockDataScriptName = existingScriptMock || `mock-data${scriptExt}`;
+const mockDataTsPath = path.join(wpDir, mockDataScriptName);
 const mockDataJsonPath = path.join(wpDir, "mock-data.json");
-const isTs = existsSync(mockDataTsPath) || !existsSync(mockDataJsonPath);
-const activeFile = isTs ? "cms/mock-data.ts" : "cms/mock-data.json";
+const isTs = Boolean(existingScriptMock) || !existsSync(mockDataJsonPath);
+const activeFile = isTs ? `cms/${mockDataScriptName}` : "cms/mock-data.json";
 
 // Ensure cms directory exists
 if (!existsSync(wpDir)) {
@@ -120,7 +126,7 @@ if (isTs) {
   if (existsSync(mockDataTsPath)) {
     let content = readFileSync(mockDataTsPath, "utf8");
     if (content.includes(`"${cleanName}":`) || content.includes(`${cleanName}:`)) {
-      console.warn(`\n${ui.warn(`Post type "${cleanName}" already exists`, "cms/mock-data.ts")}`);
+      console.warn(`\n${ui.warn(`Post type "${cleanName}" already exists`, activeFile)}`);
       console.log(`${ui.detail("Open the file to view or edit its fields.")}\n`);
       process.exit(0);
     }

@@ -6,6 +6,7 @@ import { createUi } from '../lib/terminal-ui.js';
 
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { getProjectExtensions } from "../lib/project-language.js";
 
 const ui = createUi();
 const { c } = ui;
@@ -93,14 +94,15 @@ if (fieldsList.length === 0) {
   ];
 }
 
+const { scriptExt } = getProjectExtensions(projectRoot);
 const editablesDir = path.join(projectRoot, "cms", "editables");
 if (!existsSync(editablesDir)) {
   mkdirSync(editablesDir, { recursive: true });
 }
 
-const targetFile = path.join(editablesDir, `${slug}.ts`);
+const targetFile = path.join(editablesDir, `${slug}${scriptExt}`);
 if (existsSync(targetFile)) {
-  console.error(ui.errorBlock(`Already exists: cms/editables/${slug}.ts`, "Choose a different name, or edit the existing schema."));
+  console.error(ui.errorBlock(`Already exists: cms/editables/${slug}${scriptExt}`, "Choose a different name, or edit the existing schema."));
   process.exit(1);
 }
 
@@ -162,7 +164,7 @@ export const defaults = getEditableDefaults(editable);
 
 writeFileSync(targetFile, schemaTemplate, "utf8");
 
-console.log(`\n${ui.created("editable schema", slug, `cms/editables/${slug}.ts`)}`);
+console.log(`\n${ui.created("editable schema", slug, `cms/editables/${slug}${scriptExt}`)}`);
 console.log(ui.detail("Use it in a page or section component:"));
 console.log(`      ${ui.command(`import { editable, defaults } from '../../cms/editables/${slug}';`)}`);
 console.log(`      ${ui.command(`const ${fieldsList[0].name} = useWpMeta('${fieldsList[0].name}', defaults.${fieldsList[0].name});`)}\n`);

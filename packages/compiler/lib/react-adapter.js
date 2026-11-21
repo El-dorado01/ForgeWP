@@ -19,7 +19,7 @@ import {
   resolveIslandChunk,
   scanAppProviders,
 } from './hydration/index.js';
-import { writeScaffoldFile } from './project-language.js';
+import { getProjectExtensions, writeScaffoldFile } from './project-language.js';
 
 // Shared terminal output (functions that build their own `ui` shadow this one).
 const ui = createUi();
@@ -1106,14 +1106,15 @@ export function onMakeBlock(
   ) || new Set(attributesList).size !== attributesList.length) {
     throw new Error('Attribute names must be unique JavaScript property identifiers, such as title or cta_label. make:block creates string attributes; edit their types in source.');
   }
+  const { jsxExt } = getProjectExtensions(themeRoot);
   const blocksDir = path.join(themeRoot, 'src', 'blocks');
   if (!existsSync(blocksDir)) {
     mkdirSync(blocksDir, { recursive: true });
   }
 
-  const targetFile = path.join(blocksDir, `${pascalCase}.tsx`);
+  const targetFile = path.join(blocksDir, `${pascalCase}${jsxExt}`);
   if (existsSync(targetFile)) {
-    console.error(ui.errorBlock(`Already exists: src/blocks/${pascalCase}.tsx`, 'Choose a different name, or remove the existing file first.'));
+    console.error(ui.errorBlock(`Already exists: src/blocks/${pascalCase}${jsxExt}`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 
@@ -1246,17 +1247,18 @@ export function onMakeShell(
     pc: colors,
   },
 ) {
+  const { jsxExt } = getProjectExtensions(themeRoot);
   const log = colors || pc;
   const blocksDir = path.join(themeRoot, 'src', 'blocks');
   if (!existsSync(blocksDir)) {
     mkdirSync(blocksDir, { recursive: true });
   }
 
-  const targetFile = path.join(blocksDir, `${pascalCase}.tsx`);
+  const targetFile = path.join(blocksDir, `${pascalCase}${jsxExt}`);
   if (existsSync(targetFile)) {
     console.error(
       log.red(
-        `\n❌ Error: Block "${pascalCase}.tsx" already exists at src/blocks/\n`,
+        `\n❌ Error: Block "${pascalCase}${jsxExt}" already exists at src/blocks/\n`,
       ),
     );
     process.exit(1);
@@ -1356,14 +1358,15 @@ export function onMakeLoop(
   themeRoot,
   { pascalCase, postType, customFields, automaticallySeeded, pc },
 ) {
+  const { jsxExt } = getProjectExtensions(themeRoot);
   const loopsDir = path.join(themeRoot, 'src', 'loops');
   if (!existsSync(loopsDir)) {
     mkdirSync(loopsDir, { recursive: true });
   }
 
-  const targetFile = path.join(loopsDir, `${pascalCase}.tsx`);
+  const targetFile = path.join(loopsDir, `${pascalCase}${jsxExt}`);
   if (existsSync(targetFile)) {
-    console.error(ui.errorBlock(`Already exists: src/loops/${pascalCase}.tsx`, 'Choose a different name, or remove the existing file first.'));
+    console.error(ui.errorBlock(`Already exists: src/loops/${pascalCase}${jsxExt}`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 
@@ -1453,14 +1456,15 @@ export default function ${pascalCase}() {
 }
 
 export function onMakeIsland(themeRoot, { pascalCase, pc }) {
+  const { jsxExt } = getProjectExtensions(themeRoot);
   const componentsDir = path.join(themeRoot, 'src', 'components');
   if (!existsSync(componentsDir)) {
     mkdirSync(componentsDir, { recursive: true });
   }
 
-  const targetFile = path.join(componentsDir, `${pascalCase}.tsx`);
+  const targetFile = path.join(componentsDir, `${pascalCase}${jsxExt}`);
   if (existsSync(targetFile)) {
-    console.error(ui.errorBlock(`Already exists: src/components/${pascalCase}.tsx`, 'Choose a different name, or remove the existing file first.'));
+    console.error(ui.errorBlock(`Already exists: src/components/${pascalCase}${jsxExt}`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 
@@ -1505,14 +1509,15 @@ export default function ${pascalCase}(_props: ${pascalCase}Props) {
 }
 
 export function onMakePage(themeRoot, { pascalCase, pc }) {
+  const { jsxExt } = getProjectExtensions(themeRoot);
   const pagesDir = path.join(themeRoot, 'src', 'app', 'pages');
   if (!existsSync(pagesDir)) {
     mkdirSync(pagesDir, { recursive: true });
   }
 
-  const targetFile = path.join(pagesDir, `${pascalCase}.tsx`);
+  const targetFile = path.join(pagesDir, `${pascalCase}${jsxExt}`);
   if (existsSync(targetFile)) {
-    console.error(ui.errorBlock(`Already exists: src/app/pages/${pascalCase}.tsx`, 'Choose a different name, or remove the existing file first.'));
+    console.error(ui.errorBlock(`Already exists: src/app/pages/${pascalCase}${jsxExt}`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 
@@ -1562,20 +1567,21 @@ export function ${pascalCase}() {
 
   console.log(`\n${ui.created('page template', pascalCase, path.relative(themeRoot, writtenPath).replaceAll('\\', '/'))}`);
   console.log(ui.detail(`Appears in WordPress as the "${pascalCase}" page template.`));
-  console.log(`${ui.hint('Next', `add a route for it in ${ui.command('src/app/routes.tsx')} ${ui.c.dim('to preview it locally')}`)}\n`);
+  console.log(`${ui.hint('Next', `add a route for it in ${ui.command(`src/app/routes${jsxExt}`)} ${ui.c.dim('to preview it locally')}`)}\n`);
 }
 
 export function onMakeForm(
   themeRoot,
   { slug, pascalCase, fields, mailTo, pc },
 ) {
+  const { scriptExt, jsxExt } = getProjectExtensions(themeRoot);
   const formsDir = path.join(themeRoot, 'cms', 'forms');
   if (!existsSync(formsDir)) {
     mkdirSync(formsDir, { recursive: true });
   }
-  const formConfigFile = path.join(formsDir, `${slug}.ts`);
+  const formConfigFile = path.join(formsDir, `${slug}${scriptExt}`);
   if (existsSync(formConfigFile)) {
-    console.error(ui.errorBlock(`Already exists: cms/forms/${slug}.ts`, 'Choose a different name, or remove the existing file first.'));
+    console.error(ui.errorBlock(`Already exists: cms/forms/${slug}${scriptExt}`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 
@@ -1584,9 +1590,9 @@ export function onMakeForm(
     mkdirSync(componentsDir, { recursive: true });
   }
   const componentName = `${pascalCase}Form`;
-  const componentFile = path.join(componentsDir, `${componentName}.tsx`);
+  const componentFile = path.join(componentsDir, `${componentName}${jsxExt}`);
   if (existsSync(componentFile)) {
-    console.error(ui.errorBlock(`Already exists: src/components/forms/${componentName}.tsx`, 'Choose a different name, or remove the existing file first.'));
+    console.error(ui.errorBlock(`Already exists: src/components/forms/${componentName}${jsxExt}`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 
@@ -1616,7 +1622,7 @@ export function onMakeForm(
  *  - mail delivery + optional submission storage (wp-admin > Forms Submissions)
  *
  * Discovered automatically from this file — nothing else needs to reference
- * it. See ${componentName}.tsx (src/components/forms/) for the matching UI.
+ * it. See ${componentName}${jsxExt} (src/components/forms/) for the matching UI.
  *
  * Want client-editable fields (added/removed later in wp-admin, without a
  * redeploy)? Add a \`clientFields\` key here and render it with
@@ -1682,7 +1688,7 @@ import { submitWpForm } from "@forgewp/react";
 /**
  * ⚡ ForgeWP Form — "${componentName}"
  *
- * Submits to the "${slug}" form declared in cms/forms/${slug}.ts. ForgeWP
+ * Submits to the "${slug}" form declared in cms/forms/${slug}${scriptExt}. ForgeWP
  * auto-detects this component as interactive (uses React state) and
  * hydrates it in the browser so onSubmit fires instead of a native form
  * GET submit.
@@ -1753,6 +1759,8 @@ ${fieldMarkup}
 }
 
 export function onSyncRoutes(themeRoot, { routesToScaffold, isForce, pc }) {
+  const { jsxExt } = getProjectExtensions(themeRoot);
+
   function toPascalCase(str) {
     return (
       str
@@ -1774,12 +1782,12 @@ export function onSyncRoutes(themeRoot, { routesToScaffold, isForce, pc }) {
 
   for (const route of routesToScaffold) {
     const componentName = toPascalCase(route.title);
-    const componentPath = path.join(pagesDir, `${componentName}.tsx`);
+    const componentPath = path.join(pagesDir, `${componentName}${jsxExt}`);
 
     const componentContent = `/**
  * ⚡ Auto-Generated Page Component by ForgeWP
  * 
- * This file was generated automatically from your sitemap configuration (cms/menus.json).
+ * This file was generated automatically from your sitemap configuration (cms/menus).
  * You can safely edit this file to customize the visual layout, styles, and logic.
  * Subsequent runs of 'pnpm forgewp sync:routes' will NOT overwrite your changes.
  * 
@@ -1806,7 +1814,7 @@ export function ${componentName}() {
       <header className="border-b border-slate-100 pb-6 mb-12">
         <h1 className="text-5xl font-black tracking-tight uppercase text-slate-900">${route.title}</h1>
         <p className="text-slate-500 mt-2 text-sm">
-          Auto-generated template. Edit <code className="bg-slate-50 px-1 py-0.5 border border-slate-100 text-xs text-primary font-mono">src/app/pages/${componentName}.tsx</code> to customize this page.
+          Auto-generated template. Edit <code className="bg-slate-50 px-1 py-0.5 border border-slate-100 text-xs text-primary font-mono">src/app/pages/${componentName}${jsxExt}</code> to customize this page.
         </p>
       </header>
 
@@ -1845,13 +1853,13 @@ export function ${componentName}() {
 
     if (existsSync(componentPath) && !isForce) {
       console.log(
-        ui.info('Kept existing page', `src/app/pages/${componentName}.tsx`),
+        ui.info('Kept existing page', `src/app/pages/${componentName}${jsxExt}`),
       );
       skippedCount++;
     } else {
-      writeFileSync(componentPath, componentContent, 'utf8');
+      writeScaffoldFile(themeRoot, componentPath, componentContent);
       console.log(
-        ui.done('Created page', `src/app/pages/${componentName}.tsx`),
+        ui.done('Created page', `src/app/pages/${componentName}${jsxExt}`),
       );
       scaffoldedCount++;
     }
@@ -1919,8 +1927,8 @@ export function ${componentName}() {
   for (const cpt of cpts) {
     const pascalCpt = cpt.charAt(0).toUpperCase() + cpt.slice(1);
 
-    // 1. Scaffold thin wrapper src/app/single-${cpt}.tsx
-    const wrapperPath = path.join(themeRoot, 'src', 'app', `single-${cpt}.tsx`);
+    // 1. Scaffold thin wrapper src/app/single-${cpt}${jsxExt}
+    const wrapperPath = path.join(themeRoot, 'src', 'app', `single-${cpt}${jsxExt}`);
     const wrapperContent = `import { Single${pascalCpt}Page } from "./pages/Single${pascalCpt}Page";
 export default Single${pascalCpt}Page;
 `;
@@ -1928,14 +1936,14 @@ export default Single${pascalCpt}Page;
     if (existsSync(wrapperPath) && !isForce) {
       // Skip wrapper
     } else {
-      writeFileSync(wrapperPath, wrapperContent, 'utf8');
+      writeScaffoldFile(themeRoot, wrapperPath, wrapperContent);
       console.log(
-        ui.done('Created post-type template', `src/app/single-${cpt}.tsx`),
+        ui.done('Created post-type template', `src/app/single-${cpt}${jsxExt}`),
       );
     }
 
-    // 2. Scaffold page component src/app/pages/Single${pascalCpt}Page.tsx
-    const cptPagePath = path.join(pagesDir, `Single${pascalCpt}Page.tsx`);
+    // 2. Scaffold page component src/app/pages/Single${pascalCpt}Page${jsxExt}
+    const cptPagePath = path.join(pagesDir, `Single${pascalCpt}Page${jsxExt}`);
     const cptPageContent = `/**
  * ⚡ Auto-Generated CPT Single Page Component by ForgeWP
  * 
@@ -2038,19 +2046,23 @@ export function Single${pascalCpt}Page() {
 
     if (existsSync(cptPagePath) && !isForce) {
       console.log(
-        ui.info('Kept existing post-type page', `src/app/pages/Single${pascalCpt}Page.tsx`),
+        ui.info('Kept existing post-type page', `src/app/pages/Single${pascalCpt}Page${jsxExt}`),
       );
       cptSkippedCount++;
     } else {
-      writeFileSync(cptPagePath, cptPageContent, 'utf8');
+      writeScaffoldFile(themeRoot, cptPagePath, cptPageContent);
       console.log(
-        ui.done('Created post-type page', `src/app/pages/Single${pascalCpt}Page.tsx`),
+        ui.done('Created post-type page', `src/app/pages/Single${pascalCpt}Page${jsxExt}`),
       );
       cptScaffoldedCount++;
     }
   }
 
-  const routesFilePath = path.join(themeRoot, 'src', 'app', 'routes.tsx');
+  const routesFileName =
+    ['routes.tsx', 'routes.jsx', 'routes.ts', 'routes.js'].find((name) =>
+      existsSync(path.join(themeRoot, 'src', 'app', name)),
+    ) || `routes${jsxExt}`;
+  const routesFilePath = path.join(themeRoot, 'src', 'app', routesFileName);
   if (existsSync(routesFilePath)) {
     let routesContent = readFileSync(routesFilePath, 'utf8');
     let modified = false;
@@ -2153,12 +2165,12 @@ export function Single${pascalCpt}Page() {
 
     if (modified) {
       writeFileSync(routesFilePath, routesContent, 'utf8');
-      console.log(ui.done('Linked new pages', 'src/app/routes.tsx'));
+      console.log(ui.done('Linked new pages', `src/app/${routesFileName}`));
     } else {
-      console.log(ui.info('Routes already up to date', 'src/app/routes.tsx'));
+      console.log(ui.info('Routes already up to date', `src/app/${routesFileName}`));
     }
   } else {
-    console.log(ui.warn('src/app/routes.tsx not found', 'pages were created but not linked'));
+    console.log(ui.warn(`src/app/${routesFileName} not found`, 'pages were created but not linked'));
   }
 
   const kept = skippedCount + cptSkippedCount;

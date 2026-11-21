@@ -66,8 +66,11 @@ if (!existsSync(path.join(projectRoot, "src"))) {
   process.exit(1);
 }
 
-if (existsSync(path.join(projectRoot, "cms", "forms", `${slug}.ts`))) {
-  console.error(ui.errorBlock(`Already exists: cms/forms/${slug}.ts`, "Choose a different name, or edit the existing form."));
+const existingFormExt = [".ts", ".js", ".mjs"].find((ext) =>
+  existsSync(path.join(projectRoot, "cms", "forms", `${slug}${ext}`)),
+);
+if (existingFormExt) {
+  console.error(ui.errorBlock(`Already exists: cms/forms/${slug}${existingFormExt}`, "Choose a different name, or edit the existing form."));
   process.exit(1);
 }
 

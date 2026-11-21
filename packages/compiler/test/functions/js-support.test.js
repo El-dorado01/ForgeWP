@@ -224,28 +224,62 @@ export default defineBlock({
       red: (s) => s,
     };
 
-    reactAdapter.onMakeBlock(tmpRoot, { pascalCase: 'FeatureCard', attributesList: ['title'], readableTitle: 'Feature Card', pc });
-    reactAdapter.onMakeShell(tmpRoot, {
-      pascalCase: 'TwoColShell',
-      nameSlug: 'two-col-shell',
-      readableTitle: 'Two Col Shell',
-      childrenSlugs: [],
-      shell: { className: 'sec', gridClassName: 'grid' },
-      innerBlocks: {},
-      pc,
-    });
-    reactAdapter.onMakeLoop(tmpRoot, { pascalCase: 'ProjectGrid', postType: 'project', customFields: [], automaticallySeeded: false, pc });
-    reactAdapter.onMakeIsland(tmpRoot, { pascalCase: 'NewsletterBox', pc });
-    reactAdapter.onMakePage(tmpRoot, { pascalCase: 'Services', pc });
-    reactAdapter.onMakeForm(tmpRoot, {
-      slug: 'quote',
-      pascalCase: 'Quote',
-      fields: [
-        { name: 'name', type: 'text', required: true },
-        { name: 'email', type: 'email', required: true },
-      ],
-      pc,
-    });
+    const loggedLines = [];
+    const origLog = console.log;
+    console.log = (...args) => loggedLines.push(args.join(' '));
+    try {
+      reactAdapter.onMakeBlock(tmpRoot, { pascalCase: 'FeatureCard', attributesList: ['title'], readableTitle: 'Feature Card', pc });
+      reactAdapter.onMakeShell(tmpRoot, {
+        pascalCase: 'TwoColShell',
+        nameSlug: 'two-col-shell',
+        readableTitle: 'Two Col Shell',
+        childrenSlugs: [],
+        shell: { className: 'sec', gridClassName: 'grid' },
+        innerBlocks: {},
+        pc,
+      });
+      reactAdapter.onMakeLoop(tmpRoot, { pascalCase: 'ProjectGrid', postType: 'project', customFields: [], automaticallySeeded: false, pc });
+      reactAdapter.onMakeIsland(tmpRoot, { pascalCase: 'NewsletterBox', pc });
+      reactAdapter.onMakePage(tmpRoot, { pascalCase: 'Services', pc });
+      reactAdapter.onMakeForm(tmpRoot, {
+        slug: 'quote',
+        pascalCase: 'Quote',
+        fields: [
+          { name: 'name', type: 'text', required: true },
+          { name: 'email', type: 'email', required: true },
+        ],
+        pc,
+      });
+    } finally {
+      console.log = origLog;
+    }
+
+    const joinedLogs = loggedLines.join('\n');
+    expect(joinedLogs).not.toMatch(/\.tsx?\b/);
+    expect(joinedLogs).toContain('src/blocks/FeatureCard.jsx');
+    expect(joinedLogs).toContain('cms/forms/quote.js');
+    expect(joinedLogs).toContain('src/components/forms/QuoteForm.jsx');
+
+    // Also test standalone bin/make-editable.js and bin/make-section.js in JS projects
+    const makeEditableBin = path.resolve(__dirname, '../../bin/make-editable.js');
+    const editableRun = spawnSync(
+      process.execPath,
+      [makeEditableBin, 'about-page', '--fields=hero_title:text,hero_sub:text'],
+      { cwd: tmpRoot, encoding: 'utf8' },
+    );
+    expect(editableRun.status, editableRun.stderr).toBe(0);
+    expect(editableRun.stdout).toContain('cms/editables/about-page.js');
+    expect(editableRun.stdout).not.toMatch(/\.tsx?\b/);
+
+    const makeSectionBin = path.resolve(__dirname, '../../bin/make-section.js');
+    const sectionRun = spawnSync(
+      process.execPath,
+      [makeSectionBin, 'HeroBanner', '--page=home', '--fields=title:text,body:richText'],
+      { cwd: tmpRoot, encoding: 'utf8' },
+    );
+    expect(sectionRun.status, sectionRun.stderr).toBe(0);
+    expect(sectionRun.stdout).toContain('src/components/HeroBanner.jsx');
+    expect(sectionRun.stdout).not.toMatch(/\.tsx?\b/);
 
     const expectedJsFiles = [
       'src/blocks/FeatureCard.jsx',
@@ -255,12 +289,61 @@ export default defineBlock({
       'src/app/pages/Services.jsx',
       'cms/forms/quote.js',
       'src/components/forms/QuoteForm.jsx',
+      'cms/editables/about-page.js',
+      'cms/editables/sections/hero-banner.js',
+      'cms/editables/home.js',
+      'src/components/HeroBanner.jsx',
     ];
     for (const rel of expectedJsFiles) {
       const abs = path.join(tmpRoot, rel);
       expect(fs.existsSync(abs), `missing ${rel}`).toBe(true);
       assertPureJsParses(abs);
     }
+
+    // Also verify sync:routes updates src/app/routes.jsx and emits pure .jsx pages + CPT templates
+    fs.mkdirSync(path.join(tmpRoot, 'cms'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, 'cms', 'mock-data.js'),
+      `export const mockData = { post: [], project: [{ id: 1, title: 'Demo Project', content: '<p>Hi</p>' }] };\nexport default mockData;\n`,
+    );
+    fs.mkdirSync(path.join(tmpRoot, 'src', 'app'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, 'src', 'app', 'routes.jsx'),
+      `import { Switch, Route } from '@forgewp/react';\n\nexport default function AppRoutes() {\n  return (\n    <Switch>\n      {/* Fallback route */}\n      <Route>{() => <div>404</div>}</Route>\n    </Switch>\n  );\n}\n`,
+    );
+
+    const syncLogs = [];
+    console.log = (...args) => syncLogs.push(args.join(' '));
+    try {
+      reactAdapter.onSyncRoutes(tmpRoot, {
+        routesToScaffold: [{ path: '/about', title: 'About' }],
+        isForce: false,
+        pc: { ...pc, gray: (s) => s },
+      });
+    } finally {
+      console.log = origLog;
+    }
+
+    const syncOutput = syncLogs.join('\n');
+    expect(syncOutput).not.toMatch(/\.tsx?\b/);
+    expect(syncOutput).toContain('src/app/routes.jsx');
+    expect(syncOutput).not.toContain('not found');
+
+    for (const rel of [
+      'src/app/pages/AboutPage.jsx',
+      'src/app/single-project.jsx',
+      'src/app/pages/SingleProjectPage.jsx',
+      'src/app/routes.jsx',
+    ]) {
+      const abs = path.join(tmpRoot, rel);
+      expect(fs.existsSync(abs), `missing ${rel}`).toBe(true);
+      assertPureJsParses(abs);
+    }
+    const updatedRoutes = fs.readFileSync(path.join(tmpRoot, 'src', 'app', 'routes.jsx'), 'utf8');
+    expect(updatedRoutes).toContain('import { AboutPage } from "./pages/AboutPage";');
+    expect(updatedRoutes).toContain('import { SingleProjectPage } from "./pages/SingleProjectPage";');
+    expect(updatedRoutes).toContain('<Route path="/about" component={AboutPage} />');
+    expect(updatedRoutes).toContain('<Route path="/project/:id" component={SingleProjectPage} />');
   });
 
   it('create-forgewp --js scaffolds valid pure JS/JSX projects for both react and nextjs adapters', async () => {
