@@ -1833,6 +1833,8 @@ ${fieldMarkup}
 }
 
 export function onSyncRoutes(themeRoot, { routesToScaffold, isForce, pc }) {
+  const { jsxExt } = getProjectExtensions(themeRoot);
+
   function toPascalCase(str) {
     return (
       str
@@ -1854,12 +1856,12 @@ export function onSyncRoutes(themeRoot, { routesToScaffold, isForce, pc }) {
 
   for (const route of routesToScaffold) {
     const componentName = toPascalCase(route.title);
-    const componentPath = path.join(pagesDir, `${componentName}.tsx`);
+    const componentPath = path.join(pagesDir, `${componentName}${jsxExt}`);
 
     const componentContent = `/**
  * ⚡ Auto-Generated Page Component by ForgeWP
  * 
- * This file was generated automatically from your sitemap configuration (cms/menus.json).
+ * This file was generated automatically from your sitemap configuration (cms/menus).
  * You can safely edit this file to customize the visual layout, styles, and logic.
  * Subsequent runs of 'pnpm forgewp sync:routes' will NOT overwrite your changes.
  * 
@@ -1886,7 +1888,7 @@ export function ${componentName}() {
       <header className="border-b border-slate-100 pb-6 mb-12">
         <h1 className="text-5xl font-black tracking-tight uppercase text-slate-900">${route.title}</h1>
         <p className="text-slate-500 mt-2 text-sm">
-          Auto-generated template. Edit <code className="bg-slate-50 px-1 py-0.5 border border-slate-100 text-xs text-primary font-mono">src/app/pages/${componentName}.tsx</code> to customize this page.
+          Auto-generated template. Edit <code className="bg-slate-50 px-1 py-0.5 border border-slate-100 text-xs text-primary font-mono">src/app/pages/${componentName}${jsxExt}</code> to customize this page.
         </p>
       </header>
 
@@ -1925,13 +1927,13 @@ export function ${componentName}() {
 
     if (existsSync(componentPath) && !isForce) {
       console.log(
-        `  ${pc.gray('ℹ️ [Skip] Component already exists:')} src/app/pages/${componentName}.tsx`,
+        `  ${pc.gray('ℹ️ [Skip] Component already exists:')} src/app/pages/${componentName}${jsxExt}`,
       );
       skippedCount++;
     } else {
-      writeFileSync(componentPath, componentContent, 'utf8');
+      writeScaffoldFile(themeRoot, componentPath, componentContent);
       console.log(
-        `  ${pc.green('✅ Scaffolded component')}: src/app/pages/${componentName}.tsx`,
+        `  ${pc.green('✅ Scaffolded component')}: src/app/pages/${componentName}${jsxExt}`,
       );
       scaffoldedCount++;
     }
@@ -2003,8 +2005,8 @@ export function ${componentName}() {
   for (const cpt of cpts) {
     const pascalCpt = cpt.charAt(0).toUpperCase() + cpt.slice(1);
 
-    // 1. Scaffold thin wrapper src/app/single-${cpt}.tsx
-    const wrapperPath = path.join(themeRoot, 'src', 'app', `single-${cpt}.tsx`);
+    // 1. Scaffold thin wrapper src/app/single-${cpt}${jsxExt}
+    const wrapperPath = path.join(themeRoot, 'src', 'app', `single-${cpt}${jsxExt}`);
     const wrapperContent = `import { Single${pascalCpt}Page } from "./pages/Single${pascalCpt}Page";
 export default Single${pascalCpt}Page;
 `;
@@ -2012,14 +2014,14 @@ export default Single${pascalCpt}Page;
     if (existsSync(wrapperPath) && !isForce) {
       // Skip wrapper
     } else {
-      writeFileSync(wrapperPath, wrapperContent, 'utf8');
+      writeScaffoldFile(themeRoot, wrapperPath, wrapperContent);
       console.log(
-        `  ${pc.green('✅ Scaffolded thin CPT wrapper')}: src/app/single-${cpt}.tsx`,
+        `  ${pc.green('✅ Scaffolded thin CPT wrapper')}: src/app/single-${cpt}${jsxExt}`,
       );
     }
 
-    // 2. Scaffold page component src/app/pages/Single${pascalCpt}Page.tsx
-    const cptPagePath = path.join(pagesDir, `Single${pascalCpt}Page.tsx`);
+    // 2. Scaffold page component src/app/pages/Single${pascalCpt}Page${jsxExt}
+    const cptPagePath = path.join(pagesDir, `Single${pascalCpt}Page${jsxExt}`);
     const cptPageContent = `/**
  * ⚡ Auto-Generated CPT Single Page Component by ForgeWP
  * 
@@ -2122,19 +2124,23 @@ export function Single${pascalCpt}Page() {
 
     if (existsSync(cptPagePath) && !isForce) {
       console.log(
-        `  ${pc.gray('ℹ️ [Skip] CPT Page Component already exists:')} src/app/pages/Single${pascalCpt}Page.tsx`,
+        `  ${pc.gray('ℹ️ [Skip] CPT Page Component already exists:')} src/app/pages/Single${pascalCpt}Page${jsxExt}`,
       );
       cptSkippedCount++;
     } else {
-      writeFileSync(cptPagePath, cptPageContent, 'utf8');
+      writeScaffoldFile(themeRoot, cptPagePath, cptPageContent);
       console.log(
-        `  ${pc.green('✅ Scaffolded CPT Page Component')}: src/app/pages/Single${pascalCpt}Page.tsx`,
+        `  ${pc.green('✅ Scaffolded CPT Page Component')}: src/app/pages/Single${pascalCpt}Page${jsxExt}`,
       );
       cptScaffoldedCount++;
     }
   }
 
-  const routesFilePath = path.join(themeRoot, 'src', 'app', 'routes.tsx');
+  const routesFileName =
+    ['routes.tsx', 'routes.jsx', 'routes.ts', 'routes.js'].find((name) =>
+      existsSync(path.join(themeRoot, 'src', 'app', name)),
+    ) || `routes${jsxExt}`;
+  const routesFilePath = path.join(themeRoot, 'src', 'app', routesFileName);
   if (existsSync(routesFilePath)) {
     let routesContent = readFileSync(routesFilePath, 'utf8');
     let modified = false;
@@ -2238,16 +2244,16 @@ export function Single${pascalCpt}Page() {
     if (modified) {
       writeFileSync(routesFilePath, routesContent, 'utf8');
       console.log(
-        `  ${pc.green('✅ Synced routing paths in')}: src/app/routes.tsx`,
+        `  ${pc.green('✅ Synced routing paths in')}: src/app/${routesFileName}`,
       );
     } else {
       console.log(
-        `  ${pc.gray('ℹ️  Routes are already fully up to date in')}: src/app/routes.tsx`,
+        `  ${pc.gray('ℹ️  Routes are already fully up to date in')}: src/app/${routesFileName}`,
       );
     }
   } else {
     console.log(
-      pc.yellow(`  ⚠️  Warning: routes.tsx not found. Skipped route linking.`),
+      pc.yellow(`  ⚠️  Warning: ${routesFileName} not found. Skipped route linking.`),
     );
   }
 

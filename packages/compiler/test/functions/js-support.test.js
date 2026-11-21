@@ -299,6 +299,51 @@ export default defineBlock({
       expect(fs.existsSync(abs), `missing ${rel}`).toBe(true);
       assertPureJsParses(abs);
     }
+
+    // Also verify sync:routes updates src/app/routes.jsx and emits pure .jsx pages + CPT templates
+    fs.mkdirSync(path.join(tmpRoot, 'cms'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, 'cms', 'mock-data.js'),
+      `export const mockData = { post: [], project: [{ id: 1, title: 'Demo Project', content: '<p>Hi</p>' }] };\nexport default mockData;\n`,
+    );
+    fs.mkdirSync(path.join(tmpRoot, 'src', 'app'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, 'src', 'app', 'routes.jsx'),
+      `import { Switch, Route } from '@forgewp/react';\n\nexport default function AppRoutes() {\n  return (\n    <Switch>\n      {/* Fallback route */}\n      <Route>{() => <div>404</div>}</Route>\n    </Switch>\n  );\n}\n`,
+    );
+
+    const syncLogs = [];
+    console.log = (...args) => syncLogs.push(args.join(' '));
+    try {
+      reactAdapter.onSyncRoutes(tmpRoot, {
+        routesToScaffold: [{ path: '/about', title: 'About' }],
+        isForce: false,
+        pc: { ...pc, gray: (s) => s },
+      });
+    } finally {
+      console.log = origLog;
+    }
+
+    const syncOutput = syncLogs.join('\n');
+    expect(syncOutput).not.toMatch(/\.tsx?\b/);
+    expect(syncOutput).toContain('src/app/routes.jsx');
+    expect(syncOutput).not.toContain('not found');
+
+    for (const rel of [
+      'src/app/pages/AboutPage.jsx',
+      'src/app/single-project.jsx',
+      'src/app/pages/SingleProjectPage.jsx',
+      'src/app/routes.jsx',
+    ]) {
+      const abs = path.join(tmpRoot, rel);
+      expect(fs.existsSync(abs), `missing ${rel}`).toBe(true);
+      assertPureJsParses(abs);
+    }
+    const updatedRoutes = fs.readFileSync(path.join(tmpRoot, 'src', 'app', 'routes.jsx'), 'utf8');
+    expect(updatedRoutes).toContain('import { AboutPage } from "./pages/AboutPage";');
+    expect(updatedRoutes).toContain('import { SingleProjectPage } from "./pages/SingleProjectPage";');
+    expect(updatedRoutes).toContain('<Route path="/about" component={AboutPage} />');
+    expect(updatedRoutes).toContain('<Route path="/project/:id" component={SingleProjectPage} />');
   });
 
   it('create-forgewp --js scaffolds valid pure JS/JSX projects for both react and nextjs adapters', async () => {

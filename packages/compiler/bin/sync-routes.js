@@ -15,8 +15,10 @@ const projectRoot = process.cwd();
 const args = process.argv.slice(2);
 const isForce = args.includes('--force') || args.includes('--override');
 
-// 1. Locate menus configuration file (cms/menus.ts preferred, cms/menus.json fallback)
-const menusTsPath = path.join(projectRoot, 'cms', 'menus.ts');
+// 1. Locate menus configuration file (cms/menus.{ts,js,mjs} preferred, cms/menus.json fallback)
+const existingMenusScript = ['menus.ts', 'menus.js', 'menus.mjs'].find((name) =>
+  existsSync(path.join(projectRoot, 'cms', name)),
+);
 const menusPath = path.join(projectRoot, 'cms', 'menus.json');
 let menus = loadMenusData(projectRoot);
 
@@ -25,8 +27,8 @@ const hasMenuLocations = Object.keys(menus).some(
 );
 
 if (hasMenuLocations) {
-  if (existsSync(menusTsPath)) {
-    console.log(`  📖 ${pc.green('Loaded sitemap source')}: cms/menus.ts`);
+  if (existingMenusScript) {
+    console.log(`  📖 ${pc.green('Loaded sitemap source')}: cms/${existingMenusScript}`);
   } else {
     console.log(`  📖 ${pc.green('Loaded sitemap source')}: cms/menus.json`);
   }
