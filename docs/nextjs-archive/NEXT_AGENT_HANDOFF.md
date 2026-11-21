@@ -1,6 +1,8 @@
 # Next.js adapter handoff
 
-Updated: 2026-11-20. This is a continuation guide, not a claim that Next.js export is supported.
+Updated: 2026-11-21. Slices 1–10 are implemented and `nextjs` is a public opt-in adapter. The npm release (see follow-ups) has not happened yet, so scaffolded projects still install a pre-Next.js `@forgewp/compiler`.
+
+Windows re-verification (2026-11-21, Node 22.21.1, PHP 8.2.12): the compiler suite passes after the test portability fixes (junctions instead of `'dir'` symlinks, workspace `@forgewp/compiler` linked into `--no-install` scaffolds). The live WordPress acceptance test was not run on Windows. `check:browser` still hits the known Next.js Windows segment-path issue described in the fixture README.
 
 ## Objective and agreed direction
 

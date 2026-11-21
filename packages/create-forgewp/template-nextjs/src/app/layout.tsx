@@ -1,5 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Hydrate } from '@forgewp/react';
+import { ForgeWPLogo, NextLogo } from '@/components/BrandLogos';
+import { ThemeHotkey } from '@/components/ThemeHotkey';
+import { THEME_STORAGE_KEY } from '@/lib/theme';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -7,25 +11,8 @@ export const metadata: Metadata = {
   description: 'A minimalist WordPress theme starter built with Next.js App Router and ForgeWP.',
 };
 
-function ForgeWPMark() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 44 40"
-      width="24"
-      height="22"
-      fill="none"
-      aria-hidden="true"
-    >
-      <g fill="#09090b">
-        <path d="M5 0H40.2Q44 0 41.19 2.56L33 10H5A5 5 0 0 1 5 0Z" />
-        <path d="M5 15H22.6Q26.4 15 23.59 17.56L15.4 25H5A5 5 0 0 1 5 15Z" />
-        <path d="M5 30H13Q16.8 30 13.99 32.56L5.8 40H5A5 5 0 0 1 5 30Z" />
-      </g>
-      <circle cx="39" cy="20" r="5" fill="#f97316" />
-    </svg>
-  );
-}
+// Applies a saved light/dark choice before first paint, so there is no flash.
+const themeScript = `try{var t=localStorage.getItem('${THEME_STORAGE_KEY}');if(t==='dark'||t==='light')document.documentElement.classList.add(t)}catch(e){}`;
 
 export default function RootLayout({
   children,
@@ -33,23 +20,26 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="fwp-page">
         <header className="fwp-header">
-          <Link href="/" className="fwp-brand-link">
-            <ForgeWPMark />
-            <span className="fwp-wordmark">ForgeWP</span>
+          <Link href="/" className="fwp-brand">
+            <ForgeWPLogo className="fwp-brand-mark" />
+            <span>ForgeWP</span>
           </Link>
-          <span className="fwp-pill">Next.js</span>
+          <span className="fwp-header-divider" aria-hidden="true" />
+          <span className="fwp-logo-tile" title="Next.js">
+            <NextLogo className="fwp-logo-icon" />
+          </span>
+          {/* Press "d" to toggle dark mode */}
+          <Hydrate id="theme-hotkey" trigger="load">
+            <ThemeHotkey />
+          </Hydrate>
         </header>
         {children}
-        <footer className="fwp-footer">
-          <span>ForgeWP Next Starter</span>
-          <span>·</span>
-          <Link href="/">Home</Link>
-          <span>·</span>
-          <Link href="/about">About</Link>
-        </footer>
       </body>
     </html>
   );

@@ -206,7 +206,7 @@ export default function Home() {
         mkdirSync(path.join(appDir, 'src', 'assets'), { recursive: true });
         mkdirSync(path.join(appDir, 'src', 'fonts'), { recursive: true });
         mkdirSync(path.join(appDir, 'public'), { recursive: true });
-        symlinkSync(nextFixtureNodeModules, path.join(appDir, 'node_modules'), 'dir');
+        symlinkSync(nextFixtureNodeModules, path.join(appDir, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
 
         // Generate real raster PNGs so Sharp optimizes them into WebP variants
         const heroPng = await sharp({
@@ -389,6 +389,6 @@ export default function HomePage() {
         rmSync(tmp, { recursive: true, force: true });
       }
     },
-    120_000,
+    180_000, // full Next.js build + export; slow under parallel load on Windows
   );
 });

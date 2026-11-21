@@ -43,7 +43,7 @@ describe('public compiler declarations', () => {
         `${item.file?.fileName || ''}: ${ts.flattenDiagnosticMessageText(item.messageText, '\n')}`
     );
     expect(messages).toEqual([]);
-  });
+  }, 120_000); // spawns tsc
   it('keeps both public declaration entry points connected to the same config contract', () => {
     const source = fs.readFileSync(
       path.join(root, 'define-config.d.ts'),
@@ -55,7 +55,7 @@ describe('public compiler declarations', () => {
     expect(
       fs.readFileSync(path.join(root, 'lib/define-config.d.ts'), 'utf8')
     ).toContain('./index.js');
-  });
+  }, 120_000); // spawns tsc
   it('checks the React settings subset and hooks under NodeNext', () => {
     const program = ts.createProgram([path.join(root, 'test/theme-settings-contract.ts')], {
       ...options,
@@ -63,5 +63,5 @@ describe('public compiler declarations', () => {
     expect(ts.getPreEmitDiagnostics(program).map((item) =>
       `${item.file?.fileName || ''}: ${ts.flattenDiagnosticMessageText(item.messageText, '\n')}`
     )).toEqual([]);
-  });
+  }, 120_000); // spawns tsc
 });

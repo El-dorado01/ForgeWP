@@ -673,8 +673,6 @@ export async function onFresh(themeRoot) {
   const routesContent = `import type { ComponentType, ReactNode } from "react";
 import { Route, Switch } from "@forgewp/react";
 import * as HomePage from "./page";
-import * as QuerySandbox from "./query-sandbox";
-import * as WpEditablePage from "./wp-editable";
 
 /**
  * Automatically discover all layouts in src/app/layouts via Vite eager glob.
@@ -750,171 +748,321 @@ export default function AppRoutes() {
       {/* Home preview */}
       <Route path="/" component={withLayout(HomePage)} />
 
-      {/* Relational Query Engine Sandbox — verifies taxQuery, metaQuery, pagination */}
-      <Route path="/query-sandbox" component={withLayout(QuerySandbox)} />
-
-      {/* WpEditable Block Canvas Preview — verifies inline editing primitive */}
-      <Route path="/wp-editable" component={withLayout(WpEditablePage)} />
-
       {/* Fallback route */}
-      <Route>
-        {withLayout(() => (
+      <Route
+        component={withLayout(() => (
           <div className="flex min-h-[60vh] flex-col items-center justify-center text-center p-6">
             <h1 className="text-4xl font-bold font-serif text-zinc-950">404</h1>
             <p className="mt-2 text-zinc-600">Page not found locally.</p>
             <div className="mt-4 flex flex-col items-center gap-2 text-sm">
               <a href="/" className="text-brand font-semibold hover:underline">← Go back home</a>
-              <a href="/query-sandbox" className="text-zinc-500 font-mono hover:underline text-xs">→ Query Engine Sandbox</a>
-              <a href="/wp-editable" className="text-zinc-500 font-mono hover:underline text-xs">→ WpEditable Canvas</a>
             </div>
           </div>
-        ))()}
-      </Route>
+        ))}
+      />
     </Switch>
   );
 }
 `;
 
-  const pageContent = `import { WpHead } from "@forgewp/react";
-import { BookOpen, Github, ChevronRight, Database, Code2 } from "lucide-react";
+  const pageContent = `import type { CSSProperties, ReactNode } from "react";
+import { Hydrate, WpHead } from "@forgewp/react";
+import { ArrowUpRight, Github } from "lucide-react";
+import { ForgeWPLogo, ReactLogo, ViteLogo } from "../components/brand-logos";
+import { ThemeHotkey } from "../components/theme-hotkey";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen lg:h-screen w-full bg-[#fafafa] selection:bg-primary selection:text-white flex flex-col items-center justify-center p-6 md:p-8 lg:p-12 relative overflow-x-hidden lg:overflow-hidden font-sans">
+    <div className="relative isolate flex min-h-screen w-full flex-col overflow-hidden bg-[#0f1117] px-5 light:bg-[#f6f5f3] py-5 font-sans selection:bg-forgewp selection:text-white sm:px-10 sm:py-6 lg:px-16 lg:[@media(max-height:720px)]:py-4">
       <WpHead
         title="ForgeWP — React & Tailwind Compiler for WordPress"
         description="A premium developer framework for creating modern Gutenberg block-themes using React."
         ogType="website"
       />
 
-      {/* ── BACKGROUND: Glowing Magma Blob ── */}
-      <div className="absolute -left-48 -top-48 w-[600px] h-[600px] bg-[radial-gradient(circle,oklch(0.61_0.22_42.5/_0.12)_0%,transparent_70%)] blur-3xl pointer-events-none z-0"></div>
+      {/* Contour wave artwork, fading out toward the text */}
+      <WaveLines className="forgewp-wave pointer-events-none absolute -right-24 top-16 -z-10 h-[440px] w-[460px] opacity-35 sm:-right-6 sm:top-20 sm:h-[600px] sm:w-[600px] sm:opacity-60 lg:-right-4 lg:top-[9%] lg:h-[96%] lg:w-[56%] lg:opacity-100" />
 
-      {/* ── HEADER: Centered Text Logo ── */}
-      <header className="relative w-full flex justify-center pb-4 lg:pb-6 z-10 shrink-0">
-        <h1 className="font-heading font-black text-3xl tracking-tight bg-linear-to-r from-primary to-amber-500 bg-clip-text text-transparent select-none">
-          ForgeWP
-        </h1>
-      </header>
+      {/* ── HEADER: ForgeWP | stack, centred ── */}
+      <div className="flex items-center justify-center gap-5">
+        <div className="flex items-center gap-2.5 select-none">
+          <ForgeWPLogo className="h-6 w-auto text-stone-100 light:text-[#09090b]" />
+          <span className="font-heading text-[21px] font-bold tracking-tight text-stone-100 light:text-slate-950">
+            ForgeWP
+          </span>
+        </div>
+        <span aria-hidden="true" className="h-7 w-px bg-[#3a3d45] light:bg-stone-300" />
+        <div className="flex items-center gap-1.5">
+          <LogoTile label="Vite">
+            <ViteLogo className="h-[22px] w-[22px]" />
+          </LogoTile>
+          <span aria-hidden="true" className="font-mono text-[10px] text-stone-400">+</span>
+          <LogoTile label="React">
+            <ReactLogo className="h-[22px] w-[22px]" />
+          </LogoTile>
+        </div>
+        {/* Press "d" to toggle dark mode */}
+        <Hydrate id="theme-hotkey" trigger="load">
+          <ThemeHotkey />
+        </Hydrate>
+      </div>
 
-      {/* ── COMPACT CARD CONTAINER wrapping the Two-Column Grid ── */}
-      <main className="relative w-full max-w-5xl bg-white border border-slate-100/80 shadow-xl shadow-slate-100/50 p-6 md:p-8 lg:py-8 lg:px-10 lg:min-h-[430px] z-10 rounded-none flex items-center justify-center">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 w-full items-center">
-          
-          {/* Left Layout: Hero Header, Text, and Two CTAs */}
-          <div className="lg:col-span-6 flex flex-col justify-center text-left">
-            <h2 className="text-3xl md:text-4xl font-heading font-black tracking-tight leading-[1.1] text-slate-900 mb-4 uppercase">
-              React Structure.
-              <br />
-              Tailwind Speed.
-              <br />
-              WordPress Power.
-            </h2>
+      {/* ── HERO ── */}
+      <section className="flex flex-1 items-center py-10 lg:py-4 lg:[@media(max-height:720px)]:py-2">
+        <div className="max-w-xl">
+          <h1 className="mb-4 font-heading text-4xl font-bold leading-[1.02] tracking-tight text-stone-100 light:text-slate-950 sm:text-5xl xl:text-6xl lg:[@media(max-height:720px)]:mb-3 lg:[@media(max-height:720px)]:text-[44px]">
+            React structure.
+            <br />
+            Tailwind speed.
+            <br />
+            <span className="text-forgewp">WordPress power.</span>
+          </h1>
 
-            <p className="text-slate-500 text-xs md:text-sm leading-relaxed font-normal max-w-xl mb-6">
-              Welcome to ForgeWP. Build your layout dynamically using standard
-              React components, mock hooks, and modern utilities. The compiler
-              transpiles your isomorphic components directly into
-              production-grade, standard classic WordPress block themes
-              automatically.
-            </p>
+          <p className="mb-11 max-w-md text-sm leading-relaxed text-stone-400 light:text-stone-600 sm:text-[15px] lg:[@media(max-height:720px)]:mb-8 lg:[@media(max-height:720px)]:text-sm">
+            Build your theme with React components, mock data and Tailwind. The
+            ForgeWP compiler turns it into a standard WordPress theme with native
+            Gutenberg blocks.
+          </p>
 
-            {/* Two CTAs: Docs and GitHub */}
-            <div className="flex flex-wrap gap-4">
-              <a
-                href="https://forgewp.dev/docs"
-                target="_blank"
-                rel="noreferrer"
-                className="group relative inline-flex items-center justify-center bg-transparent text-primary hover:text-white border border-primary font-mono font-bold text-[10px] uppercase tracking-widest px-6 py-3.5 transition-colors duration-500 rounded-none overflow-hidden select-none cursor-pointer shadow-sm shadow-primary/5 hover:shadow-md hover:shadow-primary/10"
-              >
-                {/* Fill effect helper layer */}
-                <div className="absolute inset-y-0 left-0 bg-primary w-0 group-hover:w-full transition-all duration-600 ease-out z-0"></div>
-                
-                {/* Text Content */}
-                <span className="relative z-10 flex items-center justify-center">
-                  <BookOpen className="w-3.5 h-3.5 mr-2" />
-                  Read Framework Docs
-                </span>
-              </a>
-              <a
-                href="https://github.com/forgewp/forgewp"
-                target="_blank"
-                rel="noreferrer"
-                className="group inline-flex items-center justify-center bg-white text-slate-900 border border-slate-200 font-mono font-bold text-[10px] uppercase tracking-widest px-6 py-3.5 shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 rounded-none select-none cursor-pointer"
-              >
-                <Github className="w-3.5 h-3.5 mr-2" />
-                View on GitHub
-              </a>
-            </div>
-          </div>
-
-          {/* Right Layout: Two Stacked Compact Cards */}
-          <div className="lg:col-span-6 flex flex-col gap-4 w-full">
-
-            {/* Card 1: Query Sandbox */}
+          {/* CTAs match the forgewp.dev landing hero: tinted brand button + text link */}
+          <div className="flex flex-wrap items-center gap-x-[26px] gap-y-4">
             <a
-              href="/query-sandbox"
-              className="group bg-white border border-transparent p-4 lg:p-5 shadow-md shadow-slate-100/30 hover:shadow-[0_0_15px_oklch(0.61_0.22_42.5/_0.08)] transition-all duration-500 rounded-none relative overflow-hidden flex flex-col justify-center"
+              href="https://forgewp.dev/docs"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center rounded-[4px] bg-[linear-gradient(110deg,color-mix(in_oklab,var(--color-forgewp)_10%,transparent),color-mix(in_oklab,#f59e0b_10%,transparent))] px-[22px] py-[14px] text-base font-semibold text-forgewp shadow-[0_1px_2px_#0000000d] transition-[background] duration-200 hover:bg-[linear-gradient(110deg,color-mix(in_oklab,var(--color-forgewp)_16%,transparent),color-mix(in_oklab,#f59e0b_16%,transparent))]"
             >
-              {/* Top border progress bar on hover */}
-              <div className="absolute top-0 left-0 h-[2px] bg-linear-to-r from-primary to-amber-500 w-0 group-hover:w-full transition-all duration-1000 ease-out"></div>
-
-              <div className="flex items-start gap-4">
-                <div className="bg-amber-500/5 p-2.5 rounded-full border border-amber-500/10 shrink-0">
-                  <Database className="w-5 h-5 text-amber-500" />
-                </div>
-                
-                <div className="flex-1 pr-6">
-                  <h3 className="font-heading font-black text-lg text-slate-900 tracking-tight mb-2 uppercase">
-                    Relational Query Sandbox
-                  </h3>
-                  <p className="text-slate-500 text-xs leading-relaxed font-sans font-medium">
-                    Test and inspect ForgeWP's mock data loop systems, custom tax
-                    queries, meta mappings, and server pagination.
-                  </p>
-                </div>
-
-                <div className="absolute right-6 top-1/2 -translate-y-1/2">
-                  <ChevronRight className="w-5 h-5 text-amber-500 opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-500" />
-                </div>
-              </div>
+              Read the docs
             </a>
-
-            {/* Card 2: wp-editable */}
             <a
-              href="/wp-editable"
-              className="group bg-white border border-transparent p-4 lg:p-5 shadow-md shadow-slate-100/30 hover:shadow-[0_0_15px_oklch(0.61_0.22_42.5/_0.08)] transition-all duration-500 rounded-none relative overflow-hidden flex flex-col justify-center"
+              href="https://github.com/forgewp/forgewp"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-[11px] text-base text-stone-300 light:text-[#344154] transition-colors duration-200 hover:text-forgewp"
             >
-              {/* Top border progress bar on hover */}
-              <div className="absolute top-0 left-0 h-[2px] bg-linear-to-r from-primary to-amber-500 w-0 group-hover:w-full transition-all duration-1000 ease-out"></div>
-
-              <div className="flex items-start gap-4">
-                <div className="bg-primary/5 p-2.5 rounded-full border border-primary/10 shrink-0">
-                  <Code2 className="w-5 h-5 text-primary" />
-                </div>
-                
-                <div className="flex-1 pr-6">
-                  <h3 className="font-heading font-black text-lg text-slate-900 tracking-tight mb-2 uppercase">
-                    WpEditable Block Canvas
-                  </h3>
-                  <p className="text-slate-500 text-xs leading-relaxed font-sans font-medium">
-                    Test visual inline editing primitives. Build custom content
-                    editors directly inside the Gutenberg admin dashboard.
-                  </p>
-                </div>
-
-                <div className="absolute right-6 top-1/2 -translate-y-1/2">
-                  <ChevronRight className="w-5 h-5 text-primary opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-500" />
-                </div>
-              </div>
+              <Github size={16} />
+              View on GitHub
+              <ArrowUpRight size={16} />
             </a>
-
           </div>
         </div>
-      </main>
+      </section>
     </div>
   );
 }
+
+function LogoTile({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div
+      title={label}
+      className="flex h-10 w-10 items-center justify-center rounded-[4px] border border-[#2a2d35] bg-white light:border-stone-200"
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Flowing contour lines: each line falls from the top edge to the bottom edge and bends
+ * around a shared fold. Dash length grows from left to right so the field reads as
+ * dotted at the outer edge and solid near the fold. Computed at render time, so it
+ * compiles to plain SVG in the exported theme.
+ */
+function WaveLines({ className }: { className?: string }) {
+  const width = 600;
+  const height = 640;
+  const count = 11;
+  const samples = 48;
+
+  const lines = Array.from({ length: count }, (_, i) => {
+    const t = i / (count - 1); // 0 = outer (left) edge, 1 = fold
+    const baseX = 330 + t * 340; // the fold and solid line run off the right edge
+    const points: string[] = [];
+    for (let s = 0; s <= samples; s++) {
+      const v = s / samples; // 0 = top, 1 = bottom
+      const y = v * (height + 40);
+      // Fold bulges left through the middle and swings back near the bottom.
+      const fold = Math.sin(v * Math.PI * 1.15 + 0.35) * (70 + t * 120);
+      const ripple = Math.sin(v * Math.PI * 3 + t * 2.2) * (10 + t * 14);
+      const x = baseX - fold * (0.35 + t * 0.65) + ripple;
+      points.push(\`\${s === 0 ? "M" : "L"}\${x.toFixed(1)} \${y.toFixed(1)}\`);
+    }
+    return { d: points.join(""), t };
+  });
+
+  return (
+    <svg
+      viewBox={\`0 0 \${width} \${height}\`}
+      preserveAspectRatio="xMaxYMin slice"
+      fill="none"
+      aria-hidden="true"
+      className={className}
+    >
+      {lines.map(({ d, t }, i) => {
+        const solid = i === count - 1; // the last line is solid; the 10 before it are dashed
+        // Outer lines are dots (near-zero dash with round caps); dashes lengthen toward the fold.
+        const dash = 0.01 + t * t * 9;
+        const gap = 6 - t * 3.2;
+        // Motion lives in globals.css (.forgewp-wave); these variables tune it per line.
+        const motion = {
+          "--wave-i": i,
+          "--wave-period": (dash + gap).toFixed(2),
+          "--wave-flow": \`\${((dash + gap) / 6).toFixed(2)}s\`,
+        } as CSSProperties;
+        return (
+          <path
+            key={i}
+            d={d}
+            stroke={solid ? "#f97316" : "#18181b"}
+            strokeWidth={solid ? 1.8 : 1.4 + t * 0.6}
+            strokeLinecap="round"
+            strokeDasharray={solid ? undefined : \`\${dash.toFixed(2)} \${gap.toFixed(2)}\`}
+            opacity={solid ? 0.9 : 0.18 + t * 0.62}
+            data-solid={solid ? "" : undefined}
+            style={motion}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+`;
+
+  const brandLogosContent = `import type { SVGProps } from "react";
+
+/**
+ * Inline brand marks for the starter home page.
+ * Inline SVG keeps them working in local Vite dev and in the exported WordPress theme
+ * without any asset pipeline.
+ *
+ * Vite and React marks: Devicon v2.16.0 (MIT). Trademarks belong to their owners.
+ */
+
+export function ForgeWPLogo(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 44 40" fill="none" aria-label="ForgeWP" role="img" {...props}>
+      {/* Bars use currentColor (set a text colour on the svg); the dot is brand orange. */}
+      <g fill="currentColor">
+        <path d="M5 0H40.2Q44 0 41.19 2.56L33 10H5A5 5 0 0 1 5 0Z" />
+        <path d="M5 15H22.6Q26.4 15 23.59 17.56L15.4 25H5A5 5 0 0 1 5 15Z" />
+        <path d="M5 30H13Q16.8 30 13.99 32.56L5.8 40H5A5 5 0 0 1 5 30Z" />
+      </g>
+      <circle cx="39" cy="20" r="5" fill="#f97316" />
+    </svg>
+  );
+}
+
+export function ViteLogo(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 128 128" aria-label="Vite" role="img" {...props}>
+      <defs>
+        <linearGradient
+          id="forgewp-vite-a"
+          x1="6"
+          x2="235"
+          y1="33"
+          y2="344"
+          gradientTransform="translate(0 .937) scale(.3122)"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0" stopColor="#41d1ff" />
+          <stop offset="1" stopColor="#bd34fe" />
+        </linearGradient>
+        <linearGradient
+          id="forgewp-vite-b"
+          x1="194.651"
+          x2="236.076"
+          y1="8.818"
+          y2="292.989"
+          gradientTransform="translate(0 .937) scale(.3122)"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0" stopColor="#ffea83" />
+          <stop offset=".083" stopColor="#ffdd35" />
+          <stop offset="1" stopColor="#ffa800" />
+        </linearGradient>
+      </defs>
+      <path
+        fill="url(#forgewp-vite-a)"
+        d="M124.766 19.52 67.324 122.238c-1.187 2.121-4.234 2.133-5.437.024L3.305 19.532c-1.313-2.302.652-5.087 3.261-4.622L64.07 25.187a3.09 3.09 0 0 0 1.11 0l56.3-10.261c2.598-.473 4.575 2.289 3.286 4.594Zm0 0"
+      />
+      <path
+        fill="url(#forgewp-vite-b)"
+        d="M91.46 1.43 48.954 9.758a1.56 1.56 0 0 0-1.258 1.437l-2.617 44.168a1.563 1.563 0 0 0 1.91 1.614l11.836-2.735a1.562 1.562 0 0 1 1.88 1.836l-3.517 17.219a1.562 1.562 0 0 0 1.985 1.805l7.308-2.223c1.133-.344 2.223.652 1.985 1.812l-5.59 27.047c-.348 1.692 1.902 2.614 2.84 1.164l.625-.968 34.64-69.13c.582-1.16-.421-2.48-1.69-2.234l-12.185 2.352a1.558 1.558 0 0 1-1.793-1.965l7.95-27.562A1.56 1.56 0 0 0 91.46 1.43Zm0 0"
+      />
+    </svg>
+  );
+}
+
+export function ReactLogo(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 128 128" aria-label="React" role="img" {...props}>
+      <g fill="#61DAFB">
+        <circle cx="64" cy="64" r="11.4" />
+        <path d="M107.3 45.2c-2.2-.8-4.5-1.6-6.9-2.3.6-2.4 1.1-4.8 1.5-7.1 2.1-13.2-.2-22.5-6.6-26.1-1.9-1.1-4-1.6-6.4-1.6-7 0-15.9 5.2-24.9 13.9-9-8.7-17.9-13.9-24.9-13.9-2.4 0-4.5.5-6.4 1.6-6.4 3.7-8.7 13-6.6 26.1.4 2.3.9 4.7 1.5 7.1-2.4.7-4.7 1.4-6.9 2.3C8.2 50 1.4 56.6 1.4 64s6.9 14 19.3 18.8c2.2.8 4.5 1.6 6.9 2.3-.6 2.4-1.1 4.8-1.5 7.1-2.1 13.2.2 22.5 6.6 26.1 1.9 1.1 4 1.6 6.4 1.6 7.1 0 16-5.2 24.9-13.9 9 8.7 17.9 13.9 24.9 13.9 2.4 0 4.5-.5 6.4-1.6 6.4-3.7 8.7-13 6.6-26.1-.4-2.3-.9-4.7-1.5-7.1 2.4-.7 4.7-1.4 6.9-2.3 12.5-4.8 19.3-11.4 19.3-18.8s-6.8-14-19.3-18.8zM92.5 14.7c4.1 2.4 5.5 9.8 3.8 20.3-.3 2.1-.8 4.3-1.4 6.6-5.2-1.2-10.7-2-16.5-2.5-3.4-4.8-6.9-9.1-10.4-13 7.4-7.3 14.9-12.3 21-12.3 1.3 0 2.5.3 3.5.9zM81.3 74c-1.8 3.2-3.9 6.4-6.1 9.6-3.7.3-7.4.4-11.2.4-3.9 0-7.6-.1-11.2-.4-2.2-3.2-4.2-6.4-6-9.6-1.9-3.3-3.7-6.7-5.3-10 1.6-3.3 3.4-6.7 5.3-10 1.8-3.2 3.9-6.4 6.1-9.6 3.7-.3 7.4-.4 11.2-.4 3.9 0 7.6.1 11.2.4 2.2 3.2 4.2 6.4 6 9.6 1.9 3.3 3.7 6.7 5.3 10-1.7 3.3-3.4 6.6-5.3 10zm8.3-3.3c1.5 3.5 2.7 6.9 3.8 10.3-3.4.8-7 1.4-10.8 1.9 1.2-1.9 2.5-3.9 3.6-6 1.2-2.1 2.3-4.2 3.4-6.2zM64 97.8c-2.4-2.6-4.7-5.4-6.9-8.3 2.3.1 4.6.2 6.9.2 2.3 0 4.6-.1 6.9-.2-2.2 2.9-4.5 5.7-6.9 8.3zm-18.6-15c-3.8-.5-7.4-1.1-10.8-1.9 1.1-3.3 2.3-6.8 3.8-10.3 1.1 2 2.2 4.1 3.4 6.1 1.2 2.2 2.4 4.1 3.6 6.1zm-7-25.5c-1.5-3.5-2.7-6.9-3.8-10.3 3.4-.8 7-1.4 10.8-1.9-1.2 1.9-2.5 3.9-3.6 6-1.2 2.1-2.3 4.2-3.4 6.2zM64 30.2c2.4 2.6 4.7 5.4 6.9 8.3-2.3-.1-4.6-.2-6.9-.2-2.3 0-4.6.1-6.9.2 2.2-2.9 4.5-5.7 6.9-8.3zm22.2 21l-3.6-6c3.8.5 7.4 1.1 10.8 1.9-1.1 3.3-2.3 6.8-3.8 10.3-1.1-2.1-2.2-4.2-3.4-6.2zM31.7 35c-1.7-10.5-.3-17.9 3.8-20.3 1-.6 2.2-.9 3.5-.9 6 0 13.5 4.9 21 12.3-3.5 3.8-7 8.2-10.4 13-5.8.5-11.3 1.4-16.5 2.5-.6-2.3-1-4.5-1.4-6.6zM7 64c0-4.7 5.7-9.7 15.7-13.4 2-.8 4.2-1.5 6.4-2.1 1.6 5 3.6 10.3 6 15.6-2.4 5.3-4.5 10.5-6 15.5C15.3 75.6 7 69.6 7 64zm28.5 49.3c-4.1-2.4-5.5-9.8-3.8-20.3.3-2.1.8-4.3 1.4-6.6 5.2 1.2 10.7 2 16.5 2.5 3.4 4.8 6.9 9.1 10.4 13-7.4 7.3-14.9 12.3-21 12.3-1.3 0-2.5-.3-3.5-.9zM96.3 93c1.7 10.5.3 17.9-3.8 20.3-1 .6-2.2.9-3.5.9-6 0-13.5-4.9-21-12.3 3.5-3.8 7-8.2 10.4-13 5.8-.5 11.3-1.4 16.5-2.5.6 2.3 1 4.5 1.4 6.6zm9-15.6c-2 .8-4.2 1.5-6.4 2.1-1.6-5-3.6-10.3-6-15.6 2.4-5.3 4.5-10.5 6-15.5 13.8 4 22.1 10 22.1 15.6 0 4.7-5.8 9.7-15.7 13.4z" />
+      </g>
+    </svg>
+  );
+}
+`;
+
+  const themeHotkeyContent = `import { useEffect } from "react";
+
+/** localStorage key holding an explicit "light" | "dark" choice. */
+const THEME_STORAGE_KEY = "forgewp-theme";
+
+function isTypingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
+}
+
+/**
+ * Press "d" to toggle light/dark. Dark is the default; the choice is remembered in
+ * localStorage. Renders nothing; the home page hydrates it as an island so the
+ * hotkey also works in the exported WordPress theme.
+ */
+export function ThemeHotkey() {
+  useEffect(() => {
+    const root = document.documentElement;
+
+    try {
+      const saved = localStorage.getItem(THEME_STORAGE_KEY);
+      if ((saved === "dark" || saved === "light") && !root.classList.contains(saved)) {
+        root.classList.remove("light", "dark");
+        root.classList.add(saved);
+      }
+    } catch {
+      // Storage unavailable: stay on the default (dark).
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.repeat) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key.toLowerCase() !== "d" || isTypingTarget(event.target)) return;
+
+      const next = root.classList.contains("light") ? "dark" : "light";
+      root.classList.remove("light", "dark");
+      root.classList.add(next);
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, next);
+      } catch {
+        // Storage can be unavailable (private mode); the toggle still applies.
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  return null;
+}
+
+export default ThemeHotkey;
 `;
 
   try {
@@ -937,45 +1085,19 @@ export default function HomePage() {
     );
   }
 
-  // Ensure shadcn's components.json is present so `forgewp add` works
-  // immediately after a fresh without requiring a manual `shadcn init`.
-  const componentsJsonPath = path.join(themeRoot, 'components.json');
-  if (!existsSync(componentsJsonPath)) {
-    const defaultComponentsJson = {
-      $schema: 'https://ui.shadcn.com/schema.json',
-      style: 'new-york',
-      rsc: false,
-      tsx: true,
-      tailwind: {
-        config: 'tailwind.config.js',
-        css: 'src/app/globals.css',
-        baseColor: 'zinc',
-        cssVariables: true,
-        prefix: '',
-      },
-      aliases: {
-        components: '@/components',
-        utils: '@/lib/utils',
-        ui: '@/components/ui',
-        lib: '@/lib',
-        hooks: '@/hooks',
-      },
-      iconLibrary: 'lucide',
-    };
+  // The welcome page imports components from src/components, which fresh prunes.
+  const welcomeComponents = [
+    ['brand-logos.tsx', brandLogosContent, 'Restored welcome logos'],
+    ['theme-hotkey.tsx', themeHotkeyContent, 'Restored theme hotkey'],
+  ];
+  for (const [file, content, label] of welcomeComponents) {
     try {
-      writeFileSync(
-        componentsJsonPath,
-        JSON.stringify(defaultComponentsJson, null, 2),
-        'utf8',
-      );
-      console.log(`  ${pc.green('✅ Created shadcn config')}: components.json`);
+      mkdirSync(path.join(themeRoot, 'src', 'components'), { recursive: true });
+      writeFileSync(path.join(themeRoot, 'src', 'components', file), content, 'utf8');
+      console.log(`  ${pc.green(`✅ ${label}`)}: src/components/${file}`);
     } catch (err) {
-      console.log(
-        pc.yellow(`  ⚠️  Could not create components.json: ${err.message}`),
-      );
+      console.log(pc.red(`  ❌ Failed to restore src/components/${file}: ${err.message}`));
     }
-  } else {
-    console.log(`  ${pc.dim('↳ components.json already present')}`);
   }
 }
 

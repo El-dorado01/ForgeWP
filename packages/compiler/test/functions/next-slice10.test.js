@@ -135,7 +135,8 @@ describe('Slice 10: Public Next.js adapter registration, withForgeWP(), and crea
         expect(existsSync(path.join(projectDir, 'src', 'blocks', 'IntroBlock.tsx'))).toBe(true);
         expect(existsSync(path.join(projectDir, 'src', 'app', 'layout.tsx'))).toBe(true);
         expect(existsSync(path.join(projectDir, 'src', 'app', 'page.tsx'))).toBe(true);
-        expect(existsSync(path.join(projectDir, 'src', 'app', 'about', 'page.tsx'))).toBe(true);
+        expect(existsSync(path.join(projectDir, 'src', 'components', 'BrandLogos.tsx'))).toBe(true);
+        expect(existsSync(path.join(projectDir, 'src', 'components', 'WaveLines.tsx'))).toBe(true);
 
         const wpConfigSrc = readFileSync(path.join(projectDir, 'wp.config.ts'), 'utf8');
         expect(wpConfigSrc).toContain('frameworkAdapter: "nextjs"');
@@ -200,22 +201,23 @@ describe('Slice 10: Public Next.js adapter registration, withForgeWP(), and crea
           expect(result.zipPath && existsSync(result.zipPath)).toBe(true);
           expect(statSync(result.zipPath).size).toBeGreaterThan(1000);
 
-          // Static routes, 404, live WP bindings, BlockArea, compiled Gutenberg block, and esbuild island present
+          // Home route, 404, BlockArea and the compiled Gutenberg block are present
           expect(existsSync(path.join(result.outDir, 'front-page.php'))).toBe(true);
-          expect(existsSync(path.join(result.outDir, 'page-about.php'))).toBe(true);
           expect(existsSync(path.join(result.outDir, '404.php'))).toBe(true);
           expect(existsSync(path.join(result.outDir, 'blocks', 'hero-intro', 'block.json'))).toBe(true);
           expect(existsSync(path.join(result.outDir, 'blocks', 'hero-intro', 'render.php'))).toBe(true);
-          expect(existsSync(path.join(result.outDir, 'assets', 'forgewp-hydrator.js'))).toBe(true);
-          expect(existsSync(path.join(result.outDir, 'assets', 'islands', 'counter-island.js'))).toBe(true);
+          // The "d" dark-mode hotkey ships as an island in the shared header
+          expect(existsSync(path.join(result.outDir, 'assets', 'islands', 'theme-hotkey.js'))).toBe(true);
+          expect(readFileSync(path.join(result.outDir, 'forgewp-static', 'header.html'), 'utf8')).toContain('theme-hotkey');
 
           const homeStatic = readFileSync(
             path.join(result.outDir, 'forgewp-static', 'content.html'),
             'utf8',
           );
-          expect(homeStatic).toContain('get_the_title()');
           expect(homeStatic).toContain('<?php the_content(); ?>');
-          expect(homeStatic).toContain("forgewp_resolve_route_url('about'");
+          // Welcome page artwork survives native export: all 11 contour lines with motion variables
+          expect(homeStatic).toContain('forgewp-wave');
+          expect(homeStatic.match(/--wave-period:/g)?.length).toBe(11);
 
           // Lint all generated PHP & static templates with php -l
           const files = walkFiles(result.outDir).filter(
@@ -233,6 +235,6 @@ describe('Slice 10: Public Next.js adapter registration, withForgeWP(), and crea
         rmSync(tmp, { recursive: true, force: true });
       }
     },
-    60_000,
+    180_000, // full Next.js build + export; slow under parallel load on Windows
   );
 });

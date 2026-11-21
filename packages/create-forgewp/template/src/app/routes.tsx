@@ -1,8 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
 import { Route, Switch } from "@forgewp/react";
 import * as HomePage from "./page";
-import * as QuerySandbox from "./query-sandbox";
-import * as WpEditablePage from "./wp-editable";
 
 /**
  * Automatically discover all layouts in src/app/layouts via Vite eager glob.
@@ -78,12 +76,6 @@ export default function AppRoutes() {
       {/* Home preview */}
       <Route path="/" component={withLayout(HomePage)} />
 
-      {/* Relational Query Engine Sandbox — verifies taxQuery, metaQuery, pagination */}
-      <Route path="/query-sandbox" component={withLayout(QuerySandbox)} />
-
-      {/* WpEditable Block Canvas Preview — verifies inline editing primitive */}
-      <Route path="/wp-editable" component={withLayout(WpEditablePage)} />
-
       {/* Fallback route */}
       <Route
         component={withLayout(() => (
@@ -92,8 +84,6 @@ export default function AppRoutes() {
             <p className="mt-2 text-zinc-600">Page not found locally.</p>
             <div className="mt-4 flex flex-col items-center gap-2 text-sm">
               <a href="/" className="text-brand font-semibold hover:underline">← Go back home</a>
-              <a href="/query-sandbox" className="text-zinc-500 font-mono hover:underline text-xs">→ Query Engine Sandbox</a>
-              <a href="/wp-editable" className="text-zinc-500 font-mono hover:underline text-xs">→ WpEditable Canvas</a>
             </div>
           </div>
         ))}

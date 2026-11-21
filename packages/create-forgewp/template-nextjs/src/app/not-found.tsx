@@ -2,20 +2,22 @@ import Link from 'next/link';
 
 export default function NotFoundPage() {
   return (
-    <main className="fwp-card" style={{ justifyContent: 'center', textAlign: 'center' }}>
-      <div>
-        <h1 className="fwp-headline" style={{ color: 'var(--primary)' }}>
-          404
-        </h1>
-        <p className="fwp-lead" style={{ marginLeft: 'auto', marginRight: 'auto' }}>
-          The page you requested could not be found.
-        </p>
-        <div className="fwp-actions" style={{ justifyContent: 'center' }}>
-          <Link href="/" className="fwp-btn-primary">
-            <span>Return Home</span>
-          </Link>
+    <main className="fwp-main">
+      <section className="fwp-hero">
+        <div className="fwp-hero-copy">
+          <h1 className="fwp-headline">
+            <span className="fwp-accent">404.</span>
+            <br />
+            Page not found.
+          </h1>
+          <p className="fwp-lead">The page you requested could not be found.</p>
+          <div className="fwp-actions">
+            <Link href="/" className="fwp-button">
+              Return home
+            </Link>
+          </div>
         </div>
-      </div>
+      </section>
     </main>
   );
 }
