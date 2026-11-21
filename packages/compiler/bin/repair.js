@@ -7,6 +7,7 @@ import { createUi, formatDuration } from "../lib/terminal-ui.js";
 import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
+import { getProjectExtensions } from "../lib/project-language.js";
 
 const ui = createUi();
 const { c } = ui;
@@ -55,16 +56,20 @@ try {
   }
 
   // Ensure default mock data table is recreated if deleted
-  const mockDataTsPath = path.join(projectRoot, "cms", "mock-data.ts");
+  const { scriptExt } = getProjectExtensions(projectRoot);
+  const hasScriptMock = ["mock-data.ts", "mock-data.js", "mock-data.mjs"].some((name) =>
+    existsSync(path.join(projectRoot, "cms", name)),
+  );
+  const mockDataScriptPath = path.join(projectRoot, "cms", `mock-data${scriptExt}`);
   const mockDataJsonPath = path.join(projectRoot, "cms", "mock-data.json");
-  if (!existsSync(mockDataTsPath) && !existsSync(mockDataJsonPath)) {
-    const defaultTs = `import { defineWpPosts } from '@forgewp/react/config';\n\nexport const mockData = defineWpPosts({\n  post: [\n    {\n      id: 1,\n      title: "Welcome to ForgeWP: The Headless Revolution",\n      excerpt: "Discover how ForgeWP bridges standard WordPress themes with React.",\n      content: "<p>Welcome to ForgeWP! Modify this in cms/mock-data.ts.</p>",\n      date: "May 10, 2026",\n      author: "Antigravity",\n      featuredImage: "https://picsum.photos/seed/forgewp/1200/630",\n      customFields: {}\n    }\n  ]\n});\n\nexport default mockData;\n`;
-    const dirPath = path.dirname(mockDataTsPath);
+  if (!hasScriptMock && !existsSync(mockDataJsonPath)) {
+    const defaultScript = `import { defineWpPosts } from '@forgewp/react/config';\n\nexport const mockData = defineWpPosts({\n  post: [\n    {\n      id: 1,\n      title: "Welcome to ForgeWP: The Headless Revolution",\n      excerpt: "Discover how ForgeWP bridges standard WordPress themes with React.",\n      content: "<p>Welcome to ForgeWP! Modify this in cms/mock-data${scriptExt}.</p>",\n      date: "May 10, 2026",\n      author: "Antigravity",\n      featuredImage: "https://picsum.photos/seed/forgewp/1200/630",\n      customFields: {}\n    }\n  ]\n});\n\nexport default mockData;\n`;
+    const dirPath = path.dirname(mockDataScriptPath);
     if (!existsSync(dirPath)) {
       mkdirSync(dirPath, { recursive: true });
     }
-    writeFileSync(mockDataTsPath, defaultTs, "utf8");
-    console.log(ui.done("Seeded Default Database", "cms/mock-data.ts"));
+    writeFileSync(mockDataScriptPath, defaultScript, "utf8");
+    console.log(ui.done("Seeded Default Database", `cms/mock-data${scriptExt}`));
     repairedCount++;
   }
 

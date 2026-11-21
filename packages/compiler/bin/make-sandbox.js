@@ -8,6 +8,7 @@ import { spawnSync } from "node:child_process";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import { addComponent } from "../lib/add-component.js";
+import { findWpConfigPath } from "../lib/project-language.js";
 
 const ui = createUi();
 const { c } = ui;
@@ -508,9 +509,12 @@ if (type === "auth") {
     }
   }
 
-  // 3. Inject WpAuthProvider in src/app/layout.tsx
-  const layoutPath = path.join(projectRoot, 'src', 'app', 'layout.tsx');
-  if (existsSync(layoutPath)) {
+  // 3. Inject WpAuthProvider in src/app/layout.{tsx,jsx}
+  const layoutFile = ['layout.tsx', 'layout.jsx'].find((name) =>
+    existsSync(path.join(projectRoot, 'src', 'app', name)),
+  );
+  const layoutPath = layoutFile ? path.join(projectRoot, 'src', 'app', layoutFile) : '';
+  if (layoutPath && existsSync(layoutPath)) {
     let layoutContent = readFileSync(layoutPath, 'utf8');
     if (!layoutContent.includes('WpAuthProvider')) {
       layoutContent = 'import { WpAuthProvider } from "@forgewp/auth";\n' + layoutContent;
@@ -521,9 +525,12 @@ if (type === "auth") {
     }
   }
 
-  // 4. Register Routes in src/app/routes.tsx
-  const routesPath = path.join(projectRoot, 'src', 'app', 'routes.tsx');
-  if (existsSync(routesPath)) {
+  // 4. Register Routes in src/app/routes.{tsx,jsx}
+  const routesFile = ['routes.tsx', 'routes.jsx'].find((name) =>
+    existsSync(path.join(projectRoot, 'src', 'app', name)),
+  );
+  const routesPath = routesFile ? path.join(projectRoot, 'src', 'app', routesFile) : '';
+  if (routesPath && existsSync(routesPath)) {
     let routesContent = readFileSync(routesPath, 'utf8');
     if (!routesContent.includes('/forgot-password')) {
       const importBlock = `import * as LoginPage from "./pages/LoginPage";\nimport * as SignUpPage from "./pages/SignUpPage";\nimport * as VerifyEmailPage from "./pages/VerifyEmailPage";\nimport * as ForgotPasswordPage from "./pages/ForgotPasswordPage";\nimport * as ResetPasswordPage from "./pages/ResetPasswordPage";\n`;
@@ -538,12 +545,14 @@ if (type === "auth") {
         routesContent = routesContent.replace(/<Switch>/i, `<Switch>\n${routesBlock}`);
       }
       writeFileSync(routesPath, routesContent, 'utf8');
-      console.log(ui.done(`Registered auth routes in src/app/routes.tsx`));
+      console.log(ui.done(`Registered auth routes in src/app/${routesFile}`));
     }
   }
 
-  // 5. Update wp.config.ts to include auth configuration block if missing
-  const wpConfigPath = path.join(projectRoot, 'wp.config.ts');
+  // 5. Update wp.config.{ts,js,mjs} to include auth configuration block if missing
+  const foundWpConfig = findWpConfigPath(projectRoot);
+  const wpConfigPath = foundWpConfig?.path || path.join(projectRoot, 'wp.config.ts');
+  const wpConfigLabel = foundWpConfig?.fileName || 'wp.config.ts';
   if (existsSync(wpConfigPath)) {
     let configContent = readFileSync(wpConfigPath, 'utf8');
     if (!configContent.includes('auth:')) {
@@ -577,7 +586,7 @@ if (type === "auth") {
         configContent = configContent.replace(/(export default \{)/, `$1\n${authConfigBlock}`);
       }
       writeFileSync(wpConfigPath, configContent, 'utf8');
-      console.log(ui.done(`Added auth settings block to wp.config.ts`));
+      console.log(ui.done(`Added auth settings block to ${wpConfigLabel}`));
     } else if (!configContent.includes('passwordReset:')) {
       if (configContent.includes('emails: {') && configContent.includes('verification: {')) {
         const passwordResetBlock = `      passwordReset: {
@@ -586,7 +595,7 @@ if (type === "auth") {
       },`;
         configContent = configContent.replace(/(verification:\s*\{[^}]*\},)/, `$1\n${passwordResetBlock}`);
         writeFileSync(wpConfigPath, configContent, 'utf8');
-        console.log(ui.done(`Added passwordReset template block to wp.config.ts`));
+        console.log(ui.done(`Added passwordReset template block to ${wpConfigLabel}`));
       }
     }
   }

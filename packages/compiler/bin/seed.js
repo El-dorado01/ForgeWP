@@ -57,6 +57,13 @@ if (!foundConfig) {
   process.exit(1);
 }
 const configPath = foundConfig.path;
+const configFileName = foundConfig.fileName;
+const productsLabel = fs.existsSync(path.join(projectRoot, 'cms', 'products.js'))
+  ? 'cms/products.js'
+  : 'cms/products.ts';
+const mockDataLabel = fs.existsSync(path.join(projectRoot, 'cms', 'mock-data.js'))
+  ? 'cms/mock-data.js'
+  : 'cms/mock-data.ts';
 
 // 1. Inspect Products
 let productsCount = 0;
@@ -64,9 +71,9 @@ if (target === 'all' || target === 'products' || target === 'product') {
   const products = loadProductsData(projectRoot);
   productsCount = products.length;
   if (productsCount > 0) {
-    console.log(ui.done(`${productsCount} WooCommerce product${productsCount === 1 ? '' : 's'}`, 'cms/products'));
+    console.log(ui.done(`${productsCount} WooCommerce product${productsCount === 1 ? '' : 's'}`, productsLabel));
   } else {
-    console.log(ui.info('No WooCommerce products', 'cms/products'));
+    console.log(ui.info('No WooCommerce products', productsLabel));
   }
 }
 
@@ -81,19 +88,19 @@ if (target === 'all' || target === 'mock-data' || target === 'mock' || target ==
     types.forEach((t) => {
       const count = Array.isArray(mockData[t]) ? mockData[t].length : 0;
       totalMockPosts += count;
-      console.log(ui.done(`${count} ${t} entr${count === 1 ? 'y' : 'ies'}`, 'cms/mock-data'));
+      console.log(ui.done(`${count} ${t} entr${count === 1 ? 'y' : 'ies'}`, mockDataLabel));
     });
   } else {
-    console.log(ui.info('No mock content', 'cms/mock-data'));
+    console.log(ui.info('No mock content', mockDataLabel));
   }
 }
 
-// 3. Check wp.config.ts for seed settings
+// 3. Check wp.config for seed settings
 let configRaw = fs.readFileSync(configPath, 'utf8');
 const hasSeedConfig = configRaw.includes('seed:');
 
 if (!hasSeedConfig && (productsCount > 0 || mockTypesCount > 0)) {
-  console.log(ui.step('Enabling seeding in wp.config'));
+  console.log(ui.step(`Enabling seeding in ${configFileName}`));
   const lines = ['  seed: {'];
   if (productsCount > 0) {
     lines.push("    products: 'once',");
@@ -108,14 +115,14 @@ if (!hasSeedConfig && (productsCount > 0 || mockTypesCount > 0)) {
   if (configRaw.includes('defineConfig({')) {
     configRaw = configRaw.replace(/defineConfig\(\{/, `defineConfig({\n${seedBlock}`);
     fs.writeFileSync(configPath, configRaw, 'utf8');
-    console.log(ui.done('Added a seed block to wp.config', "seeds once, development only"));
+    console.log(ui.done(`Added a seed block to ${configFileName}`, "seeds once, development only"));
   }
 } else if (hasSeedConfig) {
-  console.log(ui.done('Seeding already configured', 'wp.config'));
+  console.log(ui.done('Seeding already configured', configFileName));
 }
 
 console.log('');
 console.log(ui.detail('This did not export the theme or connect to WordPress. The data is seeded when'));
-console.log(ui.detail("the exported theme runs, following wp.config's seed strategy and debug guard."));
+console.log(ui.detail(`the exported theme runs, following ${configFileName}'s seed strategy and debug guard.`));
 console.log(`${ui.hint('Next', `${ui.command('pnpm forgewp export')} ${c.dim('then install the theme')}`)}`);
 console.log(`${ui.tip(`With WP-CLI you can seed on demand: ${ui.command('wp forgewp seed-products')} · ${ui.command('wp forgewp seed-mock-data')}`)}\n`);

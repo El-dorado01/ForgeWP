@@ -9,6 +9,7 @@ import { createUi, formatDuration } from "../lib/terminal-ui.js";
 import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
+import { findWpConfigPath, getProjectExtensions } from "../lib/project-language.js";
 
 const ui = createUi();
 const { c } = ui;
@@ -18,13 +19,15 @@ console.log(ui.header("fresh", "reset to a clean starter"));
 const projectRoot = process.cwd();
 
 async function runReset() {
+  const { jsxExt } = getProjectExtensions(projectRoot);
+  const configFileLabel = findWpConfigPath(projectRoot)?.fileName || "wp.config.ts (or wp.config.js)";
   // Load the project config to determine the framework adapter
   let frameworkAdapter = 'react';
   try {
     const config = await loadConfig(projectRoot);
     frameworkAdapter = config.frameworkAdapter || 'react';
   } catch (err) {
-    console.log(ui.warn("Could not load wp.config", "using the react adapter"));
+    console.log(ui.warn(`Could not load ${configFileLabel}`, `${err.message} — using the react adapter`));
   }
 
 // 1. Clean Build Caches & Artifacts
@@ -64,9 +67,11 @@ for (const targetPrune of directoriesToPrune) {
 // 3. Restore Standard Database & Sitemap Menus from Core Blueprints
 const coreFilesToReset = ["cms/menus.json", "cms/mock-data.json", "cms/products.json"];
 for (const relPath of coreFilesToReset) {
-  const tsVariant = relPath.replace(/\.json$/, ".ts");
-  if (existsSync(path.join(projectRoot, tsVariant))) {
-    console.log(ui.info(`Kept ${relPath}`, `${tsVariant} is the active source`));
+  const scriptVariant = [".ts", ".js", ".mjs"]
+    .map((ext) => relPath.replace(/\.json$/, ext))
+    .find((candidate) => existsSync(path.join(projectRoot, candidate)));
+  if (scriptVariant) {
+    console.log(ui.info(`Kept ${relPath}`, `${scriptVariant} is the active source`));
     continue;
   }
   const fullPath = path.join(projectRoot, relPath);
@@ -114,7 +119,7 @@ if (existsSync(monorepoSyncScript)) {
 
 console.log("");
 console.log(`  ${c.green(ui.symbols.done)} ${c.bold("Reset to a clean starter")}`);
-console.log(`${ui.hint("Next", `${ui.command("pnpm dev")} ${c.dim("then edit")} ${ui.command("src/app/page.tsx")}`)}\n`);
+console.log(`${ui.hint("Next", `${ui.command("pnpm dev")} ${c.dim("then edit")} ${ui.command(`src/app/page${jsxExt}`)}`)}\n`);
 }
 
 function hasWorkBeenDone() {
