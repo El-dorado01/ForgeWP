@@ -2,12 +2,16 @@
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import path from "node:path";
-import pc from "picocolors";
+import { createUi } from "../lib/terminal-ui.js";
+
 import { spawnSync } from "node:child_process";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import { addComponent } from "../lib/add-component.js";
 import { findWpConfigPath } from "../lib/project-language.js";
+
+const ui = createUi();
+const { c } = ui;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -15,8 +19,7 @@ const args = process.argv.slice(2);
 const type = args[0];
 
 if (!type || (type !== "ecommerce" && type !== "auth")) {
-  console.error(pc.red(`\n❌ Error: Please specify sandbox type: "ecommerce" or "auth"`));
-  console.log(`   Usage: pnpm forgewp make:sandbox <ecommerce|auth>\n`);
+  console.error(ui.errorBlock("Missing sandbox type.", `Usage: ${ui.command("pnpm forgewp make:sandbox <ecommerce|auth>")}`));
   process.exit(1);
 }
 
@@ -45,18 +48,18 @@ if (type === "ecommerce") {
   const hasWooDependency = dependencies["@forgewp/woocommerce"] || devDependencies["@forgewp/woocommerce"];
 
   if (!hasWooDependency) {
-    console.log(pc.yellow(`\nℹ️  To seed an e-commerce sandbox, the "@forgewp/woocommerce" package is required.`));
+    console.log(`\n${ui.info('The e-commerce sandbox needs the "@forgewp/woocommerce" package')}`);
 
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout
     });
 
-    rl.question(`\n   Would you like to install "@forgewp/woocommerce" and configure e-commerce support? (y/N): `, (answer) => {
+    rl.question(`  ${c.orange(ui.symbols.active)} Install it and set up e-commerce support? ${c.dim("(y/N)")} `, (answer) => {
       rl.close();
       const confirmed = answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes";
       if (!confirmed) {
-        console.log(pc.red(`\n❌ Aborted: E-commerce sandbox requires "@forgewp/woocommerce" dependency.\n`));
+        console.log(ui.errorBlock("Cancelled. Nothing was changed.", 'The e-commerce sandbox needs "@forgewp/woocommerce".'));
         process.exit(1);
       }
 
@@ -69,7 +72,7 @@ if (type === "ecommerce") {
       }
       packageJson.dependencies["@forgewp/woocommerce"] = versionToUse;
       writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + "\n", "utf8");
-      console.log(pc.green(`  ✅ Added "@forgewp/woocommerce": "${versionToUse}" to package.json`));
+      console.log(ui.done(`Added "@forgewp/woocommerce": "${versionToUse}" to package.json`));
 
       // 2. Detect package manager and install
       let packageManager = "npm";
@@ -81,7 +84,7 @@ if (type === "ecommerce") {
         packageManager = "bun";
       }
 
-      console.log(pc.cyan(`  📦 Installing dependencies using ${packageManager}...`));
+      console.log(ui.step(`Installing dependencies using ${packageManager}`));
 
       const spawnResult = spawnSync(packageManager, ["install"], {
         stdio: "inherit",
@@ -89,14 +92,14 @@ if (type === "ecommerce") {
       });
 
       if (spawnResult.status !== 0) {
-        console.error(pc.red(`\n❌ Error: Failed to run "${packageManager} install". Please run it manually.`));
+        console.error(ui.errorBlock(`Failed to run "${packageManager} install". Please run it manually.`));
         process.exit(1);
       }
 
-      console.log(pc.green(`  ✅ Package installation complete.`));
+      console.log(ui.done(`Package installation complete.`));
 
       // 3. Run repair / blueprint healing silently to make sure wordpress.tsx and products.json are written
-      console.log(pc.cyan(`  🔧 Configuring system blueprints and updating wordpress.tsx...`));
+      console.log(ui.step(`Configuring system blueprints and updating wordpress.tsx`));
 
       const repairScript = path.join(__dirname, "repair.js");
       const repairResult = spawnSync("node", [repairScript], {
@@ -105,11 +108,11 @@ if (type === "ecommerce") {
       });
 
       if (repairResult.status !== 0) {
-        console.error(pc.red(`\n❌ Error: Failed to repair system blueprints.`));
+        console.error(ui.errorBlock(`Failed to repair system blueprints.`));
         process.exit(1);
       }
 
-      console.log(pc.green(`  ✅ Blueprints healed successfully.`));
+      console.log(ui.done(`Blueprints healed successfully.`));
 
       // Proceed to seed
       seedEcommerceData();
@@ -123,8 +126,8 @@ if (type === "ecommerce") {
 function seedEcommerceData() {
   const productsTsPath = path.join(wpDir, "products.ts");
   if (existsSync(productsTsPath)) {
-    console.warn(pc.yellow(`\n⚠️  E-Commerce mock data already exists in cms/products.ts.`));
-    console.log(`   You can open the file directly to view or edit existing mock products.\n`);
+    console.warn(`\n${ui.warn("E-commerce mock data already exists", "cms/products.ts")}`);
+    console.log(`${ui.detail("Open the file to view or edit the products.")}\n`);
     return;
   }
 
@@ -139,7 +142,7 @@ function seedEcommerceData() {
     try {
       productsData = JSON.parse(readFileSync(productsPath, "utf8"));
     } catch (err) {
-      console.error(pc.red(`\n❌ Error: Failed to parse cms/products.json. Overwriting with clean structure.`));
+      console.error(`\n${ui.warn("cms/products.json could not be parsed", "starting from a clean file")}`);
       productsData = {
         "product": [],
         "_taxonomy_product_cat": [],
@@ -149,8 +152,8 @@ function seedEcommerceData() {
   }
 
   if (productsData["product"] && productsData["product"].length > 0) {
-    console.warn(pc.yellow(`\n⚠️  E-Commerce mock data already exists in cms/products.json.`));
-    console.log(`   You can open the file directly to view or edit existing mock products.\n`);
+    console.warn(`\n${ui.warn("E-commerce mock data already exists", "cms/products.json")}`);
+    console.log(`${ui.detail("Open the file to view or edit the products.")}\n`);
     return;
   }
 
@@ -359,14 +362,10 @@ function seedEcommerceData() {
 
   writeFileSync(productsPath, JSON.stringify(productsData, null, 2), "utf8");
 
-  console.log(pc.green(`\n⚡ E-Commerce Mock Sandbox successfully created!`));
-  console.log(`   Local DB: ${pc.cyan(`cms/products.json`)}`);
-  console.log(`\n🎉 Seeded 5 standard products of different WooCommerce types:`);
-  console.log(`   1. ${pc.yellow("Simple Product")} (Minimalist Brutalist Hoodie)`);
-  console.log(`   2. ${pc.yellow("Variable Product")} (Raw Edge Heavy Tee with attributes/variations)`);
-  console.log(`   3. ${pc.yellow("Grouped Product")} (Studio Concrete Capsule Pack)`);
-  console.log(`   4. ${pc.yellow("External/Affiliate Product")} (Brutalist Typography Book)`);
-  console.log(`   5. ${pc.yellow("Virtual & Downloadable Product")} (Brutalist Poster Art Print)`);
+  console.log(`\n${ui.created("e-commerce sandbox", "WooCommerce", "cms/products.json")}`);
+  console.log(ui.detail("Seeded one product of each WooCommerce type:"));
+  console.log(ui.detail(`  simple · variable · grouped · external · virtual & downloadable`));
+  console.log(`${ui.hint("Next", `${ui.command("pnpm dev")} ${c.dim("to browse the products locally")}`)}\n`);
 }
 
 if (type === "auth") {
@@ -433,14 +432,14 @@ if (type === "auth") {
     if (!hasRoles) writeFileSync(rolesPath, JSON.stringify(seededRoles, null, 2), "utf8");
     if (!existsSync(sessionsPath)) writeFileSync(sessionsPath, JSON.stringify(seededSessions, null, 2), "utf8");
 
-    console.log(pc.green(`  ✅ Seeded authentication mock data files in cms/`));
+    console.log(ui.done(`Seeded authentication mock data files in cms/`));
   }
 
   // 2. Copy Pages & Components (without overwriting)
   const templatesDir = path.join(__dirname, "..", "templates", "auth");
   const copyIfNotExist = (src, dest) => {
     if (existsSync(dest)) {
-      console.log(pc.yellow(`   ℹ️  Skipping existing file: ${path.relative(projectRoot, dest)}`));
+      console.log(ui.info(`Kept existing file`, `${path.relative(projectRoot, dest)}`));
       return;
     }
     const dir = path.dirname(dest);
@@ -448,7 +447,7 @@ if (type === "auth") {
       mkdirSync(dir, { recursive: true });
     }
     writeFileSync(dest, readFileSync(src, 'utf8'), 'utf8');
-    console.log(pc.green(`   ✅ Created file: ${path.relative(projectRoot, dest)}`));
+    console.log(ui.done(`Created file: ${path.relative(projectRoot, dest)}`));
   };
 
   // 2. Provision UI primitives from canonical auth templates
@@ -482,10 +481,10 @@ if (type === "auth") {
     const compFile = path.join(uiDestDir, `${uiComp}.tsx`);
     if (!existsSync(compFile)) {
       try {
-        console.log(pc.cyan(`  📦 Pulling required "${uiComp}" UI component via shadcn...`));
+        console.log(ui.step(`Pulling required "${uiComp}" UI component via shadcn`));
         await addComponent(uiComp, { style: projectStyle });
       } catch (err) {
-        console.warn(pc.yellow(`  ⚠  Could not auto-add "${uiComp}": ${err.message}`));
+        console.warn(ui.warn(`Could not auto-add "${uiComp}": ${err.message}`));
       }
     }
   }
@@ -522,7 +521,7 @@ if (type === "auth") {
       // Robustly wrap JSX children with WpAuthProvider
       layoutContent = layoutContent.replace(/(>\s*)\{\s*children\s*\}(\s*<)/, '$1<WpAuthProvider>{children}</WpAuthProvider>$2');
       writeFileSync(layoutPath, layoutContent, 'utf8');
-      console.log(pc.green(`   ✅ Wrapped root layout in <WpAuthProvider>`));
+      console.log(ui.done(`Wrapped root layout in <WpAuthProvider>`));
     }
   }
 
@@ -546,7 +545,7 @@ if (type === "auth") {
         routesContent = routesContent.replace(/<Switch>/i, `<Switch>\n${routesBlock}`);
       }
       writeFileSync(routesPath, routesContent, 'utf8');
-      console.log(pc.green(`   ✅ Registered auth routes in src/app/${routesFile}`));
+      console.log(ui.done(`Registered auth routes in src/app/${routesFile}`));
     }
   }
 
@@ -587,7 +586,7 @@ if (type === "auth") {
         configContent = configContent.replace(/(export default \{)/, `$1\n${authConfigBlock}`);
       }
       writeFileSync(wpConfigPath, configContent, 'utf8');
-      console.log(pc.green(`   ✅ Added auth settings block to ${wpConfigLabel}`));
+      console.log(ui.done(`Added auth settings block to ${wpConfigLabel}`));
     } else if (!configContent.includes('passwordReset:')) {
       if (configContent.includes('emails: {') && configContent.includes('verification: {')) {
         const passwordResetBlock = `      passwordReset: {
@@ -596,7 +595,7 @@ if (type === "auth") {
       },`;
         configContent = configContent.replace(/(verification:\s*\{[^}]*\},)/, `$1\n${passwordResetBlock}`);
         writeFileSync(wpConfigPath, configContent, 'utf8');
-        console.log(pc.green(`   ✅ Added passwordReset template block to ${wpConfigLabel}`));
+        console.log(ui.done(`Added passwordReset template block to ${wpConfigLabel}`));
       }
     }
   }
@@ -610,9 +609,10 @@ if (type === "auth") {
       const isWorkspace = existsSync(path.join(projectRoot, '..', 'pnpm-workspace.yaml'));
       packageJson.dependencies['@forgewp/auth'] = isWorkspace ? 'workspace:*' : '^0.1.2';
       writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf8');
-      console.log(pc.green(`   ✅ Added @forgewp/auth to package.json dependencies`));
+      console.log(ui.done(`Added @forgewp/auth to package.json dependencies`));
     }
   }
 
-  console.log(pc.green(`\n⚡ Authentication Mock Sandbox successfully created!`));
+  console.log(`\n${ui.created("auth sandbox", "login, sign-up and account pages", "cms/")}`);
+  console.log(`${ui.hint("Next", `${ui.command("pnpm dev")} ${c.dim("and open /login")}`)}\n`);
 }

@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 import { addComponent } from '../lib/add-component.js';
+import { createUi } from '../lib/terminal-ui.js';
+
+const ui = createUi();
+const { c } = ui;
 
 const args = process.argv.slice(2);
 let components = args.filter((a) => !a.startsWith('-'));
@@ -43,9 +47,7 @@ const style =
 const overwrite = args.includes('--overwrite');
 
 if (components.length === 0) {
-  console.error(
-    'Usage: forgewp add <component1> [component2] ... [--style=forgewp|shadcn] [--overwrite]',
-  );
+  console.error(ui.errorBlock('Missing component name.', `Usage: ${ui.command('pnpm forgewp add <component> [more...] [--style=forgewp|shadcn] [--overwrite]')}`));
   process.exit(1);
 }
 
@@ -56,6 +58,6 @@ async function run() {
 }
 
 run().catch((err) => {
-  console.error(err.message);
+  console.error(ui.errorBlock('Could not add the component', err.message));
   process.exit(1);
 });

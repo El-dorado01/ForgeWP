@@ -63,7 +63,7 @@ export default function HomePage() {
               Read the docs
             </a>
             <a
-              href="https://github.com/forgewp/forgewp"
+              href="https://github.com/El-dorado01/ForgeWP"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-[11px] text-base text-stone-300 light:text-[#344154] transition-colors duration-200 hover:text-forgewp"

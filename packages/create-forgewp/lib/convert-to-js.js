@@ -7,6 +7,25 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
+
+/**
+ * node:module stripTypeScriptTypes prints an ExperimentalWarning on first use.
+ * Users of ForgeWP's CLIs shouldn't see Node internals, so silence exactly that
+ * warning around the call and leave every other warning untouched.
+ */
+function stripTypesQuietly(code) {
+  const emitWarning = process.emitWarning;
+  process.emitWarning = (warning, ...rest) => {
+    const type = typeof rest[0] === 'string' ? rest[0] : rest[0]?.type;
+    if (type === 'ExperimentalWarning' && String(warning).includes('stripTypeScriptTypes')) return;
+    return emitWarning.call(process, warning, ...rest);
+  };
+  try {
+    return stripTypeScriptTypes(code, { mode: 'transform' });
+  } finally {
+    process.emitWarning = emitWarning;
+  }
+}
 import path from 'node:path';
 
 /**
@@ -17,7 +36,7 @@ import path from 'node:path';
  * @returns {string}
  */
 export function stripTsFromScript(code) {
-  let out = stripTypeScriptTypes(code, { mode: 'transform' });
+  let out = stripTypesQuietly(code);
   // Remove leftover empty lines created by stripped `import type` / `interface` blocks
   out = out.replace(/^[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n');
   return out.trimStart();

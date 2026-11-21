@@ -161,6 +161,14 @@ export function runStaticLintChecks(themeRoot) {
     collectFilesRecursive(dir);
   }
 
+  // src/app/routes.tsx is the React adapter's dev-preview router (Vite only). It is
+  // never exported to WordPress, so its links are not template links.
+  const devOnlyFiles = /^src\/app\/routes\.(tsx|ts|jsx|js)$/;
+  for (let i = filesToScan.length - 1; i >= 0; i -= 1) {
+    const rel = path.relative(themeRoot, filesToScan[i]).replace(/\\/g, "/");
+    if (devOnlyFiles.test(rel)) filesToScan.splice(i, 1);
+  }
+
   for (const filePath of filesToScan) {
     const relFile = path.relative(themeRoot, filePath).replace(/\\/g, "/");
     try {

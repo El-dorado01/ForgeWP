@@ -2,8 +2,11 @@
 
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
-import pc from 'picocolors';
+import { createUi } from '../lib/terminal-ui.js';
 import { getProjectExtensions, writeScaffoldFile } from '../lib/project-language.js';
+
+const ui = createUi();
+const { c } = ui;
 
 const args = process.argv.slice(2);
 
@@ -79,20 +82,13 @@ function parseFields() {
 
 const rawName = getOption('name') || args.find((arg) => !arg.startsWith('-'));
 if (!rawName) {
-  console.error(pc.red('\n❌ Error: Please specify a section name.'));
-  console.log(
-    pc.cyan(
-      '   Example: pnpm forgewp make:section HeroSection --page=front-page --block\n',
-    ),
-  );
+  console.error(ui.errorBlock('Missing section name.', `Example: ${ui.command('pnpm forgewp make:section HeroSection --page=front-page --block')}`));
   process.exit(1);
 }
 
 const projectRoot = process.cwd();
 if (!existsSync(path.join(projectRoot, 'src'))) {
-  console.error(
-    pc.red('\n❌ Error: "src" folder not found. Are you in your theme root?\n'),
-  );
+  console.error(ui.errorBlock('No src/ folder here.', 'Run this from your theme project root.'));
   process.exit(1);
 }
 
@@ -105,7 +101,7 @@ const fields = parseFields();
 const withBlock = args.includes('--block') || args.includes('--block=true');
 
 if (fields.length === 0) {
-  console.error(pc.red('\n❌ Error: No valid fields were provided.\n'));
+  console.error(ui.errorBlock('No valid fields were provided.', `Example: ${ui.command('--fields=title:text,body:richText')}`));
   process.exit(1);
 }
 
@@ -119,11 +115,7 @@ const pageExists = existsSync(pageFile);
 
 for (const target of [schemaFile, componentFile]) {
   if (existsSync(target)) {
-    console.error(
-      pc.red(
-        `\n❌ Error: File already exists: ${path.relative(projectRoot, target)}\n`,
-      ),
-    );
+    console.error(ui.errorBlock(`Already exists: ${path.relative(projectRoot, target).replaceAll('\\', '/')}`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 }
@@ -211,14 +203,12 @@ if (!existsSync(pageFile)) {
 }
 writeScaffoldFile(projectRoot, componentFile, componentSource);
 
-console.log(pc.green(`\n⚡ Section "${componentName}" created.`));
-console.log(`   Schema:    ${pc.cyan(path.relative(projectRoot, schemaFile))}`);
-console.log(`   Page:      ${pc.cyan(path.relative(projectRoot, pageFile))}`);
+const rel = (file) => path.relative(projectRoot, file).replaceAll('\\', '/');
+console.log(`\n${ui.created('section', componentName, rel(componentFile))}`);
+console.log(ui.detail(`Schema     ${rel(schemaFile)}`));
+console.log(ui.detail(`Page       ${rel(pageFile)}${pageExists ? '  (existing, unchanged)' : '  (created)'}`));
 console.log(
-  `   Component: ${pc.cyan(path.relative(projectRoot, componentFile))}`,
-);
-console.log(
-  pageExists
-    ? '\nThe existing page contract was preserved; add this section to its composition if needed.'
-    : '\nThe page contract was created and composed with this section.',
+  `${pageExists
+    ? ui.tip(`Add ${componentName} to the page's composition in ${ui.command(rel(pageFile))} if needed.`)
+    : ui.hint('Next', `${ui.command('pnpm dev')} ${c.dim('to see the section on the page')}`)}\n`,
 );

@@ -2,13 +2,17 @@
 
 import { existsSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import pc from "picocolors";
+import { createUi, formatDuration } from "../lib/terminal-ui.js";
+
 import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
 import { getProjectExtensions } from "../lib/project-language.js";
 
-console.log(`\n🔧 ${pc.bold(pc.bgYellow(pc.black("  FORGEWP SYSTEM REPAIR TOOL  ")))}\n`);
+const ui = createUi();
+const { c } = ui;
+
+console.log(ui.header("repair", "restore missing framework files"));
 
 const projectRoot = process.cwd();
 let repairedCount = 0;
@@ -44,11 +48,11 @@ try {
 
       // Force overwrite to restore pure internals
       writeFileSync(fullPath, blueprintContent, "utf8");
-      console.log(`  ${pc.green("✅ Restored/Healed")}: ${pc.cyan(relativePath)}`);
+      console.log(ui.done("Restored/Healed", relativePath));
       repairedCount++;
     }
   } else {
-    console.log(`  ${pc.dim("ℹ️  Skipped Vite system blueprints (not used by this framework adapter).")}`);
+    console.log(ui.info("Skipped Vite framework files", "not used by this adapter"));
   }
 
   // Ensure default mock data table is recreated if deleted
@@ -65,14 +69,13 @@ try {
       mkdirSync(dirPath, { recursive: true });
     }
     writeFileSync(mockDataScriptPath, defaultScript, "utf8");
-    console.log(`  ${pc.green("✅ Seeded Default Database")}: cms/mock-data${scriptExt}`);
+    console.log(ui.done("Seeded Default Database", `cms/mock-data${scriptExt}`));
     repairedCount++;
   }
 
-  console.log("\n" + "─".repeat(60));
-  console.log(pc.green(`\n🎉 ${pc.bold("REPAIR COMPLETE:")} Successfully repaired/synced ${repairedCount} core framework elements.`));
-  console.log(pc.cyan("   All protected boundaries have been restored back to defaults. Build safe!\n"));
+  console.log("");
+  console.log(`  ${c.green(ui.symbols.done)} ${c.bold(repairedCount ? `Restored ${repairedCount} framework file${repairedCount === 1 ? "" : "s"}` : "Nothing to repair")}  ${c.dim("your own source files were not touched")}\n`);
 } catch (err) {
-  console.error(pc.red(`\n❌ Error: Failed to perform system repair.\nReason: ${err.message}\n`));
+  console.error(ui.errorBlock("Repair failed", err.message));
   process.exit(1);
 }

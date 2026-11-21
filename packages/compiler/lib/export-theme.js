@@ -37,7 +37,7 @@ export async function exportTheme(options) {
 
   if (!options.config && !existsSync(path.join(themeRoot, 'wp.config.ts'))) {
     throw new Error(
-      `Critical project file is missing: ${pc.bold('wp.config.ts')}\n` +
+      `Critical project file is missing: wp.config.ts\n` +
         `  Description: Theme configuration file\n\n` +
         `  👉 To fix this, please restore the file from your version control (Git) or re-create it from the original ForgeWP theme template.`,
     );
@@ -89,7 +89,8 @@ export async function exportTheme(options) {
     }
   }
 
-  console.log(pc.cyan(`\n  ForgeWP export — ${config.name}\n`));
+  // The CLI (bin/export.js) prints its own header; keep this for programmatic callers.
+  if (!options.onProgress) console.log(pc.cyan(`\n  ForgeWP export — ${config.name}\n`));
 
   report(
     'build',

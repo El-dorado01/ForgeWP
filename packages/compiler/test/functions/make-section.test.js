@@ -59,7 +59,7 @@ test('make:section scaffolds a dual-host editable section without overwriting fi
     );
 
     assert.notEqual(duplicate.status, 0);
-    assert.match(duplicate.stderr, /File already exists/);
+    assert.match(duplicate.stderr, /Already exists/);
   } finally {
     rmSync(themeRoot, { recursive: true, force: true });
   }

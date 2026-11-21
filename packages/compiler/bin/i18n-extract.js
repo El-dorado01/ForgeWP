@@ -2,13 +2,17 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import pc from 'picocolors';
+import { createUi } from '../lib/terminal-ui.js';
+
 import { loadConfig } from '../lib/load-config.js';
 import { findWpConfigPath } from '../lib/project-language.js';
 import { extractKeysFromDirectory } from '../lib/i18n/extractor.js';
 import { loadTranslationsData, writeTranslationsData } from '../lib/functions/load-translations.js';
 
-console.log(`\n🗣️  ${pc.bold(pc.bgCyan(pc.black("  FORGEWP I18N EXTRACTOR  ")))}\n`);
+const ui = createUi();
+const { c } = ui;
+
+console.log(ui.header("i18n:extract", "collect translation strings"));
 
 const themeRoot = process.cwd();
 
@@ -18,7 +22,7 @@ async function run() {
     if (findWpConfigPath(themeRoot)) {
       config = await loadConfig(themeRoot);
     } else {
-      console.warn(pc.yellow(`⚠️  Could not load wp.config.ts (or wp.config.js), using fallback defaults.`));
+      console.warn(ui.warn("No wp.config found", "using default locales (en, de)"));
     }
 
     const i18n = config.i18n || {
@@ -35,9 +39,8 @@ async function run() {
       throw new Error(`Source directory not found at ${srcDir}`);
     }
 
-    console.log(`  🔍 Scanning files in: ${pc.cyan('src/')}`);
     const extractedKeys = extractKeysFromDirectory(srcDir);
-    console.log(`  ✅ Extracted ${pc.green(extractedKeys.length)} unique translation keys.`);
+    console.log(ui.done(`Found ${extractedKeys.length} translation key${extractedKeys.length === 1 ? '' : 's'}`, 'in src/'));
 
     const cmsDir = path.join(themeRoot, 'cms');
     if (!fs.existsSync(cmsDir)) {
@@ -95,18 +98,17 @@ async function run() {
 
     const translationsPath = writeTranslationsData(themeRoot, sortedTranslations);
 
-    console.log(`\n${pc.bold("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")}`);
-    console.log(`  ✨ ${pc.green("Extraction completed successfully!")}`);
-    console.log(`  📍 File: ${pc.cyan(path.relative(themeRoot, translationsPath))}`);
-    console.log(`  🌐 Locales: ${pc.yellow(locales.join(', '))}`);
-    console.log(`  ➕ New keys discovered: ${pc.green(addedCount / locales.length)}`);
-    if (unusedCount > 0) {
-      console.log(`  ℹ️  Unused keys remaining in catalog: ${pc.yellow(unusedCount / locales.length)} (retained to prevent work loss)`);
+    const added = addedCount / locales.length;
+    const unused = unusedCount / locales.length;
+    console.log(ui.done(`Catalog updated`, path.relative(themeRoot, translationsPath).replaceAll('\\', '/')));
+    console.log(ui.detail(`${added} new key${added === 1 ? '' : 's'} · locales ${locales.join(', ')}`));
+    if (unused > 0) {
+      console.log(ui.detail(`${unused} unused key${unused === 1 ? '' : 's'} kept so no translation work is lost`));
     }
-    console.log(`\n`);
+    console.log(`${ui.hint('Next', `${ui.command('pnpm forgewp i18n:translate')} ${c.dim('to fill in the other locales')}`)}\n`);
 
   } catch (error) {
-    console.error(pc.red(`\n❌ Extraction failed: ${error.message}\n`));
+    console.error(ui.errorBlock('Extraction failed', error.message));
     process.exit(1);
   }
 }

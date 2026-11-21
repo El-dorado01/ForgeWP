@@ -21,7 +21,10 @@ import {
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import pc from "picocolors";
+import { createUi } from "../lib/terminal-ui.js";
+
+const ui = createUi();
+const { c } = ui;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -31,11 +34,7 @@ const isDryRun = argv.includes("--dry-run") || argv.includes("-n");
 const isVerbose = argv.includes("--verbose") || argv.includes("-v");
 
 // ── Banner ─────────────────────────────────────────────────────────────────────
-console.log(
-  `\n🔄 ${pc.bold(pc.bgCyan(pc.black("  FORGEWP SYNC-HOOKS  ")))} ${
-    isDryRun ? pc.yellow("[DRY RUN — no files will be written]") : ""
-  }\n`
-);
+console.log(ui.header("sync:hooks", isDryRun ? "dry run · nothing is written" : "share wordpress.tsx across projects"));
 
 // ── Locate the canonical template (source of truth) ───────────────────────────
 const canonicalTemplatePath = path.resolve(
@@ -46,21 +45,14 @@ const canonicalTemplatePath = path.resolve(
 );
 
 if (!existsSync(canonicalTemplatePath)) {
-  console.error(
-    pc.red(
-      `\n❌ Cannot find canonical template at:\n   ${canonicalTemplatePath}\n`
-    )
-  );
+  console.error(ui.errorBlock("Source template not found", canonicalTemplatePath));
   process.exit(1);
 }
 
 const canonicalContent = readFileSync(canonicalTemplatePath, "utf8");
 const canonicalHash = md5(canonicalContent);
 
-console.log(
-  `  ${pc.bold("Source:")} ${pc.cyan("packages/compiler/templates/wordpress.tsx")}`
-);
-console.log(`  ${pc.bold("Hash:")}   ${pc.dim(canonicalHash.slice(0, 12))}...\n`);
+console.log(ui.info("Source", `packages/compiler/templates/wordpress.tsx · ${canonicalHash.slice(0, 12)}`));
 
 // ── Find workspace root (directory containing pnpm-workspace.yaml) ─────────────
 function findWorkspaceRoot(startDir) {
@@ -77,7 +69,7 @@ function findWorkspaceRoot(startDir) {
 const projectRoot = process.cwd();
 const workspaceRoot = findWorkspaceRoot(projectRoot) || projectRoot;
 
-console.log(`  ${pc.bold("Workspace:")} ${pc.dim(workspaceRoot)}\n`);
+console.log(`${ui.info("Workspace", workspaceRoot)}\n`);
 
 // ── Collect candidate project directories ─────────────────────────────────────
 function collectProjectDirs(workspaceRoot) {
@@ -141,9 +133,7 @@ for (const dir of candidateDirs) {
   // Skip if this dir doesn't have a src/.forgewp/ at all — it's not a ForgeWP theme
   if (!existsSync(path.dirname(targetPath))) {
     if (isVerbose) {
-      console.log(
-        `  ${pc.dim("⊘  Skipped")} ${pc.dim(relativeDir)} ${pc.dim("(no src/.forgewp/)")}`
-      );
+      console.log(ui.detail(`Skipped ${relativeDir} (not a ForgeWP theme)`));
     }
     skippedCount++;
     continue;
@@ -152,7 +142,7 @@ for (const dir of candidateDirs) {
   // Skip the compiler's own templates directory to avoid self-overwrite
   if (dir === path.resolve(__dirname, "..")) {
     if (isVerbose) {
-      console.log(`  ${pc.dim("⊘  Skipped")} ${pc.dim(relativeDir)} ${pc.dim("(source package)")}`);
+      console.log(ui.detail(`Skipped ${relativeDir} (source package)`));
     }
     skippedCount++;
     continue;
@@ -164,9 +154,7 @@ for (const dir of candidateDirs) {
 
     if (existingHash === canonicalHash) {
       if (isVerbose) {
-        console.log(
-          `  ${pc.green("✓  Up-to-date")} ${pc.cyan(relativeDir)}`
-        );
+        console.log(ui.done("Up to date", relativeDir));
       }
       alreadyCurrentCount++;
       continue;
@@ -178,41 +166,19 @@ for (const dir of candidateDirs) {
     writeFileSync(targetPath, canonicalContent, "utf8");
   }
 
-  console.log(
-    `  ${isDryRun ? pc.yellow("~  Would update") : pc.green("✅ Updated")}  ${pc.cyan(relativeDir + "/" + TARGET_RELATIVE.replace(/\\/g, "/"))}`
-  );
+  const updatedPath = `${relativeDir}/${TARGET_RELATIVE}`.replace(/\\/g, "/");
+  console.log(isDryRun ? ui.info("Would update", updatedPath) : ui.done("Updated", updatedPath));
   updatedCount++;
 }
 
 // ── Summary ────────────────────────────────────────────────────────────────────
-console.log("\n" + "─".repeat(60));
-
+console.log("");
 if (updatedCount === 0 && alreadyCurrentCount > 0) {
-  console.log(
-    pc.green(
-      `\n✨ ${pc.bold("All projects are already up-to-date.")} (${alreadyCurrentCount} checked)\n`
-    )
-  );
+  console.log(`  ${c.green(ui.symbols.done)} ${c.bold("Everything is up to date")}  ${c.dim(`${alreadyCurrentCount} project${alreadyCurrentCount === 1 ? "" : "s"} checked`)}\n`);
 } else if (isDryRun) {
-  console.log(
-    pc.yellow(
-      `\n🔍 ${pc.bold("Dry run complete.")} ${updatedCount} file(s) would be updated, ${alreadyCurrentCount} already current.\n`
-    )
-  );
+  console.log(`  ${c.cyan(ui.symbols.info)} ${c.bold(`${updatedCount} file${updatedCount === 1 ? "" : "s"} would be updated`)}  ${c.dim(`${alreadyCurrentCount} already current · dry run`)}\n`);
 } else {
-  const total = updatedCount + alreadyCurrentCount + skippedCount;
-  console.log(
-    pc.green(
-      `\n🎉 ${pc.bold("Sync complete!")} Updated ${pc.bold(String(updatedCount))} project(s). ${alreadyCurrentCount} already current. ${skippedCount} non-theme packages skipped.\n`
-    )
-  );
-  if (updatedCount > 0) {
-    console.log(
-      pc.cyan(
-        `   All projects now share the same wordpress.tsx hooks — zero drift.\n`
-      )
-    );
-  }
+  console.log(`  ${c.green(ui.symbols.done)} ${c.bold(`Updated ${updatedCount} project${updatedCount === 1 ? "" : "s"}`)}  ${c.dim(`${alreadyCurrentCount} already current · ${skippedCount} skipped`)}\n`);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

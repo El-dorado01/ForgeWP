@@ -2,9 +2,12 @@
 
 import { rmSync, existsSync } from "node:fs";
 import path from "node:path";
-import pc from "picocolors";
+import { createUi, formatDuration } from "../lib/terminal-ui.js";
 
-console.log(`\n🧹 ${pc.bold(pc.bgMagenta(pc.black("  FORGEWP CACHE CLEANER  ")))}\n`);
+const ui = createUi();
+const { c } = ui;
+
+console.log(ui.header("clean", "build caches and temporary files"));
 
 const projectRoot = process.cwd();
 const foldersToClean = [
@@ -22,18 +25,17 @@ for (const folder of foldersToClean) {
   if (existsSync(target)) {
     try {
       rmSync(target, { recursive: true, force: true });
-      console.log(`  ${pc.green("✅ Cleared folder")}: ${pc.cyan(folder)}`);
+      console.log(ui.done("Cleared folder", folder));
       cleanedCount++;
     } catch (err) {
-      console.log(pc.red(`  ❌ Failed to clear ${folder}: ${err.message}`));
+      console.log(ui.error(`Failed to clear ${folder}`, err.message));
     }
   }
 }
 
-console.log("\n" + "─".repeat(60));
+console.log("");
 if (cleanedCount > 0) {
-  console.log(pc.green(`\n🎉 ${pc.bold("CLEAN COMPLETE:")} Pruned ${cleanedCount} build artifact/cache folders.`));
-  console.log(pc.cyan("   Your development workspace is now 100% clean and fresh.\n"));
+  console.log(`  ${c.green(ui.symbols.done)} ${c.bold(`Cleaned ${cleanedCount} folder${cleanedCount === 1 ? "" : "s"}`)}\n`);
 } else {
-  console.log(pc.yellow(`\n⚠️  ${pc.bold("NO ACTION NEEDED:")} No cached build folders or artifacts found. Workspace is already clean!\n`));
+  console.log(`  ${c.green(ui.symbols.done)} ${c.bold("Already clean")}  ${c.dim("no caches or build output found")}\n`);
 }

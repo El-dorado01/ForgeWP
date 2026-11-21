@@ -15,7 +15,8 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import pc from "picocolors";
+import { createUi } from '../lib/terminal-ui.js';
+
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
 import {
@@ -24,6 +25,9 @@ import {
   DEFAULT_SHELL_CLASSNAME,
 } from "../lib/blocks/discover-blocks.js";
 import { blockAuthoringHelp } from "../lib/block-authoring-help.js";
+
+const ui = createUi();
+const { c } = ui;
 
 const args = process.argv.slice(2);
 
@@ -43,13 +47,13 @@ function hasFlag(name) {
 
 function printHelp() {
   console.log(`
-  ${pc.bold("forgewp make:shell")} — scaffold a parent shell (InnerBlocks layout)
+  ${c.bold("forgewp make:shell")} — scaffold a parent shell (InnerBlocks layout)
 
-  ${pc.bold("Usage:")}
+  ${c.bold("Usage:")}
     pnpm forgewp make:shell <Name>
     pnpm forgewp make:shell <Name> --children=block-a,block-b --layout=2-col
 
-  ${pc.bold("Options:")}
+  ${c.bold("Options:")}
     --name <Name>              Shell block name (PascalCase or kebab)
     --children <slugs>         Comma-separated child block names (no forgewp/ prefix)
     --layout <preset>          ${Object.keys(SHELL_LAYOUT_PRESETS).join(" | ")} | custom
@@ -62,7 +66,7 @@ function printHelp() {
     --yes                      Skip interactive prompts when flags provide enough info
     -h, --help                 Show help
 
-  ${pc.bold("Examples:")}
+  ${c.bold("Examples:")}
     pnpm forgewp make:shell AboutSplitSection
     pnpm forgewp make:shell AboutSplitSection --children=about-mission,about-values --layout=2-col
     pnpm forgewp make:shell FeatureRow --layout=3-col --template-lock=insert
@@ -80,11 +84,7 @@ let rawShellName =
 
 const projectRoot = process.cwd();
 if (!existsSync(path.join(projectRoot, "src"))) {
-  console.error(
-    pc.red(
-      `\n❌ Error: "src" folder not found. Are you in your theme's root directory?\n`,
-    ),
-  );
+  console.error(ui.errorBlock("No src/ folder here.", "Run this from your theme project root."));
   process.exit(1);
 }
 
@@ -93,9 +93,11 @@ const available = discoverProjectBlocks(projectRoot, { includeShells: false });
 const rl = readline.createInterface({ input, output });
 
 async function ask(prompt, fallback = "") {
-  const suffix = fallback !== "" ? pc.dim(` (${fallback})`) : "";
+  // Without a keyboard (CI, pipes) take the default instead of waiting forever.
+  if (!process.stdin.isTTY) return fallback;
+  const suffix = fallback !== "" ? c.dim(` (${fallback})`) : "";
   try {
-    const answer = await rl.question(pc.cyan(`? ${prompt}${suffix}: `));
+    const answer = await rl.question(`  ${c.orange(ui.symbols.active)} ${prompt}${suffix}: `);
     const t = answer.trim();
     return t || fallback;
   } catch {
@@ -109,16 +111,13 @@ try {
   }
 
   if (!rawShellName) {
-    console.error(pc.red("\n❌ Error: Please specify a shell name."));
-    console.log(
-      pc.cyan("   Example: pnpm forgewp make:shell AboutSplitSection\n"),
-    );
+    console.error(ui.errorBlock("Missing shell name.", `Example: ${ui.command("pnpm forgewp make:shell AboutSplitSection")}`));
     process.exit(1);
   }
 
   const cleanName = rawShellName.replace(/[^a-zA-Z0-9_-]/g, "");
   if (!cleanName) {
-    console.error(pc.red("\n❌ Error: Invalid shell name.\n"));
+    console.error(ui.errorBlock("Invalid shell name.", "Use letters, numbers, dashes and underscores."));
     process.exit(1);
   }
 
@@ -146,25 +145,17 @@ try {
   } else if (!hasFlag("yes")) {
     console.log("");
     if (available.length === 0) {
-      console.log(
-        pc.yellow(
-          "  No leaf blocks found yet. Scaffold with make:block / @forgewp-block first,",
-        ),
-      );
-      console.log(
-        pc.yellow(
-          "  or continue with an empty shell (children can be added later).\n",
-        ),
-      );
+      console.log(ui.warn("No blocks to nest yet"));
+      console.log(`${ui.detail("Create some with make:block first, or continue with an empty shell and add children later.")}\n`);
     } else {
-      console.log(pc.bold("  Available blocks (children candidates):\n"));
+      console.log(`  ${c.bold("Blocks you can nest")}\n`);
       available.forEach((b, i) => {
         console.log(
-          `    ${pc.cyan(String(i + 1).padStart(2))}. ${pc.bold(b.name)}  ${pc.dim(`— ${b.title}`)}  ${pc.dim(`(${b.file})`)}`,
+          `    ${c.cyan(String(i + 1).padStart(2))}. ${c.bold(b.name)}  ${c.dim(`— ${b.title}`)}  ${c.dim(`(${b.file})`)}`,
         );
       });
       console.log(
-        pc.dim(
+        c.dim(
           "\n  Enter numbers or names, comma-separated. Leave empty for none.\n",
         ),
       );
@@ -182,11 +173,7 @@ try {
   const known = new Set(available.map((b) => b.name));
   for (const c of childrenSlugs) {
     if (!known.has(c)) {
-      console.log(
-        pc.yellow(
-          `  ⚠️  "${c}" is not a discovered leaf block — included anyway (ensure it exists at export).`,
-        ),
-      );
+      console.log(ui.warn(`"${c}" is not a known block`, "included anyway; make sure it exists before export"));
     }
   }
 
@@ -198,14 +185,14 @@ try {
   if (gridClassName) {
     layoutKey = "custom";
   } else if (!layoutKey && !hasFlag("yes")) {
-    console.log(pc.bold("\n  Layout presets:\n"));
+    console.log(`\n  ${c.bold("Layout")}\n`);
     const keys = Object.keys(SHELL_LAYOUT_PRESETS);
     keys.forEach((k, i) => {
       console.log(
-        `    ${pc.cyan(String(i + 1))}. ${k} — ${SHELL_LAYOUT_PRESETS[k].label}`,
+        `    ${c.cyan(String(i + 1))}. ${k} — ${SHELL_LAYOUT_PRESETS[k].label}`,
       );
     });
-    console.log(`    ${pc.cyan(String(keys.length + 1))}. custom — type your own grid classes`);
+    console.log(`    ${c.cyan(String(keys.length + 1))}. custom — type your own grid classes`);
     const choice = await ask("Layout", "2-col");
     if (/^\d+$/.test(choice)) {
       const n = Number(choice);
@@ -293,11 +280,7 @@ try {
   const adapter = adapterModule.default || adapterModule;
 
   if (typeof adapter.onMakeShell !== "function") {
-    console.error(
-      pc.red(
-        `\n❌ Error: Framework adapter "${frameworkAdapter}" does not support make:shell.\n`,
-      ),
-    );
+    console.error(ui.errorBlock(`The ${frameworkAdapter} adapter does not support make:shell.`));
     process.exit(1);
   }
 
@@ -319,7 +302,7 @@ try {
     category,
     icon,
     description,
-    pc,
+    pc: c,
   });
 } catch (err) {
   try {
@@ -327,11 +310,7 @@ try {
   } catch {
     // ignore
   }
-  console.error(
-    pc.red(
-      `\n❌ Failed to execute make:shell: ${err instanceof Error ? err.message : err}\n`,
-    ),
-  );
+  console.error(ui.errorBlock("make:shell failed", err instanceof Error ? err.message : String(err)));
   process.exit(1);
 }
 
@@ -353,7 +332,7 @@ function resolveChildPicks(pick, available) {
           out.push(name);
         }
       } else {
-        console.log(pc.yellow(`  ⚠️  Ignoring out-of-range index: ${p}`));
+        console.log(ui.warn(`Ignoring ${p}`, "not in the list"));
       }
       continue;
     }

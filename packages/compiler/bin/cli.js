@@ -3,12 +3,17 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import pc from 'picocolors';
+import { readFileSync } from 'node:fs';
 import { blockAuthoringHelp } from '../lib/block-authoring-help.js';
 import { isSupportedNode, SUPPORTED_NODE_RANGE } from '../lib/node-runtime.js';
+import { createUi } from '../lib/terminal-ui.js';
+
+const ui = createUi();
+const { c } = ui;
 
 if (!isSupportedNode()) {
-  console.error(`ForgeWP requires Node.js ${SUPPORTED_NODE_RANGE}; found ${process.version}. Install a compatible Node.js version and try again.`);
+  console.error(`\n${ui.error(`ForgeWP needs Node.js ${SUPPORTED_NODE_RANGE}`, `found ${process.version}`)}`);
+  console.error(`${ui.detail('Install a supported Node.js version (https://nodejs.org) and run the command again.')}\n`);
   process.exit(1);
 }
 
@@ -131,8 +136,10 @@ if (!targetScript) {
 }
 
 if (!targetScript) {
-  console.error(pc.red(`\n❌ Error: Unknown command "${command}"`));
-  printHelp();
+  const suggestion = closestCommand(command, Object.keys(subcommands));
+  console.error(`\n${ui.error(`Unknown command: ${command}`)}`);
+  if (suggestion) console.error(ui.detail(`Did you mean ${ui.command(`pnpm forgewp ${suggestion}`)}?`));
+  console.error(`${ui.detail(`Run ${ui.command('pnpm forgewp --help')} to see every command.`)}\n`);
   process.exit(1);
 }
 
@@ -148,60 +155,93 @@ child.on('close', (code) => {
   process.exit(code ?? 0);
 });
 
+/** Nearest command by edit distance, or null when nothing is close. */
+function closestCommand(input, commands) {
+  const distance = (a, b) => {
+    const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i += 1) {
+      let prev = row[0];
+      row[0] = i;
+      for (let j = 1; j <= b.length; j += 1) {
+        const tmp = row[j];
+        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+        prev = tmp;
+      }
+    }
+    return row[b.length];
+  };
+  let best = null;
+  for (const candidate of commands) {
+    const d = distance(input.toLowerCase(), candidate);
+    if (d <= Math.max(2, Math.floor(candidate.length / 3)) && (!best || d < best.d)) best = { candidate, d };
+  }
+  return best?.candidate ?? null;
+}
+
 function printHelp() {
-  console.log(`
-  ${pc.bold(pc.bgCyan(pc.black('  ⚡ FORGEWP CLI  ')))} ${pc.cyan('— Fast visual frameworks for WordPress')}
+  const version = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+  const groups = [
+    ['Create', [
+      ['init', 'Add ForgeWP to an existing Next.js app (--dry-run to preview)'],
+      ['add <component>', 'Add a ready-made component (--overwrite to replace)'],
+      ['make:block <Name>', 'Gutenberg block with defineBlock()'],
+      ['make:section <Name>', 'Shared editable page or block section'],
+      ['make:shell <Name>', 'Layout parent with InnerBlocks children'],
+      ['make:page <Name>', 'WordPress page template'],
+      ['make:island <Name>', 'Interactive hydration island'],
+      ['make:loop <Name>', 'Post-type loop feed component'],
+      ['make:post-type <slug>', 'Custom post type with mock data'],
+      ['make:editable <Name>', 'Editable content schema (cms/editables/)'],
+      ['make:form <Name>', 'Native form plus starter component'],
+      ['make:mail <name>', 'Plain-text email template (cms/mail/)'],
+      ['make:sandbox <type>', 'Sandbox mock data (ecommerce, auth)'],
+    ]],
+    ['Build & ship', [
+      ['export', 'Package the theme as an installable WordPress zip'],
+      ['analyze', 'Hydration island and bundle size report'],
+    ]],
+    ['Content & data', [
+      ['sync:routes', 'Sync menus with routes and scaffold pages'],
+      ['sync:hooks', 'Propagate wordpress.tsx hooks to workspace projects'],
+      ['seed', 'Inspect fixtures and configure WordPress seeding'],
+      ['i18n:extract', 'Extract translation strings'],
+      ['i18n:translate', 'Translate missing strings'],
+    ]],
+    ['Maintenance', [
+      ['doctor', 'Check project health'],
+      ['repair', 'Restore missing framework files'],
+      ['clean', 'Clear build caches and temporary files'],
+      ['fresh', 'Reset the project to a clean starter'],
+    ]],
+  ];
+  const width = Math.max(...groups.flatMap(([, rows]) => rows.map(([name]) => name.length)));
+  const sections = groups
+    .map(
+      ([title, rows]) =>
+        `  ${c.bold(title)}\n${rows.map(([name, text]) => `    ${ui.command(name.padEnd(width))}   ${c.dim(text)}`).join('\n')}`,
+    )
+    .join('\n\n');
+  const authoring = blockAuthoringHelp
+    .replace(/^\n/, '')
+    .split('\n')
+    .map((l) => (l ? `  ${l}` : l))
+    .join('\n');
 
-  ${pc.bold('Usage:')}
-    pnpm forgewp <command> [options]
+  console.log(`${ui.banner({ version, tagline: 'The ForgeWP CLI' })}
+  ${c.bold('Usage')}
+    ${ui.command('pnpm forgewp <command>')} ${c.dim('[options]')}
 
-  ${pc.bold('Commands:')}
-    ${pc.cyan('init [--dry-run]')}         Audit & integrate ForgeWP into an existing Next.js App Router app
-    ${pc.cyan('add <component>')}          Add a component; --overwrite replaces local ForgeWP source
-    ${pc.cyan('make:block <Name>')}        Scaffold a type-safe Gutenberg Block via defineBlock()
-    ${pc.cyan('make:section <Name>')}      Scaffold a shared editable page/block section
-    ${pc.cyan('make:shell <Name>')}        Scaffold a parent shell (InnerBlocks layout + children)
-    ${pc.cyan('make:post-type <slug>')}    Register a custom mock post-type (e.g. portfolio)
-    ${pc.cyan('make:loop <Name>')}         Scaffold a custom post-type loop feed component
-    ${pc.cyan('make:page <Name>')}         Scaffold a custom WordPress Page Template
-    ${pc.cyan('make:island <Name>')}       Scaffold an interactive selective hydration island
-    ${pc.cyan('make:editable <Name>')}     Scaffold a colocated editable content schema (cms/editables/)
-    ${pc.cyan('make:mail <name>')}         Scaffold a plain-text email template (cms/mail/)
-    ${pc.cyan('make:form <Name>')}         Scaffold a form (cms/forms/) + starter component (src/components/forms/)
-    ${pc.cyan('make:sandbox <type>')}         Scaffold sandbox mock databases (e.g. ecommerce, auth)
-    ${pc.cyan('sync:routes')}             Synchronize sitemap menus with routes and scaffold pages
-    ${pc.cyan('sync:hooks')}              Propagate wordpress.tsx hooks to all workspace projects
-    ${pc.cyan('seed')}                    Inspect local fixtures and configure WordPress seed routines
-    ${pc.cyan('i18n:extract')}            Extract translation strings to cms/translations.ts (or .json)
-    ${pc.cyan('i18n:translate')}          Translate missing strings via the configured engine
-    ${pc.cyan('export')}                  Package your theme into an installable WP zip
-    ${pc.cyan('doctor')}                  Perform diagnostic check on project health
-    ${pc.cyan('analyze')}                 Generate visual hydration island & size report
-    ${pc.cyan('repair')}                  Force-repair/auto-heal system internals
-    ${pc.cyan('clean')}                   Clear all build caches and temporary artifacts
-    ${pc.cyan('fresh')}                   Reset workspace completely to factory-clean canvas
+${sections}
 
-  ${pc.bold('Examples:')}
-    pnpm forgewp add navbar
-    pnpm forgewp add navbar --overwrite
-    pnpm forgewp make:block HeroBlock --attributes=title,subtitle
-    pnpm forgewp make:section HeroSection --page=front-page --block
-    pnpm forgewp make:shell AboutSplitSection --children=about-mission,about-values --layout=2-col
-    pnpm forgewp make:post-type portfolio --customFields=client_name
-    pnpm forgewp make:sandbox ecommerce
-    pnpm forgewp make:sandbox auth
-    pnpm forgewp make:loop PortfolioGrid --postType=portfolio
-    pnpm forgewp make:page AboutUs
-    pnpm forgewp make:island CounterIsland
-    pnpm forgewp make:editable AboutPage --fields=hero_badge:text,hero_title:text,hero_subtitle:richText
-    pnpm forgewp make:form Contact --fields=name:text,email:email,message:textarea
-    pnpm forgewp sync:routes
-    pnpm forgewp doctor
-    pnpm forgewp analyze
-    pnpm forgewp repair
-    pnpm forgewp clean
-    pnpm forgewp fresh
-    pnpm forgewp export
-${blockAuthoringHelp}
-  `);
+  ${c.bold('Examples')}
+    ${ui.command('pnpm forgewp make:block Hero --attributes=title,subtitle')}
+    ${ui.command('pnpm forgewp make:page About')}
+    ${ui.command('pnpm forgewp doctor')}
+    ${ui.command('pnpm forgewp export --validate')}
+
+  ${c.bold('Blocks')}
+${c.dim(authoring)}
+  ${c.dim('Run')} ${ui.command('pnpm forgewp <command> --help')} ${c.dim('for command options.')}
+  ${c.dim('Docs')}  ${c.underline('https://forgewp.dev/docs')}
+`);
 }

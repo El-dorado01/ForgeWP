@@ -1,11 +1,11 @@
 import { existsSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import pc from 'picocolors';
 import {
   scanFontWeightUsage,
   detectUnusedFontWeights,
   detectUnusedConfiguredWeights,
 } from './font-usage-scanner.js';
+import { createUi } from '../terminal-ui.js';
 
 /**
  * Generate a machine-readable asset manifest and compile diagnostics warnings.
@@ -253,93 +253,50 @@ export function generateAssetManifest(themeRoot, assetGraph, options = {}) {
 export function printAssetDiagnosticsReport(manifest) {
   if (process.env.FORGEWP_VERBOSE !== '1') return;
   if (!manifest) return;
+  const ui = createUi();
+  console.log(`\n  ${ui.c.bold('Assets')}`);
 
-  console.log(pc.cyan('\n🩺   FORGEWP ASSET & PERFORMANCE DIAGNOSTICS'));
-
-  // 1. Output Optimized Images
   const imageEntries = Object.values(manifest.images || {}).filter(
     (img) => img.variants && img.variants.length > 0,
   );
   for (const img of imageEntries.slice(0, 8)) {
-    const name = path.basename(img.source);
-    const dots = '.'.repeat(Math.max(2, 28 - name.length));
     const widths = img.variants.map((v) => `${v.width}w`).join(', ');
     const savings =
       img.originalSizeBytes && img.optimizedSizeBytes
-        ? `[ -${(((img.originalSizeBytes - img.optimizedSizeBytes) / img.originalSizeBytes) * 100).toFixed(0)}% / ${img.optimizedSizeKb} KB ]`
-        : `[ ${widths} ]`;
-
-    console.log(
-      `  ${pc.green('✅')} ${pc.white(name)}${pc.dim(dots)} WebP (${widths}) ${pc.dim(savings)}`,
-    );
+        ? ` · -${(((img.originalSizeBytes - img.optimizedSizeBytes) / img.originalSizeBytes) * 100).toFixed(0)}% (${img.optimizedSizeKb} KB)`
+        : '';
+    console.log(ui.done(path.basename(img.source), `WebP ${widths}${savings}`));
   }
 
-  // 2. Output Fonts
   const fontCount = Object.keys(manifest.fonts || {}).length;
   if (fontCount > 0) {
-    const families = [
-      ...new Set(Object.values(manifest.fonts).map((f) => f.family)),
-    ].join(', ');
-    const dots = '.'.repeat(Math.max(2, 28 - 'google-fonts'.length));
-    console.log(
-      `  ${pc.green('✅')} ${pc.white('google-fonts')}${pc.dim(dots)} ${fontCount} WOFF2 file(s) self-hosted (${families})`,
-    );
+    const families = [...new Set(Object.values(manifest.fonts).map((f) => f.family))].join(', ');
+    console.log(ui.done(`${fontCount} font file${fontCount === 1 ? '' : 's'} self-hosted`, families));
   }
 
-  // 3. Output Preload Signals
   for (const p of manifest.preloads || []) {
-    const name = path.basename(p.source);
-    const dots = '.'.repeat(Math.max(2, 28 - 'LCP Preload'.length));
-    console.log(
-      `  ${pc.green('✅')} ${pc.white('LCP Preload')}${pc.dim(dots)} Injected <link rel="preload"> for ${name}`,
-    );
+    console.log(ui.done('Preloaded largest image', path.basename(p.source)));
   }
 
-  // 4. Output Unused Font Weight Warnings
   for (const u of manifest.diagnostics?.unusedFontWeights || []) {
-    const label = `${u.family} ${u.weight}`;
-    const dots = '.'.repeat(Math.max(2, 28 - 'Unused Font Weight'.length));
-    const saveNotice = u.sizeKb > 0 ? ` (saves ~${u.sizeKb} KB)` : '';
-    console.log(
-      `  ${pc.yellow('⚠️ ')} ${pc.yellow('Unused Font Weight')}${pc.dim(dots)} ${label} configured in wp.config.ts but never used in src/${pc.dim(saveNotice)}`,
-    );
+    console.log(ui.warn(`Unused font weight ${u.family} ${u.weight}`, `set in wp.config but not used in src/${u.sizeKb > 0 ? ` · ~${u.sizeKb} KB` : ''}`));
   }
 
-  // 5. Output CLS Notices
   for (const cls of (manifest.diagnostics?.clsNotices || []).slice(0, 3)) {
-    const name = path.basename(cls.source);
-    const dots = '.'.repeat(Math.max(2, 28 - name.length));
-    console.log(
-      `  ${pc.yellow('⚠️ ')} ${pc.white(name)}${pc.dim(dots)} Missing width/height in JSX (Inferred for CLS safety)`,
-    );
+    console.log(ui.warn(path.basename(cls.source), 'no width/height in JSX (inferred to avoid layout shift)'));
   }
 
-  // 6. Output Raw <img> Tag Replacement Notices
   for (const imgW of (manifest.diagnostics?.rawImgWarnings || []).slice(0, 3)) {
-    const loc = imgW.file
-      ? `${path.basename(imgW.file)}:${imgW.line}`
-      : path.basename(imgW.source);
-    const dots = '.'.repeat(Math.max(2, 28 - 'Raw <img> Tag'.length));
-    console.log(
-      `  ${pc.yellow('⚠️ ')} ${pc.yellow('Raw <img> Tag')}${pc.dim(dots)} ${loc} (Replace <img> with <WpImage> for auto-WebP & preloads)`,
-    );
+    const loc = imgW.file ? `${path.basename(imgW.file)}:${imgW.line}` : path.basename(imgW.source);
+    console.log(ui.warn(`Raw <img> in ${loc}`, 'use <WpImage> for automatic WebP and preloading'));
   }
 
-  // 7. Summary Footer
-  console.log(
-    pc.dim('────────────────────────────────────────────────────────────'),
-  );
   const savedMb = (manifest.summary.savedBytes / (1024 * 1024)).toFixed(1);
   const totalImg = manifest.summary.totalImages;
   const optImg = manifest.summary.optimizedImages;
-
-  if (manifest.summary.savedBytes > 0) {
-    console.log(
-      `  ${pc.bold(pc.green('ASSETS OPTIMIZED:'))} ${optImg}/${totalImg} images optimized (${savedMb} MB saved, ${manifest.summary.savedPercentage}% reduction). Zero render-blocking font hops.\n`,
-    );
-  } else {
-    console.log(
-      `  ${pc.bold(pc.green('ASSETS PROCESSED:'))} ${totalImg} asset(s) verified. Zero render-blocking font hops.\n`,
-    );
-  }
+  console.log(
+    manifest.summary.savedBytes > 0
+      ? ui.done(`${optImg} of ${totalImg} images optimized`, `${savedMb} MB saved (${manifest.summary.savedPercentage}%)`)
+      : ui.done(`${totalImg} asset${totalImg === 1 ? '' : 's'} checked`),
+  );
 }

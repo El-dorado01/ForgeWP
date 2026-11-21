@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import pc from 'picocolors';
+import { createUi } from './terminal-ui.js';
 
 /**
  * Run compiler diagnostics on compiled hydration islands.
@@ -45,55 +45,31 @@ export function analyzeHydrationIslands(themeRoot, mapping) {
  */
 export function printDiagnosticsReport(analysis) {
   if (process.env.FORGEWP_VERBOSE !== '1') return;
-  console.log(
-    `\n🩺 ${pc.bold(pc.bgCyan(pc.black('  FORGEWP HYDRATION DIAGNOSTICS  ')))}`,
-  );
+  const ui = createUi();
+  console.log(`\n  ${ui.c.bold('Hydration islands')}`);
 
   if (analysis.results.length === 0) {
-    console.log(
-      `  ${pc.dim('No active hydration islands detected in this project.')}`,
-    );
-    console.log('─'.repeat(60) + '\n');
+    console.log(ui.info('No hydration islands in this project'));
     return;
   }
 
   for (const item of analysis.results) {
-    const paddedName = item.name.padEnd(28, '.');
-    const formattedSize = `${item.sizeKb.toFixed(1)} kB`;
-
+    const size = `${item.sizeKb.toFixed(1)} kB`;
     if (item.isHeavy) {
-      console.log(
-        `  ⚠️  ${pc.yellow(pc.bold(paddedName))} ${pc.red(pc.bold(formattedSize))} ${pc.bgRed(pc.black(' HEAVY '))}`,
-      );
-      console.log(`     ${pc.dim('👉 Chunk Path:')} dist/${item.chunkPath}`);
-      console.log(`     ${pc.dim('👉 Recommendations:')}`);
-      console.log(
-        `        1. Split static markup sections out of the component into static wrappers.`,
-      );
-      console.log(
-        `        2. Avoid heavy external packages inside the island (or lazy load them inside React).`,
-      );
-      console.log(
-        `        3. Switch to a non-blocking trigger strategy (e.g. trigger="interaction" or trigger="idle").`,
-      );
+      console.log(ui.warn(item.name, `${size} · over 100 kB`));
+      console.log(ui.detail(`dist/${item.chunkPath}`));
+      console.log(ui.detail('Move static markup out of the island, lazy-load heavy packages,'));
+      console.log(ui.detail('or hydrate later with trigger="interaction" or trigger="idle".'));
     } else {
-      console.log(`  ✅ ${pc.green(paddedName)} ${pc.green(formattedSize)}`);
+      console.log(ui.done(item.name, size));
     }
   }
 
-  console.log('─'.repeat(60));
-  if (analysis.heavyCount > 0) {
-    console.log(
-      `  ${pc.red(pc.bold('WARNING:'))} Found ${analysis.heavyCount} heavy interactive hydration island(s).`,
-    );
-    console.log(
-      `  💡 Keep JS bundles light. Modern Web Vitals rewards minimal runtime overhead!\n`,
-    );
-  } else {
-    console.log(
-      `  ${pc.green(pc.bold('SYSTEM OPTIMIZED:'))} All interactive hydration islands are within healthy thresholds (<100 kB).\n`,
-    );
-  }
+  console.log(
+    analysis.heavyCount > 0
+      ? ui.warn(`${analysis.heavyCount} island${analysis.heavyCount === 1 ? '' : 's'} over 100 kB`, 'smaller islands load faster')
+      : ui.done('All islands under 100 kB'),
+  );
 }
 
 /**

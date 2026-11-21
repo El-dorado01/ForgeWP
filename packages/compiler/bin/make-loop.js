@@ -4,10 +4,14 @@ import { existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import pc from "picocolors";
+import { createUi } from '../lib/terminal-ui.js';
+
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
 import { loadMockData } from "../lib/functions/seed-mock-data.js";
+
+const ui = createUi();
+const { c } = ui;
 
 const args = process.argv.slice(2);
 let rawLoopName = args.find(a => !a.startsWith("-"));
@@ -23,19 +27,18 @@ if (nameIndex !== -1 && args[nameIndex + 1]) {
   }
 }
 
-if (!rawLoopName) {
+// Only ask when someone is at the keyboard; otherwise fall through to the missing-name error.
+if (!rawLoopName && process.stdin.isTTY) {
   const rl = readline.createInterface({ input, output });
   try {
-    const answer = await rl.question(pc.cyan("? Enter a loop name: "));
+    const answer = await rl.question(`  ${c.orange(ui.symbols.active)} Enter a loop name: `);
     rawLoopName = answer.trim();
   } catch (err) {}
   rl.close();
 }
 
 if (!rawLoopName) {
-  console.error(pc.red("\n❌ Error: Please specify a loop name."));
-  console.log(pc.cyan("   Example: pnpm forgewp make:loop PortfolioGrid --postType=portfolio"));
-  console.log(pc.cyan("   Or:      pnpm forgewp make:loop --name PortfolioGrid --postType=portfolio\n"));
+  console.error(ui.errorBlock("Missing loop name.", `Example: ${ui.command("pnpm forgewp make:loop PortfolioGrid --postType=portfolio")}`));
   process.exit(1);
 }
 
@@ -46,7 +49,7 @@ const pascalCase = cleanName
   .replace(/[^a-zA-Z0-9]/g, "");
 
 if (!pascalCase) {
-  console.error(pc.red("\n❌ Error: Invalid loop name.\n"));
+  console.error(ui.errorBlock("Invalid loop name.", "Use letters, numbers, dashes and underscores."));
   process.exit(1);
 }
 
@@ -69,7 +72,7 @@ const hasScriptMockData = ["mock-data.ts", "mock-data.js", "mock-data.mjs"].some
 const mockDataJsonPath = path.join(projectRoot, "cms", "mock-data.json");
 
 if (!existsSync(path.join(projectRoot, "src"))) {
-  console.error(pc.red(`\n❌ Error: "src" folder not found. Are you in your theme's root directory?\n`));
+  console.error(ui.errorBlock("No src/ folder here.", "Run this from your theme project root."));
   process.exit(1);
 }
 
@@ -137,13 +140,13 @@ try {
       postType,
       customFields,
       automaticallySeeded,
-      pc
+      pc: c
     });
   } else {
-    console.error(pc.red(`\n❌ Error: Framework adapter "${frameworkAdapter}" does not support making custom loops.`));
+    console.error(ui.errorBlock(`The ${frameworkAdapter} adapter does not support make:loop.`));
     process.exit(1);
   }
 } catch (err) {
-  console.error(pc.red(`\n❌ Failed to execute make:loop: ${err.message}`));
+  console.error(ui.errorBlock("make:loop failed", err.message));
   process.exit(1);
 }

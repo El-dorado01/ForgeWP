@@ -4,9 +4,13 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import pc from "picocolors";
+import { createUi } from '../lib/terminal-ui.js';
+
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
+
+const ui = createUi();
+const { c } = ui;
 
 const args = process.argv.slice(2);
 let rawPageName = args.find(a => !a.startsWith("-"));
@@ -22,19 +26,18 @@ if (nameIndex !== -1 && args[nameIndex + 1]) {
   }
 }
 
-if (!rawPageName) {
+// Only ask when someone is at the keyboard; otherwise fall through to the missing-name error.
+if (!rawPageName && process.stdin.isTTY) {
   const rl = readline.createInterface({ input, output });
   try {
-    const answer = await rl.question(pc.cyan("? Enter a page name: "));
+    const answer = await rl.question(`  ${c.orange(ui.symbols.active)} Enter a page name: `);
     rawPageName = answer.trim();
   } catch (err) {}
   rl.close();
 }
 
 if (!rawPageName) {
-  console.error(pc.red("\n❌ Error: Please specify a page name."));
-  console.log(pc.cyan("   Example: pnpm forgewp make:page AboutUs"));
-  console.log(pc.cyan("   Or:      pnpm forgewp make:page --name AboutUs\n"));
+  console.error(ui.errorBlock("Missing page name.", `Example: ${ui.command("pnpm forgewp make:page AboutUs")}`));
   process.exit(1);
 }
 
@@ -45,14 +48,14 @@ const pascalCase = cleanName
   .replace(/[^a-zA-Z0-9]/g, "");
 
 if (!pascalCase) {
-  console.error(pc.red("\n❌ Error: Invalid page name.\n"));
+  console.error(ui.errorBlock("Invalid page name.", "Use letters, numbers, dashes and underscores."));
   process.exit(1);
 }
 
 const projectRoot = process.cwd();
 
 if (!existsSync(path.join(projectRoot, "src"))) {
-  console.error(pc.red(`\n❌ Error: "src" folder not found. Are you in your theme's root directory?\n`));
+  console.error(ui.errorBlock("No src/ folder here.", "Run this from your theme project root."));
   process.exit(1);
 }
 
@@ -71,13 +74,13 @@ try {
   if (typeof adapter.onMakePage === "function") {
     await adapter.onMakePage(projectRoot, {
       pascalCase,
-      pc
+      pc: c
     });
   } else {
-    console.error(pc.red(`\n❌ Error: Framework adapter "${frameworkAdapter}" does not support making custom page templates.`));
+    console.error(ui.errorBlock(`The ${frameworkAdapter} adapter does not support make:page.`));
     process.exit(1);
   }
 } catch (err) {
-  console.error(pc.red(`\n❌ Failed to execute make:page: ${err.message}`));
+  console.error(ui.errorBlock("make:page failed", err.message));
   process.exit(1);
 }

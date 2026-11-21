@@ -2,14 +2,16 @@
 
 import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
-import pc from 'picocolors';
+import { createUi } from '../lib/terminal-ui.js';
+
 import { loadConfig } from '../lib/load-config.js';
 import { loadFrameworkAdapter } from '../lib/framework-adapter.js';
 import { loadMenusData } from '../lib/functions/load-menus.js';
 
-console.log(
-  `\n⚡ ${pc.bold(pc.bgCyan(pc.black('  FORGEWP SITEMAP COMPILER (SYNC:ROUTES)  ')))}\n`,
-);
+const ui = createUi();
+const { c } = ui;
+
+console.log(ui.header('sync:routes', 'scaffold pages from your menus'));
 
 const projectRoot = process.cwd();
 const args = process.argv.slice(2);
@@ -28,9 +30,9 @@ const hasMenuLocations = Object.keys(menus).some(
 
 if (hasMenuLocations) {
   if (existingMenusScript) {
-    console.log(`  📖 ${pc.green('Loaded sitemap source')}: cms/${existingMenusScript}`);
+    console.log(ui.info('Reading menus', `cms/${existingMenusScript}`));
   } else {
-    console.log(`  📖 ${pc.green('Loaded sitemap source')}: cms/menus.json`);
+    console.log(ui.info('Reading menus', 'cms/menus.json'));
   }
 } else {
   menus = {
@@ -53,9 +55,7 @@ if (hasMenuLocations) {
     mkdirSync(dir, { recursive: true });
   }
   writeFileSync(menusPath, JSON.stringify(menus, null, 2), 'utf8');
-  console.log(
-    `  🎉 ${pc.green('Created dedicated sitemap source')}: cms/menus.json`,
-  );
+  console.log(ui.done('Created a starter menu', 'cms/menus.json'));
 }
 
 // 2. Extract unique local paths and sanitize them recursively
@@ -115,11 +115,7 @@ for (const [location, items] of Object.entries(menus)) {
 }
 
 if (routesToScaffold.length === 0) {
-  console.log(
-    pc.yellow(
-      `\nℹ️ No local pages to synchronize inside your sitemap menu config.`,
-    ),
-  );
+  console.log(`${ui.info('Nothing to sync', 'your menus have no local page links')}\n`);
   process.exit(0);
 }
 
@@ -139,16 +135,12 @@ try {
     await adapter.onSyncRoutes(projectRoot, {
       routesToScaffold,
       isForce,
-      pc,
+      pc: c,
     });
   } else {
-    console.log(
-      pc.yellow(
-        `  ⚠️  No sync:routes hook implemented for framework adapter: ${frameworkAdapter}`,
-      ),
-    );
+    console.log(ui.warn(`The ${frameworkAdapter} adapter does not support sync:routes`));
   }
 } catch (err) {
-  console.error(pc.red(`\n❌ Failed to execute sync:routes: ${err.message}`));
+  console.error(ui.errorBlock('sync:routes failed', err.message));
   process.exit(1);
 }
