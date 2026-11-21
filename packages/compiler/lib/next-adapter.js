@@ -8,6 +8,7 @@ import {
   packageNextAssets,
   partitionNextStylesheets,
   resolvePackagedCssPath,
+  rewriteNextMediaUrlsInMarkup,
 } from './next-export-experimental.js';
 import {
   bundleNextIslands,
@@ -351,7 +352,8 @@ export async function renderStaticMarkup(themeRoot) {
       ? extractNextStaticMarkup(resolvedRoot, { postTypes })
       : getCachedNextStaticMarkup(resolvedRoot);
   const withScopedCss = injectRouteScopedStylesheetLinks(extracted);
-  const rewritten = applyVerifiedNextLinksToMarkup(withScopedCss, {
+  const withMediaRewritten = rewriteNextMediaUrlsInMarkup(withScopedCss);
+  const rewritten = applyVerifiedNextLinksToMarkup(withMediaRewritten, {
     themeRoot: resolvedRoot,
   });
 

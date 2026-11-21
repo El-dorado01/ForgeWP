@@ -130,7 +130,34 @@ export class AssetGraph {
   }
 
   getAsset(id) {
-    return this.nodes.get(id) || null;
+    if (!id) return null;
+    const direct = this.nodes.get(id);
+    if (direct) return direct;
+
+    const withoutSlash = String(id).replace(/^\/+/, '');
+    const withSlash = `/${withoutSlash}`;
+    if (this.nodes.has(withoutSlash)) return this.nodes.get(withoutSlash);
+    if (this.nodes.has(withSlash)) return this.nodes.get(withSlash);
+
+    // Match Next.js hashed static media URLs (e.g. /assets/media/hero.a1b2c3d4.png or /_next/static/media/hero.a1b2c3d4.png)
+    const nextMediaMatch = withoutSlash.match(
+      /^(?:_next\/static\/media|assets\/media)\/([^/?#]+)\.([a-f0-9]{6,16})\.([a-z0-9]+)$/i,
+    );
+    if (nextMediaMatch) {
+      const targetBasename = `${nextMediaMatch[1]}.${nextMediaMatch[3]}`.toLowerCase();
+      for (const node of this.nodes.values()) {
+        if (node.classification !== 'local-static') continue;
+        const srcBase = path.basename(String(node.source || '').split('?')[0]).toLowerCase();
+        const resolvedBase = node.resolvedPath
+          ? path.basename(node.resolvedPath).toLowerCase()
+          : '';
+        if (srcBase === targetBasename || resolvedBase === targetBasename) {
+          return node;
+        }
+      }
+    }
+
+    return null;
   }
 
   getAllAssets() {
@@ -195,29 +222,45 @@ export class AssetGraph {
  */
 export function scanAssetGraph(themeRoot, options = {}) {
   const graph = new AssetGraph(themeRoot);
-  const srcDir = path.join(themeRoot, 'src');
+  const scanRoots = [
+    path.join(themeRoot, 'src'),
+    path.join(themeRoot, 'app'),
+    path.join(themeRoot, 'components'),
+  ].filter((d) => existsSync(d));
 
-  if (!existsSync(srcDir)) {
+  if (scanRoots.length === 0) {
     return graph;
   }
 
   const files = [];
+  const seenFiles = new Set();
   function scanDir(dir) {
     try {
       const entries = readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-          if (entry.name !== 'node_modules' && entry.name !== '.forgewp' && entry.name !== 'dist') {
+          if (
+            entry.name !== 'node_modules' &&
+            entry.name !== '.forgewp' &&
+            entry.name !== '.next' &&
+            entry.name !== 'out' &&
+            entry.name !== 'dist'
+          ) {
             scanDir(full);
           }
         } else if (entry.isFile() && /\.(tsx|jsx|ts|js|html)$/.test(entry.name)) {
-          files.push(full);
+          if (!seenFiles.has(full)) {
+            seenFiles.add(full);
+            files.push(full);
+          }
         }
       }
     } catch {}
   }
-  scanDir(srcDir);
+  for (const root of scanRoots) {
+    scanDir(root);
+  }
 
   for (const file of files) {
     let content = '';
@@ -286,36 +329,82 @@ function scanAst(sourceFile, relFile, themeRoot, graph, ts) {
     return null;
   }
 
+  const nextImageLocalNames = new Set();
+  const staticAssetImports = new Map(); // localName -> { spec, resolvedPath }
+  const currentFileDir = path.dirname(path.join(themeRoot, relFile));
+
+  function resolveStaticImportFile(spec) {
+    if (spec.startsWith('./') || spec.startsWith('../')) {
+      const candidate = path.resolve(currentFileDir, spec);
+      if (existsSync(candidate)) return candidate;
+    } else if (spec.startsWith('@/')) {
+      const srcCandidate = path.join(themeRoot, 'src', spec.slice(2));
+      if (existsSync(srcCandidate)) return srcCandidate;
+      const rootCandidate = path.join(themeRoot, spec.slice(2));
+      if (existsSync(rootCandidate)) return rootCandidate;
+    }
+    return null;
+  }
+
   function visit(node) {
-    // 1. Detect static image / font import declarations
+    // 1. Detect next/image & static image / font import declarations
     if (
       ts.isImportDeclaration(node) &&
       node.moduleSpecifier &&
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
       const spec = node.moduleSpecifier.text;
+      if (spec === 'next/image' && node.importClause) {
+        if (node.importClause.name) {
+          nextImageLocalNames.add(node.importClause.name.text);
+        }
+        if (
+          node.importClause.namedBindings &&
+          ts.isNamedImports(node.importClause.namedBindings)
+        ) {
+          for (const el of node.importClause.namedBindings.elements) {
+            if (el.propertyName?.text === 'default' || el.name.text === 'default') {
+              nextImageLocalNames.add(el.name.text);
+            }
+          }
+        }
+      }
+
       if (/\.(png|jpe?g|webp|avif|svg|gif|woff2?|ttf|eot)$/i.test(spec)) {
         const isFont = /\.(woff2?|ttf|eot)$/i.test(spec);
         const isSvg = /\.svg$/i.test(spec);
         const type = isFont ? 'font' : isSvg ? 'svg' : 'image';
         const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+        const resolvedPath = resolveStaticImportFile(spec);
+        if (node.importClause?.name) {
+          staticAssetImports.set(node.importClause.name.text, {
+            spec,
+            resolvedPath,
+          });
+        }
         graph.addAsset({
           id: spec,
           type,
           classification: 'local-static',
           source: spec,
+          resolvedPath: resolvedPath || undefined,
           usageLocations: [{ file: relFile, line }],
         });
       }
     }
 
-    // 2. Detect JSX Elements (<WpImage ... /> or <img ... />)
+    // 2. Detect JSX Elements (<WpImage ... />, <img ... />, or <Image ... /> from next/image)
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
       const tagName = node.tagName.getText(sourceFile);
 
-      if (tagName === 'WpImage' || tagName === 'img') {
+      if (
+        tagName === 'WpImage' ||
+        tagName === 'img' ||
+        nextImageLocalNames.has(tagName)
+      ) {
         const attributes = {};
         let srcIsFallback = false;
+        let resolvedStaticPath = null;
         for (const prop of node.attributes.properties) {
           if (ts.isJsxAttribute(prop) && prop.name) {
             const attrName = prop.name.getText(sourceFile);
@@ -326,8 +415,15 @@ function scanAst(sourceFile, relFile, themeRoot, graph, ts) {
               ts.isJsxExpression(prop.initializer) &&
               prop.initializer.expression
             ) {
-              value = getStaticFallbackSource(prop.initializer.expression);
-              srcIsFallback = value != null;
+              const expr = prop.initializer.expression;
+              if (ts.isIdentifier(expr) && staticAssetImports.has(expr.text)) {
+                const imported = staticAssetImports.get(expr.text);
+                value = imported.spec;
+                resolvedStaticPath = imported.resolvedPath;
+              } else {
+                value = getStaticFallbackSource(expr);
+                srcIsFallback = value != null;
+              }
             }
             attributes[attrName] = value;
           }
@@ -350,6 +446,7 @@ function scanAst(sourceFile, relFile, themeRoot, graph, ts) {
             type,
             classification,
             source: rawSource,
+            resolvedPath: resolvedStaticPath || undefined,
             width: attributes.width,
             height: attributes.height,
             priority:

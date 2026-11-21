@@ -128,9 +128,139 @@ export function injectRouteScopedStylesheetLinks(markup) {
   };
 }
 
+const NEXT_FONT_EXT_RE = /\.(?:woff2?|ttf|otf|eot)$/i;
+
 /**
- * Package verified CSS and non-JS metadata assets from a Next.js static export (`out/`)
- * into a WordPress theme output directory.
+ * Rewrite `/_next/static/media/<file>` and `../media/<file>` CSS `url(...)` references
+ * (emitted by `next/font/google`, `next/font/local`, and static CSS imports) into
+ * theme-relative `./fonts/<file>` / `../fonts/<file>` or `./media/<file>` / `../media/<file>`,
+ * copying the underlying files from `out/_next/static/media/` into the exported theme.
+ */
+function rewriteNextMediaUrlsInCss(
+  cssContent,
+  outExportDir,
+  outDir,
+  cssTargetRel,
+  assetFiles,
+  fontFiles,
+  mediaFiles,
+) {
+  if (!cssContent) return cssContent;
+  const cssDir = path.posix.dirname(cssTargetRel);
+  const mediaSrcDir = path.join(outExportDir, '_next', 'static', 'media');
+
+  return cssContent.replace(
+    /url\(\s*(['"]?)(?:\/?_next\/static\/media\/|\.\.\/media\/)([^)'"\s?#]+)([^)'"\s]*)\1\s*\)/gi,
+    (fullMatch, quote, rawFile, suffix) => {
+      const filename = path.posix.basename(rawFile);
+      const srcPath = path.join(mediaSrcDir, filename);
+      if (!existsSync(srcPath)) return fullMatch;
+
+      const isFont = NEXT_FONT_EXT_RE.test(filename);
+      const destRel = isFont ? `assets/fonts/${filename}` : `assets/media/${filename}`;
+      const destPath = path.join(outDir, destRel);
+      mkdirSync(path.dirname(destPath), { recursive: true });
+      if (!existsSync(destPath)) {
+        copyFileSync(srcPath, destPath);
+      }
+
+      const srcRel = `_next/static/media/${filename}`;
+      assetFiles[srcRel] = destRel;
+      if (isFont) fontFiles.add(destRel);
+      else mediaFiles.add(destRel);
+
+      let relFromCss = path.posix.relative(cssDir, destRel);
+      if (!relFromCss.startsWith('.')) relFromCss = `./${relFromCss}`;
+      return `url(${quote}${relFromCss}${suffix || ''}${quote})`;
+    },
+  );
+}
+
+/**
+ * Rewrite `/_next/static/media/<file>` URLs in extracted Next.js HTML (`<img src>`,
+ * `<link rel="preload" as="font">`, etc.) to `/assets/fonts/<file>` or `/assets/media/<file>`
+ * so `markup-processor.js` resolves them via `get_theme_file_uri(...)` and attaches
+ * Sharp responsive WebP `srcset` attributes automatically.
+ *
+ * @param {import('./index.js').ForgeWPStaticMarkup} markup
+ * @returns {import('./index.js').ForgeWPStaticMarkup}
+ */
+export function rewriteNextMediaUrlsInMarkup(markup) {
+  if (!markup || typeof markup !== 'object') return markup;
+
+  const rewriteHtml = (html) => {
+    if (typeof html !== 'string' || !html.includes('/_next/static/media/')) {
+      return html;
+    }
+    return html.replace(
+      /\/_next\/static\/media\/([^"'\s<>?#]+)([^"'\s<>]*)/gi,
+      (_match, rawFile, suffix) => {
+        const filename = path.posix.basename(rawFile);
+        const targetDir = NEXT_FONT_EXT_RE.test(filename)
+          ? '/assets/fonts'
+          : '/assets/media';
+        return `${targetDir}/${filename}${suffix || ''}`;
+      },
+    );
+  };
+
+  return {
+    ...markup,
+    appHtml: rewriteHtml(markup.appHtml),
+    headerHtml: rewriteHtml(markup.headerHtml),
+    footerHtml: rewriteHtml(markup.footerHtml),
+    headHtml: rewriteHtml(markup.headHtml),
+    notFoundHtml: rewriteHtml(markup.notFoundHtml),
+    singleHtml: rewriteHtml(markup.singleHtml),
+    archiveHtml: rewriteHtml(markup.archiveHtml),
+    routes: Array.isArray(markup.routes)
+      ? markup.routes.map((route) => ({
+          ...route,
+          html: rewriteHtml(route.html),
+          headHtml: rewriteHtml(route.headHtml),
+        }))
+      : markup.routes,
+    hierarchyTemplates: Array.isArray(markup.hierarchyTemplates)
+      ? markup.hierarchyTemplates.map((tpl) => ({
+          ...tpl,
+          html: rewriteHtml(tpl.html),
+          headHtml: rewriteHtml(tpl.headHtml),
+        }))
+      : markup.hierarchyTemplates,
+  };
+}
+
+function copyPublicStaticFiles(themeRoot, outDir, assetFiles) {
+  const publicDir = path.join(themeRoot, 'public');
+  if (!existsSync(publicDir)) return;
+
+  const walk = (dir, relBase = '') => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith('.') || entry.name === '_next') continue;
+      const src = path.join(dir, entry.name);
+      const rel = relBase ? `${relBase}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(src, rel);
+      } else if (entry.isFile()) {
+        const dest = path.join(outDir, rel);
+        if (!existsSync(dest)) {
+          mkdirSync(path.dirname(dest), { recursive: true });
+          copyFileSync(src, dest);
+        }
+        if (!assetFiles[rel]) {
+          assetFiles[rel] = rel;
+        }
+      }
+    }
+  };
+
+  walk(publicDir);
+}
+
+/**
+ * Package verified CSS, `next/font` `.woff2` files, `next/image` static media, and
+ * non-JS metadata assets from a Next.js static export (`out/`) into a WordPress theme
+ * output directory.
  *
  * Preserves exact Next.js `<head>` cascade order for shared stylesheets and packages
  * route-specific stylesheets individually into `assets/css/` so routes never leak
@@ -165,17 +295,41 @@ export function packageNextAssets(themeRoot, outDir, options = {}) {
   mkdirSync(assetsOut, { recursive: true });
 
   const assetFiles = {};
+  const fontFiles = new Set();
+  const mediaFiles = new Set();
   const cssFile = resolvePackagedCssPath(sharedStylesheets);
 
   if (sharedStylesheets.length === 0) {
     writeFileSync(path.join(outDir, cssFile), '/* No shared CSS emitted by Next.js build */\n', 'utf8');
   } else if (sharedStylesheets.length === 1) {
     const srcCss = path.join(outExportDir, sharedStylesheets[0]);
-    copyFileSync(srcCss, path.join(outDir, cssFile));
+    const rawCss = readFileSync(srcCss, 'utf8');
+    const rewrittenCss = rewriteNextMediaUrlsInCss(
+      rawCss,
+      outExportDir,
+      outDir,
+      cssFile,
+      assetFiles,
+      fontFiles,
+      mediaFiles,
+    );
+    writeFileSync(path.join(outDir, cssFile), rewrittenCss, 'utf8');
     assetFiles[sharedStylesheets[0]] = cssFile;
   } else {
     const combined = sharedStylesheets
-      .map((rel) => `/* Source: ${rel} */\n${readFileSync(path.join(outExportDir, rel), 'utf8')}`)
+      .map((rel) => {
+        const rawCss = readFileSync(path.join(outExportDir, rel), 'utf8');
+        const rewrittenCss = rewriteNextMediaUrlsInCss(
+          rawCss,
+          outExportDir,
+          outDir,
+          cssFile,
+          assetFiles,
+          fontFiles,
+          mediaFiles,
+        );
+        return `/* Source: ${rel} */\n${rewrittenCss}`;
+      })
       .join('\n\n');
     writeFileSync(path.join(outDir, cssFile), combined, 'utf8');
     for (const rel of sharedStylesheets) {
@@ -183,14 +337,45 @@ export function packageNextAssets(themeRoot, outDir, options = {}) {
     }
   }
 
-  // Copy route-specific stylesheets individually into assets/css/
+  // Copy route-specific stylesheets individually into assets/css/ (rewriting next/font & media URLs)
   if (routeAssetMap.size > 0) {
     mkdirSync(path.join(assetsOut, 'css'), { recursive: true });
     for (const [srcRel, destRel] of routeAssetMap.entries()) {
       const srcCss = path.join(outExportDir, srcRel);
       if (!existsSync(srcCss)) continue;
-      copyFileSync(srcCss, path.join(outDir, destRel));
+      const rawCss = readFileSync(srcCss, 'utf8');
+      const rewrittenCss = rewriteNextMediaUrlsInCss(
+        rawCss,
+        outExportDir,
+        outDir,
+        destRel,
+        assetFiles,
+        fontFiles,
+        mediaFiles,
+      );
+      writeFileSync(path.join(outDir, destRel), rewrittenCss, 'utf8');
       assetFiles[srcRel] = destRel;
+    }
+  }
+
+  // Copy all Next.js emitted static media (next/font .woff2 subsets + static image imports)
+  // into assets/fonts/ and assets/media/ so HTML preloads & <img> fallbacks never 404.
+  const nextMediaDir = path.join(outExportDir, '_next', 'static', 'media');
+  if (existsSync(nextMediaDir)) {
+    for (const entry of readdirSync(nextMediaDir, { withFileTypes: true })) {
+      if (!entry.isFile() || entry.name.endsWith('.js') || entry.name.endsWith('.map')) {
+        continue;
+      }
+      const isFont = NEXT_FONT_EXT_RE.test(entry.name);
+      const destRel = isFont ? `assets/fonts/${entry.name}` : `assets/media/${entry.name}`;
+      const destPath = path.join(outDir, destRel);
+      mkdirSync(path.dirname(destPath), { recursive: true });
+      if (!existsSync(destPath)) {
+        copyFileSync(path.join(nextMediaDir, entry.name), destPath);
+      }
+      assetFiles[`_next/static/media/${entry.name}`] = destRel;
+      if (isFont) fontFiles.add(destRel);
+      else mediaFiles.add(destRel);
     }
   }
 
@@ -204,10 +389,15 @@ export function packageNextAssets(themeRoot, outDir, options = {}) {
     assetFiles[rel] = rel;
   }
 
+  // Copy static files from public/ (e.g. /hero.jpg used by <Image src="/hero.jpg" />)
+  copyPublicStaticFiles(resolvedRoot, outDir, assetFiles);
+
   return {
     cssFile,
     assetFiles,
     routeCssFiles: Object.fromEntries(routeAssetMap),
+    fontFiles: Array.from(fontFiles).sort(),
+    mediaFiles: Array.from(mediaFiles).sort(),
     clientEntries: {},
     runtimeEntry: undefined,
     skippedClientScripts: Array.from(skippedClientScriptSet).sort(),
