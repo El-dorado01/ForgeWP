@@ -45,7 +45,7 @@ jobs:
       - name: Next.js route/markup contract extraction and theme integration
         env:
           FORGEWP_REQUIRE_NEXT_FIXTURE: '1'
-        run: pnpm --filter @forgewp/compiler exec vitest run test/functions/validate-critical-files.test.js test/functions/render-static.test.js test/functions/next-route-extractor.test.js test/functions/adapter-routes-integration.test.js test/functions/next-link-transform.test.js test/functions/next-export-blocks.test.js test/functions/next-decoupled-transport.test.js test/functions/next-adapter.test.js test/functions/next-slice9.test.js test/functions/next-slice10.test.js test/functions/next-dx-tooling.test.js test/functions/next-adapter-hardening.test.js test/functions/next-dynamic-routes.test.js test/functions/next-auto-islands.test.js
+        run: pnpm --filter @forgewp/compiler exec vitest run test/functions/validate-critical-files.test.js test/functions/render-static.test.js test/functions/next-route-extractor.test.js test/functions/adapter-routes-integration.test.js test/functions/next-link-transform.test.js test/functions/next-export-blocks.test.js test/functions/next-decoupled-transport.test.js test/functions/next-adapter.test.js test/functions/next-slice9.test.js test/functions/next-slice10.test.js test/functions/next-dx-tooling.test.js test/functions/next-adapter-hardening.test.js test/functions/next-dynamic-routes.test.js test/functions/next-auto-islands.test.js test/functions/next-image-font.test.js
       - name: Live disposable WordPress acceptance and native <-> decoupled round trip
         env:
           FORGEWP_LIVE_WP_ACCEPTANCE: '1'

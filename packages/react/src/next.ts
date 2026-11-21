@@ -123,11 +123,20 @@ export function withForgeWP<
       ? options.autoHydrate.defaultTrigger
       : 'visible';
 
+  const shouldSetUnoptimizedImages =
+    !isDecoupled &&
+    nativeExport &&
+    nextConfig.images?.unoptimized === undefined &&
+    !nextConfig.images?.loader;
+
   const wrapped: ForgeWPNextLikeConfig = {
     ...nextConfig,
     ...(isDecoupled || nextConfig.output !== undefined
       ? {}
       : { output: 'export' }),
+    ...(shouldSetUnoptimizedImages
+      ? { images: { ...(nextConfig.images || {}), unoptimized: true } }
+      : {}),
     transpilePackages,
     webpack(config: any, context: any) {
       config.resolve = config.resolve || {};
