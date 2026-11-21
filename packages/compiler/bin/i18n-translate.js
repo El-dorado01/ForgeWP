@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import pc from 'picocolors';
 import { loadConfig } from '../lib/load-config.js';
+import { findWpConfigPath } from '../lib/project-language.js';
 import { getProvider } from '../lib/i18n/providers.js';
 import { createTranslationCache, translateMissingEntries } from '../lib/i18n/translation-cache.js';
 import { loadTranslationsData, writeTranslationsData, translationsSourcePath } from '../lib/functions/load-translations.js';
@@ -15,11 +16,10 @@ const themeRoot = process.cwd();
 async function run() {
   try {
     let config = {};
-    const configPath = path.join(themeRoot, 'wp.config.ts');
-    if (fs.existsSync(configPath)) {
+    if (findWpConfigPath(themeRoot)) {
       config = await loadConfig(themeRoot);
     } else {
-      console.warn(pc.yellow(`⚠️  Could not load wp.config.ts, using fallback defaults.`));
+      console.warn(pc.yellow(`⚠️  Could not load wp.config.ts (or wp.config.js), using fallback defaults.`));
     }
 
     const i18n = config.i18n || {

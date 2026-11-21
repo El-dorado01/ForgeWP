@@ -21,13 +21,13 @@ components = Array.from(
 );
 
 import { readFileSync, existsSync } from 'node:fs';
-import path from 'node:path';
+import { findWpConfigPath } from '../lib/project-language.js';
 
 let projectStyle = 'forgewp';
 try {
-  // Read wp.config.ts natively by regexing the 'style' property since it's a TS file
-  const wpConfigPath = path.join(process.cwd(), 'wp.config.ts');
-  if (existsSync(wpConfigPath)) {
+  // Read wp.config.{ts,js,mjs} natively by regexing the 'style' property
+  const wpConfigPath = findWpConfigPath(process.cwd())?.path;
+  if (wpConfigPath && existsSync(wpConfigPath)) {
     const content = readFileSync(wpConfigPath, 'utf8');
     const styleMatch = content.match(/style:\s*['"](forgewp|shadcn)['"]/);
     if (styleMatch && styleMatch[1]) {

@@ -310,6 +310,14 @@ export default defineBlock({
           restoreBlueprints: false,
         }),
       ).not.toThrow();
+
+      // forgewp doctor passes with exit code 0 on JS projects
+      const doctorBin = path.resolve(__dirname, '../../bin/doctor.js');
+      const doctorRun = spawnSync(process.execPath, [doctorBin], {
+        cwd: projectDir,
+        encoding: 'utf8',
+      });
+      expect(doctorRun.status, `${adapter} doctor:\n${doctorRun.stdout}\n${doctorRun.stderr}`).toBe(0);
     }
   });
 });
