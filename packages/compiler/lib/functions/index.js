@@ -1373,13 +1373,34 @@ function forgewp_resolve_route_page_id($route_slug) {
 }
 
 /**
+ * Normalize a page-link fallback URL so root-relative paths stay safe on
+ * WordPress subdirectory installs (e.g. /blog) while leaving external URLs
+ * (https://, mailto:, //...) and #fragment links verbatim.
+ */
+if (!function_exists('forgewp_normalize_fallback_url')) {
+    function forgewp_normalize_fallback_url($fallback = '') {
+        $fallback = (string) $fallback;
+        if ($fallback === '' || $fallback[0] === '#') {
+            return $fallback;
+        }
+        if (preg_match('#^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//)#', $fallback)) {
+            return $fallback;
+        }
+        if ($fallback[0] === '/') {
+            return home_url($fallback);
+        }
+        return $fallback;
+    }
+}
+
+/**
  * Helper to resolve a page's URL by its ForgeWP route slug. Used by Gutenberg
  * block components, which reference useWpPageLink() as plain source text and
  * can't go through the page-level token/regex substitution pipeline.
  */
 function forgewp_resolve_page_link($slug, $fallback = '') {
     $target_id = forgewp_resolve_route_page_id($slug);
-    return $target_id ? get_permalink($target_id) : $fallback;
+    return $target_id ? get_permalink($target_id) : forgewp_normalize_fallback_url($fallback);
 }
 
 /**

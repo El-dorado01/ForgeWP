@@ -669,10 +669,14 @@ ${phpArgs}
   processed = processed.replace(
     /__FORGEWP_PAGELINK_([a-zA-Z0-9_-]+)_DEFAULT_(.*?)__/g,
     (match, name, defaultVal) => {
-      const decoded = decodeURIComponent(defaultVal);
+      const decoded = decodeURIComponent(defaultVal).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       return `<?php
       $__fwp_id = forgewp_resolve_route_page_id('${name}');
-      echo esc_url($__fwp_id ? get_permalink($__fwp_id) : '${decoded.replace(/'/g, "\\'")}');
+      $__fwp_fallback = '${decoded}';
+      if (!$__fwp_id && $__fwp_fallback !== '' && $__fwp_fallback[0] === '/' && strpos($__fwp_fallback, '//') !== 0) {
+          $__fwp_fallback = home_url($__fwp_fallback);
+      }
+      echo esc_url($__fwp_id ? get_permalink($__fwp_id) : $__fwp_fallback);
       ?>`;
     },
   );

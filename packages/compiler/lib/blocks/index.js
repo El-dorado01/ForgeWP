@@ -52,7 +52,7 @@ import {
   stripTopLevelHelperDecl,
 } from './source-sanitize.js';
 import { buildEditorScopeInjections } from './editor-scope.js';
-import { markLegacyFallback } from './ast-parser.js';
+import { markLegacyFallback, traverse, tryParseSource } from './ast-parser.js';
 import {
   isComponentInteractive,
   isComponentEditorUnsafe,
@@ -1041,67 +1041,115 @@ $grid_class  = ${JSON.stringify(gridClass ? `forgewp-block-shell__grid ${gridCla
 
                 const propKeys = Object.keys(settings.attributes || {});
                 if (propKeys.length > 0) {
-                  for (const key of propKeys) {
-                    const rx = new RegExp(`\\{\\s*${key}\\s*\\}`, 'g');
-                    editJsx = editJsx.replace(rx, `{attributes.${key}}`);
-                  }
+                  const propKeySet = new Set(propKeys);
+                  const parsedEditJsx = tryParseSource(`(${editJsx})`);
+                  if (parsedEditJsx) {
+                    /** @type {Array<{ start: number, end: number, text: string }>} */
+                    const containerEdits = [];
+                    traverse(parsedEditJsx, {
+                      JSXExpressionContainer(exprPath) {
+                        const expr = exprPath.node.expression;
+                        if (
+                          !expr ||
+                          expr.type === 'JSXEmptyExpression' ||
+                          typeof expr.start !== 'number' ||
+                          typeof expr.end !== 'number'
+                        ) {
+                          return;
+                        }
+                        const start = expr.start - 1;
+                        const end = expr.end - 1;
+                        if (start < 0 || end > editJsx.length) return;
 
-                  // Rewrite bare attribute identifiers (and spread `...attr`) inside JSX
-                  // expression braces. Use balanced-brace scanning so nested objects
-                  // (e.g. setAttributes({ team: [...team, { ... }] })) are fully covered.
-                  // Spread must be handled first: `(?<![.\\w])team` fails on `...team`
-                  // because the last `.` of the spread looks like property access.
-                  const rewriteAttrRefsInExpr = (expr) =>
-                    rewriteAttrRefsSafely(expr, propKeys);
-
-                  let rebuilt = '';
-                  let scan = 0;
-                  while (scan < editJsx.length) {
-                    const eqBrace = editJsx.indexOf('={', scan);
-                    if (eqBrace === -1) {
-                      rebuilt += editJsx.slice(scan);
-                      break;
-                    }
-                    rebuilt += editJsx.slice(scan, eqBrace + 2);
-                    let depth = 1;
-                    let pos = eqBrace + 2;
-                    let inSingle = false;
-                    let inDouble = false;
-                    let inBacktick = false;
-                    while (pos < editJsx.length && depth > 0) {
-                      const c = editJsx[pos];
-                      if (inSingle) {
-                        if (c === '\\') {
-                          pos += 2;
-                          continue;
+                        if (exprPath.parentPath?.isJSXAttribute()) {
+                          // Attribute expression (e.g. value={heading}, onChange={(heading) => setAttributes({ heading })})
+                          const rawExpr = editJsx.slice(start, end);
+                          const rewritten = rewriteAttrRefsSafely(rawExpr, propKeys);
+                          if (rewritten !== rawExpr) {
+                            containerEdits.push({ start, end, text: rewritten });
+                          }
+                          exprPath.skip();
+                        } else if (
+                          expr.type === 'Identifier' &&
+                          propKeySet.has(expr.name) &&
+                          !exprPath.scope.hasBinding(expr.name)
+                        ) {
+                          // Bare JSX child identifier (e.g. <h1>{heading}</h1>)
+                          containerEdits.push({
+                            start,
+                            end,
+                            text: `attributes.${expr.name}`,
+                          });
                         }
-                        if (c === "'") inSingle = false;
-                      } else if (inDouble) {
-                        if (c === '\\') {
-                          pos += 2;
-                          continue;
-                        }
-                        if (c === '"') inDouble = false;
-                      } else if (inBacktick) {
-                        if (c === '\\') {
-                          pos += 2;
-                          continue;
-                        }
-                        if (c === '`') inBacktick = false;
-                      } else {
-                        if (c === "'") inSingle = true;
-                        else if (c === '"') inDouble = true;
-                        else if (c === '`') inBacktick = true;
-                        else if (c === '{') depth++;
-                        else if (c === '}') depth--;
+                      },
+                    });
+                    if (containerEdits.length > 0) {
+                      containerEdits.sort((a, b) => b.start - a.start);
+                      let rebuilt = editJsx;
+                      for (const edit of containerEdits) {
+                        rebuilt =
+                          rebuilt.slice(0, edit.start) +
+                          edit.text +
+                          rebuilt.slice(edit.end);
                       }
-                      pos++;
+                      editJsx = rebuilt;
                     }
-                    const expr = editJsx.slice(eqBrace + 2, pos - 1);
-                    rebuilt += rewriteAttrRefsInExpr(expr) + '}';
-                    scan = pos;
+                  } else {
+                    // Fallback for unparseable JSX fragments: rewrite JSX attribute
+                    // expression braces `={...}` via balanced-brace scanning without
+                    // corrupting shorthand object literals inside callbacks.
+                    const rewriteAttrRefsInExpr = (expr) =>
+                      rewriteAttrRefsSafely(expr, propKeys);
+
+                    let rebuilt = '';
+                    let scan = 0;
+                    while (scan < editJsx.length) {
+                      const eqBrace = editJsx.indexOf('={', scan);
+                      if (eqBrace === -1) {
+                        rebuilt += editJsx.slice(scan);
+                        break;
+                      }
+                      rebuilt += editJsx.slice(scan, eqBrace + 2);
+                      let depth = 1;
+                      let pos = eqBrace + 2;
+                      let inSingle = false;
+                      let inDouble = false;
+                      let inBacktick = false;
+                      while (pos < editJsx.length && depth > 0) {
+                        const c = editJsx[pos];
+                        if (inSingle) {
+                          if (c === '\\') {
+                            pos += 2;
+                            continue;
+                          }
+                          if (c === "'") inSingle = false;
+                        } else if (inDouble) {
+                          if (c === '\\') {
+                            pos += 2;
+                            continue;
+                          }
+                          if (c === '"') inDouble = false;
+                        } else if (inBacktick) {
+                          if (c === '\\') {
+                            pos += 2;
+                            continue;
+                          }
+                          if (c === '`') inBacktick = false;
+                        } else {
+                          if (c === "'") inSingle = true;
+                          else if (c === '"') inDouble = true;
+                          else if (c === '`') inBacktick = true;
+                          else if (c === '{') depth++;
+                          else if (c === '}') depth--;
+                        }
+                        pos++;
+                      }
+                      const expr = editJsx.slice(eqBrace + 2, pos - 1);
+                      rebuilt += rewriteAttrRefsInExpr(expr) + '}';
+                      scan = pos;
+                    }
+                    editJsx = rebuilt;
                   }
-                  editJsx = rebuilt;
                 }
 
                 const ast = parseJsxToAst(editJsx);

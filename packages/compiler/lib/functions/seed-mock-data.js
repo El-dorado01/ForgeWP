@@ -270,8 +270,11 @@ FORGEWP_MOCK_DATA_JSON;
         if (!$force && $type_hash !== '' && (($strategy === 'once' && $saved_type_hash !== '') || ($strategy === 'upsert' && $saved_type_hash === $type_hash))) continue;
         $type_succeeded = true;
 
-        // In 'once' mode, check if any posts of this post_type already exist in WP
-        if (!$force && $strategy === 'once') {
+        // In 'once' mode, check if any posts of this post_type already exist in WP.
+        // Exception: for 'page', routing.js auto-creates empty template stubs on theme
+        // activation, so skip per-item when a page already has non-empty content instead
+        // of skipping the entire 'page' post type.
+        if (!$force && $strategy === 'once' && $post_type !== 'page') {
             $existing_count = wp_count_posts($post_type);
             if (!empty($existing_count->publish) && intval($existing_count->publish) > 0) {
                 continue;
@@ -285,23 +288,61 @@ FORGEWP_MOCK_DATA_JSON;
                 continue;
             }
 
-            // Check if post already exists by slug and post_type
-            $existing_post = get_page_by_path($slug, OBJECT, $post_type);
-            $post_id = $existing_post ? $existing_post->ID : 0;
+            // Check if post already exists. For 'page', check forgewp_route_id first so
+            // compiled template pages auto-created by routing.js are updated in place
+            // without creating duplicate pages (even if their slug was renamed in WP).
+            $existing_post = null;
+            $post_id = 0;
+            $item_route_id = '';
+            if ($post_type === 'page') {
+                if (!empty($item['routeId'])) {
+                    $item_route_id = sanitize_key((string) $item['routeId']);
+                } elseif (!empty($item['customFields']['forgewp_route_id'])) {
+                    $item_route_id = sanitize_key((string) $item['customFields']['forgewp_route_id']);
+                } elseif ($slug !== '') {
+                    $item_route_id = ($slug === 'home') ? 'front-page' : ($slug . '-page');
+                }
+                if ($item_route_id !== '' && function_exists('forgewp_resolve_route_page_id')) {
+                    $resolved_id = intval(forgewp_resolve_route_page_id($item_route_id));
+                    if ($resolved_id > 0) {
+                        $existing_post = get_post($resolved_id);
+                    }
+                }
+            }
+            if (!$existing_post && $slug !== '') {
+                $existing_post = get_page_by_path($slug, OBJECT, $post_type);
+            }
+            $post_id = $existing_post ? intval($existing_post->ID) : 0;
 
             if ($post_id && $strategy === 'once' && !$force) {
-                continue;
+                // Allow first-time seeding into an empty auto-created template stub page,
+                // but never overwrite a page that already has user or seeded content.
+                $existing_content = isset($existing_post->post_content) ? trim((string) $existing_post->post_content) : '';
+                if ($post_type !== 'page' || $existing_content !== '') {
+                    continue;
+                }
             }
+
+            $preserved_template = ($post_type === 'page' && $post_id && function_exists('get_post_meta'))
+                ? (string) get_post_meta($post_id, '_wp_page_template', true)
+                : '';
+            $preserved_route_id = ($post_type === 'page' && $post_id && function_exists('get_post_meta'))
+                ? (string) get_post_meta($post_id, 'forgewp_route_id', true)
+                : '';
 
             $post_args = array(
                 'post_title'   => $title,
-                'post_name'    => $slug,
+                'post_name'    => ($post_id && !empty($existing_post->post_name)) ? $existing_post->post_name : $slug,
                 'post_type'    => $post_type,
                 'post_status'  => 'publish',
                 'post_content' => !empty($item['content']) ? $item['content'] : '',
                 'post_excerpt' => !empty($item['excerpt']) ? $item['excerpt'] : '',
                 'post_author'  => $default_author_id,
             );
+
+            if ($preserved_template !== '') {
+                $post_args['page_template'] = $preserved_template;
+            }
 
             if (!empty($item['date'])) {
                 $parsed_date = date('Y-m-d H:i:s', strtotime($item['date']));
@@ -322,6 +363,14 @@ FORGEWP_MOCK_DATA_JSON;
                 continue;
             }
             if ($saved_post_id && !is_wp_error($saved_post_id)) {
+                // Preserve compiled template assignment and route identity on page upserts
+                if ($preserved_template !== '' && function_exists('get_post_meta') && get_post_meta($saved_post_id, '_wp_page_template', true) !== $preserved_template) {
+                    update_post_meta($saved_post_id, '_wp_page_template', $preserved_template);
+                }
+                if ($preserved_route_id !== '' && function_exists('get_post_meta') && get_post_meta($saved_post_id, 'forgewp_route_id', true) !== $preserved_route_id) {
+                    update_post_meta($saved_post_id, 'forgewp_route_id', $preserved_route_id);
+                }
+
                 // Save custom fields
                 if (!empty($item['customFields']) && is_array($item['customFields'])) {
                     foreach ($item['customFields'] as $meta_key => $meta_val) {
