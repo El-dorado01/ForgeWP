@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { diagnoseNextNativeCompatibility } from './next-adapter.js';
+import { findWpConfigPath, getProjectExtensions } from './project-language.js';
 
 const NEXT_CONFIG_CANDIDATES = [
   'next.config.ts',
@@ -139,62 +140,81 @@ export function initNextProject(projectRoot, options = {}) {
       });
     }
   } else {
-    const absPath = path.join(resolvedRoot, 'next.config.ts');
-    const code = `import type { NextConfig } from 'next';\nimport { withForgeWP } from '@forgewp/react/next';\n\nconst nextConfig: NextConfig = withForgeWP({});\n\nexport default nextConfig;\n`;
-    if (!dryRun) writeFileSync(absPath, code, 'utf8');
+    const { isJs } = getProjectExtensions(resolvedRoot);
+    const nextConfigName = isJs ? 'next.config.mjs' : 'next.config.ts';
+    const nextConfigCode = isJs
+      ? `import { withForgeWP } from '@forgewp/react/next';\n\n/** @type {import('next').NextConfig} */\nconst nextConfig = withForgeWP({});\n\nexport default nextConfig;\n`
+      : `import type { NextConfig } from 'next';\nimport { withForgeWP } from '@forgewp/react/next';\n\nconst nextConfig: NextConfig = withForgeWP({});\n\nexport default nextConfig;\n`;
+    if (!dryRun) writeFileSync(path.join(resolvedRoot, nextConfigName), nextConfigCode, 'utf8');
     actions.push({
-      file: 'next.config.ts',
+      file: nextConfigName,
       action: 'create',
-      detail: 'Created next.config.ts wrapped in withForgeWP()',
+      detail: `Created ${nextConfigName} wrapped in withForgeWP()`,
     });
   }
 
-  // 2. Scaffold wp.config.ts if missing
-  const wpConfigPath = path.join(resolvedRoot, 'wp.config.ts');
-  if (!existsSync(wpConfigPath)) {
-    const wpConfigCode = `import { defineConfig } from '@forgewp/compiler/define-config';\n\nexport default defineConfig({\n  configVersion: 1,\n  name: ${JSON.stringify(themeName)},\n  slug: ${JSON.stringify(slug)},\n  version: '0.1.0',\n  description: ${JSON.stringify(`${themeName} — built with Next.js App Router and ForgeWP.`)},\n  textDomain: ${JSON.stringify(slug)},\n  frameworkAdapter: 'nextjs',\n});\n`;
+  const { isJs, scriptExt } = getProjectExtensions(resolvedRoot);
+
+  // 2. Scaffold wp.config.{ts,js} if missing
+  const existingWpConfig = findWpConfigPath(resolvedRoot);
+  const wpConfigName = `wp.config${scriptExt}`;
+  const wpConfigPath = path.join(resolvedRoot, wpConfigName);
+  if (!existingWpConfig) {
+    const wpConfigCode = isJs
+      ? `import { defineConfig } from '@forgewp/compiler/define-config';\n\n/** @type {import('@forgewp/compiler').ForgeWPThemeConfig} */\nexport default defineConfig({\n  configVersion: 1,\n  name: ${JSON.stringify(themeName)},\n  slug: ${JSON.stringify(slug)},\n  version: '0.1.0',\n  description: ${JSON.stringify(`${themeName} — built with Next.js App Router and ForgeWP.`)},\n  textDomain: ${JSON.stringify(slug)},\n  frameworkAdapter: 'nextjs',\n});\n`
+      : `import { defineConfig } from '@forgewp/compiler/define-config';\n\nexport default defineConfig({\n  configVersion: 1,\n  name: ${JSON.stringify(themeName)},\n  slug: ${JSON.stringify(slug)},\n  version: '0.1.0',\n  description: ${JSON.stringify(`${themeName} — built with Next.js App Router and ForgeWP.`)},\n  textDomain: ${JSON.stringify(slug)},\n  frameworkAdapter: 'nextjs',\n});\n`;
     if (!dryRun) writeFileSync(wpConfigPath, wpConfigCode, 'utf8');
     actions.push({
-      file: 'wp.config.ts',
+      file: wpConfigName,
       action: 'create',
       detail: 'Created ForgeWP configuration with frameworkAdapter: "nextjs"',
     });
   } else {
     actions.push({
-      file: 'wp.config.ts',
+      file: existingWpConfig.fileName,
       action: 'skip',
       detail: 'Already exists',
     });
   }
 
-  // 3. Scaffold cms/mock-data.ts if neither .ts nor .json exists
-  const mockDataTs = path.join(resolvedRoot, 'cms', 'mock-data.ts');
-  const mockDataJson = path.join(resolvedRoot, 'cms', 'mock-data.json');
-  if (!existsSync(mockDataTs) && !existsSync(mockDataJson)) {
+  // 3. Scaffold cms/mock-data.{ts,js} if none exists
+  const mockDataFile = `cms/mock-data${scriptExt}`;
+  const existingMockData = ['.ts', '.mjs', '.js', '.json'].some((ext) =>
+    existsSync(path.join(resolvedRoot, 'cms', `mock-data${ext}`)),
+  );
+  if (!existingMockData) {
     const mockCode = `import { defineWpPosts } from '@forgewp/react/config';\n\nexport const mockData = defineWpPosts({\n  page: [\n    {\n      id: 1,\n      slug: 'home',\n      title: ${JSON.stringify(themeName)},\n      content: '<p>Local WordPress fixture content for development.</p>',\n    },\n  ],\n});\n\nexport default mockData;\n`;
     if (!dryRun) {
-      mkdirSync(path.dirname(mockDataTs), { recursive: true });
-      writeFileSync(mockDataTs, mockCode, 'utf8');
+      const target = path.join(resolvedRoot, mockDataFile);
+      mkdirSync(path.dirname(target), { recursive: true });
+      writeFileSync(target, mockCode, 'utf8');
     }
     actions.push({
-      file: 'cms/mock-data.ts',
+      file: mockDataFile,
       action: 'create',
-      detail: 'Created typed local WordPress fixture data',
+      detail: 'Created local WordPress fixture data',
     });
   } else {
     actions.push({
-      file: 'cms/mock-data.ts',
+      file: mockDataFile,
       action: 'skip',
       detail: 'Mock data file already exists',
     });
   }
 
-  // 4. Scaffold src/lib/content.ts (or lib/content.ts) if missing
-  const contentRel = hasSrcApp ? 'src/lib/content.ts' : 'lib/content.ts';
+  // 4. Scaffold src/lib/content.{ts,js} (or lib/content.{ts,js}) if missing
+  const contentRel = hasSrcApp
+    ? `src/lib/content${scriptExt}`
+    : `lib/content${scriptExt}`;
   const contentAbs = path.join(resolvedRoot, contentRel);
   const mockImportPath = hasSrcApp ? '../../cms/mock-data' : '../cms/mock-data';
-  if (!existsSync(contentAbs)) {
-    const contentCode = `import { createWpServerClient } from '@forgewp/react/server';\nimport { mockData } from '${mockImportPath}';\n\nexport const wpClient = createWpServerClient({\n  fixtures: mockData,\n});\n\nexport async function getPageContent(slug: string) {\n  const page = await wpClient.getLivePage(slug);\n  return (\n    page ?? {\n      id: 0,\n      slug,\n      title: slug,\n      content: '',\n      blocks: [],\n      source: 'fixture' as const,\n    }\n  );\n}\n`;
+  const existingContentHelper = ['.ts', '.js', '.mjs'].some((ext) =>
+    existsSync(path.join(resolvedRoot, hasSrcApp ? 'src/lib' : 'lib', `content${ext}`)),
+  );
+  if (!existingContentHelper) {
+    const contentCode = isJs
+      ? `import { createWpServerClient } from '@forgewp/react/server';\nimport { mockData } from '${mockImportPath}';\n\nexport const wpClient = createWpServerClient({\n  fixtures: mockData,\n});\n\nexport async function getPageContent(slug) {\n  const page = await wpClient.getLivePage(slug);\n  return (\n    page ?? {\n      id: 0,\n      slug,\n      title: slug,\n      content: '',\n      blocks: [],\n      source: 'fixture',\n    }\n  );\n}\n`
+      : `import { createWpServerClient } from '@forgewp/react/server';\nimport { mockData } from '${mockImportPath}';\n\nexport const wpClient = createWpServerClient({\n  fixtures: mockData,\n});\n\nexport async function getPageContent(slug: string) {\n  const page = await wpClient.getLivePage(slug);\n  return (\n    page ?? {\n      id: 0,\n      slug,\n      title: slug,\n      content: '',\n      blocks: [],\n      source: 'fixture' as const,\n    }\n  );\n}\n`;
     if (!dryRun) {
       mkdirSync(path.dirname(contentAbs), { recursive: true });
       writeFileSync(contentAbs, contentCode, 'utf8');

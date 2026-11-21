@@ -121,17 +121,24 @@ export function forgewpVirtualPlugin(options = {}) {
           `const _u = (m, ...ks) => { const o = Object(m); for (const k of ks) if (o[k] !== undefined) return o[k]; return m; };`,
         ];
 
+        const findCmsModule = (baseName, exts = ['.ts', '.mjs', '.js']) => {
+          for (const ext of exts) {
+            const full = path.join(cmsDir, `${baseName}${ext}`);
+            if (fs.existsSync(full)) return `/cms/${baseName}${ext}`;
+          }
+          return null;
+        };
+
         // 1. Mock Data / Posts
-        const mockDataTs = path.join(cmsDir, 'mock-data.ts');
+        const mockDataMod = findCmsModule('mock-data');
         const mockDataJson = path.join(cmsDir, 'mock-data.json');
-        if (fs.existsSync(mockDataTs) || fs.existsSync(mockDataJson)) {
-          const isTs = fs.existsSync(mockDataTs);
-          const importPath = isTs ? '/cms/mock-data.ts' : '/cms/mock-data.json';
-          imports.push(
-            isTs
-              ? `import * as rawMockData from '${importPath}';`
-              : `import rawMockData from '${importPath}';`,
+        if (mockDataMod) {
+          imports.push(`import * as rawMockData from '${mockDataMod}';`);
+          unwrapLogic.push(
+            `const mockData = _u(rawMockData, 'default', 'mockData') || {};`,
           );
+        } else if (fs.existsSync(mockDataJson)) {
+          imports.push(`import rawMockData from '/cms/mock-data.json';`);
           unwrapLogic.push(
             `const mockData = _u(rawMockData, 'default', 'mockData') || {};`,
           );
@@ -140,16 +147,15 @@ export function forgewpVirtualPlugin(options = {}) {
         }
 
         // 2. Menus
-        const menusTs = path.join(cmsDir, 'menus.ts');
+        const menusMod = findCmsModule('menus');
         const menusJson = path.join(cmsDir, 'menus.json');
-        if (fs.existsSync(menusTs) || fs.existsSync(menusJson)) {
-          const isTs = fs.existsSync(menusTs);
-          const importPath = isTs ? '/cms/menus.ts' : '/cms/menus.json';
-          imports.push(
-            isTs
-              ? `import * as rawMenusData from '${importPath}';`
-              : `import rawMenusData from '${importPath}';`,
+        if (menusMod) {
+          imports.push(`import * as rawMenusData from '${menusMod}';`);
+          unwrapLogic.push(
+            `const menusData = _u(rawMenusData, 'default', 'menus') || {};`,
           );
+        } else if (fs.existsSync(menusJson)) {
+          imports.push(`import rawMenusData from '/cms/menus.json';`);
           unwrapLogic.push(
             `const menusData = _u(rawMenusData, 'default', 'menus') || {};`,
           );
@@ -158,18 +164,15 @@ export function forgewpVirtualPlugin(options = {}) {
         }
 
         // 3. Translations
-        const transTs = path.join(cmsDir, 'translations.ts');
+        const transMod = findCmsModule('translations');
         const transJson = path.join(cmsDir, 'translations.json');
-        if (fs.existsSync(transTs) || fs.existsSync(transJson)) {
-          const isTs = fs.existsSync(transTs);
-          const importPath = isTs
-            ? '/cms/translations.ts'
-            : '/cms/translations.json';
-          imports.push(
-            isTs
-              ? `import * as rawTranslationsData from '${importPath}';`
-              : `import rawTranslationsData from '${importPath}';`,
+        if (transMod) {
+          imports.push(`import * as rawTranslationsData from '${transMod}';`);
+          unwrapLogic.push(
+            `const translationsData = _u(rawTranslationsData, 'default', 'translations') || {};`,
           );
+        } else if (fs.existsSync(transJson)) {
+          imports.push(`import rawTranslationsData from '/cms/translations.json';`);
           unwrapLogic.push(
             `const translationsData = _u(rawTranslationsData, 'default', 'translations') || {};`,
           );
@@ -248,11 +251,11 @@ export function forgewpVirtualPlugin(options = {}) {
         }
 
         // 6. Site options & Theme mods
-        const siteOptionsTs = path.join(cmsDir, 'site-options.ts');
+        const siteOptionsMod = findCmsModule('site-options');
         const siteSettingsJson = path.join(cmsDir, 'site-settings.json');
-        if (fs.existsSync(siteOptionsTs)) {
+        if (siteOptionsMod) {
           imports.push(
-            `import * as rawOptionsData from '/cms/site-options.ts';`,
+            `import * as rawOptionsData from '${siteOptionsMod}';`,
           );
           unwrapLogic.push(
             `const optionsData = _u(rawOptionsData, 'default', 'siteOptions', 'options') || {};`,
@@ -268,9 +271,9 @@ export function forgewpVirtualPlugin(options = {}) {
           unwrapLogic.push(`const optionsData = {};`);
         }
 
-        const themeModsTs = path.join(cmsDir, 'theme-mods.ts');
-        if (fs.existsSync(themeModsTs)) {
-          imports.push(`import * as rawModsData from '/cms/theme-mods.ts';`);
+        const themeModsMod = findCmsModule('theme-mods');
+        if (themeModsMod) {
+          imports.push(`import * as rawModsData from '${themeModsMod}';`);
           unwrapLogic.push(
             `const modsData = _u(rawModsData, 'default', 'themeMods') || {};`,
           );

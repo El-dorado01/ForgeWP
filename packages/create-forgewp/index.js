@@ -6,6 +6,7 @@ import { cwd } from 'node:process';
 import pc from 'picocolors';
 import prompts from 'prompts';
 import { applyProjectConfig } from './lib/apply-config.js';
+import { convertProjectToJs } from './lib/convert-to-js.js';
 import { copyTemplate } from './lib/copy-template.js';
 import { installDependencies } from './lib/install.js';
 import {
@@ -35,12 +36,16 @@ Usage:
 Options:
   -y, --yes           Use defaults (skip prompts)
   --adapter [name]    Select the adapter to scaffold (react, nextjs, or html)
+  --js, --javascript  Scaffold with JavaScript & JSX instead of TypeScript
+  --ts, --typescript  Scaffold with TypeScript & TSX (default)
   --no-install        Skip dependency install
   -h, --help          Show help
 
 Examples:
   npx create-forgewp my-theme
+  npx create-forgewp my-theme --js
   npx create-forgewp my-next-theme --adapter nextjs
+  npx create-forgewp my-next-theme --adapter nextjs --js
   npx create-forgewp --projectName my-theme
   npx create-forgewp --yes
 `);
@@ -50,6 +55,8 @@ function parseArgs(argv) {
   const args = {
     projectDir: undefined,
     adapter: 'react',
+    language: 'ts',
+    languageExplicit: false,
     yes: false,
     noInstall: false,
     help: false,
@@ -70,6 +77,18 @@ function parseArgs(argv) {
 
     if (arg === '--no-install') {
       args.noInstall = true;
+      continue;
+    }
+
+    if (arg === '--js' || arg === '--javascript') {
+      args.language = 'js';
+      args.languageExplicit = true;
+      continue;
+    }
+
+    if (arg === '--ts' || arg === '--typescript') {
+      args.language = 'ts';
+      args.languageExplicit = true;
       continue;
     }
 
@@ -156,7 +175,18 @@ async function gatherConfig(cli, defaults) {
         initial: cli.adapter === 'nextjs' ? 1 : cli.adapter === 'html' ? 2 : 0,
       },
       {
-        type: (prev) => prev === 'react' ? 'select' : null,
+        type: (prev) =>
+          prev !== 'html' && !cli.languageExplicit ? 'select' : null,
+        name: 'language',
+        message: `${pc.cyan('✔')} Language`,
+        choices: [
+          { title: 'TypeScript (.ts / .tsx)', value: 'ts' },
+          { title: 'JavaScript (.js / .jsx)', value: 'js' },
+        ],
+        initial: cli.language === 'js' ? 1 : 0,
+      },
+      {
+        type: (prev, values) => values.adapter === 'react' ? 'select' : null,
         name: 'style',
         message: `${pc.cyan('✔')} Choose aesthetic style preset`,
         choices: [
@@ -206,6 +236,8 @@ async function gatherConfig(cli, defaults) {
   const themeName = response.themeName ?? defaults.themeName;
   const slug = slugify(themeName);
   const adapter = response.adapter || defaults.adapter;
+  const language =
+    adapter === 'html' ? 'ts' : (response.language ?? defaults.language ?? 'ts');
 
   return {
     ...defaults,
@@ -220,6 +252,7 @@ async function gatherConfig(cli, defaults) {
           : `A premium block-theme built with React, Tailwind CSS, and ForgeWP.`,
     textDomain: slug,
     adapter,
+    language,
     style: response.style ?? defaults.style,
     features: adapter === 'react' ? (response.features ?? defaults.features) : [],
     install: response.install ?? false,
@@ -230,10 +263,17 @@ async function gatherConfig(cli, defaults) {
 async function handleAddCommand(componentName) {
   printBanner();
 
-  if (!existsSync(path.join(cwd(), 'wp.config.ts'))) {
+  const hasConfig = [
+    'wp.config.ts',
+    'wp.config.mts',
+    'wp.config.js',
+    'wp.config.mjs',
+    'wp.config.cjs',
+  ].some((name) => existsSync(path.join(cwd(), name)));
+  if (!hasConfig) {
     console.error(
       pc.red(
-        'Error: wp.config.ts not found. Please run this command inside a ForgeWP theme project.',
+        'Error: wp.config.ts (or wp.config.js) not found. Please run this command inside a ForgeWP theme project.',
       ),
     );
     process.exit(1);
@@ -344,7 +384,8 @@ async function main() {
   if (existsSync(targetDir)) {
     if (
       existsSync(path.join(targetDir, 'package.json')) ||
-      existsSync(path.join(targetDir, 'wp.config.ts'))
+      existsSync(path.join(targetDir, 'wp.config.ts')) ||
+      existsSync(path.join(targetDir, 'wp.config.js'))
     ) {
       console.error(
         pc.red(`Directory already contains a ForgeWP project: ${targetDir}`),
@@ -367,6 +408,7 @@ async function main() {
           : `A premium block-theme built with React, Tailwind CSS, and ForgeWP.`,
     textDomain: slug,
     adapter,
+    language: adapter === 'html' ? 'ts' : cli.language || 'ts',
     style: cli.style || 'shadcn',
     features: adapter === 'react' ? ['ecommerce'] : [],
     version: '0.1.0',
@@ -381,6 +423,9 @@ async function main() {
 
   copyTemplate(targetDir, config.adapter);
   applyProjectConfig(targetDir, config);
+  if (config.language === 'js') {
+    convertProjectToJs(targetDir, config.adapter);
+  }
 
   if (config.packageManager === 'pnpm') {
     addToPnpmWorkspace(targetDir);
@@ -432,12 +477,13 @@ async function main() {
     config.adapter === 'nextjs'
       ? 'Run the Next.js local developer server:'
       : 'Run the interactive Vite local developer server:';
+  const wpConfigFile = config.language === 'js' ? 'wp.config.js' : 'wp.config.ts';
 
   console.log(`  │ ${stepNum}. ${devServerLabel}`);
   console.log(`  │    ${pc.cyan(run('dev'))}`);
   console.log(`  │`);
   console.log(
-    `  │ ${stepNumPlus}. Edit code inside src/ and design presets inside wp.config.ts.`,
+    `  │ ${stepNumPlus}. Edit code inside src/ and design presets inside ${wpConfigFile}.`,
   );
   console.log(`  │`);
   console.log(`  │ ${stepNumExport}. Export theme to WordPress (.zip):`);
@@ -447,7 +493,7 @@ async function main() {
     `  │ ${pc.yellow('💡 Tip:')} You can customize your layout boundaries, color palette,`,
   );
   console.log(
-    `  │      and Next.js-style Google Fonts anytime in ${pc.bold('wp.config.ts')}!`,
+    `  │      and Next.js-style Google Fonts anytime in ${pc.bold(wpConfigFile)}!`,
   );
   console.log(
     `  └──────────────────────────────────────────────────────────\n`,

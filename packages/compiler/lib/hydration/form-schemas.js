@@ -27,7 +27,10 @@ export function scanForFormSchemas(themeRoot) {
         const fullPath = path.join(dir, item.name);
         if (item.isDirectory()) {
           collectFilesRecursive(fullPath);
-        } else if (item.isFile() && (item.name.endsWith(".ts") || item.name.endsWith(".tsx"))) {
+        } else if (
+          item.isFile() &&
+          /\.(?:ts|tsx|js|jsx|mjs)$/.test(item.name)
+        ) {
           filesToScan.push(fullPath);
         }
       }
