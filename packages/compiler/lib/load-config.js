@@ -2,7 +2,7 @@ import { resolveMailTemplates } from './mail-templates.js';
 import { registrationMetaFields } from './registration-metadata.js';
 import fs, { existsSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createJiti } from 'jiti';
 import { scanForFormSchemas } from './hydration/form-schemas.js';
 import { validateMockSeedStrategy } from './functions/seed-mock-data.js';
@@ -24,9 +24,27 @@ export async function loadConfig(themeRoot) {
   }
   const configPath = foundConfig.path;
 
+  const compilerLibDir = path.dirname(fileURLToPath(import.meta.url));
+  const defineConfigPath = path.resolve(compilerLibDir, '../define-config.js');
+  const alias = {
+    '@forgewp/compiler/define-config': defineConfigPath,
+  };
+  const monorepoReactConfig = path.resolve(compilerLibDir, '../../react/src/config.ts');
+  if (existsSync(monorepoReactConfig)) {
+    alias['@forgewp/react/config'] = monorepoReactConfig;
+  } else {
+    try {
+      const { createRequire } = await import('node:module');
+      const compilerReq = createRequire(import.meta.url);
+      alias['@forgewp/react/config'] = compilerReq.resolve('@forgewp/react/config');
+    } catch {
+      // Fall back to project-local node_modules resolution
+    }
+  }
   const jiti = createJiti(pathToFileURL(configPath).href, {
     interopDefault: true,
     moduleCache: false,
+    alias,
   });
 
   const importedConfig = await jiti.import(configPath);

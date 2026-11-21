@@ -8,19 +8,22 @@ import pc from "picocolors";
 import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
+import { findWpConfigPath, getProjectExtensions } from "../lib/project-language.js";
 
 console.log(`\n🧹 ${pc.bold(pc.bgRed(pc.black("  FORGEWP FACTORY RESET (FRESH CANVAS)  ")))}\n`);
 
 const projectRoot = process.cwd();
 
 async function runReset() {
+  const { jsxExt } = getProjectExtensions(projectRoot);
+  const configFileLabel = findWpConfigPath(projectRoot)?.fileName || "wp.config.ts (or wp.config.js)";
   // Load the project config to determine the framework adapter
   let frameworkAdapter = 'react';
   try {
     const config = await loadConfig(projectRoot);
     frameworkAdapter = config.frameworkAdapter || 'react';
   } catch (err) {
-    console.log(pc.yellow(`  ⚠️  Could not load wp.config.ts. Using default adapter: react`));
+    console.log(pc.yellow(`  ⚠️  Could not load ${configFileLabel} (${err.message}). Using default adapter: react`));
   }
 
 // 1. Clean Build Caches & Artifacts
@@ -60,9 +63,11 @@ for (const targetPrune of directoriesToPrune) {
 // 3. Restore Standard Database & Sitemap Menus from Core Blueprints
 const coreFilesToReset = ["cms/menus.json", "cms/mock-data.json", "cms/products.json"];
 for (const relPath of coreFilesToReset) {
-  const tsVariant = relPath.replace(/\.json$/, ".ts");
-  if (existsSync(path.join(projectRoot, tsVariant))) {
-    console.log(`  ${pc.gray("ℹ️  Skipping JSON reset")} ${pc.cyan(relPath)} ${pc.gray(`(${tsVariant} is the active source)`)}`);
+  const scriptVariant = [".ts", ".js", ".mjs"]
+    .map((ext) => relPath.replace(/\.json$/, ext))
+    .find((candidate) => existsSync(path.join(projectRoot, candidate)));
+  if (scriptVariant) {
+    console.log(`  ${pc.gray("ℹ️  Skipping JSON reset")} ${pc.cyan(relPath)} ${pc.gray(`(${scriptVariant} is the active source)`)}`);
     continue;
   }
   const fullPath = path.join(projectRoot, relPath);
@@ -114,7 +119,7 @@ console.log(pc.cyan(`   Your ForgeWP canvas is now factory-fresh, clean, and per
 console.log(`\n🚀 ${pc.bold("NEXT STEPS:")}`);
 console.log(`   1. Start the Vite Dev Server:    ${pc.cyan("pnpm dev")} or ${pc.cyan("npm run dev")}`);
 console.log(`   2. Add dynamic UI components:    ${pc.cyan("pnpm forgewp add fade-reveal")}`);
-console.log(`   3. Customize your entry page:    ${pc.cyan("src/app/page.tsx")}`);
+console.log(`   3. Customize your entry page:    ${pc.cyan(`src/app/page${jsxExt}`)}`);
 console.log(`   4. Compile to WordPress theme:  ${pc.cyan("pnpm export")} or ${pc.cyan("npm run export")}\n`);
 }
 

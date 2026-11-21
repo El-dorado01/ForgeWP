@@ -30,7 +30,7 @@ async function main() {
     const adapterMod = await loadFrameworkAdapter(config.frameworkAdapter);
     adapter = adapterMod.default || adapterMod;
   } catch (err) {
-    console.warn(pc.yellow(`⚠️  Could not load wp.config.ts, using fallback values.`));
+    console.warn(pc.yellow(`⚠️  Could not load wp.config.ts (or wp.config.js), using fallback values.`));
   }
 
   // 2. Scan islands

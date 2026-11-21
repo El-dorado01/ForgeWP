@@ -344,6 +344,29 @@ export default defineBlock({
     expect(updatedRoutes).toContain('import { SingleProjectPage } from "./pages/SingleProjectPage";');
     expect(updatedRoutes).toContain('<Route path="/about" component={AboutPage} />');
     expect(updatedRoutes).toContain('<Route path="/project/:id" component={SingleProjectPage} />');
+
+    // Also verify onFresh restores pure .jsx routes, page, and welcome components without creating any .tsx files
+    const freshLogs = [];
+    console.log = (...args) => freshLogs.push(args.join(' '));
+    try {
+      await reactAdapter.onFresh(tmpRoot);
+    } finally {
+      console.log = origLog;
+    }
+    const freshOutput = freshLogs.join('\n');
+    expect(freshOutput).not.toMatch(/\.tsx?\b/);
+    expect(fs.existsSync(path.join(tmpRoot, 'src', 'app', 'routes.tsx'))).toBe(false);
+    expect(fs.existsSync(path.join(tmpRoot, 'src', 'app', 'page.tsx'))).toBe(false);
+    for (const rel of [
+      'src/app/routes.jsx',
+      'src/app/page.jsx',
+      'src/components/brand-logos.jsx',
+      'src/components/theme-hotkey.jsx',
+    ]) {
+      const abs = path.join(tmpRoot, rel);
+      expect(fs.existsSync(abs), `missing ${rel}`).toBe(true);
+      assertPureJsParses(abs);
+    }
   });
 
   it('create-forgewp --js scaffolds valid pure JS/JSX projects for both react and nextjs adapters', async () => {

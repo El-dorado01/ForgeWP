@@ -154,7 +154,7 @@ function stripTsFromTsxSource(code) {
     /\b(const|let|var)\s+([A-Za-z_$][\w$]*)\s*:\s*[^=\n;]+(?=\s*=)/g,
     '$1 $2',
   );
-  out = out.replace(/\}\s*:\s*[A-Za-z_$][\w$.<>,\s|[\]{}:?]+(?=\s*\))/g, '}');
+  out = out.replace(/\}\s*:\s*(?:\{[^}]*\}|[A-Za-z_$][\w$.<>,\s|[\]{}:?]+)(?=\s*\))/g, '}');
   out = out.replace(/\(([^()\n]*)\)/g, (match, inner) => {
     if (!inner.includes(':') || inner.trim().startsWith('{')) return match;
     const parts = inner.split(',').map((part) => {

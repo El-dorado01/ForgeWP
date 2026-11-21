@@ -667,8 +667,9 @@ export function getCriticalFiles(themeRoot) {
 }
 
 export async function onFresh(themeRoot) {
-  const routesPath = path.join(themeRoot, 'src', 'app', 'routes.tsx');
-  const pagePath = path.join(themeRoot, 'src', 'app', 'page.tsx');
+  const { jsxExt } = getProjectExtensions(themeRoot);
+  const routesPath = path.join(themeRoot, 'src', 'app', `routes${jsxExt}`);
+  const pagePath = path.join(themeRoot, 'src', 'app', `page${jsxExt}`);
 
   const routesContent = `import type { ComponentType, ReactNode } from "react";
 import { Route, Switch } from "@forgewp/react";
@@ -1056,34 +1057,34 @@ export default ThemeHotkey;
 `;
 
   try {
-    writeFileSync(routesPath, routesContent, 'utf8');
+    writeScaffoldFile(themeRoot, routesPath, routesContent);
     console.log(
-      `  ${pc.green('✅ Reset routes definition')}: src/app/routes.tsx`,
+      `  ${pc.green('✅ Reset routes definition')}: src/app/routes${jsxExt}`,
     );
   } catch (err) {
     console.log(
-      pc.red(`  ❌ Failed to reset src/app/routes.tsx: ${err.message}`),
+      pc.red(`  ❌ Failed to reset src/app/routes${jsxExt}: ${err.message}`),
     );
   }
 
   try {
-    writeFileSync(pagePath, pageContent, 'utf8');
-    console.log(`  ${pc.green('✅ Reset core template')}: src/app/page.tsx`);
+    writeScaffoldFile(themeRoot, pagePath, pageContent.replace('src/app/page.tsx', `src/app/page${jsxExt}`));
+    console.log(`  ${pc.green('✅ Reset core template')}: src/app/page${jsxExt}`);
   } catch (err) {
     console.log(
-      pc.red(`  ❌ Failed to reset src/app/page.tsx: ${err.message}`),
+      pc.red(`  ❌ Failed to reset src/app/page${jsxExt}: ${err.message}`),
     );
   }
 
   // The welcome page imports components from src/components, which fresh prunes.
   const welcomeComponents = [
-    ['brand-logos.tsx', brandLogosContent, 'Restored welcome logos'],
-    ['theme-hotkey.tsx', themeHotkeyContent, 'Restored theme hotkey'],
+    [`brand-logos${jsxExt}`, brandLogosContent, 'Restored welcome logos'],
+    [`theme-hotkey${jsxExt}`, themeHotkeyContent, 'Restored theme hotkey'],
   ];
   for (const [file, content, label] of welcomeComponents) {
     try {
       mkdirSync(path.join(themeRoot, 'src', 'components'), { recursive: true });
-      writeFileSync(path.join(themeRoot, 'src', 'components', file), content, 'utf8');
+      writeScaffoldFile(themeRoot, path.join(themeRoot, 'src', 'components', file), content);
       console.log(`  ${pc.green(`✅ ${label}`)}: src/components/${file}`);
     } catch (err) {
       console.log(pc.red(`  ❌ Failed to restore src/components/${file}: ${err.message}`));
