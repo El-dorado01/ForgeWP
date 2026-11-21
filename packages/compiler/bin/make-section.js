@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import pc from 'picocolors';
+import { getProjectExtensions, writeScaffoldFile } from '../lib/project-language.js';
 
 const args = process.argv.slice(2);
 
@@ -108,11 +109,12 @@ if (fields.length === 0) {
   process.exit(1);
 }
 
+const { scriptExt, jsxExt } = getProjectExtensions(projectRoot);
 const schemaDir = path.join(projectRoot, 'cms', 'editables', 'sections');
 const componentDir = path.join(projectRoot, 'src', 'components');
-const schemaFile = path.join(schemaDir, `${slug}.ts`);
-const pageFile = path.join(projectRoot, 'cms', 'editables', `${pageSlug}.ts`);
-const componentFile = path.join(componentDir, `${componentName}.tsx`);
+const schemaFile = path.join(schemaDir, `${slug}${scriptExt}`);
+const pageFile = path.join(projectRoot, 'cms', 'editables', `${pageSlug}${scriptExt}`);
+const componentFile = path.join(componentDir, `${componentName}${jsxExt}`);
 const pageExists = existsSync(pageFile);
 
 for (const target of [schemaFile, componentFile]) {
@@ -159,9 +161,10 @@ const renameFields = fields
   .map(({ name }) => `      ${name}: '${toSnakeCase(name)}',`)
   .join('\n');
 
-const pageSchemaSource = `/**\n * ${pageSlug} — page editable contract composed from sections.\n */\nimport { buildPageEditable, getEditableDefaults } from '@forgewp/react';\nimport { editable as ${slug}Editable } from './sections/${slug}';\n\nexport const pageEditableSections = [\n  {\n    section: '${slug}',\n    prefix: '${slug}_',\n    rename: {\n${renameFields}\n    },\n  },\n];\n\nexport const editable = buildPageEditable([\n  {\n    schema: ${slug}Editable,\n    prefix: '${slug}_',\n    rename: {\n${renameFields}\n    },\n  },\n]);\n\nexport const defaults = getEditableDefaults(editable);\n`;
+const camelSlug = slug.replace(/-([a-z0-9])/g, (_, ch) => ch.toUpperCase());
+const pageSchemaSource = `/**\n * ${pageSlug} — page editable contract composed from sections.\n */\nimport { buildPageEditable, getEditableDefaults } from '@forgewp/react';\nimport { editable as ${camelSlug}Editable } from './sections/${slug}';\n\nexport const pageEditableSections = [\n  {\n    section: '${slug}',\n    prefix: '${slug}_',\n    rename: {\n${renameFields}\n    },\n  },\n];\n\nexport const editable = buildPageEditable([\n  {\n    schema: ${camelSlug}Editable,\n    prefix: '${slug}_',\n    rename: {\n${renameFields}\n    },\n  },\n]);\n\nexport const defaults = getEditableDefaults(editable);\n`;
 
-const schemaSource = `/**\n * ${componentName} — canonical section content contract.\n *\n * Compose this schema into cms/editables/${pageSlug}.ts for baked-page ACF\n * fields, then reuse it from the section component and generated block.\n */\nimport {\n  ${imports},\n} from '@forgewp/react';\n\nexport const editable = defineEditable({\n${fieldDefinitions}\n});\n\nexport const defaults = getEditableDefaults(editable);\n`;
+const schemaSource = `/**\n * ${componentName} — canonical section content contract.\n *\n * Compose this schema into cms/editables/${pageSlug}${scriptExt} for baked-page ACF\n * fields, then reuse it from the section component and generated block.\n */\nimport {\n  ${imports},\n} from '@forgewp/react';\n\nexport const editable = defineEditable({\n${fieldDefinitions}\n});\n\nexport const defaults = getEditableDefaults(editable);\n`;
 
 const fieldTypes = {
   text: 'string',
@@ -202,11 +205,11 @@ const blockAnnotation = withBlock
 
 const componentSource = `import { pickEditable, useWpMeta, WpEditable } from '@forgewp/react';\nimport { editable as pageEditable, defaults } from '../../cms/editables/${pageSlug}';\n\nexport const editable = pickEditable(pageEditable, {\n${pageFields}\n});\n\nexport interface ${componentName}Props {\n${props}\n  setAttributes?: (attributes: Partial<${componentName}Props>) => void;\n}\n\n${blockAnnotation}export function ${componentName}({\n${propDestructuring}\n  setAttributes,\n}: ${componentName}Props) {\n${resolvedValues}\n\n  return (\n    <section>\n${renderedFields}\n    </section>\n  );\n}\n\nexport default ${componentName};\n`;
 
-writeFileSync(schemaFile, schemaSource, 'utf8');
+writeScaffoldFile(projectRoot, schemaFile, schemaSource);
 if (!existsSync(pageFile)) {
-  writeFileSync(pageFile, pageSchemaSource, 'utf8');
+  writeScaffoldFile(projectRoot, pageFile, pageSchemaSource);
 }
-writeFileSync(componentFile, componentSource, 'utf8');
+writeScaffoldFile(projectRoot, componentFile, componentSource);
 
 console.log(pc.green(`\n⚡ Section "${componentName}" created.`));
 console.log(`   Schema:    ${pc.cyan(path.relative(projectRoot, schemaFile))}`);

@@ -223,28 +223,62 @@ export default defineBlock({
       red: (s) => s,
     };
 
-    reactAdapter.onMakeBlock(tmpRoot, { pascalCase: 'FeatureCard', attributesList: ['title'], readableTitle: 'Feature Card', pc });
-    reactAdapter.onMakeShell(tmpRoot, {
-      pascalCase: 'TwoColShell',
-      nameSlug: 'two-col-shell',
-      readableTitle: 'Two Col Shell',
-      childrenSlugs: [],
-      shell: { className: 'sec', gridClassName: 'grid' },
-      innerBlocks: {},
-      pc,
-    });
-    reactAdapter.onMakeLoop(tmpRoot, { pascalCase: 'ProjectGrid', postType: 'project', customFields: [], automaticallySeeded: false, pc });
-    reactAdapter.onMakeIsland(tmpRoot, { pascalCase: 'NewsletterBox', pc });
-    reactAdapter.onMakePage(tmpRoot, { pascalCase: 'Services', pc });
-    reactAdapter.onMakeForm(tmpRoot, {
-      slug: 'quote',
-      pascalCase: 'Quote',
-      fields: [
-        { name: 'name', type: 'text', required: true },
-        { name: 'email', type: 'email', required: true },
-      ],
-      pc,
-    });
+    const loggedLines = [];
+    const origLog = console.log;
+    console.log = (...args) => loggedLines.push(args.join(' '));
+    try {
+      reactAdapter.onMakeBlock(tmpRoot, { pascalCase: 'FeatureCard', attributesList: ['title'], readableTitle: 'Feature Card', pc });
+      reactAdapter.onMakeShell(tmpRoot, {
+        pascalCase: 'TwoColShell',
+        nameSlug: 'two-col-shell',
+        readableTitle: 'Two Col Shell',
+        childrenSlugs: [],
+        shell: { className: 'sec', gridClassName: 'grid' },
+        innerBlocks: {},
+        pc,
+      });
+      reactAdapter.onMakeLoop(tmpRoot, { pascalCase: 'ProjectGrid', postType: 'project', customFields: [], automaticallySeeded: false, pc });
+      reactAdapter.onMakeIsland(tmpRoot, { pascalCase: 'NewsletterBox', pc });
+      reactAdapter.onMakePage(tmpRoot, { pascalCase: 'Services', pc });
+      reactAdapter.onMakeForm(tmpRoot, {
+        slug: 'quote',
+        pascalCase: 'Quote',
+        fields: [
+          { name: 'name', type: 'text', required: true },
+          { name: 'email', type: 'email', required: true },
+        ],
+        pc,
+      });
+    } finally {
+      console.log = origLog;
+    }
+
+    const joinedLogs = loggedLines.join('\n');
+    expect(joinedLogs).not.toMatch(/\.tsx?\b/);
+    expect(joinedLogs).toContain('src/blocks/FeatureCard.jsx');
+    expect(joinedLogs).toContain('cms/forms/quote.js');
+    expect(joinedLogs).toContain('src/components/forms/QuoteForm.jsx');
+
+    // Also test standalone bin/make-editable.js and bin/make-section.js in JS projects
+    const makeEditableBin = path.resolve(__dirname, '../../bin/make-editable.js');
+    const editableRun = spawnSync(
+      process.execPath,
+      [makeEditableBin, 'about-page', '--fields=hero_title:text,hero_sub:text'],
+      { cwd: tmpRoot, encoding: 'utf8' },
+    );
+    expect(editableRun.status, editableRun.stderr).toBe(0);
+    expect(editableRun.stdout).toContain('cms/editables/about-page.js');
+    expect(editableRun.stdout).not.toMatch(/\.tsx?\b/);
+
+    const makeSectionBin = path.resolve(__dirname, '../../bin/make-section.js');
+    const sectionRun = spawnSync(
+      process.execPath,
+      [makeSectionBin, 'HeroBanner', '--page=home', '--fields=title:text,body:richText'],
+      { cwd: tmpRoot, encoding: 'utf8' },
+    );
+    expect(sectionRun.status, sectionRun.stderr).toBe(0);
+    expect(sectionRun.stdout).toContain('src/components/HeroBanner.jsx');
+    expect(sectionRun.stdout).not.toMatch(/\.tsx?\b/);
 
     const expectedJsFiles = [
       'src/blocks/FeatureCard.jsx',
@@ -254,6 +288,10 @@ export default defineBlock({
       'src/app/pages/Services.jsx',
       'cms/forms/quote.js',
       'src/components/forms/QuoteForm.jsx',
+      'cms/editables/about-page.js',
+      'cms/editables/sections/hero-banner.js',
+      'cms/editables/home.js',
+      'src/components/HeroBanner.jsx',
     ];
     for (const rel of expectedJsFiles) {
       const abs = path.join(tmpRoot, rel);

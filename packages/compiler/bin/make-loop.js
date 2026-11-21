@@ -63,7 +63,9 @@ if (postTypeArg) {
 }
 
 const projectRoot = process.cwd();
-const mockDataTsPath = path.join(projectRoot, "cms", "mock-data.ts");
+const hasScriptMockData = ["mock-data.ts", "mock-data.js", "mock-data.mjs"].some((name) =>
+  existsSync(path.join(projectRoot, "cms", name)),
+);
 const mockDataJsonPath = path.join(projectRoot, "cms", "mock-data.json");
 
 if (!existsSync(path.join(projectRoot, "src"))) {
@@ -71,7 +73,7 @@ if (!existsSync(path.join(projectRoot, "src"))) {
   process.exit(1);
 }
 
-// Load custom fields from cms/mock-data.ts (preferred) or mock-data.json
+// Load custom fields from cms/mock-data.{ts,js,mjs} (preferred) or mock-data.json
 let customFields = [];
 let automaticallySeeded = false;
 const mockData = { ...loadMockData(projectRoot) };
@@ -79,7 +81,7 @@ const existingRecords = mockData[postType] || [];
 
 if (existingRecords.length > 0 && existingRecords[0].customFields) {
   customFields = Object.keys(existingRecords[0].customFields);
-} else if (!mockData[postType] && existsSync(mockDataJsonPath) && !existsSync(mockDataTsPath)) {
+} else if (!mockData[postType] && existsSync(mockDataJsonPath) && !hasScriptMockData) {
   try {
     mockData[postType] = [
       {

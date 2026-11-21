@@ -5,6 +5,7 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import pc from "picocolors";
+import { getProjectExtensions } from "../lib/project-language.js";
 
 const args = process.argv.slice(2);
 let rawName = args.find(a => !a.startsWith("-"));
@@ -90,14 +91,15 @@ if (fieldsList.length === 0) {
   ];
 }
 
+const { scriptExt } = getProjectExtensions(projectRoot);
 const editablesDir = path.join(projectRoot, "cms", "editables");
 if (!existsSync(editablesDir)) {
   mkdirSync(editablesDir, { recursive: true });
 }
 
-const targetFile = path.join(editablesDir, `${slug}.ts`);
+const targetFile = path.join(editablesDir, `${slug}${scriptExt}`);
 if (existsSync(targetFile)) {
-  console.error(pc.red(`\n❌ Error: Schema "${slug}.ts" already exists at cms/editables/\n`));
+  console.error(pc.red(`\n❌ Error: Schema "${slug}${scriptExt}" already exists at cms/editables/\n`));
   process.exit(1);
 }
 
@@ -160,7 +162,7 @@ export const defaults = getEditableDefaults(editable);
 writeFileSync(targetFile, schemaTemplate, "utf8");
 
 console.log(pc.green(`\n⚡ Editable schema "${slug}" successfully created!`));
-console.log(`   File: ${pc.cyan(`cms/editables/${slug}.ts`)}`);
+console.log(`   File: ${pc.cyan(`cms/editables/${slug}${scriptExt}`)}`);
 console.log(`\n🎉 Use it in a page or section component:`);
 console.log(`   ${pc.yellow(`import { editable, defaults } from '../../cms/editables/${slug}';`)}`);
 console.log(`   ${pc.yellow(`const ${fieldsList[0].name} = useWpMeta('${fieldsList[0].name}', defaults.${fieldsList[0].name});`)}\n`);

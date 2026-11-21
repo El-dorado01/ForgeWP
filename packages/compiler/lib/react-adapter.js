@@ -18,7 +18,7 @@ import {
   resolveIslandChunk,
   scanAppProviders,
 } from './hydration/index.js';
-import { writeScaffoldFile } from './project-language.js';
+import { getProjectExtensions, writeScaffoldFile } from './project-language.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -991,16 +991,17 @@ export function onMakeBlock(
   ) || new Set(attributesList).size !== attributesList.length) {
     throw new Error('Attribute names must be unique JavaScript property identifiers, such as title or cta_label. make:block creates string attributes; edit their types in source.');
   }
+  const { jsxExt } = getProjectExtensions(themeRoot);
   const blocksDir = path.join(themeRoot, 'src', 'blocks');
   if (!existsSync(blocksDir)) {
     mkdirSync(blocksDir, { recursive: true });
   }
 
-  const targetFile = path.join(blocksDir, `${pascalCase}.tsx`);
+  const targetFile = path.join(blocksDir, `${pascalCase}${jsxExt}`);
   if (existsSync(targetFile)) {
     console.error(
       pc.red(
-        `\n❌ Error: Block "${pascalCase}.tsx" already exists at src/blocks/\n`,
+        `\n❌ Error: Block "${pascalCase}${jsxExt}" already exists at src/blocks/\n`,
       ),
     );
     process.exit(1);
@@ -1113,7 +1114,7 @@ ${attributesRegistry}
   console.log(
     pc.green(`\n⚡ Modern Block "${pascalCase}" successfully created!`),
   );
-  console.log(`   Location: ${pc.cyan(`src/blocks/${pascalCase}.tsx`)}`);
+  console.log(`   Location: ${pc.cyan(`src/blocks/${pascalCase}${jsxExt}`)}`);
   console.log(`   Gutenberg Title: ${pc.yellow(`Sharp ${readableTitle}`)}`);
   console.log('   Edit this source file; export generates block.json, render.php, and editor assets.');
   console.log(
@@ -1141,17 +1142,18 @@ export function onMakeShell(
     pc: colors,
   },
 ) {
+  const { jsxExt } = getProjectExtensions(themeRoot);
   const log = colors || pc;
   const blocksDir = path.join(themeRoot, 'src', 'blocks');
   if (!existsSync(blocksDir)) {
     mkdirSync(blocksDir, { recursive: true });
   }
 
-  const targetFile = path.join(blocksDir, `${pascalCase}.tsx`);
+  const targetFile = path.join(blocksDir, `${pascalCase}${jsxExt}`);
   if (existsSync(targetFile)) {
     console.error(
       log.red(
-        `\n❌ Error: Block "${pascalCase}.tsx" already exists at src/blocks/\n`,
+        `\n❌ Error: Block "${pascalCase}${jsxExt}" already exists at src/blocks/\n`,
       ),
     );
     process.exit(1);
@@ -1242,7 +1244,7 @@ export default defineBlock({
   writeScaffoldFile(themeRoot, targetFile, shellTemplate);
 
   console.log(log.green(`\n⚡ Parent shell "${pascalCase}" created!`));
-  console.log(`   Location: ${log.cyan(`src/blocks/${pascalCase}.tsx`)}`);
+  console.log(`   Location: ${log.cyan(`src/blocks/${pascalCase}${jsxExt}`)}`);
   console.log(`   Block name: ${log.yellow(`forgewp/${slug}`)}`);
   if (allowed.length) {
     console.log(`   Children: ${log.cyan(allowed.join(', '))}`);
@@ -1261,16 +1263,17 @@ export function onMakeLoop(
   themeRoot,
   { pascalCase, postType, customFields, automaticallySeeded, pc },
 ) {
+  const { jsxExt } = getProjectExtensions(themeRoot);
   const loopsDir = path.join(themeRoot, 'src', 'loops');
   if (!existsSync(loopsDir)) {
     mkdirSync(loopsDir, { recursive: true });
   }
 
-  const targetFile = path.join(loopsDir, `${pascalCase}.tsx`);
+  const targetFile = path.join(loopsDir, `${pascalCase}${jsxExt}`);
   if (existsSync(targetFile)) {
     console.error(
       pc.red(
-        `\n❌ Error: Loop "${pascalCase}.tsx" already exists at src/loops/\n`,
+        `\n❌ Error: Loop "${pascalCase}${jsxExt}" already exists at src/loops/\n`,
       ),
     );
     process.exit(1);
@@ -1365,7 +1368,7 @@ export default function ${pascalCase}() {
   }
 
   console.log(pc.green(`\n⚡ Post Loop "${pascalCase}" successfully created!`));
-  console.log(`   Location: ${pc.cyan(`src/loops/${pascalCase}.tsx`)}`);
+  console.log(`   Location: ${pc.cyan(`src/loops/${pascalCase}${jsxExt}`)}`);
   console.log(`   Target Post Type: ${pc.yellow(postType)}`);
   if (customFields.length > 0) {
     console.log(
@@ -1379,16 +1382,17 @@ export default function ${pascalCase}() {
 }
 
 export function onMakeIsland(themeRoot, { pascalCase, pc }) {
+  const { jsxExt } = getProjectExtensions(themeRoot);
   const componentsDir = path.join(themeRoot, 'src', 'components');
   if (!existsSync(componentsDir)) {
     mkdirSync(componentsDir, { recursive: true });
   }
 
-  const targetFile = path.join(componentsDir, `${pascalCase}.tsx`);
+  const targetFile = path.join(componentsDir, `${pascalCase}${jsxExt}`);
   if (existsSync(targetFile)) {
     console.error(
       pc.red(
-        `\n❌ Error: Island "${pascalCase}.tsx" already exists at src/components/\n`,
+        `\n❌ Error: Island "${pascalCase}${jsxExt}" already exists at src/components/\n`,
       ),
     );
     process.exit(1);
@@ -1434,7 +1438,7 @@ export default function ${pascalCase}(_props: ${pascalCase}Props) {
       `\n⚡ Selective Hydration Island "${pascalCase}" successfully created!`,
     ),
   );
-  console.log(`   Location: ${pc.cyan(`src/components/${pascalCase}.tsx`)}`);
+  console.log(`   Location: ${pc.cyan(`src/components/${pascalCase}${jsxExt}`)}`);
   console.log(
     `\n🎉 ForgeWP automatically detects and hydrates this component on compile!`,
   );
@@ -1448,16 +1452,17 @@ export default function ${pascalCase}(_props: ${pascalCase}Props) {
 }
 
 export function onMakePage(themeRoot, { pascalCase, pc }) {
+  const { jsxExt } = getProjectExtensions(themeRoot);
   const pagesDir = path.join(themeRoot, 'src', 'app', 'pages');
   if (!existsSync(pagesDir)) {
     mkdirSync(pagesDir, { recursive: true });
   }
 
-  const targetFile = path.join(pagesDir, `${pascalCase}.tsx`);
+  const targetFile = path.join(pagesDir, `${pascalCase}${jsxExt}`);
   if (existsSync(targetFile)) {
     console.error(
       pc.red(
-        `\n❌ Error: Page Template "${pascalCase}.tsx" already exists at src/app/pages/\n`,
+        `\n❌ Error: Page Template "${pascalCase}${jsxExt}" already exists at src/app/pages/\n`,
       ),
     );
     process.exit(1);
@@ -1510,24 +1515,25 @@ export function ${pascalCase}() {
   console.log(
     pc.green(`\n⚡ Custom Page Template "${pascalCase}" successfully created!`),
   );
-  console.log(`   Location: ${pc.cyan(`src/app/pages/${pascalCase}.tsx`)}`);
+  console.log(`   Location: ${pc.cyan(`src/app/pages/${pascalCase}${jsxExt}`)}`);
   console.log(`   WordPress Template Name: ${pc.yellow(pascalCase)}`);
   console.log(`\n🎉 To link it in your application routing:`);
-  console.log(`   Add it inside your ${pc.cyan('src/app/routes.tsx')} file.\n`);
+  console.log(`   Add it inside your ${pc.cyan(`src/app/routes${jsxExt}`)} file.\n`);
 }
 
 export function onMakeForm(
   themeRoot,
   { slug, pascalCase, fields, mailTo, pc },
 ) {
+  const { scriptExt, jsxExt } = getProjectExtensions(themeRoot);
   const formsDir = path.join(themeRoot, 'cms', 'forms');
   if (!existsSync(formsDir)) {
     mkdirSync(formsDir, { recursive: true });
   }
-  const formConfigFile = path.join(formsDir, `${slug}.ts`);
+  const formConfigFile = path.join(formsDir, `${slug}${scriptExt}`);
   if (existsSync(formConfigFile)) {
     console.error(
-      pc.red(`\n❌ Error: Form "${slug}.ts" already exists at cms/forms/\n`),
+      pc.red(`\n❌ Error: Form "${slug}${scriptExt}" already exists at cms/forms/\n`),
     );
     process.exit(1);
   }
@@ -1537,11 +1543,11 @@ export function onMakeForm(
     mkdirSync(componentsDir, { recursive: true });
   }
   const componentName = `${pascalCase}Form`;
-  const componentFile = path.join(componentsDir, `${componentName}.tsx`);
+  const componentFile = path.join(componentsDir, `${componentName}${jsxExt}`);
   if (existsSync(componentFile)) {
     console.error(
       pc.red(
-        `\n❌ Error: Form component "${componentName}.tsx" already exists at src/components/forms/\n`,
+        `\n❌ Error: Form component "${componentName}${jsxExt}" already exists at src/components/forms/\n`,
       ),
     );
     process.exit(1);
@@ -1573,7 +1579,7 @@ export function onMakeForm(
  *  - mail delivery + optional submission storage (wp-admin > Forms Submissions)
  *
  * Discovered automatically from this file — nothing else needs to reference
- * it. See ${componentName}.tsx (src/components/forms/) for the matching UI.
+ * it. See ${componentName}${jsxExt} (src/components/forms/) for the matching UI.
  *
  * Want client-editable fields (added/removed later in wp-admin, without a
  * redeploy)? Add a \`clientFields\` key here and render it with
@@ -1639,7 +1645,7 @@ import { submitWpForm } from "@forgewp/react";
 /**
  * ⚡ ForgeWP Form — "${componentName}"
  *
- * Submits to the "${slug}" form declared in cms/forms/${slug}.ts. ForgeWP
+ * Submits to the "${slug}" form declared in cms/forms/${slug}${scriptExt}. ForgeWP
  * auto-detects this component as interactive (uses React state) and
  * hydrates it in the browser so onSubmit fires instead of a native form
  * GET submit.
@@ -1704,9 +1710,9 @@ ${fieldMarkup}
   writeScaffoldFile(themeRoot, componentFile, componentTemplate);
 
   console.log(pc.green(`\n⚡ Form "${slug}" successfully created!`));
-  console.log(`   Config:    ${pc.cyan(`cms/forms/${slug}.ts`)}`);
+  console.log(`   Config:    ${pc.cyan(`cms/forms/${slug}${scriptExt}`)}`);
   console.log(
-    `   Component: ${pc.cyan(`src/components/forms/${componentName}.tsx`)}`,
+    `   Component: ${pc.cyan(`src/components/forms/${componentName}${jsxExt}`)}`,
   );
   console.log(`\n🎉 Use it in a page:`);
   console.log(
