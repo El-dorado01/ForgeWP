@@ -17,6 +17,7 @@ import {
 } from '../../lib/project-language.js';
 import * as reactAdapter from '../../lib/react-adapter.js';
 import { validateCriticalFiles } from '../../lib/validate.js';
+import { linkWorkspaceForgeWPPackages } from './helpers/workspace-node-modules.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CREATE_FORGEWP_BIN = path.resolve(
@@ -288,7 +289,7 @@ export default defineBlock({
       if (adapter === 'nextjs') {
         expect(fs.existsSync(path.join(projectDir, 'next.config.mjs'))).toBe(true);
         expect(fs.existsSync(path.join(projectDir, 'src/app/page.jsx'))).toBe(true);
-        expect(fs.existsSync(path.join(projectDir, 'src/components/CounterIsland.jsx'))).toBe(true);
+        expect(fs.existsSync(path.join(projectDir, 'src/components/WaveLines.jsx'))).toBe(true);
       } else {
         expect(fs.existsSync(path.join(projectDir, 'src/main.jsx'))).toBe(true);
         expect(fs.readFileSync(path.join(projectDir, 'index.html'), 'utf8')).toContain('/src/main.jsx');
@@ -300,6 +301,9 @@ export default defineBlock({
       for (const rel of jsFiles) {
         assertPureJsParses(path.join(projectDir, rel));
       }
+
+      // --no-install: resolve @forgewp/compiler/define-config from the workspace
+      linkWorkspaceForgeWPPackages(projectDir);
 
       // Config loads & preflight passes cleanly
       const loaded = await loadConfig(projectDir);

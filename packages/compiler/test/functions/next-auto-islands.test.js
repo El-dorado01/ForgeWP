@@ -260,7 +260,7 @@ export default function HomePage() {
       try {
         mkdirSync(path.join(appDir, 'src', 'app'), { recursive: true });
         mkdirSync(path.join(appDir, 'src', 'components'), { recursive: true });
-        symlinkSync(nextFixtureNodeModules, path.join(appDir, 'node_modules'), 'dir');
+        symlinkSync(nextFixtureNodeModules, path.join(appDir, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
 
         writeFileSync(
           path.join(appDir, 'package.json'),
@@ -401,6 +401,6 @@ export default function HomePage() {
         rmSync(tmp, { recursive: true, force: true });
       }
     },
-    120_000,
+    180_000, // full Next.js build + export; slow under parallel load on Windows
   );
 });

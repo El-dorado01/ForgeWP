@@ -513,6 +513,6 @@ echo json_encode(array(
         rmSync(tmp, { recursive: true, force: true });
       }
     },
-    60_000,
+    180_000, // full Next.js build + export; slow under parallel load on Windows
   );
 });

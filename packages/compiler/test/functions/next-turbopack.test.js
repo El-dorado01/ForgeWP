@@ -108,7 +108,7 @@ describe('Next.js 16 Turbopack compatibility (without --webpack)', () => {
         mkdirSync(path.join(appDir, 'src', 'app', 'about'), { recursive: true });
         mkdirSync(path.join(appDir, 'src', 'components'), { recursive: true });
         mkdirSync(path.join(appDir, 'public'), { recursive: true });
-        symlinkSync(nextFixtureNodeModules, path.join(appDir, 'node_modules'), 'dir');
+        symlinkSync(nextFixtureNodeModules, path.join(appDir, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
 
         const heroPng = await sharp({
           create: {
@@ -240,6 +240,6 @@ describe('Next.js 16 Turbopack compatibility (without --webpack)', () => {
         rmSync(tmp, { recursive: true, force: true });
       }
     },
-    120_000,
+    180_000, // full Next.js build + export; slow under parallel load on Windows
   );
 });

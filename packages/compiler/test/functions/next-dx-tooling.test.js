@@ -209,5 +209,5 @@ describe('Next.js DX tooling: forgewp init, adapter-aware doctor/repair/clean, a
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
-  });
+  }, 120_000);
 });

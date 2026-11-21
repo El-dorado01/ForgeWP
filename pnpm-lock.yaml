@@ -671,6 +671,9 @@ importers:
         specifier: 0.0.1
         version: 0.0.1
     devDependencies:
+      '@forgewp/compiler':
+        specifier: workspace:*
+        version: link:../../packages/compiler
       '@types/node':
         specifier: ^22.19.19
         version: 22.19.19
