@@ -353,9 +353,16 @@ if (function_exists('pll_the_languages')) {
         return m ? m[1] || m[2] || m[3] || '' : '';
       };
 
-      const postType = getAttr('postType') || getAttr('posttype') || 'post';
+      const postType =
+        getAttr('postType') ||
+        getAttr('posttype') ||
+        getAttr('data-post-type') ||
+        'post';
       const postsPerPage =
-        getAttr('postsPerPage') || getAttr('postsperpage') || '10';
+        getAttr('postsPerPage') ||
+        getAttr('postsperpage') ||
+        getAttr('data-posts-per-page') ||
+        '10';
       const categoryName =
         getAttr('categoryName') || getAttr('categoryname') || '';
       const postId = getAttr('postId') || getAttr('postid') || '';

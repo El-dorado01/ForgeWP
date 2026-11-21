@@ -186,17 +186,24 @@ export function lintFormsUsage(themeRoot, config) {
     ),
   );
 
-  const srcDir = path.join(themeRoot, 'src');
-  if (!existsSync(srcDir)) return [];
+  const scanRoots = [
+    path.join(themeRoot, 'src'),
+    path.join(themeRoot, 'app'),
+    path.join(themeRoot, 'components'),
+  ].filter((d) => existsSync(d));
+  if (scanRoots.length === 0) return [];
 
   const warnings = [];
   const skipDirs = new Set([
     'node_modules',
     '.forgewp',
     '.forgewp-islands',
+    '.next',
+    'out',
     'dist',
   ]);
   const shortcodeUsageFound = new Set();
+  const seenFiles = new Set();
 
   function walk(dir) {
     let entries;
@@ -213,6 +220,8 @@ export function lintFormsUsage(themeRoot, config) {
       if (!/\.(tsx|ts)$/.test(entry.name)) continue;
 
       const filePath = path.join(dir, entry.name);
+      if (seenFiles.has(filePath)) continue;
+      seenFiles.add(filePath);
       const relPath = path.relative(themeRoot, filePath);
       let content;
       try {
@@ -321,7 +330,9 @@ export function lintFormsUsage(themeRoot, config) {
     }
   }
 
-  walk(srcDir);
+  for (const root of scanRoots) {
+    walk(root);
+  }
 
   for (const name of shortcodeModeNames) {
     if (!shortcodeUsageFound.has(name)) {

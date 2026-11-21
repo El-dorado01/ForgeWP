@@ -35,9 +35,9 @@ export function buildFunctionsPhp(
       if (existsSync(packageJsonPath)) {
         const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
         if (
-          (pkg.dependencies && pkg.dependencies['@forgewp/auth']) ||
-          (pkg.devDependencies && pkg.devDependencies['@forgewp/auth']) ||
-          (pkg.peerDependencies && pkg.peerDependencies['@forgewp/auth'])
+          (pkg.dependencies && (pkg.dependencies['@forgewp/auth'] || pkg.dependencies['@forgewp/woocommerce'])) ||
+          (pkg.devDependencies && (pkg.devDependencies['@forgewp/auth'] || pkg.devDependencies['@forgewp/woocommerce'])) ||
+          (pkg.peerDependencies && (pkg.peerDependencies['@forgewp/auth'] || pkg.peerDependencies['@forgewp/woocommerce']))
         ) {
           hasAuth = true;
           break;

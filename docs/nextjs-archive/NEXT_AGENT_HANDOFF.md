@@ -132,10 +132,10 @@ Latest implementation (Linux VM, Node v24.22.3, PHP 8.2.35, pnpm 10.34.9, WordPr
 
 ## Post-Slice-10 follow-ups
 
-The fixed-route native WordPress + decoupled Next.js workflow, `forgewp init`, adapter-aware `doctor`/`repair`/`clean`/`analyze`, `make:block`/`make:page`/`make:island`, standardized `create-forgewp --adapter nextjs` boilerplates, the 6 adapter hardening fixes (`test/functions/next-adapter-hardening.test.js`), single-segment dynamic App Router routes (`test/functions/next-dynamic-routes.test.js`), opt-in auto-detected interactive client islands (`test/functions/next-auto-islands.test.js`), `next/image` & `next/font` native WordPress compilation (`test/functions/next-image-font.test.js`), WordPress Navigation Menus & Site Info helpers (`test/functions/next-menus-site-info.test.js`), and **Next.js 16 Turbopack compatibility (`next dev` / `next build` without `--webpack`)** (`test/functions/next-turbopack.test.js`) are now implemented and verified. Remaining follow-ups:
+All six post-Slice-10 Next.js roadmap items — dynamic `[slug]` & archive hierarchy (`next-dynamic-routes.test.js`), opt-in auto-detected client islands (`next-auto-islands.test.js`), `next/image` & `next/font` native compilation (`next-image-font.test.js`), WordPress Navigation Menus & Site Info helpers (`next-menus-site-info.test.js`), Next.js 16 Turbopack compatibility (`next-turbopack.test.js`), and optional module parity for Native Forms, SEO, Auth (`WpServerRequireAuth`/`WpServerAuthGate`), and WooCommerce (`next-module-parity.test.js`) — plus the 6 adapter hardening fixes (`next-adapter-hardening.test.js`) are now implemented and verified. Remaining long-term follow-ups:
 
-1. Optional module parity audit for Next.js (Forms, SEO, Auth, WooCommerce).
-2. Catch-all `[...slug]` / taxonomy hierarchy templates and remaining shared-framework backlog items in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md`.
+1. Coordinated npm package release (`@forgewp/react`, `@forgewp/compiler`, `create-forgewp`) and clean-directory install verification against the published registry.
+2. Catch-all `[...slug]` / taxonomy hierarchy templates, browser-level wp-admin Gutenberg acceptance, and remaining shared-framework backlog items in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md`.
 
 ## Commands and environment notes
 

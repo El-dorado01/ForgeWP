@@ -833,8 +833,8 @@ export function WpServerLoop({
       React.Fragment,
       null,
       React.createElement('forgewp-query-loop-start', {
-        'data-post-type': postType,
-        'data-posts-per-page': String(postsPerPage),
+        posttype: postType,
+        postsperpage: String(postsPerPage),
       }),
       renderItem(tokenItem, 0),
       React.createElement('forgewp-query-loop-end'),
@@ -1002,4 +1002,105 @@ export function Hydrate({
     },
     shouldRender ? children : null,
   );
+}
+
+export interface WpServerRequireAuthProps {
+  /** Optional WordPress role or capability required (e.g. `'manage_options'` or `'editor'`). */
+  allowed?: string | string[];
+  /** Redirect path for unauthorized visitors (default: `'/login'`). */
+  redirect?: string;
+  children?: React.ReactNode;
+}
+
+/**
+ * Pure-TypeScript, Server-Component-safe route protection boundary for Next.js App Router.
+ *
+ * - Native WordPress export (`FORGEWP_NATIVE_EXPORT=1`): emits `<forgewp-require-auth ... />`
+ *   which `generate-theme.js` compiles to server-side PHP `is_user_logged_in()` /
+ *   `current_user_can()` redirect guards and records in `auth-manifest.json`.
+ * - Local dev & decoupled mode: renders `children` directly (pair with Next.js middleware
+ *   or session checks in decoupled mode).
+ */
+export function WpServerRequireAuth({
+  allowed,
+  redirect = '/login',
+  children,
+}: WpServerRequireAuthProps): React.ReactElement {
+  if (isNativeWordPressExport()) {
+    const allowedAttr = Array.isArray(allowed)
+      ? allowed.join(',')
+      : allowed || undefined;
+    return React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('forgewp-require-auth', {
+        ...(allowedAttr ? { allowed: allowedAttr } : {}),
+        redirect,
+      }),
+      children ?? null,
+    );
+  }
+  return React.createElement(React.Fragment, null, children ?? null);
+}
+
+export interface WpServerAuthGateProps {
+  /** Optional WordPress role or capability required. When omitted, requires any logged-in user. */
+  allowed?: string | string[];
+  /** Optional fallback content rendered for unauthorized visitors. */
+  fallback?: React.ReactNode;
+  children?: React.ReactNode;
+}
+
+/**
+ * Pure-TypeScript, Server-Component-safe inline authentication / capability gate for Next.js.
+ *
+ * - Native WordPress export (`FORGEWP_NATIVE_EXPORT=1`): emits ForgeWP auth/capability gate
+ *   markers compiled to server-side PHP `if ( is_user_logged_in() )` / `current_user_can()`.
+ * - Local dev & decoupled mode: renders `children` directly.
+ */
+export function WpServerAuthGate({
+  allowed,
+  fallback,
+  children,
+}: WpServerAuthGateProps): React.ReactElement {
+  if (isNativeWordPressExport()) {
+    const allowedAttr = Array.isArray(allowed)
+      ? allowed.join(',')
+      : allowed || '';
+    if (allowedAttr) {
+      return React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('forgewp-capability-gate-start', {
+          allowed: allowedAttr,
+        }),
+        children ?? null,
+        fallback
+          ? React.createElement(
+              React.Fragment,
+              null,
+              React.createElement('forgewp-capability-gate-else'),
+              fallback,
+            )
+          : null,
+        React.createElement('forgewp-capability-gate-end'),
+      );
+    }
+    return React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('forgewp-auth-gate-start'),
+      children ?? null,
+      fallback
+        ? React.createElement(
+            React.Fragment,
+            null,
+            React.createElement('forgewp-auth-gate-else'),
+            fallback,
+          )
+        : null,
+      React.createElement('forgewp-auth-gate-end'),
+    );
+  }
+  return React.createElement(React.Fragment, null, children ?? null);
 }
