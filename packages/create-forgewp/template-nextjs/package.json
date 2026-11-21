@@ -7,9 +7,9 @@
     "node": "^22.18.0 || >=24.11.0"
   },
   "scripts": {
-    "dev": "next dev --webpack",
-    "dev:decoupled": "FORGEWP_DEPLOYMENT_MODE=decoupled next dev --webpack",
-    "build": "next build --webpack",
+    "dev": "next dev",
+    "dev:decoupled": "FORGEWP_DEPLOYMENT_MODE=decoupled next dev",
+    "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "export": "forgewp export",
