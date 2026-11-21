@@ -61,17 +61,19 @@ function astToValue(node) {
 }
 
 /**
- * Loads mock content from cms/mock-data.ts or cms/mock-data.json.
+ * Loads mock content from cms/mock-data.{ts,mjs,js} or cms/mock-data.json.
  * @param {string} themeRoot
  * @returns {Record<string, Array<any>>}
  */
 export function loadMockData(themeRoot) {
-  const tsPath = path.join(themeRoot, 'cms', 'mock-data.ts');
+  const scriptPath = ['.ts', '.mjs', '.js']
+    .map((ext) => path.join(themeRoot, 'cms', `mock-data${ext}`))
+    .find((p) => fs.existsSync(p));
   const jsonPath = path.join(themeRoot, 'cms', 'mock-data.json');
 
-  if (fs.existsSync(tsPath)) {
+  if (scriptPath) {
     try {
-      const code = fs.readFileSync(tsPath, 'utf8');
+      const code = fs.readFileSync(scriptPath, 'utf8');
       const ast = parseSource(code);
       let extracted = null;
 

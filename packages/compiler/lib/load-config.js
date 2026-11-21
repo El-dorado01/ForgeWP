@@ -8,17 +8,21 @@ import { scanForFormSchemas } from './hydration/form-schemas.js';
 import { validateMockSeedStrategy } from './functions/seed-mock-data.js';
 import { resolveThemeCompatibility } from './theme-compatibility.js';
 import { validateCptRewrite } from './functions/cpt-routing.js';
+import { findWpConfigPath } from './project-language.js';
 
 /**
  * @param {string} themeRoot
  * @returns {Promise<import('./types.js').ForgeWPThemeConfig>}
  */
 export async function loadConfig(themeRoot) {
-  const configPath = path.join(themeRoot, 'wp.config.ts');
+  const foundConfig = findWpConfigPath(themeRoot);
 
-  if (!existsSync(configPath)) {
-    throw new Error(`Missing wp.config.ts in ${themeRoot}`);
+  if (!foundConfig) {
+    throw new Error(
+      `Missing wp.config.ts (or wp.config.js / wp.config.mjs) in ${themeRoot}`,
+    );
   }
+  const configPath = foundConfig.path;
 
   const jiti = createJiti(pathToFileURL(configPath).href, {
     interopDefault: true,

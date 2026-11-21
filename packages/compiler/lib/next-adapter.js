@@ -17,6 +17,7 @@ import {
 } from './next-islands.js';
 import { discoverNextDynamicHierarchy } from './next-dynamic-routes.js';
 import { loadConfig } from './load-config.js';
+import { getProjectExtensions } from './project-language.js';
 
 const NEXT_CONFIG_CANDIDATES = [
   'next.config.ts',
@@ -410,7 +411,7 @@ function toKebabCase(name) {
 
 /**
  * Scaffold a Next.js-compatible Gutenberg block (`'use client'` + `defineBlock` + `WpEditable`)
- * in `src/blocks/<Name>.tsx`.
+ * in `src/blocks/<Name>.{tsx,jsx}`.
  */
 export async function onMakeBlock(
   themeRoot,
@@ -418,11 +419,12 @@ export async function onMakeBlock(
 ) {
   const { mkdirSync, writeFileSync } = await import('node:fs');
   const resolvedRoot = path.resolve(themeRoot);
+  const { isJs, jsxExt } = getProjectExtensions(resolvedRoot);
   const blocksDir = path.join(resolvedRoot, 'src', 'blocks');
   mkdirSync(blocksDir, { recursive: true });
 
   const slug = toKebabCase(pascalCase);
-  const filePath = path.join(blocksDir, `${pascalCase}.tsx`);
+  const filePath = path.join(blocksDir, `${pascalCase}${jsxExt}`);
   if (existsSync(filePath)) {
     throw new Error(`Block already exists at ${path.relative(resolvedRoot, filePath)}.`);
   }
@@ -430,7 +432,7 @@ export async function onMakeBlock(
   const attrEntries = attributesList
     .map(
       (attr) =>
-        `    ${attr}: { type: 'string' as const, default: ${JSON.stringify(`Default ${attr}`)} },`,
+        `    ${attr}: { type: ${isJs ? "'string'" : "'string' as const"}, default: ${JSON.stringify(`Default ${attr}`)} },`,
     )
     .join('\n');
 
@@ -483,27 +485,30 @@ export default ${pascalCase};
 }
 
 /**
- * Scaffold a Next.js App Router fixed page (`src/app/<slug>/page.tsx` or `app/<slug>/page.tsx`)
+ * Scaffold a Next.js App Router fixed page (`src/app/<slug>/page.{tsx,jsx}` or `app/<slug>/page.{tsx,jsx}`)
  * wired to `@forgewp/react/server` (`BlockArea`) and `getPageContent`.
  */
 export async function onMakePage(themeRoot, { pascalCase, pc }) {
   const { mkdirSync, writeFileSync } = await import('node:fs');
   const resolvedRoot = path.resolve(themeRoot);
+  const { jsxExt } = getProjectExtensions(resolvedRoot);
   const appDir = resolveAppDir(resolvedRoot) || {
     abs: path.join(resolvedRoot, 'src', 'app'),
     rel: 'src/app',
   };
   const slug = toKebabCase(pascalCase);
   const pageDir = path.join(appDir.abs, slug);
-  const pageFile = path.join(pageDir, 'page.tsx');
+  const pageFile = path.join(pageDir, `page${jsxExt}`);
   if (existsSync(pageFile)) {
     throw new Error(`Page already exists at ${path.relative(resolvedRoot, pageFile)}.`);
   }
 
   mkdirSync(pageDir, { recursive: true });
-  const hasContentHelper =
-    existsSync(path.join(resolvedRoot, 'src', 'lib', 'content.ts')) ||
-    existsSync(path.join(resolvedRoot, 'lib', 'content.ts'));
+  const hasContentHelper = ['.ts', '.js', '.mjs'].some(
+    (ext) =>
+      existsSync(path.join(resolvedRoot, 'src', 'lib', `content${ext}`)) ||
+      existsSync(path.join(resolvedRoot, 'lib', `content${ext}`)),
+  );
 
   const source = hasContentHelper
     ? `import Link from 'next/link';
@@ -548,21 +553,41 @@ export default function ${pascalCase}Page() {
 }
 
 /**
- * Scaffold a Next.js `'use client'` hydration island component in `src/components/<Name>.tsx`.
+ * Scaffold a Next.js `'use client'` hydration island component in `src/components/<Name>.{tsx,jsx}`.
  */
 export async function onMakeIsland(themeRoot, { pascalCase, pc }) {
   const { mkdirSync, writeFileSync } = await import('node:fs');
   const resolvedRoot = path.resolve(themeRoot);
+  const { isJs, jsxExt } = getProjectExtensions(resolvedRoot);
   const componentsDir = path.join(resolvedRoot, 'src', 'components');
   mkdirSync(componentsDir, { recursive: true });
 
   const slug = toKebabCase(pascalCase);
-  const filePath = path.join(componentsDir, `${pascalCase}.tsx`);
+  const filePath = path.join(componentsDir, `${pascalCase}${jsxExt}`);
   if (existsSync(filePath)) {
     throw new Error(`Island already exists at ${path.relative(resolvedRoot, filePath)}.`);
   }
 
-  const source = `'use client';
+  const source = isJs
+    ? `'use client';
+
+import { useState } from 'react';
+
+export function ${pascalCase}({ initialCount = 0 }) {
+  const [count, setCount] = useState(initialCount);
+
+  return (
+    <div className="forgewp-island-${slug}">
+      <button type="button" onClick={() => setCount((c) => c + 1)}>
+        ${pascalCase} count: {count}
+      </button>
+    </div>
+  );
+}
+
+export default ${pascalCase};
+`
+    : `'use client';
 
 import { useState } from 'react';
 
@@ -596,5 +621,283 @@ export default ${pascalCase};
           `     <Hydrate id="${slug}"><${pascalCase} /></Hydrate>`,
       ),
     );
+  }
+}
+
+/**
+ * Scaffold a Native Form (`cms/forms/<slug>.{ts,js}`) and a Next.js `'use client'`
+ * form island component in `src/components/<Name>Form.{tsx,jsx}`.
+ */
+export async function onMakeForm(
+  themeRoot,
+  { slug, pascalCase, fields = ['name', 'email', 'message'], mailTo = 'admin', pc },
+) {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const resolvedRoot = path.resolve(themeRoot);
+  const { isJs, scriptExt, jsxExt } = getProjectExtensions(resolvedRoot);
+
+  const formsDir = path.join(resolvedRoot, 'cms', 'forms');
+  const componentsDir = path.join(resolvedRoot, 'src', 'components');
+  mkdirSync(formsDir, { recursive: true });
+  mkdirSync(componentsDir, { recursive: true });
+
+  const schemaPath = path.join(formsDir, `${slug}${scriptExt}`);
+  const componentName = pascalCase.endsWith('Form') ? pascalCase : `${pascalCase}Form`;
+  const componentPath = path.join(componentsDir, `${componentName}${jsxExt}`);
+
+  if (existsSync(schemaPath)) {
+    throw new Error(`Form schema already exists at ${path.relative(resolvedRoot, schemaPath)}.`);
+  }
+  if (existsSync(componentPath)) {
+    throw new Error(`Form component already exists at ${path.relative(resolvedRoot, componentPath)}.`);
+  }
+
+  const normalizedFields = fields.map((f) => {
+    if (typeof f === 'string') {
+      return {
+        name: f,
+        type: f === 'email' ? 'email' : f === 'message' ? 'textarea' : 'text',
+        required: true,
+      };
+    }
+    return {
+      name: f.name,
+      type: f.type || 'text',
+      required: f.required !== false,
+    };
+  });
+
+  const fieldDefs = normalizedFields
+    .map((f) => {
+      const label = f.name.charAt(0).toUpperCase() + f.name.slice(1);
+      return `    ${f.name}: { type: '${f.type}', label: '${label}', required: ${f.required} },`;
+    })
+    .join('\n');
+
+  const schemaCode = `import { defineWpForm } from '@forgewp/react/config';
+
+export const form = defineWpForm({
+  mailTo: ${JSON.stringify(mailTo)},
+  subject: ${JSON.stringify(`New ${pascalCase} submission`)},
+  fields: {
+${fieldDefs}
+  },
+});
+
+export default form;
+`;
+
+  const inputsJsx = normalizedFields
+    .map((f) => {
+      const label = f.name.charAt(0).toUpperCase() + f.name.slice(1);
+      const req = f.required ? ' required' : '';
+      if (f.type === 'textarea') {
+        return `      <label>\n        ${label}\n        <textarea name="${f.name}"${req} rows={4} />\n      </label>`;
+      }
+      const inputType = f.type === 'email' ? 'email' : 'text';
+      return `      <label>\n        ${label}\n        <input type="${inputType}" name="${f.name}"${req} />\n      </label>`;
+    })
+    .join('\n');
+
+  const componentCode = isJs
+    ? `'use client';
+
+import { useState } from 'react';
+import { submitWpForm } from '@forgewp/react';
+
+export function ${componentName}() {
+  const [status, setStatus] = useState('idle');
+  const [error, setError] = useState('');
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setStatus('submitting');
+    setError('');
+    const data = Object.fromEntries(new FormData(event.currentTarget));
+    const res = await submitWpForm(${JSON.stringify(slug)}, data);
+    if (res.ok) {
+      setStatus('sent');
+      event.currentTarget.reset();
+    } else {
+      setStatus('error');
+      setError(res.message || 'Submission failed.');
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="forgewp-form-${slug}">
+${inputsJsx}
+      <button type="submit" disabled={status === 'submitting'}>
+        {status === 'submitting' ? 'Sending...' : 'Send'}
+      </button>
+      {status === 'sent' && <p>Thank you! Your submission was received.</p>}
+      {error && <p role="alert">{error}</p>}
+    </form>
+  );
+}
+
+export default ${componentName};
+`
+    : `'use client';
+
+import { useState, type FormEvent } from 'react';
+import { submitWpForm } from '@forgewp/react';
+
+export function ${componentName}() {
+  const [status, setStatus] = useState<'idle' | 'submitting' | 'sent' | 'error'>('idle');
+  const [error, setError] = useState('');
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setStatus('submitting');
+    setError('');
+    const formEl = event.currentTarget;
+    const data = Object.fromEntries(new FormData(formEl)) as Record<string, string>;
+    const res = await submitWpForm(${JSON.stringify(slug)}, data);
+    if (res.ok) {
+      setStatus('sent');
+      formEl.reset();
+    } else {
+      setStatus('error');
+      setError(res.message || 'Submission failed.');
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="forgewp-form-${slug}">
+${inputsJsx}
+      <button type="submit" disabled={status === 'submitting'}>
+        {status === 'submitting' ? 'Sending...' : 'Send'}
+      </button>
+      {status === 'sent' && <p>Thank you! Your submission was received.</p>}
+      {error && <p role="alert">{error}</p>}
+    </form>
+  );
+}
+
+export default ${componentName};
+`;
+
+  writeFileSync(schemaPath, schemaCode, 'utf8');
+  writeFileSync(componentPath, componentCode, 'utf8');
+  if (pc) {
+    console.log(pc.green(`\n✅ Created Next.js Native Form:`));
+    console.log(pc.dim(`   Schema:    ${path.relative(resolvedRoot, schemaPath)}`));
+    console.log(pc.dim(`   Component: ${path.relative(resolvedRoot, componentPath)}`));
+  }
+}
+
+/**
+ * Scaffold a Next.js Server Component loop (`src/components/<Name>.{tsx,jsx}`)
+ * backed by `wpClient.getPosts(postType)` and `<WpServerLoop />`.
+ */
+export async function onMakeLoop(
+  themeRoot,
+  { pascalCase, postType = 'post', pc },
+) {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const resolvedRoot = path.resolve(themeRoot);
+  const { isJs, jsxExt } = getProjectExtensions(resolvedRoot);
+  const componentsDir = path.join(resolvedRoot, 'src', 'components');
+  mkdirSync(componentsDir, { recursive: true });
+
+  const filePath = path.join(componentsDir, `${pascalCase}${jsxExt}`);
+  if (existsSync(filePath)) {
+    throw new Error(`Loop component already exists at ${path.relative(resolvedRoot, filePath)}.`);
+  }
+
+  const propsSig = isJs
+    ? '{ postsPerPage = 6 }'
+    : '{ postsPerPage = 6 }: { postsPerPage?: number }';
+
+  const source = `import { WpServerLoop } from '@forgewp/react/server';
+import { wpClient } from '@/lib/content';
+
+export async function ${pascalCase}(${propsSig}) {
+  const posts = await wpClient.getPosts(${JSON.stringify(postType)}, { perPage: postsPerPage });
+
+  return (
+    <section className="forgewp-loop-${toKebabCase(postType)}">
+      <WpServerLoop
+        postType=${JSON.stringify(postType)}
+        useMainQuery={false}
+        postsPerPage={postsPerPage}
+        posts={posts}
+        renderItem={(post) => (
+          <article key={post.id}>
+            <h3>
+              <a href={post.permalink}>{post.title}</a>
+            </h3>
+            {post.excerpt ? <p>{post.excerpt}</p> : null}
+          </article>
+        )}
+      />
+    </section>
+  );
+}
+
+export default ${pascalCase};
+`;
+
+  writeFileSync(filePath, source, 'utf8');
+  if (pc) {
+    console.log(pc.green(`\n✅ Created Next.js server loop component: ${path.relative(resolvedRoot, filePath)}`));
+    console.log(pc.dim(`   Post type: ${postType} — compiles to WP_Query in native export and fetches REST in decoupled mode.`));
+  }
+}
+
+/**
+ * Scaffold a Next.js-compatible Gutenberg InnerBlocks parent shell block
+ * in `src/blocks/<Name>.{tsx,jsx}`.
+ */
+export async function onMakeShell(
+  themeRoot,
+  { pascalCase, nameSlug, readableTitle, shell = {}, innerBlocks = {}, pc },
+) {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const resolvedRoot = path.resolve(themeRoot);
+  const { isJs, jsxExt } = getProjectExtensions(resolvedRoot);
+  const blocksDir = path.join(resolvedRoot, 'src', 'blocks');
+  mkdirSync(blocksDir, { recursive: true });
+
+  const slug = nameSlug || toKebabCase(pascalCase);
+  const filePath = path.join(blocksDir, `${pascalCase}${jsxExt}`);
+  if (existsSync(filePath)) {
+    throw new Error(`Shell block already exists at ${path.relative(resolvedRoot, filePath)}.`);
+  }
+
+  const className = shell.className || `forgewp-shell-${slug}`;
+  const gridClassName = shell.gridClassName || 'grid gap-8 md:grid-cols-2';
+  const propsSig = isJs ? '{ children }' : '{ children }: { children?: React.ReactNode }';
+  const reactImport = isJs ? '' : `import type React from 'react';\n`;
+
+  const source = `'use client';
+
+${reactImport}import { defineBlock } from '@forgewp/react';
+
+export const ${pascalCase} = defineBlock({
+  name: ${JSON.stringify(slug)},
+  title: ${JSON.stringify(readableTitle || pascalCase)},
+  category: 'design',
+  innerBlocks: ${JSON.stringify(innerBlocks, null, 2).replace(/\n/g, '\n  ')},
+  edit: () => (
+    <section className=${JSON.stringify(className)}>
+      <div className=${JSON.stringify(gridClassName)} />
+    </section>
+  ),
+  save: (${propsSig}) => (
+    <section className=${JSON.stringify(className)}>
+      <div className=${JSON.stringify(gridClassName)}>{children}</div>
+    </section>
+  ),
+});
+
+export default ${pascalCase};
+`;
+
+  writeFileSync(filePath, source, 'utf8');
+  if (pc) {
+    console.log(pc.green(`\n✅ Created Next.js InnerBlocks shell: ${path.relative(resolvedRoot, filePath)}`));
+    console.log(pc.dim(`   Shell slug: forgewp/${slug}`));
   }
 }

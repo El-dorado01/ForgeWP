@@ -432,8 +432,11 @@ export function compileBlocks(themeRoot, outDir, options = {}) {
       let blockSlug = '';
 
       if (statSync(entryPath).isDirectory()) {
-        const indexPath = path.join(entryPath, 'index.tsx');
-        if (existsSync(indexPath)) {
+        const indexPath = [
+          path.join(entryPath, 'index.tsx'),
+          path.join(entryPath, 'index.jsx'),
+        ].find((p) => existsSync(p));
+        if (indexPath) {
           blockFile = indexPath;
           blockSlug = entry
             .replace(/([a-z0-9])([A-Z])/g, '$1-$2')

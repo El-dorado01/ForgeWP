@@ -18,6 +18,7 @@ import {
   resolveIslandChunk,
   scanAppProviders,
 } from './hydration/index.js';
+import { writeScaffoldFile } from './project-language.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -1107,7 +1108,7 @@ ${attributesRegistry}
 });
 `;
 
-  writeFileSync(targetFile, blockTemplate, 'utf8');
+  writeScaffoldFile(themeRoot, targetFile, blockTemplate);
 
   console.log(
     pc.green(`\n⚡ Modern Block "${pascalCase}" successfully created!`),
@@ -1238,7 +1239,7 @@ export default defineBlock({
 });
 `;
 
-  writeFileSync(targetFile, shellTemplate, 'utf8');
+  writeScaffoldFile(themeRoot, targetFile, shellTemplate);
 
   console.log(log.green(`\n⚡ Parent shell "${pascalCase}" created!`));
   console.log(`   Location: ${log.cyan(`src/blocks/${pascalCase}.tsx`)}`);
@@ -1350,7 +1351,7 @@ export default function ${pascalCase}() {
 }
 `;
 
-  writeFileSync(targetFile, loopTemplate, 'utf8');
+  writeScaffoldFile(themeRoot, targetFile, loopTemplate);
 
   if (automaticallySeeded) {
     console.log(
@@ -1426,7 +1427,7 @@ export default function ${pascalCase}(_props: ${pascalCase}Props) {
 }
 `;
 
-  writeFileSync(targetFile, islandTemplate, 'utf8');
+  writeScaffoldFile(themeRoot, targetFile, islandTemplate);
 
   console.log(
     pc.green(
@@ -1504,7 +1505,7 @@ export function ${pascalCase}() {
 }
 `;
 
-  writeFileSync(targetFile, pageTemplate, 'utf8');
+  writeScaffoldFile(themeRoot, targetFile, pageTemplate);
 
   console.log(
     pc.green(`\n⚡ Custom Page Template "${pascalCase}" successfully created!`),
@@ -1590,7 +1591,7 @@ ${fieldsConfigPhp}
 });
 `;
 
-  writeFileSync(formConfigFile, formConfigTemplate, 'utf8');
+  writeScaffoldFile(themeRoot, formConfigFile, formConfigTemplate);
 
   // ── src/components/forms/{Name}Form.tsx ─────────────────────────────
   const inputClassName =
@@ -1700,7 +1701,7 @@ ${fieldMarkup}
 }
 `;
 
-  writeFileSync(componentFile, componentTemplate, 'utf8');
+  writeScaffoldFile(themeRoot, componentFile, componentTemplate);
 
   console.log(pc.green(`\n⚡ Form "${slug}" successfully created!`));
   console.log(`   Config:    ${pc.cyan(`cms/forms/${slug}.ts`)}`);

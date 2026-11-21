@@ -2,6 +2,7 @@ import { existsSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import pc from "picocolors";
 import { getSystemBlueprints, SYSTEM_BLUEPRINTS } from "./blueprints.js";
+import { findWpConfigPath } from "./project-language.js";
 
 const DEFAULT_CRITICAL_FILES = [
   { relativePath: "wp.config.ts", name: "Theme configuration file" },
@@ -32,6 +33,30 @@ function normalizeCriticalFileEntry(entry) {
   return null;
 }
 
+function criticalFileExists(themeRoot, relativePath) {
+  if (relativePath === "wp.config.ts") {
+    return Boolean(findWpConfigPath(themeRoot));
+  }
+  const fullPath = path.join(themeRoot, relativePath);
+  if (existsSync(fullPath)) return true;
+  if (relativePath.endsWith(".tsx")) {
+    const base = relativePath.slice(0, -4);
+    return (
+      existsSync(path.join(themeRoot, `${base}.jsx`)) ||
+      existsSync(path.join(themeRoot, `${base}.js`))
+    );
+  }
+  if (relativePath.endsWith(".ts")) {
+    const base = relativePath.slice(0, -3);
+    return (
+      existsSync(path.join(themeRoot, `${base}.mjs`)) ||
+      existsSync(path.join(themeRoot, `${base}.js`)) ||
+      existsSync(path.join(themeRoot, `${base}.cjs`))
+    );
+  }
+  return false;
+}
+
 /**
  * Preflight Check & Self-Healing Validator
  *
@@ -59,8 +84,7 @@ export function validateCriticalFiles(themeRoot, options = {}) {
 
   // 1. Validate User-Editable Files (throw clear, actionable errors)
   for (const file of requiredFiles) {
-    const fullPath = path.join(themeRoot, file.relativePath);
-    if (!existsSync(fullPath)) {
+    if (!criticalFileExists(themeRoot, file.relativePath)) {
       throw new Error(
         `Critical project file is missing: ${pc.bold(file.relativePath)}\n` +
         `  Description: ${file.name}\n\n` +

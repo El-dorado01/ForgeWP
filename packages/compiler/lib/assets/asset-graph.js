@@ -279,12 +279,19 @@ export function scanAssetGraph(themeRoot, options = {}) {
     }
 
     try {
+      const scriptKind = file.endsWith('.tsx')
+        ? ts.ScriptKind.TSX
+        : file.endsWith('.jsx')
+          ? ts.ScriptKind.JSX
+          : file.endsWith('.js') || file.endsWith('.mjs')
+            ? ts.ScriptKind.JS
+            : ts.ScriptKind.TS;
       const sourceFile = ts.createSourceFile(
         file,
         content,
         ts.ScriptTarget.Latest,
         true,
-        file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+        scriptKind,
       );
       scanAst(sourceFile, relFile, themeRoot, graph, ts);
     } catch {

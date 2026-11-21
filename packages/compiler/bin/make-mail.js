@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { findWpConfigPath } from '../lib/project-language.js';
 
 const args = process.argv.slice(2);
 if (args.includes('--help') || args.includes('-h')) {
@@ -10,8 +11,8 @@ if (args.includes('--help') || args.includes('-h')) {
   if (!name || !/^[a-z][a-z0-9-]*$/.test(name) || args.length !== 1) {
     console.error('Use a lowercase template name, e.g. forgewp make:mail contact-receipt');
     process.exitCode = 1;
-  } else if (!fs.existsSync(path.resolve('wp.config.ts'))) {
-    console.error('Run make:mail from a theme containing wp.config.ts.');
+  } else if (!findWpConfigPath(process.cwd())) {
+    console.error('Run make:mail from a theme containing wp.config.ts or wp.config.js.');
     process.exitCode = 1;
   } else {
     const file = path.resolve('cms/mail', `${name}.json`);

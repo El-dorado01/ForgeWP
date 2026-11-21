@@ -57,19 +57,21 @@ function isMenuMap(value) {
 }
 
 /**
- * Loads navigation menus from cms/menus.ts (preferred) or cms/menus.json.
+ * Loads navigation menus from cms/menus.{ts,mjs,js} (preferred) or cms/menus.json.
  * Matches the dual-resolution used for products/mock-data.
  *
  * @param {string} themeRoot
  * @returns {Record<string, Array<any>>}
  */
 export function loadMenusData(themeRoot) {
-  const tsPath = path.join(themeRoot, 'cms', 'menus.ts');
+  const scriptPath = ['.ts', '.mjs', '.js']
+    .map((ext) => path.join(themeRoot, 'cms', `menus${ext}`))
+    .find((p) => fs.existsSync(p));
   const jsonPath = path.join(themeRoot, 'cms', 'menus.json');
 
-  if (fs.existsSync(tsPath)) {
+  if (scriptPath) {
     try {
-      const code = fs.readFileSync(tsPath, 'utf8');
+      const code = fs.readFileSync(scriptPath, 'utf8');
       const ast = parseSource(code);
       let extracted = null;
 
