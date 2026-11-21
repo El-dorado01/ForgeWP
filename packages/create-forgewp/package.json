@@ -1,6 +1,6 @@
 {
   "name": "create-forgewp",
-  "version": "0.4.5",
+  "version": "0.5.0",
   "description": "Scaffold a ForgeWP React + Tailwind WordPress theme project",
   "type": "module",
   "license": "MIT",
