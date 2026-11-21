@@ -8,6 +8,7 @@ import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
 import { diagnoseNextNativeCompatibility } from "../lib/next-adapter.js";
+import { findWpConfigPath } from "../lib/project-language.js";
 import { scanForHydrationIslands, runStaticLintChecks } from "../lib/hydration/index.js";
 import { analyzeHydrationIslands, printDiagnosticsReport } from "../lib/diagnostics.js";
 
@@ -65,22 +66,38 @@ runCheck("User Configuration & HTML Layout", () => {
       ? Array.from(new Set(adapter.getCriticalFiles(projectRoot)))
       : ["wp.config.ts", "package.json", "index.html"];
   for (const f of critical) {
-    if (!existsSync(path.join(projectRoot, f))) {
+    if (f === "wp.config.ts") {
+      if (!findWpConfigPath(projectRoot)) {
+        throw new Error(`Critical file "wp.config.ts" (or "wp.config.js") is missing from project root!`);
+      }
+      continue;
+    }
+    const existsExact = existsSync(path.join(projectRoot, f));
+    const existsJsAlt =
+      (f.endsWith(".tsx") &&
+        (existsSync(path.join(projectRoot, f.replace(/\.tsx$/, ".jsx"))) ||
+          existsSync(path.join(projectRoot, f.replace(/\.tsx$/, ".js"))))) ||
+      (f.endsWith(".ts") &&
+        (existsSync(path.join(projectRoot, f.replace(/\.ts$/, ".mjs"))) ||
+          existsSync(path.join(projectRoot, f.replace(/\.ts$/, ".js")))));
+    if (!existsExact && !existsJsAlt) {
       throw new Error(`Critical file "${f}" is missing from project root!`);
     }
   }
   if (configLoadError) {
-    throw new Error(`Failed to load wp.config.ts configuration:\n        👉 ${configLoadError.message}`);
+    throw new Error(`Failed to load wp.config configuration:\n        👉 ${configLoadError.message}`);
   }
   return null;
 });
 
 // 3. Database Check
 runCheck("Mock Database Schema Integration", () => {
-  const dbTsPath = path.join(projectRoot, "cms", "mock-data.ts");
+  const dbScriptPath = [".ts", ".mjs", ".js"]
+    .map((ext) => path.join(projectRoot, "cms", `mock-data${ext}`))
+    .find((p) => existsSync(p));
   const dbJsonPath = path.join(projectRoot, "cms", "mock-data.json");
-  if (!existsSync(dbTsPath) && !existsSync(dbJsonPath)) {
-    throw new Error(`Database "cms/mock-data.ts" or "cms/mock-data.json" was not found!`);
+  if (!dbScriptPath && !existsSync(dbJsonPath)) {
+    throw new Error(`Database "cms/mock-data.ts" (or ".js" / ".json") was not found!`);
   }
   if (existsSync(dbJsonPath)) {
     try {
@@ -101,8 +118,10 @@ runCheck("System Internal Framework Libraries", () => {
   const missing = [];
   for (const sf of systemFiles) {
     if (sf.startsWith("cms/") && sf.endsWith(".json")) {
-      const tsVariant = sf.replace(/\.json$/, ".ts");
-      if (existsSync(path.join(projectRoot, tsVariant))) {
+      const hasScriptVariant = [".ts", ".mjs", ".js"].some((ext) =>
+        existsSync(path.join(projectRoot, sf.replace(/\.json$/, ext))),
+      );
+      if (hasScriptVariant) {
         continue;
       }
     }

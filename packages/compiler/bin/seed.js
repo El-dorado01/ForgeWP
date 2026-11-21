@@ -6,6 +6,7 @@ import pc from 'picocolors';
 import { loadProductsData } from '../lib/functions/seed-products.js';
 import { loadMockData, normalizeMockSeedData } from '../lib/functions/seed-mock-data.js';
 import { loadConfig } from '../lib/load-config.js';
+import { findWpConfigPath } from '../lib/project-language.js';
 
 const projectRoot = process.cwd();
 const args = process.argv.slice(2);
@@ -46,11 +47,12 @@ if (args.includes('--dry-run')) {
 
 console.log(`\n  ${pc.bold(pc.bgGreen(pc.black('  🌱 FORGEWP DATA SEEDER  ')))} ${pc.green('— WordPress & WooCommerce Synchronization')}\n`);
 
-const configPath = path.join(projectRoot, 'wp.config.ts');
-if (!fs.existsSync(configPath)) {
-  console.error(pc.red(`❌ Error: wp.config.ts not found at ${configPath}`));
+const foundConfig = findWpConfigPath(projectRoot);
+if (!foundConfig) {
+  console.error(pc.red(`❌ Error: wp.config.ts (or wp.config.js) not found in ${projectRoot}`));
   process.exit(1);
 }
+const configPath = foundConfig.path;
 
 // 1. Inspect Products
 let productsCount = 0;

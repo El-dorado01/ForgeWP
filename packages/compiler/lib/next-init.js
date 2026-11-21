@@ -262,7 +262,8 @@ export function initNextProject(projectRoot, options = {}) {
     addedScripts.push('doctor');
   }
   if (!pkg.scripts['dev:decoupled']) {
-    pkg.scripts['dev:decoupled'] = 'FORGEWP_DEPLOYMENT_MODE=decoupled next dev --webpack';
+    pkg.scripts['dev:decoupled'] =
+      `node -e "import('node:child_process').then(({spawn})=>spawn('next',['dev'],{stdio:'inherit',shell:true,env:{...process.env,FORGEWP_DEPLOYMENT_MODE:'decoupled'}}).on('exit',(c)=>process.exit(c??0)))"`;
     addedScripts.push('dev:decoupled');
   }
 
