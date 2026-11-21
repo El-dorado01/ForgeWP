@@ -41,13 +41,23 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
     path.join(staticDir, 'footer.html'),
   ];
 
+  const contentPath = path.join(staticDir, 'content.html');
+  const contentHtml = fs.existsSync(contentPath) ? fs.readFileSync(contentPath, 'utf8') : '';
+
   for (const p of staticFiles) {
     if (!fs.existsSync(p)) {
       summary.missing.push(p.replace(process.cwd() + path.sep, ''));
     } else if (fs.readFileSync(p, 'utf8').trim().length === 0) {
       const relative = p.replace(process.cwd() + path.sep, '');
-      if (p.endsWith('content.html')) summary.missing.push(relative);
-      else summary.warnings.push(relative);
+      if (p.endsWith('content.html')) {
+        summary.missing.push(relative);
+        continue;
+      }
+      // An empty header/footer is expected when the layout has no <header>/<footer>
+      // (e.g. a full-screen landing layout). Only warn when such an element still
+      // sits in the page content, which suggests it was not extracted.
+      const tag = p.endsWith('header.html') ? 'header' : 'footer';
+      if (new RegExp(`<${tag}\\b`, 'i').test(contentHtml)) summary.warnings.push(relative);
     }
   }
 
