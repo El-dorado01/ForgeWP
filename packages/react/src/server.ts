@@ -48,8 +48,30 @@ export type WpServerAuth =
   | { username: string; applicationPassword: string }
   | { bearerToken: string };
 
+export interface WpServerMenuItem {
+  id: number | string;
+  title: string;
+  url: string;
+  path: string;
+  target?: string;
+  classes?: string[];
+  children: WpServerMenuItem[];
+}
+
+export interface WpServerSiteInfo {
+  name: string;
+  description: string;
+  url: string;
+  homeUrl: string;
+  language: string;
+  logoUrl?: string;
+  mode: 'fixture' | 'decoupled' | 'native';
+}
+
 export interface WpServerClientOptions {
   fixtures?: Record<string, Array<Record<string, any>>>;
+  menus?: Record<string, Array<Record<string, any>>>;
+  siteInfo?: Partial<Omit<WpServerSiteInfo, 'mode'>>;
   siteOptions?: Record<string, string>;
   meta?: Record<string, string>;
   wpUrl?: string;
@@ -107,6 +129,8 @@ export interface WpServerClient {
     fallbackPath?: string,
     options?: { query?: string; fragment?: string },
   ): Promise<string>;
+  getMenu(location?: string): Promise<WpServerMenuItem[]>;
+  getSiteInfo(): Promise<WpServerSiteInfo>;
   getOption(key: string, defaultValue?: string): string;
   getField(key: string, defaultValue?: string): string;
 }
@@ -556,6 +580,116 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       return posts.map((p) => ({ [paramName]: p.slug }));
     },
 
+    async getMenu(location = 'primary') {
+      const cleanLoc = String(location || 'primary').trim() || 'primary';
+      const normalizeMenuItems = (raw: any, prefix = cleanLoc): WpServerMenuItem[] => {
+        if (!Array.isArray(raw)) return [];
+        return raw.map((item, idx) => {
+          const rawUrl = String(item?.url || item?.path || '/');
+          const relPath =
+            typeof item?.path === 'string' && item.path
+              ? item.path
+              : rawUrl.startsWith('/')
+                ? rawUrl
+                : stripBasePath(
+                    rawUrl,
+                    resolveWpBase() || { origin: 'http://localhost', basePath: '' },
+                  );
+          const classes = Array.isArray(item?.classes)
+            ? item.classes.map(String).filter(Boolean)
+            : typeof item?.classes === 'string' && item.classes.trim()
+              ? item.classes.trim().split(/\s+/)
+              : [];
+          return {
+            id: item?.id ?? `${prefix}-${idx + 1}`,
+            title: String(item?.title || ''),
+            url: rawUrl,
+            path: relPath || '/',
+            ...(item?.target ? { target: String(item.target) } : {}),
+            ...(classes.length > 0 ? { classes } : {}),
+            children: normalizeMenuItems(item?.children, `${prefix}-${idx + 1}`),
+          };
+        });
+      };
+
+      const menusFixture = options.menus || {};
+      const localItems = normalizeMenuItems(menusFixture[cleanLoc]);
+
+      if (isNativeWordPressExport()) {
+        return localItems;
+      }
+
+      const base = resolveWpBase();
+      if (base) {
+        try {
+          const data = await wpFetchJson(
+            base,
+            `/wp-json/forgewp/v1/menus/${encodeURIComponent(cleanLoc)}`,
+            false,
+          );
+          if (data && Array.isArray(data.items)) {
+            return normalizeMenuItems(data.items);
+          }
+        } catch {
+          // Fall back to local menus fixture if endpoint is unavailable
+        }
+      }
+
+      return localItems;
+    },
+
+    async getSiteInfo() {
+      const localInfo = options.siteInfo || {};
+      const fallbackName =
+        localInfo.name || siteOptions.blogname || 'ForgeWP Site';
+      const fallbackDesc =
+        localInfo.description || siteOptions.blogdescription || '';
+      const fallbackUrl = localInfo.homeUrl || localInfo.url || '/';
+      const fallbackLang = localInfo.language || 'en-US';
+
+      if (isNativeWordPressExport()) {
+        return {
+          name: '__FORGEWP_OPTION_blogname__',
+          description: '__FORGEWP_OPTION_blogdescription__',
+          url: '__FORGEWP_HOME_URL__',
+          homeUrl: '__FORGEWP_HOME_URL__',
+          language: fallbackLang,
+          ...(localInfo.logoUrl ? { logoUrl: localInfo.logoUrl } : {}),
+          mode: 'native',
+        };
+      }
+
+      const base = resolveWpBase();
+      if (base) {
+        try {
+          const data = await wpFetchJson(base, '/wp-json/forgewp/v1/site-info', false);
+          if (data && typeof data === 'object') {
+            return {
+              name: String(data.name || fallbackName),
+              description: String(data.description ?? fallbackDesc),
+              url: String(data.url || data.homeUrl || base),
+              homeUrl: String(data.homeUrl || data.url || base),
+              language: String(data.language || fallbackLang),
+              ...(data.logoUrl ? { logoUrl: String(data.logoUrl) } : {}),
+              mode: 'decoupled',
+            };
+          }
+        } catch {
+          // Fall back to local siteInfo fixture if endpoint is unavailable
+        }
+      }
+
+      return {
+        name: fallbackName,
+        description: fallbackDesc,
+        url: fallbackUrl,
+        homeUrl: fallbackUrl,
+        language: fallbackLang,
+        ...(localInfo.logoUrl ? { logoUrl: localInfo.logoUrl } : {}),
+        mode: 'fixture',
+      };
+    },
+
     getOption(key, defaultValue = '') {
       const safeKey = sanitizeTokenKey(key);
       if (isNativeWordPressExport()) {
@@ -576,6 +710,63 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         : defaultValue;
     },
   };
+}
+
+export interface WpServerMenuProps {
+  /** WordPress registered menu location slug (default: `'primary'`). */
+  location?: string;
+  /** Menu items rendered in local dev & decoupled mode (from `wpClient.getMenu()`). */
+  items?: WpServerMenuItem[];
+  /** CSS class applied to the `<nav>` wrapper. */
+  className?: string;
+  /** CSS class applied to each `<a>` link. */
+  linkClassName?: string;
+  /** Optional `aria-label` for the `<nav>` landmark. */
+  ariaLabel?: string;
+}
+
+/**
+ * Pure-TypeScript, Server-Component-safe WordPress navigation menu for Next.js App Router.
+ *
+ * - Local dev & decoupled mode: renders `<nav>` + `<a>` links from `items`.
+ * - Native WordPress export (`FORGEWP_NATIVE_EXPORT=1`): emits `<forgewp-menu ... />`
+ *   which `markup-processor.js` compiles to live `wp_get_nav_menu_items()` (with Polylang
+ *   language support).
+ */
+export function WpServerMenu({
+  location = 'primary',
+  items = [],
+  className = '',
+  linkClassName = '',
+  ariaLabel,
+}: WpServerMenuProps): React.ReactElement {
+  if (isNativeWordPressExport()) {
+    return React.createElement('forgewp-menu', {
+      location,
+      ...(className ? { class: className } : {}),
+      ...(linkClassName ? { linkClassName } : {}),
+    });
+  }
+
+  return React.createElement(
+    'nav',
+    {
+      ...(className ? { className } : {}),
+      ...(ariaLabel ? { 'aria-label': ariaLabel } : {}),
+    },
+    items.map((item, idx) =>
+      React.createElement(
+        'a',
+        {
+          key: String(item.id ?? idx),
+          href: item.url || item.path || '/',
+          ...(linkClassName ? { className: linkClassName } : {}),
+          ...(item.target ? { target: item.target } : {}),
+        },
+        item.title,
+      ),
+    ),
+  );
 }
 
 export interface WpServerLoopProps {

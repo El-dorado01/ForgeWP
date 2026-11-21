@@ -838,6 +838,10 @@ ${phpArgs}
     /__FORGEWP_THEME_URI__/g,
     '<?php echo esc_url( get_template_directory_uri() ); ?>',
   );
+  processed = processed.replace(
+    /__FORGEWP_HOME_URL__/g,
+    "<?php echo esc_url( home_url( '/' ) ); ?>",
+  );
 
   // ── WooCommerce Product Loop Blocks ──
   processed = processed.replace(
