@@ -1,15 +1,15 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnAsync } from './spawn-async.js';
 
 /**
  * @param {string} themeRoot
  * @param {{ packageManager?: string }} [options]
- * @returns {import('./types.js').ForgeWPBuildAssets}
+ * @returns {Promise<import('./types.js').ForgeWPBuildAssets>}
  */
-export function buildAssets(themeRoot, options = {}) {
+export async function buildAssets(themeRoot, options = {}) {
   const pm = options.packageManager ?? detectPackageManager();
-  const build = runPackageScript(themeRoot, pm, 'build', options);
+  const build = await runPackageScript(themeRoot, pm, 'build', options);
 
   if (build.status !== 0) {
     if (build.stdout) process.stdout.write(build.stdout);
@@ -36,28 +36,28 @@ function runPackageScript(cwd, pm, script, options = {}) {
 
   switch (pm) {
     case 'pnpm':
-      return spawnSync('pnpm', ['run', script], {
+      return spawnAsync('pnpm', ['run', script], {
         cwd,
         stdio,
         shell: process.platform === 'win32',
         env,
       });
     case 'yarn':
-      return spawnSync('yarn', ['run', script], {
+      return spawnAsync('yarn', ['run', script], {
         cwd,
         stdio,
         shell: process.platform === 'win32',
         env,
       });
     case 'bun':
-      return spawnSync('bun', ['run', script], {
+      return spawnAsync('bun', ['run', script], {
         cwd,
         stdio,
         shell: process.platform === 'win32',
         env,
       });
     default:
-      return spawnSync('npm', ['run', script], {
+      return spawnAsync('npm', ['run', script], {
         cwd,
         stdio,
         shell: process.platform === 'win32',

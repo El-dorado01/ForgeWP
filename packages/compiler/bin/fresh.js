@@ -4,12 +4,16 @@ import { rmSync, existsSync, writeFileSync, mkdirSync, readdirSync } from "node:
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import readline from "node:readline";
-import pc from "picocolors";
+import { createUi, formatDuration } from "../lib/terminal-ui.js";
+
 import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
 
-console.log(`\n🧹 ${pc.bold(pc.bgRed(pc.black("  FORGEWP FACTORY RESET (FRESH CANVAS)  ")))}\n`);
+const ui = createUi();
+const { c } = ui;
+
+console.log(ui.header("fresh", "reset to a clean starter"));
 
 const projectRoot = process.cwd();
 
@@ -20,7 +24,7 @@ async function runReset() {
     const config = await loadConfig(projectRoot);
     frameworkAdapter = config.frameworkAdapter || 'react';
   } catch (err) {
-    console.log(pc.yellow(`  ⚠️  Could not load wp.config.ts. Using default adapter: react`));
+    console.log(ui.warn("Could not load wp.config", "using the react adapter"));
   }
 
 // 1. Clean Build Caches & Artifacts
@@ -30,9 +34,9 @@ for (const folder of foldersToClean) {
   if (existsSync(target)) {
     try {
       rmSync(target, { recursive: true, force: true });
-      console.log(`  ${pc.green("✅ Cleared cache folder")}: ${pc.cyan(folder)}`);
+      console.log(ui.done("Cleared cache folder", folder));
     } catch (err) {
-      console.log(pc.red(`  ❌ Failed to clear ${folder}: ${err.message}`));
+      console.log(ui.error(`Failed to clear ${folder}`, err.message));
     }
   }
 }
@@ -50,9 +54,9 @@ for (const targetPrune of directoriesToPrune) {
   if (existsSync(fullPath)) {
     try {
       rmSync(fullPath, { recursive: true, force: true });
-      console.log(`  ${pc.green("✅ Removed folder")}: ${pc.cyan(targetPrune.label)}`);
+      console.log(ui.done("Removed folder", targetPrune.label));
     } catch (err) {
-      console.log(pc.red(`  ❌ Failed to remove ${targetPrune.label}: ${err.message}`));
+      console.log(ui.error(`Failed to remove ${targetPrune.label}`, err.message));
     }
   }
 }
@@ -62,7 +66,7 @@ const coreFilesToReset = ["cms/menus.json", "cms/mock-data.json", "cms/products.
 for (const relPath of coreFilesToReset) {
   const tsVariant = relPath.replace(/\.json$/, ".ts");
   if (existsSync(path.join(projectRoot, tsVariant))) {
-    console.log(`  ${pc.gray("ℹ️  Skipping JSON reset")} ${pc.cyan(relPath)} ${pc.gray(`(${tsVariant} is the active source)`)}`);
+    console.log(ui.info(`Kept ${relPath}`, `${tsVariant} is the active source`));
     continue;
   }
   const fullPath = path.join(projectRoot, relPath);
@@ -74,9 +78,9 @@ for (const relPath of coreFilesToReset) {
         mkdirSync(dirPath, { recursive: true });
       }
       writeFileSync(fullPath, blueprintContent, "utf8");
-      console.log(`  ${pc.green("✅ Reset database schema")}: ${pc.cyan(relPath)}`);
+      console.log(ui.done("Reset database schema", relPath));
     } catch (err) {
-      console.log(pc.red(`  ❌ Failed to reset ${relPath}: ${err.message}`));
+      console.log(ui.error(`Failed to reset ${relPath}`, err.message));
     }
   }
 }
@@ -88,10 +92,10 @@ try {
   if (typeof adapter.onFresh === "function") {
     await adapter.onFresh(projectRoot);
   } else {
-    console.log(`  ${pc.yellow("⚠️  No fresh canvas hook implemented for framework adapter:")} ${pc.cyan(frameworkAdapter)}`);
+    console.log(ui.warn(`The ${frameworkAdapter} adapter has no starter files to restore`));
   }
 } catch (err) {
-  console.log(pc.red(`  ❌ Failed to load framework adapter "${frameworkAdapter}": ${err.message}`));
+  console.log(ui.error(`Could not load the ${frameworkAdapter} adapter`, err.message));
 }
 
 // 6. Automatically Trigger Monorepo CLI Template Synchronization Silently
@@ -108,14 +112,9 @@ if (existsSync(monorepoSyncScript)) {
   }
 }
 
-console.log("\n" + "─".repeat(60));
-console.log(pc.green(`\n🎉 ${pc.bold("CANVAS RESET COMPLETE:")} Reverted workspace back to standard empty blueprints.`));
-console.log(pc.cyan(`   Your ForgeWP canvas is now factory-fresh, clean, and perfectly synced.`));
-console.log(`\n🚀 ${pc.bold("NEXT STEPS:")}`);
-console.log(`   1. Start the Vite Dev Server:    ${pc.cyan("pnpm dev")} or ${pc.cyan("npm run dev")}`);
-console.log(`   2. Add dynamic UI components:    ${pc.cyan("pnpm forgewp add fade-reveal")}`);
-console.log(`   3. Customize your entry page:    ${pc.cyan("src/app/page.tsx")}`);
-console.log(`   4. Compile to WordPress theme:  ${pc.cyan("pnpm export")} or ${pc.cyan("npm run export")}\n`);
+console.log("");
+console.log(`  ${c.green(ui.symbols.done)} ${c.bold("Reset to a clean starter")}`);
+console.log(`${ui.hint("Next", `${ui.command("pnpm dev")} ${c.dim("then edit")} ${ui.command("src/app/page.tsx")}`)}\n`);
 }
 
 function hasWorkBeenDone() {
@@ -144,7 +143,7 @@ const isForce = process.argv.includes("--force") || process.argv.includes("-f") 
 
 if (hasWorkBeenDone() && !isForce) {
   if (!process.stdin.isTTY) {
-    console.log(pc.red(`❌ Non-interactive environment detected. Please use the --force flag to reset active work.`));
+    console.log(ui.errorBlock("Your project has custom pages, blocks or components.", `fresh deletes them. To confirm without a prompt, run ${ui.command("pnpm forgewp fresh --force")}`));
     process.exit(1);
   }
 
@@ -153,14 +152,14 @@ if (hasWorkBeenDone() && !isForce) {
     output: process.stdout
   });
 
-  console.log(pc.yellow(`⚠️  ${pc.bold("WARNING:")} Existing custom pages, blocks, or components detected in your canvas!`));
-  console.log(pc.yellow(`   Continuing will permanently delete all custom work and reset back to factory default.`));
+  console.log(ui.warn("Your project has custom pages, blocks or components"));
+  console.log(ui.detail("Continuing permanently deletes them and resets the project to the starter."));
 
-  rl.question(`\n   Are you sure you want to proceed? (y/N): `, (answer) => {
+  rl.question(`\n  ${c.orange(ui.symbols.active)} Reset anyway? ${c.dim("(y/N)")} `, (answer) => {
     rl.close();
     const confirmed = answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes";
     if (!confirmed) {
-      console.log(pc.blue(`\n❌ Reset aborted. No changes were made.\n`));
+      console.log(`\n${ui.info("Cancelled. Nothing was changed.")}\n`);
       process.exit(0);
     }
     runReset();

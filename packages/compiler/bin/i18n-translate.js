@@ -2,14 +2,18 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import pc from 'picocolors';
+import { createUi } from '../lib/terminal-ui.js';
+
 import { loadConfig } from '../lib/load-config.js';
 import { findWpConfigPath } from '../lib/project-language.js';
 import { getProvider } from '../lib/i18n/providers.js';
 import { createTranslationCache, translateMissingEntries } from '../lib/i18n/translation-cache.js';
 import { loadTranslationsData, writeTranslationsData, translationsSourcePath } from '../lib/functions/load-translations.js';
 
-console.log(`\n🤖  ${pc.bold(pc.bgCyan(pc.black("  FORGEWP I18N AUTO-TRANSLATOR  ")))}\n`);
+const ui = createUi();
+const { c } = ui;
+
+console.log(ui.header("i18n:translate", "fill in missing translations"));
 
 const themeRoot = process.cwd();
 
@@ -19,7 +23,7 @@ async function run() {
     if (findWpConfigPath(themeRoot)) {
       config = await loadConfig(themeRoot);
     } else {
-      console.warn(pc.yellow(`⚠️  Could not load wp.config.ts (or wp.config.js), using fallback defaults.`));
+      console.warn(ui.warn("No wp.config found", "using default locales (en, de)"));
     }
 
     const i18n = config.i18n || {
@@ -39,8 +43,7 @@ async function run() {
 
     const translations = loadTranslationsData(themeRoot);
 
-    console.log(`  🔌 Active provider: ${pc.cyan(providerName)}`);
-    console.log(`  🌐 Default locale: ${pc.yellow(defaultLocale)}`);
+    console.log(ui.info(`Provider ${providerName}`, `default locale ${defaultLocale}`));
 
     const provider = getProvider(providerName, i18n.providerConfig || {});
     const cache = providerName === 'local' || providerName === 'manual' ? null :
@@ -59,14 +62,14 @@ async function run() {
       const untranslatedKeys = Object.keys(localeMap).filter(key => !localeMap[key]);
 
       if (untranslatedKeys.length === 0) {
-        console.log(`  ✅ Locale ${pc.yellow(locale.toUpperCase())} is fully translated.`);
+        console.log(ui.done(`${locale.toUpperCase()} is fully translated`));
         continue;
       }
 
-      console.log(`  ⏳ Translating ${pc.yellow(untranslatedKeys.length)} keys to ${pc.green(locale.toUpperCase())}...`);
+      console.log(ui.step(`${locale.toUpperCase()}: ${untranslatedKeys.length} missing key${untranslatedKeys.length === 1 ? '' : 's'}`));
 
       if (providerName === 'local' || providerName === 'manual') {
-        console.log(`  ⚠️  Manual/local mode: Initializing keys in ${pc.yellow(locale.toUpperCase())} as empty placeholders.`);
+        console.log(ui.detail(`Added empty entries for ${locale.toUpperCase()} to fill in by hand (local provider).`));
         for (const key of untranslatedKeys) {
           localeMap[key] = "";
         }
@@ -76,26 +79,24 @@ async function run() {
       const result = await translateMissingEntries(localeMap, defaultLocale, locale, provider, cache);
       const successCount = result.translated + result.restored;
       totalTranslated += result.translated;
-      if (result.restored) console.log(`  Restored ${result.restored} translation(s) from cache.`);
-      console.log(`  ✅ Translated ${pc.green(successCount)}/${pc.yellow(untranslatedKeys.length)} keys successfully.`);
+      console.log(ui.done(`${locale.toUpperCase()}: translated ${successCount} of ${untranslatedKeys.length}`, result.restored ? `${result.restored} from cache` : undefined));
     }
 
     const writtenPath = writeTranslationsData(themeRoot, translations);
 
-    console.log(`\n${pc.bold("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")}`);
-    console.log(`  ✨ ${pc.green("Translation execution completed successfully!")}`);
+    const catalog = path.relative(themeRoot, writtenPath).replaceAll('\\', '/');
+    console.log('');
     if (totalTranslated > 0) {
-      console.log(`  🎉 Total keys automated: ${pc.green(totalTranslated)}`);
+      console.log(`  ${c.green(ui.symbols.done)} ${c.bold(`Translated ${totalTranslated} key${totalTranslated === 1 ? '' : 's'}`)}  ${c.dim(catalog)}\n`);
     } else if (providerName === 'local' || providerName === 'manual') {
-      console.log(`  💡 Setup complete. Open ${pc.cyan(path.relative(themeRoot, writtenPath))} to write translations manually.`);
-      console.log(`     Or configure 'deepl' to auto-translate using environment variables.`);
+      console.log(`  ${c.green(ui.symbols.done)} ${c.bold('Catalog ready to translate')}  ${c.dim(catalog)}`);
+      console.log(`${ui.tip(`Fill in the empty entries by hand, or set ${ui.command("provider: 'deepl'")} in wp.config to translate automatically.`)}\n`);
     } else {
-      console.log(`  No new translations were returned. Review any remaining blank catalog entries.`);
+      console.log(`  ${c.yellow(ui.symbols.warn)} ${c.bold('No new translations returned')}  ${c.dim(`review blank entries in ${catalog}`)}\n`);
     }
-    console.log(`\n`);
 
   } catch (error) {
-    console.error(pc.red(`\n❌ Translation failed: ${error.message}\n`));
+    console.error(ui.errorBlock('Translation failed', error.message));
     process.exit(1);
   }
 }

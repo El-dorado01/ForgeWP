@@ -1,23 +1,23 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 
-const INSTALL_COMMANDS = {
-  npm: ["install"],
-  pnpm: ["install"],
-  yarn: ["install"],
-  bun: ["install"],
-};
-
+/**
+ * Install dependencies without flooding the terminal: output is captured and
+ * returned so the caller can show it only when the install fails.
+ * Async so a spinner can keep animating while the package manager runs.
+ * @returns {Promise<{ ok: boolean, output: string }>}
+ */
 export function installDependencies(targetDir, packageManager) {
-  const args = INSTALL_COMMANDS[packageManager] ?? INSTALL_COMMANDS.npm;
-
-  const result = spawnSync(packageManager, args, {
-    cwd: targetDir,
-    stdio: "inherit",
-    shell: process.platform === "win32",
-    env: process.env,
+  return new Promise((resolve) => {
+    let output = "";
+    const child = spawn(packageManager, ["install"], {
+      cwd: targetDir,
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: process.platform === "win32",
+      env: { ...process.env, FORCE_COLOR: "0" },
+    });
+    child.stdout.on("data", (chunk) => (output += chunk));
+    child.stderr.on("data", (chunk) => (output += chunk));
+    child.on("error", (error) => resolve({ ok: false, output: `${output}\n${error.message}` }));
+    child.on("close", (code) => resolve({ ok: code === 0, output }));
   });
-
-  if (result.status !== 0) {
-    throw new Error(`${packageManager} install failed`);
-  }
 }

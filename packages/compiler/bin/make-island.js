@@ -4,9 +4,13 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import pc from "picocolors";
+import { createUi } from '../lib/terminal-ui.js';
+
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
+
+const ui = createUi();
+const { c } = ui;
 
 const args = process.argv.slice(2);
 let rawIslandName = args.find(a => !a.startsWith("-"));
@@ -22,19 +26,18 @@ if (nameIndex !== -1 && args[nameIndex + 1]) {
   }
 }
 
-if (!rawIslandName) {
+// Only ask when someone is at the keyboard; otherwise fall through to the missing-name error.
+if (!rawIslandName && process.stdin.isTTY) {
   const rl = readline.createInterface({ input, output });
   try {
-    const answer = await rl.question(pc.cyan("? Enter an island name: "));
+    const answer = await rl.question(`  ${c.orange(ui.symbols.active)} Enter an island name: `);
     rawIslandName = answer.trim();
   } catch (err) {}
   rl.close();
 }
 
 if (!rawIslandName) {
-  console.error(pc.red("\n❌ Error: Please specify an island name."));
-  console.log(pc.cyan("   Example: pnpm forgewp make:island CounterIsland"));
-  console.log(pc.cyan("   Or:      pnpm forgewp make:island --name CounterIsland\n"));
+  console.error(ui.errorBlock("Missing island name.", `Example: ${ui.command("pnpm forgewp make:island CounterIsland")}`));
   process.exit(1);
 }
 
@@ -45,14 +48,14 @@ const pascalCase = cleanName
   .replace(/[^a-zA-Z0-9]/g, "");
 
 if (!pascalCase) {
-  console.error(pc.red("\n❌ Error: Invalid island name.\n"));
+  console.error(ui.errorBlock("Invalid island name.", "Use letters, numbers, dashes and underscores."));
   process.exit(1);
 }
 
 const projectRoot = process.cwd();
 
 if (!existsSync(path.join(projectRoot, "src"))) {
-  console.error(pc.red(`\n❌ Error: "src" folder not found. Are you in your theme's root directory?\n`));
+  console.error(ui.errorBlock("No src/ folder here.", "Run this from your theme project root."));
   process.exit(1);
 }
 
@@ -71,13 +74,13 @@ try {
   if (typeof adapter.onMakeIsland === "function") {
     await adapter.onMakeIsland(projectRoot, {
       pascalCase,
-      pc
+      pc: c
     });
   } else {
-    console.error(pc.red(`\n❌ Error: Framework adapter "${frameworkAdapter}" does not support making interactive hydration islands.`));
+    console.error(ui.errorBlock(`The ${frameworkAdapter} adapter does not support make:island.`));
     process.exit(1);
   }
 } catch (err) {
-  console.error(pc.red(`\n❌ Failed to execute make:island: ${err.message}`));
+  console.error(ui.errorBlock("make:island failed", err.message));
   process.exit(1);
 }

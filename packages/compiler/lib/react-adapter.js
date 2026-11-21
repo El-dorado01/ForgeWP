@@ -6,8 +6,9 @@ import {
   readdirSync,
 } from 'node:fs';
 import path from 'node:path';
+import { createUi } from './terminal-ui.js';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawnAsync } from './spawn-async.js';
 import { createRequire } from 'node:module';
 import pc from 'picocolors';
 import { loadMockData } from './functions/seed-mock-data.js';
@@ -19,6 +20,9 @@ import {
   scanAppProviders,
 } from './hydration/index.js';
 import { writeScaffoldFile } from './project-language.js';
+
+// Shared terminal output (functions that build their own `ui` shadow this one).
+const ui = createUi();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -37,13 +41,12 @@ export async function renderStaticMarkup(themeRoot) {
   }
   args.push(renderScript, themeRoot);
 
-  const result = spawnSync(process.execPath, args, {
+  const result = await spawnAsync(process.execPath, args, {
     cwd: themeRoot,
     env: {
       ...process.env,
       INIT_CWD: themeRoot,
     },
-    encoding: 'utf8',
     shell: false,
   });
 
@@ -830,7 +833,7 @@ export default function HomePage() {
               Read the docs
             </a>
             <a
-              href="https://github.com/forgewp/forgewp"
+              href="https://github.com/El-dorado01/ForgeWP"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-[11px] text-base text-stone-300 light:text-[#344154] transition-colors duration-200 hover:text-forgewp"
@@ -1058,20 +1061,20 @@ export default ThemeHotkey;
   try {
     writeFileSync(routesPath, routesContent, 'utf8');
     console.log(
-      `  ${pc.green('✅ Reset routes definition')}: src/app/routes.tsx`,
+      ui.done("Reset routes definition", "src/app/routes.tsx"),
     );
   } catch (err) {
     console.log(
-      pc.red(`  ❌ Failed to reset src/app/routes.tsx: ${err.message}`),
+      ui.error(`Failed to reset src/app/routes.tsx`, err.message),
     );
   }
 
   try {
     writeFileSync(pagePath, pageContent, 'utf8');
-    console.log(`  ${pc.green('✅ Reset core template')}: src/app/page.tsx`);
+    console.log(ui.done("Reset core template", "src/app/page.tsx"));
   } catch (err) {
     console.log(
-      pc.red(`  ❌ Failed to reset src/app/page.tsx: ${err.message}`),
+      ui.error(`Failed to reset src/app/page.tsx`, err.message),
     );
   }
 
@@ -1084,9 +1087,9 @@ export default ThemeHotkey;
     try {
       mkdirSync(path.join(themeRoot, 'src', 'components'), { recursive: true });
       writeFileSync(path.join(themeRoot, 'src', 'components', file), content, 'utf8');
-      console.log(`  ${pc.green(`✅ ${label}`)}: src/components/${file}`);
+      console.log(ui.done(label, `src/components/${file}`));
     } catch (err) {
-      console.log(pc.red(`  ❌ Failed to restore src/components/${file}: ${err.message}`));
+      console.log(ui.error(`Failed to restore src/components/${file}`, err.message));
     }
   }
 }
@@ -1110,11 +1113,7 @@ export function onMakeBlock(
 
   const targetFile = path.join(blocksDir, `${pascalCase}.tsx`);
   if (existsSync(targetFile)) {
-    console.error(
-      pc.red(
-        `\n❌ Error: Block "${pascalCase}.tsx" already exists at src/blocks/\n`,
-      ),
-    );
+    console.error(ui.errorBlock(`Already exists: src/blocks/${pascalCase}.tsx`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 
@@ -1220,17 +1219,11 @@ ${attributesRegistry}
 });
 `;
 
-  writeScaffoldFile(themeRoot, targetFile, blockTemplate);
+  const { writtenPath } = writeScaffoldFile(themeRoot, targetFile, blockTemplate);
 
-  console.log(
-    pc.green(`\n⚡ Modern Block "${pascalCase}" successfully created!`),
-  );
-  console.log(`   Location: ${pc.cyan(`src/blocks/${pascalCase}.tsx`)}`);
-  console.log(`   Gutenberg Title: ${pc.yellow(`Sharp ${readableTitle}`)}`);
-  console.log('   Edit this source file; export generates block.json, render.php, and editor assets.');
-  console.log(
-    `\n🎉 Run ${pc.cyan('pnpm export')} to automatically register it inside your WordPress theme!\n`,
-  );
+  console.log(`\n${ui.created('block', pascalCase, path.relative(themeRoot, writtenPath).replaceAll('\\', '/'))}`);
+  console.log(ui.detail(`Gutenberg title "Sharp ${readableTitle}". Export generates block.json, render.php and editor assets.`));
+  console.log(`${ui.hint('Next', `${ui.command('pnpm forgewp export')} ${ui.c.dim('registers it in your WordPress theme')}`)}\n`);
 }
 
 /**
@@ -1351,22 +1344,12 @@ export default defineBlock({
 });
 `;
 
-  writeScaffoldFile(themeRoot, targetFile, shellTemplate);
+  const { writtenPath } = writeScaffoldFile(themeRoot, targetFile, shellTemplate);
 
-  console.log(log.green(`\n⚡ Parent shell "${pascalCase}" created!`));
-  console.log(`   Location: ${log.cyan(`src/blocks/${pascalCase}.tsx`)}`);
-  console.log(`   Block name: ${log.yellow(`forgewp/${slug}`)}`);
-  if (allowed.length) {
-    console.log(`   Children: ${log.cyan(allowed.join(', '))}`);
-  } else {
-    console.log(
-      `   Children: ${log.dim('(none — open shell; any allowed at runtime)')}`,
-    );
-  }
-  console.log(`   Layout: ${log.dim(gridClassName)}`);
-  console.log(
-    `\n🎉 Run ${log.cyan('pnpm forgewp export')} (or sync-to-wp) to register it in WordPress.\n`,
-  );
+  console.log(`\n${ui.created('shell', pascalCase, path.relative(themeRoot, writtenPath).replaceAll('\\', '/'))}`);
+  console.log(ui.detail(`Block forgewp/${slug} · layout ${gridClassName}`));
+  console.log(ui.detail(`Children: ${allowed.length ? allowed.join(', ') : 'none yet (any block can be added in the editor)'}`));
+  console.log(`${ui.hint('Next', `${ui.command('pnpm forgewp export')} ${ui.c.dim('registers it in WordPress')}`)}\n`);
 }
 
 export function onMakeLoop(
@@ -1380,11 +1363,7 @@ export function onMakeLoop(
 
   const targetFile = path.join(loopsDir, `${pascalCase}.tsx`);
   if (existsSync(targetFile)) {
-    console.error(
-      pc.red(
-        `\n❌ Error: Loop "${pascalCase}.tsx" already exists at src/loops/\n`,
-      ),
-    );
+    console.error(ui.errorBlock(`Already exists: src/loops/${pascalCase}.tsx`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 
@@ -1463,31 +1442,14 @@ export default function ${pascalCase}() {
 }
 `;
 
-  writeScaffoldFile(themeRoot, targetFile, loopTemplate);
+  const { writtenPath } = writeScaffoldFile(themeRoot, targetFile, loopTemplate);
 
+  console.log(`\n${ui.created('loop', pascalCase, path.relative(themeRoot, writtenPath).replaceAll('\\', '/'))}`);
+  console.log(ui.detail(`Lists "${postType}" posts${customFields.length ? ` with ${customFields.join(', ')}` : ''}.`));
   if (automaticallySeeded) {
-    console.log(
-      pc.yellow(
-        `\n⚠️  Post type "${postType}" was missing from local database (mock-data.json).`,
-      ),
-    );
-    console.log(
-      `   We have automatically registered it and seeded default custom fields for you!`,
-    );
+    console.log(ui.detail(`"${postType}" was not in your mock data yet, so it was added with sample posts.`));
   }
-
-  console.log(pc.green(`\n⚡ Post Loop "${pascalCase}" successfully created!`));
-  console.log(`   Location: ${pc.cyan(`src/loops/${pascalCase}.tsx`)}`);
-  console.log(`   Target Post Type: ${pc.yellow(postType)}`);
-  if (customFields.length > 0) {
-    console.log(
-      `   Seeded Custom Fields: ${pc.yellow(customFields.join(', '))}`,
-    );
-  }
-  console.log(`\n🎉 You can now import it directly inside your pages:`);
-  console.log(
-    `   ${pc.cyan(`import ${pascalCase} from "@/loops/${pascalCase}";`)}\n`,
-  );
+  console.log(`${ui.hint('Use', ui.command(`import ${pascalCase} from "@/loops/${pascalCase}";`))}\n`);
 }
 
 export function onMakeIsland(themeRoot, { pascalCase, pc }) {
@@ -1498,11 +1460,7 @@ export function onMakeIsland(themeRoot, { pascalCase, pc }) {
 
   const targetFile = path.join(componentsDir, `${pascalCase}.tsx`);
   if (existsSync(targetFile)) {
-    console.error(
-      pc.red(
-        `\n❌ Error: Island "${pascalCase}.tsx" already exists at src/components/\n`,
-      ),
-    );
+    console.error(ui.errorBlock(`Already exists: src/components/${pascalCase}.tsx`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 
@@ -1539,24 +1497,11 @@ export default function ${pascalCase}(_props: ${pascalCase}Props) {
 }
 `;
 
-  writeScaffoldFile(themeRoot, targetFile, islandTemplate);
+  const { writtenPath } = writeScaffoldFile(themeRoot, targetFile, islandTemplate);
 
-  console.log(
-    pc.green(
-      `\n⚡ Selective Hydration Island "${pascalCase}" successfully created!`,
-    ),
-  );
-  console.log(`   Location: ${pc.cyan(`src/components/${pascalCase}.tsx`)}`);
-  console.log(
-    `\n🎉 ForgeWP automatically detects and hydrates this component on compile!`,
-  );
-  console.log(
-    `   If you want to customize the trigger (e.g. hydrate on click):`,
-  );
-  console.log(`   Wrap it with:`);
-  console.log(
-    `   ${pc.cyan(`<Hydrate trigger="click">\n     <${pascalCase} />\n   </Hydrate>`)}\n`,
-  );
+  console.log(`\n${ui.created('island', pascalCase, path.relative(themeRoot, writtenPath).replaceAll('\\', '/'))}`);
+  console.log(ui.detail('ForgeWP detects and hydrates it automatically on export.'));
+  console.log(`${ui.tip(`Change when it hydrates: ${ui.command(`<Hydrate trigger="click"><${pascalCase} /></Hydrate>`)}`)}\n`);
 }
 
 export function onMakePage(themeRoot, { pascalCase, pc }) {
@@ -1567,11 +1512,7 @@ export function onMakePage(themeRoot, { pascalCase, pc }) {
 
   const targetFile = path.join(pagesDir, `${pascalCase}.tsx`);
   if (existsSync(targetFile)) {
-    console.error(
-      pc.red(
-        `\n❌ Error: Page Template "${pascalCase}.tsx" already exists at src/app/pages/\n`,
-      ),
-    );
+    console.error(ui.errorBlock(`Already exists: src/app/pages/${pascalCase}.tsx`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 
@@ -1617,15 +1558,11 @@ export function ${pascalCase}() {
 }
 `;
 
-  writeScaffoldFile(themeRoot, targetFile, pageTemplate);
+  const { writtenPath } = writeScaffoldFile(themeRoot, targetFile, pageTemplate);
 
-  console.log(
-    pc.green(`\n⚡ Custom Page Template "${pascalCase}" successfully created!`),
-  );
-  console.log(`   Location: ${pc.cyan(`src/app/pages/${pascalCase}.tsx`)}`);
-  console.log(`   WordPress Template Name: ${pc.yellow(pascalCase)}`);
-  console.log(`\n🎉 To link it in your application routing:`);
-  console.log(`   Add it inside your ${pc.cyan('src/app/routes.tsx')} file.\n`);
+  console.log(`\n${ui.created('page template', pascalCase, path.relative(themeRoot, writtenPath).replaceAll('\\', '/'))}`);
+  console.log(ui.detail(`Appears in WordPress as the "${pascalCase}" page template.`));
+  console.log(`${ui.hint('Next', `add a route for it in ${ui.command('src/app/routes.tsx')} ${ui.c.dim('to preview it locally')}`)}\n`);
 }
 
 export function onMakeForm(
@@ -1638,9 +1575,7 @@ export function onMakeForm(
   }
   const formConfigFile = path.join(formsDir, `${slug}.ts`);
   if (existsSync(formConfigFile)) {
-    console.error(
-      pc.red(`\n❌ Error: Form "${slug}.ts" already exists at cms/forms/\n`),
-    );
+    console.error(ui.errorBlock(`Already exists: cms/forms/${slug}.ts`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 
@@ -1651,11 +1586,7 @@ export function onMakeForm(
   const componentName = `${pascalCase}Form`;
   const componentFile = path.join(componentsDir, `${componentName}.tsx`);
   if (existsSync(componentFile)) {
-    console.error(
-      pc.red(
-        `\n❌ Error: Form component "${componentName}.tsx" already exists at src/components/forms/\n`,
-      ),
-    );
+    console.error(ui.errorBlock(`Already exists: src/components/forms/${componentName}.tsx`, 'Choose a different name, or remove the existing file first.'));
     process.exit(1);
   }
 
@@ -1703,7 +1634,7 @@ ${fieldsConfigPhp}
 });
 `;
 
-  writeScaffoldFile(themeRoot, formConfigFile, formConfigTemplate);
+  const { writtenPath: formConfigWritten } = writeScaffoldFile(themeRoot, formConfigFile, formConfigTemplate);
 
   // ── src/components/forms/{Name}Form.tsx ─────────────────────────────
   const inputClassName =
@@ -1813,17 +1744,12 @@ ${fieldMarkup}
 }
 `;
 
-  writeScaffoldFile(themeRoot, componentFile, componentTemplate);
+  const { writtenPath: componentWritten } = writeScaffoldFile(themeRoot, componentFile, componentTemplate);
 
-  console.log(pc.green(`\n⚡ Form "${slug}" successfully created!`));
-  console.log(`   Config:    ${pc.cyan(`cms/forms/${slug}.ts`)}`);
-  console.log(
-    `   Component: ${pc.cyan(`src/components/forms/${componentName}.tsx`)}`,
-  );
-  console.log(`\n🎉 Use it in a page:`);
-  console.log(
-    `   ${pc.yellow(`import ${componentName} from "@/components/forms/${componentName}";`)}\n`,
-  );
+  const rel = (file) => path.relative(themeRoot, file).replaceAll('\\', '/');
+  console.log(`\n${ui.created('form', slug, rel(componentWritten))}`);
+  console.log(ui.detail(`Config  ${rel(formConfigWritten)}`));
+  console.log(`${ui.hint('Use', ui.command(`import ${componentName} from "@/components/forms/${componentName}";`))}\n`);
 }
 
 export function onSyncRoutes(themeRoot, { routesToScaffold, isForce, pc }) {
@@ -1919,13 +1845,13 @@ export function ${componentName}() {
 
     if (existsSync(componentPath) && !isForce) {
       console.log(
-        `  ${pc.gray('ℹ️ [Skip] Component already exists:')} src/app/pages/${componentName}.tsx`,
+        ui.info('Kept existing page', `src/app/pages/${componentName}.tsx`),
       );
       skippedCount++;
     } else {
       writeFileSync(componentPath, componentContent, 'utf8');
       console.log(
-        `  ${pc.green('✅ Scaffolded component')}: src/app/pages/${componentName}.tsx`,
+        ui.done('Created page', `src/app/pages/${componentName}.tsx`),
       );
       scaffoldedCount++;
     }
@@ -1984,11 +1910,7 @@ export function ${componentName}() {
       }
     }
   } catch (e) {
-    console.log(
-      pc.yellow(
-        `  ⚠️  Warning: Failed to read cms/ directory for CPT auto-discovery.`,
-      ),
-    );
+    console.log(ui.warn('Could not read cms/ to find custom post types'));
   }
 
   let cptScaffoldedCount = 0;
@@ -2008,7 +1930,7 @@ export default Single${pascalCpt}Page;
     } else {
       writeFileSync(wrapperPath, wrapperContent, 'utf8');
       console.log(
-        `  ${pc.green('✅ Scaffolded thin CPT wrapper')}: src/app/single-${cpt}.tsx`,
+        ui.done('Created post-type template', `src/app/single-${cpt}.tsx`),
       );
     }
 
@@ -2116,13 +2038,13 @@ export function Single${pascalCpt}Page() {
 
     if (existsSync(cptPagePath) && !isForce) {
       console.log(
-        `  ${pc.gray('ℹ️ [Skip] CPT Page Component already exists:')} src/app/pages/Single${pascalCpt}Page.tsx`,
+        ui.info('Kept existing post-type page', `src/app/pages/Single${pascalCpt}Page.tsx`),
       );
       cptSkippedCount++;
     } else {
       writeFileSync(cptPagePath, cptPageContent, 'utf8');
       console.log(
-        `  ${pc.green('✅ Scaffolded CPT Page Component')}: src/app/pages/Single${pascalCpt}Page.tsx`,
+        ui.done('Created post-type page', `src/app/pages/Single${pascalCpt}Page.tsx`),
       );
       cptScaffoldedCount++;
     }
@@ -2231,25 +2153,18 @@ export function Single${pascalCpt}Page() {
 
     if (modified) {
       writeFileSync(routesFilePath, routesContent, 'utf8');
-      console.log(
-        `  ${pc.green('✅ Synced routing paths in')}: src/app/routes.tsx`,
-      );
+      console.log(ui.done('Linked new pages', 'src/app/routes.tsx'));
     } else {
-      console.log(
-        `  ${pc.gray('ℹ️  Routes are already fully up to date in')}: src/app/routes.tsx`,
-      );
+      console.log(ui.info('Routes already up to date', 'src/app/routes.tsx'));
     }
   } else {
-    console.log(
-      pc.yellow(`  ⚠️  Warning: routes.tsx not found. Skipped route linking.`),
-    );
+    console.log(ui.warn('src/app/routes.tsx not found', 'pages were created but not linked'));
   }
 
-  console.log('\n' + '─'.repeat(60));
+  const kept = skippedCount + cptSkippedCount;
+  console.log('');
   console.log(
-    pc.green(
-      `\n🎉 ${pc.bold('SITEMAP SYNC COMPLETE:')} Generated ${scaffoldedCount} sitemap pages, ${cptScaffoldedCount} custom post-type templates (skipped ${skippedCount} pages, ${cptSkippedCount} templates).\n`,
-    ),
+    `  ${ui.c.green(ui.symbols.done)} ${ui.c.bold(`Created ${scaffoldedCount} page${scaffoldedCount === 1 ? '' : 's'} and ${cptScaffoldedCount} post-type template${cptScaffoldedCount === 1 ? '' : 's'}`)}${kept ? `  ${ui.c.dim(`${kept} existing kept`)}` : ''}\n`,
   );
 }
 

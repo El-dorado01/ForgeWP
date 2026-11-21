@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
-import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { cwd } from 'node:process';
-import pc from 'picocolors';
-import prompts from 'prompts';
+import * as p from '@clack/prompts';
 import { applyProjectConfig } from './lib/apply-config.js';
 import { convertProjectToJs } from './lib/convert-to-js.js';
 import { copyTemplate } from './lib/copy-template.js';
 import { installDependencies } from './lib/install.js';
+import { createUi, formatDuration } from './lib/terminal-ui.js';
 import {
   detectPackageManager,
   isValidProjectDirName,
@@ -18,36 +18,58 @@ import {
 import { addToPnpmWorkspace } from './lib/workspace.js';
 import { COMPONENT_REGISTRY } from './lib/registry.js';
 
-function printBanner() {
-  console.log(
-    `\n  ${pc.bold(pc.bgCyan(pc.black('  ⚡ FORGEWP  ')))} ${pc.cyan('— React & Tailwind CSS for WordPress')}`,
-  );
-  console.log(
-    `  ${pc.dim('Creating a lightweight, modern block-theme project scaffold.')}\n`,
-  );
+const ui = createUi();
+const { c } = ui;
+const VERSION = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+).version;
+const DOCS_URL = 'https://forgewp.dev/docs';
+
+const ADAPTERS = {
+  react: { label: 'React', hint: 'Vite + React 19', tagline: 'Build WordPress themes with React & Vite' },
+  nextjs: { label: 'Next.js', hint: 'App Router · native WordPress or decoupled', tagline: 'Build WordPress themes with Next.js' },
+  html: { label: 'HTML', hint: 'static HTML', tagline: 'Build WordPress themes from static HTML' },
+};
+const GENERAL_TAGLINE = 'Build WordPress themes with React or Next.js';
+
+/** Print an error with its fix and exit. Never prints a stack trace. */
+function fail(message, ...details) {
+  console.error(`\n${ui.error(message)}`);
+  for (const line of details) console.error(ui.detail(line));
+  console.error('');
+  process.exit(1);
+}
+
+/** Exit cleanly when a prompt is cancelled with Ctrl+C / Esc. */
+function guard(value) {
+  if (p.isCancel(value)) {
+    p.cancel('Setup cancelled. Nothing was created.');
+    process.exit(0);
+  }
+  return value;
 }
 
 function printHelp() {
-  console.log(`
-Usage:
-  npx create-forgewp [project-directory] [options]
-  npx create-forgewp --projectName [project-directory]
+  const cmd = (text) => ui.command(text);
+  console.log(ui.banner({ version: VERSION, tagline: GENERAL_TAGLINE }));
+  console.log(`  ${c.bold('Usage')}
+    ${cmd('npx create-forgewp')} ${c.dim('[project-directory] [options]')}
+    ${cmd('npx create-forgewp add')} ${c.dim('[component]')}
 
-Options:
-  -y, --yes           Use defaults (skip prompts)
-  --adapter [name]    Select the adapter to scaffold (react, nextjs, or html)
-  --js, --javascript  Scaffold with JavaScript & JSX instead of TypeScript
-  --ts, --typescript  Scaffold with TypeScript & TSX (default)
-  --no-install        Skip dependency install
-  -h, --help          Show help
+  ${c.bold('Options')}
+    ${cmd('--adapter <name>')}    react, nextjs or html ${c.dim('(default: react)')}
+    ${cmd('--js')}                JavaScript & JSX instead of TypeScript
+    ${cmd('--ts')}                TypeScript & TSX ${c.dim('(default)')}
+    ${cmd('-y, --yes')}           Accept defaults, no questions
+    ${cmd('--no-install')}        Skip installing dependencies
+    ${cmd('-h, --help')}          Show this help
 
-Examples:
-  npx create-forgewp my-theme
-  npx create-forgewp my-theme --js
-  npx create-forgewp my-next-theme --adapter nextjs
-  npx create-forgewp my-next-theme --adapter nextjs --js
-  npx create-forgewp --projectName my-theme
-  npx create-forgewp --yes
+  ${c.bold('Examples')}
+    ${cmd('npx create-forgewp my-theme')}
+    ${cmd('npx create-forgewp my-site --adapter nextjs')}
+    ${cmd('npx create-forgewp my-theme --js --yes')}
+
+  ${c.dim('Docs')}  ${c.underline(DOCS_URL)}
 `);
 }
 
@@ -55,6 +77,7 @@ function parseArgs(argv) {
   const args = {
     projectDir: undefined,
     adapter: 'react',
+    adapterExplicit: false,
     language: 'ts',
     languageExplicit: false,
     yes: false,
@@ -69,278 +92,250 @@ function parseArgs(argv) {
       args.help = true;
       continue;
     }
-
     if (arg === '-y' || arg === '--yes') {
       args.yes = true;
       continue;
     }
-
     if (arg === '--no-install') {
       args.noInstall = true;
       continue;
     }
-
     if (arg === '--js' || arg === '--javascript') {
       args.language = 'js';
       args.languageExplicit = true;
       continue;
     }
-
     if (arg === '--ts' || arg === '--typescript') {
       args.language = 'ts';
       args.languageExplicit = true;
       continue;
     }
-
     if (arg === '--projectName') {
       args.projectDir = argv[i + 1];
       i += 1;
       continue;
     }
-
     if (arg.startsWith('--projectName=')) {
       args.projectDir = arg.split('=')[1];
       continue;
     }
-
     if (arg === '--adapter') {
       args.adapter = argv[i + 1];
+      args.adapterExplicit = true;
       i += 1;
       continue;
     }
-
     if (arg.startsWith('--adapter=')) {
       args.adapter = arg.split('=')[1];
+      args.adapterExplicit = true;
       continue;
     }
-
     if (arg === '--style') {
       args.style = argv[i + 1];
       i += 1;
       continue;
     }
-
     if (arg.startsWith('--style=')) {
       args.style = arg.split('=')[1];
       continue;
     }
-
     if (arg.startsWith('-')) {
-      console.error(pc.red(`Unknown option: ${arg}`));
-      process.exit(1);
+      fail(`Unknown option: ${arg}`, `Run ${ui.command('npx create-forgewp --help')} to see the available options.`);
     }
-
     if (!args.projectDir) {
       args.projectDir = arg;
     }
   }
 
-  if (!['react', 'html', 'nextjs'].includes(args.adapter)) {
-    console.error(pc.red(`Unsupported adapter: ${args.adapter}`));
-    process.exit(1);
+  if (!Object.hasOwn(ADAPTERS, args.adapter)) {
+    fail(`Unsupported adapter: ${args.adapter}`, `Use one of: ${Object.keys(ADAPTERS).join(', ')}.`);
   }
-
   if (args.style && args.style !== 'shadcn') {
-    console.error(pc.red(`Style preset '${args.style}' is coming soon. Only 'shadcn' style is supported for now.`));
-    process.exit(1);
+    fail(`Style preset '${args.style}' is coming soon.`, "Only the 'shadcn' style is available for now.");
   }
 
   return args;
 }
 
-async function gatherConfig(cli, defaults) {
-  if (cli.yes) {
-    return defaults;
-  }
+function describeFor(adapter) {
+  return adapter === 'html'
+    ? 'A premium static HTML theme built with ForgeWP.'
+    : adapter === 'nextjs'
+      ? 'A WordPress theme built with Next.js App Router and ForgeWP.'
+      : 'A premium block-theme built with React, Tailwind CSS, and ForgeWP.';
+}
 
-  const response = await prompts(
-    [
-      {
-        type: 'text',
-        name: 'themeName',
-        message: `${pc.cyan('✔')} Theme Name`,
-        initial: defaults.themeName,
-        validate: (value) =>
-          value.trim().length > 0 || 'Theme name is required',
-      },
-      {
-        type: 'select',
-        name: 'adapter',
-        message: `${pc.cyan('✔')} Framework adapter`,
-        choices: [
-          { title: 'React (Vite + React 19)', value: 'react' },
-          { title: 'Next.js (App Router — Native WordPress & Decoupled)', value: 'nextjs' },
-          { title: 'HTML (Static HTML)', value: 'html' },
-        ],
-        initial: cli.adapter === 'nextjs' ? 1 : cli.adapter === 'html' ? 2 : 0,
-      },
-      {
-        type: (prev) =>
-          prev !== 'html' && !cli.languageExplicit ? 'select' : null,
-        name: 'language',
-        message: `${pc.cyan('✔')} Language`,
-        choices: [
-          { title: 'TypeScript (.ts / .tsx)', value: 'ts' },
-          { title: 'JavaScript (.js / .jsx)', value: 'js' },
-        ],
-        initial: cli.language === 'js' ? 1 : 0,
-      },
-      {
-        type: (prev, values) => values.adapter === 'react' ? 'select' : null,
-        name: 'style',
-        message: `${pc.cyan('✔')} Choose aesthetic style preset`,
-        choices: [
-          { title: 'Shadcn (Smooth modern curves)', value: 'shadcn' },
-          { title: 'ForgeWP (Sharp geometric corners) (Coming Soon)', value: 'forgewp', disabled: true },
-        ],
-        initial: 0,
-      },
-      {
-        type: (prev, values) => values.adapter === 'react' ? 'multiselect' : null,
-        name: 'features',
-        message: `${pc.cyan('✔')} Select optional features to include`,
-        choices: [
-          { title: 'WooCommerce E-Commerce', value: 'ecommerce', selected: true },
-          { title: 'Developer Auth Sandbox', value: 'auth', selected: false }
-        ],
-        hint: '- Space to select. Enter to submit'
-      },
-      {
-        type: cli.noInstall ? null : 'confirm',
-        name: 'install',
-        message: `${pc.cyan('✔')} Install NPM dependencies now?`,
-        initial: true,
-      },
-      {
-        type: (prev, values) =>
-          !cli.noInstall && values.install ? 'select' : null,
-        name: 'packageManager',
-        message: `${pc.cyan('✔')} Choose your package manager`,
-        choices: [
-          { title: 'pnpm', value: 'pnpm' },
-          { title: 'npm', value: 'npm' },
-          { title: 'yarn', value: 'yarn' },
-          { title: 'bun', value: 'bun' },
-        ],
-        initial: 0,
-      },
-    ].filter(Boolean),
-    {
-      onCancel: () => {
-        console.log(pc.yellow('\nCancelled. ForgeWP setup aborted.'));
-        process.exit(0);
-      },
-    },
+async function gatherConfig(cli, defaults) {
+  if (cli.yes) return defaults;
+
+  const themeName = guard(
+    await p.text({
+      message: 'Theme name',
+      initialValue: defaults.themeName,
+      validate: (value) => (value && value.trim().length > 0 ? undefined : 'A theme name is required.'),
+    }),
   );
 
-  const themeName = response.themeName ?? defaults.themeName;
-  const slug = slugify(themeName);
-  const adapter = response.adapter || defaults.adapter;
-  const language =
-    adapter === 'html' ? 'ts' : (response.language ?? defaults.language ?? 'ts');
+  const adapter = guard(
+    await p.select({
+      message: 'Framework',
+      initialValue: cli.adapter,
+      options: Object.entries(ADAPTERS).map(([value, a]) => ({ value, label: a.label, hint: a.hint })),
+    }),
+  );
 
+  let language = defaults.language;
+  if (adapter !== 'html' && !cli.languageExplicit) {
+    language = guard(
+      await p.select({
+        message: 'Language',
+        initialValue: cli.language,
+        options: [
+          { value: 'ts', label: 'TypeScript', hint: '.ts / .tsx' },
+          { value: 'js', label: 'JavaScript', hint: '.js / .jsx' },
+        ],
+      }),
+    );
+  }
+
+  let style = defaults.style;
+  let features = [];
+  if (adapter === 'react') {
+    style = guard(
+      await p.select({
+        message: 'Style preset',
+        initialValue: 'shadcn',
+        options: [
+          { value: 'shadcn', label: 'Shadcn', hint: 'smooth modern curves' },
+          { value: 'forgewp', label: 'ForgeWP', hint: 'sharp geometric corners · coming soon', disabled: true },
+        ],
+      }),
+    );
+    features = guard(
+      await p.multiselect({
+        message: 'Optional features',
+        required: false,
+        initialValues: ['ecommerce'],
+        options: [
+          { value: 'ecommerce', label: 'WooCommerce', hint: 'e-commerce blocks and hooks' },
+          { value: 'auth', label: 'Auth sandbox', hint: 'login, sign-up and account pages' },
+        ],
+      }),
+    );
+  }
+
+  let install = false;
+  let packageManager = defaults.packageManager;
+  if (!cli.noInstall) {
+    install = guard(await p.confirm({ message: 'Install dependencies now?', initialValue: true }));
+    if (install) {
+      packageManager = guard(
+        await p.select({
+          message: 'Package manager',
+          initialValue: defaults.packageManager,
+          options: ['pnpm', 'npm', 'yarn', 'bun'].map((value) => ({
+            value,
+            label: value,
+            hint: value === defaults.packageManager ? 'detected' : undefined,
+          })),
+        }),
+      );
+    }
+  }
+
+  const slug = slugify(themeName);
   return {
     ...defaults,
     packageName: slug,
     themeName,
     slug,
-    description:
-      adapter === 'html'
-        ? `A premium static HTML theme built with ForgeWP.`
-        : adapter === 'nextjs'
-          ? `A WordPress theme built with Next.js App Router and ForgeWP.`
-          : `A premium block-theme built with React, Tailwind CSS, and ForgeWP.`,
+    description: describeFor(adapter),
     textDomain: slug,
     adapter,
-    language,
-    style: response.style ?? defaults.style,
-    features: adapter === 'react' ? (response.features ?? defaults.features) : [],
-    install: response.install ?? false,
-    packageManager: response.packageManager ?? detectPackageManager(),
+    language: adapter === 'html' ? 'ts' : language,
+    style,
+    features,
+    install,
+    packageManager,
   };
 }
 
 async function handleAddCommand(componentName) {
-  printBanner();
+  console.log(ui.header('add', 'component'));
 
-  const hasConfig = [
-    'wp.config.ts',
-    'wp.config.mts',
-    'wp.config.js',
-    'wp.config.mjs',
-    'wp.config.cjs',
-  ].some((name) => existsSync(path.join(cwd(), name)));
+  const hasConfig = ['wp.config.ts', 'wp.config.mts', 'wp.config.js', 'wp.config.mjs', 'wp.config.cjs'].some(
+    (name) => existsSync(path.join(cwd(), name)),
+  );
   if (!hasConfig) {
-    console.error(
-      pc.red(
-        'Error: wp.config.ts (or wp.config.js) not found. Please run this command inside a ForgeWP theme project.',
-      ),
+    fail(
+      'No ForgeWP project found in this folder.',
+      'Run this command inside a theme project (a folder with wp.config.ts or wp.config.js).',
     );
-    process.exit(1);
   }
+
+  const COMPONENTS = {
+    navbar: { name: 'Navbar', hint: 'dynamic site header' },
+    'hero-section': { name: 'HeroSection', hint: 'modern hero' },
+    'pricing-table': { name: 'PricingTable', hint: 'tiered pricing sheet' },
+  };
 
   let selected = componentName;
   if (!selected) {
-    const response = await prompts(
-      {
-        type: 'select',
-        name: 'component',
-        message: `${pc.cyan('✔')} Choose a component to add`,
-        choices: Object.keys(COMPONENT_REGISTRY).map((key) => ({
-          title: `${key} — ${key === 'navbar' ? 'Dynamic site header' : key === 'hero-section' ? 'Premium Brutalist/Modern hero' : 'Dynamic tiered pricing sheet'}`,
+    selected = guard(
+      await p.select({
+        message: 'Component to add',
+        options: Object.keys(COMPONENT_REGISTRY).map((key) => ({
           value: key,
+          label: key,
+          hint: COMPONENTS[key]?.hint,
         })),
-      },
-      {
-        onCancel: () => {
-          console.log(pc.yellow('\nCancelled.'));
-          process.exit(0);
-        },
-      },
+      }),
     );
-    selected = response.component;
   }
 
   const componentData = COMPONENT_REGISTRY[selected];
   if (!componentData) {
-    console.error(
-      pc.red(`Error: Component "${selected}" not found in registry.`),
+    fail(
+      `Component "${selected}" is not in the registry.`,
+      `Available: ${Object.keys(COMPONENT_REGISTRY).join(', ')}`,
     );
-    console.log(
-      `Available components: ${Object.keys(COMPONENT_REGISTRY).join(', ')}`,
-    );
-    process.exit(1);
   }
 
   const componentsDir = path.join(cwd(), 'src', 'components');
-  if (!existsSync(componentsDir)) {
-    mkdirSync(componentsDir, { recursive: true });
-  }
-
+  if (!existsSync(componentsDir)) mkdirSync(componentsDir, { recursive: true });
   const targetFile = path.join(componentsDir, componentData.filename);
   writeFileSync(targetFile, componentData.code, 'utf8');
 
-  console.log(`\n  ${pc.bold(pc.green('🎉 Component added successfully!'))}`);
-  console.log(`  ┌──────────────────────────────────────────────────────────`);
-  console.log(`  │ Saved to: ${pc.cyan(path.relative(cwd(), targetFile))}`);
-  console.log(`  │`);
-  console.log(`  │ How to use in your src/app/page.tsx:`);
-  console.log(`  │`);
-  console.log(`  │ ${pc.bold('1. Import it:')}`);
-  console.log(
-    `  │    import { ${selected === 'navbar' ? 'Navbar' : selected === 'hero-section' ? 'HeroSection' : 'PricingTable'} } from "@/components/${componentData.filename.replace('.tsx', '')}";`,
-  );
-  console.log(`  │`);
-  console.log(`  │ ${pc.bold('2. Render it:')}`);
-  console.log(
-    `  │    <${selected === 'navbar' ? 'Navbar' : selected === 'hero-section' ? 'HeroSection' : 'PricingTable'} />`,
-  );
-  console.log(
-    `  └──────────────────────────────────────────────────────────\n`,
-  );
+  const exportName = COMPONENTS[selected]?.name ?? selected;
+  const relative = path.relative(cwd(), targetFile).replaceAll('\\', '/');
+  console.log(ui.done(`Added ${exportName}`, relative));
+  console.log('');
+  console.log(ui.detail('Use it in a page:'));
+  console.log(`    ${ui.command(`import { ${exportName} } from "@/components/${componentData.filename.replace('.tsx', '')}";`)}`);
+  console.log(`    ${ui.command(`<${exportName} />`)}\n`);
+}
+
+/**
+ * A spinner on interactive terminals; plain status lines elsewhere (CI, pipes),
+ * so non-TTY output never contains cursor escape codes.
+ */
+function task(message, { timer = false } = {}) {
+  if (process.stdout.isTTY) {
+    const s = p.spinner(timer ? { indicator: 'timer' } : undefined);
+    s.start(message);
+    return { stop: (msg) => s.stop(msg), error: (msg) => s.error(msg) };
+  }
+  return { stop: (msg) => p.log.step(msg), error: (msg) => p.log.error(msg) };
+}
+
+function runCommand(pm, script) {
+  if (pm === 'npm') return `npm run ${script}`;
+  if (pm === 'bun') return `bun run ${script}`;
+  return `${pm} ${script}`;
 }
 
 async function main() {
+  const startedAt = Date.now();
   const args = process.argv.slice(2);
   if (args[0] === 'add') {
     await handleAddCommand(args[1]);
@@ -348,50 +343,44 @@ async function main() {
   }
 
   const cli = parseArgs(args);
-
   if (cli.help) {
     printHelp();
     return;
   }
 
-  printBanner();
+  console.log(
+    ui.banner({
+      version: VERSION,
+      tagline: cli.adapterExplicit ? ADAPTERS[cli.adapter].tagline : GENERAL_TAGLINE,
+    }),
+  );
+  p.intro(c.dim('Create a new ForgeWP theme'));
 
   let projectDirName = cli.projectDir;
-
   if (!projectDirName && !cli.yes) {
-    const { name } = await prompts({
-      type: 'text',
-      name: 'name',
-      message: `${pc.cyan('✔')} Project directory name`,
-      initial: 'my-forgewp-theme',
-      validate: (value) =>
-        isValidProjectDirName(value) || 'Invalid directory name',
-    });
-    projectDirName = name;
+    projectDirName = guard(
+      await p.text({
+        message: 'Project folder',
+        initialValue: 'my-forgewp-theme',
+        validate: (value) =>
+          value && isValidProjectDirName(value) ? undefined : 'Use letters, numbers, dots, dashes or underscores.',
+      }),
+    );
   }
-
-  if (!projectDirName) {
-    projectDirName = 'my-forgewp-theme';
-  }
+  if (!projectDirName) projectDirName = 'my-forgewp-theme';
 
   if (!isValidProjectDirName(path.basename(projectDirName))) {
-    console.error(pc.red('Invalid project directory name.'));
-    process.exit(1);
+    fail(`Invalid project folder name: ${projectDirName}`, 'Use letters, numbers, dots, dashes or underscores.');
   }
 
   const targetDir = path.resolve(cwd(), projectDirName);
-
-  if (existsSync(targetDir)) {
-    if (
-      existsSync(path.join(targetDir, 'package.json')) ||
-      existsSync(path.join(targetDir, 'wp.config.ts')) ||
-      existsSync(path.join(targetDir, 'wp.config.js'))
-    ) {
-      console.error(
-        pc.red(`Directory already contains a ForgeWP project: ${targetDir}`),
-      );
-      process.exit(1);
-    }
+  const displayDir = `./${path.relative(cwd(), targetDir).replaceAll('\\', '/') || '.'}`;
+  if (
+    existsSync(path.join(targetDir, 'package.json')) ||
+    existsSync(path.join(targetDir, 'wp.config.ts')) ||
+    existsSync(path.join(targetDir, 'wp.config.js'))
+  ) {
+    fail(`${displayDir} already contains a project.`, 'Choose a different folder name, or remove the existing project first.');
   }
 
   const slug = slugify(path.basename(projectDirName));
@@ -400,12 +389,7 @@ async function main() {
     packageName: slug,
     themeName: titleCaseFromSlug(slug),
     slug,
-    description:
-      adapter === 'html'
-        ? `A premium static HTML theme built with ForgeWP.`
-        : adapter === 'nextjs'
-          ? `A WordPress theme built with Next.js App Router and ForgeWP.`
-          : `A premium block-theme built with React, Tailwind CSS, and ForgeWP.`,
+    description: describeFor(adapter),
     textDomain: slug,
     adapter,
     language: adapter === 'html' ? 'ts' : cli.language || 'ts',
@@ -417,90 +401,58 @@ async function main() {
   };
 
   const config = await gatherConfig(cli, defaults);
+  const languageLabel = config.adapter === 'html' ? '' : config.language === 'js' ? ' · JavaScript' : ' · TypeScript';
 
-  console.log(`\n  ${pc.cyan('⚙ Configuring scaffold...')}`);
-  console.log(`  ${pc.dim('Target Folder')}  ${pc.bold(targetDir)}`);
-
+  // 1. Scaffold
+  const scaffoldStart = Date.now();
+  const scaffold = task(`Creating ${displayDir}`);
   copyTemplate(targetDir, config.adapter);
   applyProjectConfig(targetDir, config);
-  if (config.language === 'js') {
-    convertProjectToJs(targetDir, config.adapter);
-  }
+  if (config.language === 'js') convertProjectToJs(targetDir, config.adapter);
+  if (config.packageManager === 'pnpm') addToPnpmWorkspace(targetDir);
+  scaffold.stop(
+    `Created ${c.bold(displayDir)}  ${c.dim(`${ADAPTERS[config.adapter].label}${languageLabel} · ${formatDuration(Date.now() - scaffoldStart)}`)}`,
+  );
 
-  if (config.packageManager === 'pnpm') {
-    addToPnpmWorkspace(targetDir);
-  }
-
+  // 2. Install
   if (config.install) {
-    console.log(
-      `  ${pc.cyan(`📦 Installing packages using ${pc.bold(config.packageManager)}...`)}\n`,
-    );
-    installDependencies(targetDir, config.packageManager);
-  }
-
-  const pm = config.packageManager;
-  const run = (script) => {
-    switch (pm) {
-      case 'pnpm':
-        return `pnpm ${script}`;
-      case 'yarn':
-        return `yarn ${script}`;
-      case 'bun':
-        return `bun run ${script}`;
-      default:
-        return `npm run ${script}`;
+    const installStart = Date.now();
+    const installing = task(`Installing dependencies with ${config.packageManager}`, { timer: true });
+    const result = await installDependencies(targetDir, config.packageManager);
+    if (!result.ok) {
+      installing.error(`${config.packageManager} install failed`);
+      const tail = result.output.trim().split(/\r?\n/).slice(-15);
+      if (tail.length) p.log.message(c.dim(tail.join('\n')));
+      p.outro(
+        `The project was created, but dependencies are not installed.\n   Fix the error above, then run ${ui.command(`cd ${displayDir} && ${config.packageManager} install`)}`,
+      );
+      process.exit(1);
     }
-  };
-
-  console.log(
-    `\n  ${pc.bold(pc.green('🎉 Project scaffolded successfully!'))}\n`,
-  );
-  console.log(
-    `  ${pc.bold('Next steps to start building your WordPress theme:')}`,
-  );
-  console.log(`  ┌──────────────────────────────────────────────────────────`);
-  console.log(`  │ 1. Navigate to your project folder:`);
-  console.log(
-    `  │    ${pc.cyan(`cd ${path.relative(cwd(), targetDir) || '.'}`)}`,
-  );
-
-  if (!config.install) {
-    console.log(`  │ 2. Install dependencies:`);
-    console.log(`  │    ${pc.cyan(`${pm} install`)}`);
+    installing.stop(`Dependencies installed  ${c.dim(`${config.packageManager} · ${formatDuration(Date.now() - installStart)}`)}`);
   }
 
-  const stepNum = config.install ? '2' : '3';
-  const stepNumPlus = config.install ? '3' : '4';
-  const stepNumExport = config.install ? '4' : '5';
-
-  const devServerLabel =
-    config.adapter === 'nextjs'
-      ? 'Run the Next.js local developer server:'
-      : 'Run the interactive Vite local developer server:';
-  const wpConfigFile = config.language === 'js' ? 'wp.config.js' : 'wp.config.ts';
-
-  console.log(`  │ ${stepNum}. ${devServerLabel}`);
-  console.log(`  │    ${pc.cyan(run('dev'))}`);
-  console.log(`  │`);
-  console.log(
-    `  │ ${stepNumPlus}. Edit code inside src/ and design presets inside ${wpConfigFile}.`,
+  // 3. Next steps
+  const pm = config.packageManager;
+  const cdTarget = path.relative(cwd(), targetDir).replaceAll('\\', '/') || '.';
+  const steps = [`cd ${cdTarget}`];
+  if (!config.install) steps.push(`${pm} install`);
+  steps.push(runCommand(pm, 'dev'), runCommand(pm, 'export'));
+  const labels = {
+    [`cd ${cdTarget}`]: '',
+    [`${pm} install`]: 'install dependencies',
+    [runCommand(pm, 'dev')]: 'start the dev server',
+    [runCommand(pm, 'export')]: 'build the WordPress theme zip',
+  };
+  const width = Math.max(...steps.map((s) => s.length));
+  p.note(
+    steps.map((s) => `${ui.command(s.padEnd(width))}   ${c.dim(labels[s])}`).join('\n'),
+    'Next steps',
   );
-  console.log(`  │`);
-  console.log(`  │ ${stepNumExport}. Export theme to WordPress (.zip):`);
-  console.log(`  │    ${pc.cyan(run('export'))}`);
-  console.log(`  │`);
-  console.log(
-    `  │ ${pc.yellow('💡 Tip:')} You can customize your layout boundaries, color palette,`,
-  );
-  console.log(
-    `  │      and Next.js-style Google Fonts anytime in ${pc.bold(wpConfigFile)}!`,
-  );
-  console.log(
-    `  └──────────────────────────────────────────────────────────\n`,
+  p.outro(
+    `${c.green(ui.symbols.done)} ${c.bold(`${config.themeName} is ready`)}  ${c.dim(formatDuration(Date.now() - startedAt))}\n   ${c.dim('Docs')}  ${c.underline(DOCS_URL)}`,
   );
 }
 
 main().catch((error) => {
-  console.error(pc.red(error instanceof Error ? error.message : String(error)));
-  process.exit(1);
+  fail(error instanceof Error ? error.message : String(error), 'If this keeps happening, please open an issue on GitHub.');
 });

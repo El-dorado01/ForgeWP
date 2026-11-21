@@ -2,9 +2,13 @@
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { createUi } from '../lib/terminal-ui.js';
+
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import pc from "picocolors";
+
+const ui = createUi();
+const { c } = ui;
 
 const args = process.argv.slice(2);
 let rawName = args.find(a => !a.startsWith("-"));
@@ -20,26 +24,25 @@ if (nameIndex !== -1 && args[nameIndex + 1]) {
   }
 }
 
-if (!rawName) {
+// Only ask when someone is at the keyboard; otherwise fall through to the missing-name error.
+if (!rawName && process.stdin.isTTY) {
   const rl = readline.createInterface({ input, output });
   try {
-    const answer = await rl.question(pc.cyan("? Enter a post type name: "));
+    const answer = await rl.question(`  ${c.orange(ui.symbols.active)} Post type name: `);
     rawName = answer.trim();
   } catch (err) {}
   rl.close();
 }
 
 if (!rawName) {
-  console.error(pc.red("\n❌ Error: Please specify a post type name."));
-  console.log(pc.cyan("   Example: pnpm forgewp make:post-type portfolio"));
-  console.log(pc.cyan("   Or:      pnpm forgewp make:post-type --name portfolio\n"));
+  console.error(ui.errorBlock("Missing post type name.", `Example: ${ui.command("pnpm forgewp make:post-type portfolio")}`));
   process.exit(1);
 }
 
 // WordPress slugs should be lowercase alphanumeric with dashes or underscores
 const cleanName = rawName.toLowerCase().replace(/[^a-z0-9_-]/g, "");
 if (!cleanName) {
-  console.error(pc.red("\n❌ Error: Invalid post type name. Use letters, numbers, dashes, and underscores.\n"));
+  console.error(ui.errorBlock("Invalid post type name.", "Use lowercase letters, numbers, dashes and underscores."));
   process.exit(1);
 }
 
@@ -117,8 +120,8 @@ if (isTs) {
   if (existsSync(mockDataTsPath)) {
     let content = readFileSync(mockDataTsPath, "utf8");
     if (content.includes(`"${cleanName}":`) || content.includes(`${cleanName}:`)) {
-      console.warn(pc.yellow(`\n⚠️  Post type "${cleanName}" already exists in cms/mock-data.ts.`));
-      console.log(`   You can open the file directly to view or edit existing fields.\n`);
+      console.warn(`\n${ui.warn(`Post type "${cleanName}" already exists`, "cms/mock-data.ts")}`);
+      console.log(`${ui.detail("Open the file to view or edit its fields.")}\n`);
       process.exit(0);
     }
 
@@ -142,14 +145,14 @@ if (isTs) {
     try {
       mockData = JSON.parse(readFileSync(mockDataJsonPath, "utf8"));
     } catch (err) {
-      console.error(pc.red(`\n❌ Error: Failed to parse cms/mock-data.json. Enforcing clean file.`));
+      console.error(`\n${ui.warn("cms/mock-data.json could not be parsed", "starting from an empty file")}`);
       mockData = {};
     }
   }
 
   if (mockData[cleanName]) {
-    console.warn(pc.yellow(`\n⚠️  Post type "${cleanName}" already exists in cms/mock-data.json.`));
-    console.log(`   You can open the file directly to view or edit existing fields.\n`);
+    console.warn(`\n${ui.warn(`Post type "${cleanName}" already exists`, "cms/mock-data.json")}`);
+    console.log(`${ui.detail("Open the file to view or edit its fields.")}\n`);
     process.exit(0);
   }
 
@@ -159,10 +162,9 @@ if (isTs) {
 
 const suggestedField = customFieldsList.length > 0 ? customFieldsList[0] : "client_name";
 
-console.log(pc.green(`\n⚡ Post Type "${cleanName}" successfully registered!`));
-console.log(`   Local DB: ${pc.cyan(activeFile)}`);
-console.log(`\n🎉 Query your seeded fields in React inside:`);
-console.log(`   ${pc.yellow(`<WpQueryLoop postType="${cleanName}" postsPerPage={2}>`)}`);
-console.log(`     ${pc.yellow(`<h3>{useWpTitle()}</h3>`)}`);
-console.log(`     ${pc.yellow(`<p>${suggestedField.charAt(0).toUpperCase() + suggestedField.slice(1)}: {useWpCustomField("${suggestedField}")}</p>`)}`);
-console.log(`   ${pc.yellow(`</WpQueryLoop>`)}\n`);
+console.log(`\n${ui.created("post type", cleanName, activeFile)}`);
+console.log(ui.detail("Seeded with two sample posts. Query them in a page:"));
+console.log(`      ${ui.command(`<WpQueryLoop postType="${cleanName}" postsPerPage={2}>`)}`);
+console.log(`        ${ui.command(`<h3>{useWpTitle()}</h3>`)}`);
+console.log(`        ${ui.command(`<p>{useWpCustomField("${suggestedField}")}</p>`)}`);
+console.log(`      ${ui.command(`</WpQueryLoop>`)}\n`);

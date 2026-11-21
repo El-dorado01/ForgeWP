@@ -2,11 +2,15 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import pc from 'picocolors';
+import { createUi } from '../lib/terminal-ui.js';
+
 import { loadProductsData } from '../lib/functions/seed-products.js';
 import { loadMockData, normalizeMockSeedData } from '../lib/functions/seed-mock-data.js';
 import { loadConfig } from '../lib/load-config.js';
 import { findWpConfigPath } from '../lib/project-language.js';
+
+const ui = createUi();
+const { c } = ui;
 
 const projectRoot = process.cwd();
 const args = process.argv.slice(2);
@@ -15,7 +19,7 @@ const target = args[0] || 'all';
 // Preview only: no configuration writes, export, network request, or database access.
 if (args.includes('--dry-run')) {
   if (args.some((arg) => !['mock-data', 'mock', 'posts', '--dry-run', '--json'].includes(arg))) {
-    console.error('Dry-run supports mock-data only: forgewp seed mock-data --dry-run [--json]');
+    console.error(ui.errorBlock('--dry-run only works with mock-data', `Run ${ui.command('pnpm forgewp seed mock-data --dry-run [--json]')}`));
     process.exit(1);
   }
   const config = await loadConfig(projectRoot);
@@ -40,16 +44,16 @@ if (args.includes('--dry-run')) {
       };
     }),
   };
-  if (!args.includes('--json')) console.log('Mock seed preview — no files changed. Disabled types have no seed records.\n');
+  if (!args.includes('--json')) console.log(`${ui.header('seed', 'mock data preview · no files changed')}${ui.detail('Disabled post types have no seed records.')}\n`);
   console.log(JSON.stringify(report, null, 2));
   process.exit(0);
 }
 
-console.log(`\n  ${pc.bold(pc.bgGreen(pc.black('  🌱 FORGEWP DATA SEEDER  ')))} ${pc.green('— WordPress & WooCommerce Synchronization')}\n`);
+console.log(ui.header('seed', 'inspect local data and configure WordPress seeding'));
 
 const foundConfig = findWpConfigPath(projectRoot);
 if (!foundConfig) {
-  console.error(pc.red(`❌ Error: wp.config.ts (or wp.config.js) not found in ${projectRoot}`));
+  console.error(ui.errorBlock('No ForgeWP project found here.', 'Run seed from your theme folder (one with wp.config.ts or wp.config.js).'));
   process.exit(1);
 }
 const configPath = foundConfig.path;
@@ -60,9 +64,9 @@ if (target === 'all' || target === 'products' || target === 'product') {
   const products = loadProductsData(projectRoot);
   productsCount = products.length;
   if (productsCount > 0) {
-    console.log(`  📦 ${pc.bold('WooCommerce Products')}: Found ${pc.green(productsCount)} item(s) in ${pc.cyan('cms/products.ts')}`);
+    console.log(ui.done(`${productsCount} WooCommerce product${productsCount === 1 ? '' : 's'}`, 'cms/products'));
   } else {
-    console.log(`  📦 ${pc.bold('WooCommerce Products')}: No products declared in ${pc.yellow('cms/products.ts')}`);
+    console.log(ui.info('No WooCommerce products', 'cms/products'));
   }
 }
 
@@ -77,10 +81,10 @@ if (target === 'all' || target === 'mock-data' || target === 'mock' || target ==
     types.forEach((t) => {
       const count = Array.isArray(mockData[t]) ? mockData[t].length : 0;
       totalMockPosts += count;
-      console.log(`  📝 ${pc.bold(`Post Type "${t}"`)}: Found ${pc.green(count)} mock entry/entries`);
+      console.log(ui.done(`${count} ${t} entr${count === 1 ? 'y' : 'ies'}`, 'cms/mock-data'));
     });
   } else {
-    console.log(`  📝 ${pc.bold('Mock Content')}: No mock content declared in ${pc.yellow('cms/mock-data.ts')}`);
+    console.log(ui.info('No mock content', 'cms/mock-data'));
   }
 }
 
@@ -89,7 +93,7 @@ let configRaw = fs.readFileSync(configPath, 'utf8');
 const hasSeedConfig = configRaw.includes('seed:');
 
 if (!hasSeedConfig && (productsCount > 0 || mockTypesCount > 0)) {
-  console.log(`\n  ⚙️  ${pc.cyan('Enabling data seeding in wp.config.ts')}...`);
+  console.log(ui.step('Enabling seeding in wp.config'));
   const lines = ['  seed: {'];
   if (productsCount > 0) {
     lines.push("    products: 'once',");
@@ -104,18 +108,14 @@ if (!hasSeedConfig && (productsCount > 0 || mockTypesCount > 0)) {
   if (configRaw.includes('defineConfig({')) {
     configRaw = configRaw.replace(/defineConfig\(\{/, `defineConfig({\n${seedBlock}`);
     fs.writeFileSync(configPath, configRaw, 'utf8');
-    console.log(pc.green(`  ✅ Added tailored seed configuration to wp.config.ts`));
+    console.log(ui.done('Added a seed block to wp.config', "seeds once, development only"));
   }
 } else if (hasSeedConfig) {
-  console.log(`\n  ✅ ${pc.bold('wp.config.ts')} has active seed configuration.`);
+  console.log(ui.done('Seeding already configured', 'wp.config'));
 }
 
-console.log(`
-  ${pc.bold('🚀 Synchronization Status:')}
-  • Local seed configuration has been inspected. This command has not exported PHP or connected to WordPress.
-  • Review wp.config.ts, then export and install the theme to generate its configured seed routines.
-  • Automatic execution depends on the configured strategy, WordPress debug guard, and existing seed markers.
-  • ${pc.dim('Optional:')} If using WP-CLI, you can also run:
-      ${pc.cyan('wp forgewp seed-products')}
-      ${pc.cyan('wp forgewp seed-mock-data')}
-`);
+console.log('');
+console.log(ui.detail('This did not export the theme or connect to WordPress. The data is seeded when'));
+console.log(ui.detail("the exported theme runs, following wp.config's seed strategy and debug guard."));
+console.log(`${ui.hint('Next', `${ui.command('pnpm forgewp export')} ${c.dim('then install the theme')}`)}`);
+console.log(`${ui.tip(`With WP-CLI you can seed on demand: ${ui.command('wp forgewp seed-products')} · ${ui.command('wp forgewp seed-mock-data')}`)}\n`);

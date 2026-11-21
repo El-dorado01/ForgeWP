@@ -18,8 +18,7 @@
     "node": "^22.18.0 || >=24.11.0"
   },
   "dependencies": {
-    "picocolors": "^1.1.1",
-    "prompts": "^2.4.2"
+    "@clack/prompts": "~1.8.1"
   },
   "scripts": {
     "prepublishOnly": "pnpm run --dir ../.. sync:template"

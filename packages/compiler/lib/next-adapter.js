@@ -1,6 +1,7 @@
-import { spawnSync } from 'node:child_process';
+import { spawnAsync } from './spawn-async.js';
 import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { createUi } from './terminal-ui.js';
 import { extractNextStaticMarkup } from './next-route-extractor.js';
 import { applyVerifiedNextLinksToMarkup } from './next-link-transform.js';
 import {
@@ -312,7 +313,7 @@ export async function buildAssets(themeRoot, options = {}) {
   }
 
   const pm = options.packageManager || 'pnpm';
-  const result = spawnSync(pm, ['run', 'build'], {
+  const result = await spawnAsync(pm, ['run', 'build'], {
     cwd: resolvedRoot,
     env: {
       ...process.env,
@@ -479,8 +480,10 @@ export default ${pascalCase};
 
   writeFileSync(filePath, source, 'utf8');
   if (pc) {
-    console.log(pc.green(`\n✅ Created Next.js Gutenberg block: ${path.relative(resolvedRoot, filePath)}`));
-    console.log(pc.dim(`   Block slug: forgewp/${slug} — compiled automatically on \`pnpm export\`.`));
+    const ui = createUi();
+    console.log(`\n${ui.created('block', pascalCase, path.relative(resolvedRoot, filePath).replaceAll('\\', '/'))}`);
+    console.log(ui.detail(`Block name forgewp/${slug}. Export compiles it into your WordPress theme.`));
+    console.log(`${ui.hint('Next', `${ui.command('pnpm forgewp export')} ${ui.c.dim('registers it in WordPress')}`)}\n`);
   }
 }
 
@@ -547,8 +550,10 @@ export default function ${pascalCase}Page() {
 
   writeFileSync(pageFile, source, 'utf8');
   if (pc) {
-    console.log(pc.green(`\n✅ Created Next.js App Router page: ${path.relative(resolvedRoot, pageFile)}`));
-    console.log(pc.dim(`   Route: /${slug} — compiles to page-${slug}.php on \`pnpm export\`.`));
+    const ui = createUi();
+    console.log(`\n${ui.created('page', pascalCase, path.relative(resolvedRoot, pageFile).replaceAll('\\', '/'))}`);
+    console.log(ui.detail(`Route /${slug}. Export compiles it to page-${slug}.php.`));
+    console.log(`${ui.hint('Next', `open ${ui.command(`http://localhost:3000/${slug}`)} ${ui.c.dim('with pnpm dev running')}`)}\n`);
   }
 }
 
@@ -612,15 +617,12 @@ export default ${pascalCase};
 
   writeFileSync(filePath, source, 'utf8');
   if (pc) {
-    console.log(pc.green(`\n✅ Created Next.js client island: ${path.relative(resolvedRoot, filePath)}`));
-    console.log(
-      pc.dim(
-        `   Use in any Server Component page:\n` +
-          `     import { Hydrate } from '@forgewp/react';\n` +
-          `     import { ${pascalCase} } from '@/components/${pascalCase}';\n` +
-          `     <Hydrate id="${slug}"><${pascalCase} /></Hydrate>`,
-      ),
-    );
+    const ui = createUi();
+    console.log(`\n${ui.created('island', pascalCase, path.relative(resolvedRoot, filePath).replaceAll('\\', '/'))}`);
+    console.log(ui.detail('Use it in any Server Component page:'));
+    console.log(`      ${ui.command(`import { Hydrate } from '@forgewp/react';`)}`);
+    console.log(`      ${ui.command(`import { ${pascalCase} } from '@/components/${pascalCase}';`)}`);
+    console.log(`      ${ui.command(`<Hydrate id="${slug}"><${pascalCase} /></Hydrate>`)}\n`);
   }
 }
 
@@ -781,9 +783,10 @@ export default ${componentName};
   writeFileSync(schemaPath, schemaCode, 'utf8');
   writeFileSync(componentPath, componentCode, 'utf8');
   if (pc) {
-    console.log(pc.green(`\n✅ Created Next.js Native Form:`));
-    console.log(pc.dim(`   Schema:    ${path.relative(resolvedRoot, schemaPath)}`));
-    console.log(pc.dim(`   Component: ${path.relative(resolvedRoot, componentPath)}`));
+    const ui = createUi();
+    const rel = (file) => path.relative(resolvedRoot, file).replaceAll('\\', '/');
+    console.log(`\n${ui.created('form', componentName, rel(componentPath))}`);
+    console.log(`${ui.detail(`Schema  ${rel(schemaPath)}`)}\n`);
   }
 }
 
@@ -841,8 +844,9 @@ export default ${pascalCase};
 
   writeFileSync(filePath, source, 'utf8');
   if (pc) {
-    console.log(pc.green(`\n✅ Created Next.js server loop component: ${path.relative(resolvedRoot, filePath)}`));
-    console.log(pc.dim(`   Post type: ${postType} — compiles to WP_Query in native export and fetches REST in decoupled mode.`));
+    const ui = createUi();
+    console.log(`\n${ui.created('loop', path.basename(filePath).replace(/\.[jt]sx?$/, ''), path.relative(resolvedRoot, filePath).replaceAll('\\', '/'))}`);
+    console.log(`${ui.detail(`Lists "${postType}" posts. Native export compiles it to WP_Query; decoupled mode reads the REST API.`)}\n`);
   }
 }
 
@@ -897,7 +901,8 @@ export default ${pascalCase};
 
   writeFileSync(filePath, source, 'utf8');
   if (pc) {
-    console.log(pc.green(`\n✅ Created Next.js InnerBlocks shell: ${path.relative(resolvedRoot, filePath)}`));
-    console.log(pc.dim(`   Shell slug: forgewp/${slug}`));
+    const ui = createUi();
+    console.log(`\n${ui.created('shell', path.basename(filePath).replace(/\.[jt]sx?$/, ''), path.relative(resolvedRoot, filePath).replaceAll('\\', '/'))}`);
+    console.log(`${ui.detail(`Block forgewp/${slug}. Export registers it in WordPress.`)}\n`);
   }
 }

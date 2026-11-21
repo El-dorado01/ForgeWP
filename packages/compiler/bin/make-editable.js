@@ -2,9 +2,13 @@
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { createUi } from '../lib/terminal-ui.js';
+
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import pc from "picocolors";
+
+const ui = createUi();
+const { c } = ui;
 
 const args = process.argv.slice(2);
 let rawName = args.find(a => !a.startsWith("-"));
@@ -20,19 +24,18 @@ if (nameIndex !== -1 && args[nameIndex + 1]) {
   }
 }
 
-if (!rawName) {
+// Only ask when someone is at the keyboard; otherwise fall through to the missing-name error.
+if (!rawName && process.stdin.isTTY) {
   const rl = readline.createInterface({ input, output });
   try {
-    const answer = await rl.question(pc.cyan("? Enter a schema name (e.g. AboutPage or about-page): "));
+    const answer = await rl.question(`  ${c.orange(ui.symbols.active)} Schema name ${c.dim("(e.g. AboutPage)")}: `);
     rawName = answer.trim();
   } catch (err) {}
   rl.close();
 }
 
 if (!rawName) {
-  console.error(pc.red("\n❌ Error: Please specify a schema name."));
-  console.log(pc.cyan("   Example: pnpm forgewp make:editable AboutPage"));
-  console.log(pc.cyan("   Or:      pnpm forgewp make:editable --name AboutPage\n"));
+  console.error(ui.errorBlock("Missing schema name.", `Example: ${ui.command("pnpm forgewp make:editable AboutPage")}`));
   process.exit(1);
 }
 
@@ -45,7 +48,7 @@ const slug = rawName
   .replace(/[^a-z0-9-]/g, "");
 
 if (!slug) {
-  console.error(pc.red("\n❌ Error: Invalid schema name. Use letters, numbers, dashes, and underscores.\n"));
+  console.error(ui.errorBlock("Invalid schema name.", "Use letters, numbers, dashes and underscores."));
   process.exit(1);
 }
 
@@ -57,7 +60,7 @@ const readableTitle = slug
 const projectRoot = process.cwd();
 
 if (!existsSync(path.join(projectRoot, "src"))) {
-  console.error(pc.red(`\n❌ Error: "src" folder not found. Are you in your theme's root directory?\n`));
+  console.error(ui.errorBlock("No src/ folder here.", "Run this from your theme project root."));
   process.exit(1);
 }
 
@@ -97,7 +100,7 @@ if (!existsSync(editablesDir)) {
 
 const targetFile = path.join(editablesDir, `${slug}.ts`);
 if (existsSync(targetFile)) {
-  console.error(pc.red(`\n❌ Error: Schema "${slug}.ts" already exists at cms/editables/\n`));
+  console.error(ui.errorBlock(`Already exists: cms/editables/${slug}.ts`, "Choose a different name, or edit the existing schema."));
   process.exit(1);
 }
 
@@ -159,8 +162,7 @@ export const defaults = getEditableDefaults(editable);
 
 writeFileSync(targetFile, schemaTemplate, "utf8");
 
-console.log(pc.green(`\n⚡ Editable schema "${slug}" successfully created!`));
-console.log(`   File: ${pc.cyan(`cms/editables/${slug}.ts`)}`);
-console.log(`\n🎉 Use it in a page or section component:`);
-console.log(`   ${pc.yellow(`import { editable, defaults } from '../../cms/editables/${slug}';`)}`);
-console.log(`   ${pc.yellow(`const ${fieldsList[0].name} = useWpMeta('${fieldsList[0].name}', defaults.${fieldsList[0].name});`)}\n`);
+console.log(`\n${ui.created("editable schema", slug, `cms/editables/${slug}.ts`)}`);
+console.log(ui.detail("Use it in a page or section component:"));
+console.log(`      ${ui.command(`import { editable, defaults } from '../../cms/editables/${slug}';`)}`);
+console.log(`      ${ui.command(`const ${fieldsList[0].name} = useWpMeta('${fieldsList[0].name}', defaults.${fieldsList[0].name});`)}\n`);

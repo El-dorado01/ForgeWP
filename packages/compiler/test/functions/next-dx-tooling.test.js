@@ -154,7 +154,7 @@ describe('Next.js DX tooling: forgewp init, adapter-aware doctor/repair/clean, a
       });
       expect(doctor.status, doctor.stdout + doctor.stderr).toBe(0);
       expect(doctor.stdout).toContain('Next.js Config & Native Compatibility');
-      expect(doctor.stdout).toContain('SYSTEM HEALTHY');
+      expect(doctor.stdout).toContain('Project healthy');
 
       // 3. clean.js removes .next and out
       const clean = spawnSync(process.execPath, [path.join(compilerBinDir, 'clean.js')], {

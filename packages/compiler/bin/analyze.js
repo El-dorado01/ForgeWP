@@ -2,14 +2,18 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
-import pc from "picocolors";
+import { createUi } from "../lib/terminal-ui.js";
+
 import { exec } from "node:child_process";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
-import { scanForHydrationIslandsWithProps, runStaticLintChecks } from "../lib/hydration-scanner.js";
+import { scanForHydrationIslandsWithProps, runStaticLintChecks } from "../lib/hydration/index.js";
 import { analyzeHydrationIslands, generateVisualReport } from "../lib/diagnostics.js";
 
-console.log(`\n📊 ${pc.bold(pc.bgCyan(pc.black("  FORGEWP HYDRATION ANALYZER  ")))}\n`);
+const ui = createUi();
+const { c } = ui;
+
+console.log(ui.header("analyze", "islands, bundle size, auth and lint"));
 
 const projectRoot = process.cwd();
 
@@ -30,7 +34,7 @@ async function main() {
     const adapterMod = await loadFrameworkAdapter(config.frameworkAdapter);
     adapter = adapterMod.default || adapterMod;
   } catch (err) {
-    console.warn(pc.yellow(`⚠️  Could not load wp.config.ts, using fallback values.`));
+    console.warn(ui.warn("Could not load wp.config", "using defaults"));
   }
 
   // 2. Scan islands
@@ -48,8 +52,8 @@ async function main() {
     : scanForHydrationIslandsWithProps(projectRoot);
 
   if (islands.length === 0) {
-    console.log(pc.yellow("⚠️  No hydration islands detected in src/app page files."));
-    console.log(`   Wrap components in ${pc.bold("<Hydrate>")} to scan them.\n`);
+    console.log(ui.info("No hydration islands found", "in src/app pages"));
+    console.log(`${ui.tip(`Wrap an interactive component in ${ui.command("<Hydrate>")} to analyze it.`)}\n`);
     process.exit(0);
   }
 
@@ -59,9 +63,7 @@ async function main() {
     const outRoot = path.join(projectRoot, ".forgewp", "out", config.slug);
     const islandsDir = path.join(outRoot, "assets", "islands");
     if (!existsSync(islandsDir)) {
-      console.log(pc.red(`❌ ${pc.bold("Exported Next.js Islands Not Found")}`));
-      console.log(pc.yellow(`   Could not locate "${path.relative(projectRoot, islandsDir)}".`));
-      console.log(pc.cyan(`   💡 Fix: Run "pnpm forgewp export" first to bundle islands with esbuild.\n`));
+      console.log(ui.errorBlock("No exported islands to analyze", `Looked in ${path.relative(projectRoot, islandsDir)}.`, `Run ${ui.command("pnpm forgewp export")} first, then analyze again.`));
       process.exit(1);
     }
     for (const island of islands) {
@@ -80,9 +82,7 @@ async function main() {
       : null;
 
     if (!targetManifest) {
-      console.log(pc.red(`❌ ${pc.bold("Vite Manifest Not Found")}`));
-      console.log(pc.yellow(`   Could not locate "dist/.vite/manifest.json" or "dist/manifest.json".`));
-      console.log(pc.cyan(`   💡 Fix: Run "pnpm forgewp export" first to compile assets.\n`));
+      console.log(ui.errorBlock("No build to analyze", "dist/.vite/manifest.json was not found.", `Run ${ui.command("pnpm forgewp export")} first, then analyze again.`));
       process.exit(1);
     }
 
@@ -90,7 +90,7 @@ async function main() {
     try {
       viteManifest = JSON.parse(readFileSync(targetManifest, "utf8"));
     } catch (e) {
-      console.error(pc.red(`❌ Failed to parse Vite manifest: ${e.message}`));
+      console.error(ui.errorBlock("Could not read the Vite manifest", e.message));
       process.exit(1);
     }
 
@@ -187,48 +187,39 @@ async function main() {
   try {
     reportPath = generateVisualReport(projectRoot, analysis, islands, config);
   } catch (err) {
-    console.error(pc.red(`❌ Failed to generate HTML report: ${err.message}`));
+    console.error(ui.errorBlock("Could not write the HTML report", err.message));
     process.exit(1);
   }
 
   // 8. Output terminal summary
-  console.log(`  Project: ${pc.cyan(config.name)} (${pc.dim(config.slug)})`);
-  console.log(`  Total Islands Scanned: ${pc.cyan(islands.length)}`);
-  console.log(`  Heavy Islands (>100 kB): ${analysis.heavyCount > 0 ? pc.red(analysis.heavyCount) : pc.green(0)}`);
-  
   const totalJsKb = analysis.results.reduce((acc, curr) => acc + curr.sizeKb, 0);
-  console.log(`  Total Client JS Weight: ${totalJsKb > 200 ? pc.red(totalJsKb.toFixed(1) + " kB") : pc.green(totalJsKb.toFixed(1) + " kB")}`);
+  const heavy = analysis.heavyCount;
+  console.log(`  ${c.bold("Islands")}  ${c.dim(`${config.name}`)}`);
+  console.log(heavy > 0
+    ? ui.warn(`${islands.length} island${islands.length === 1 ? "" : "s"}, ${heavy} over 100 kB`, `${totalJsKb.toFixed(1)} kB client JS`)
+    : ui.done(`${islands.length} island${islands.length === 1 ? "" : "s"}, none over 100 kB`, `${totalJsKb.toFixed(1)} kB client JS`));
 
-  console.log(`\n🔍 ${pc.bold("ForgeWP Auth Analysis")}`);
-  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log(`  Protected Pages: ${pc.cyan(authManifest.protectedPages.length)}`);
-  console.log(`  Auth Gates: ${pc.cyan(authManifest.authGates.filter(g => g.type === 'logged_in').length)}`);
-  console.log(`  Capability Gates: ${pc.cyan(authManifest.authGates.filter(g => g.type === 'capability').length)}`);
-
+  const loggedInGates = authManifest.authGates.filter((g) => g.type === "logged_in").length;
+  const capabilityGates = authManifest.authGates.filter((g) => g.type === "capability").length;
+  console.log(`\n  ${c.bold("Auth")}`);
+  console.log(ui.info(`${authManifest.protectedPages.length} protected page${authManifest.protectedPages.length === 1 ? "" : "s"}`, `${loggedInGates} login gate${loggedInGates === 1 ? "" : "s"} · ${capabilityGates} capability gate${capabilityGates === 1 ? "" : "s"}`));
   if (authWarnings.length > 0) {
-    console.log(`\n⚠️  ${pc.bold(pc.yellow("SECURITY WARNINGS"))}`);
-    for (const w of authWarnings) {
-      console.log(`   ${pc.yellow("⚠️  WARN")} ${pc.bold(w.file)}: ${w.message}`);
-    }
+    for (const w of authWarnings) console.log(ui.warn(w.file, w.message));
   } else {
-    console.log(`\n✅ ${pc.green(pc.bold("Security Audit Passed:"))} No unprotected page auth hook usages detected.`);
+    console.log(ui.done("No unprotected auth hooks"));
   }
 
+  console.log(`\n  ${c.bold("Lint & SEO")}`);
   if (violations.length > 0) {
-    console.log(`\n⚠️  ${pc.bold(pc.yellow("THEME LINT WARNINGS & SEO RECOMMENDATIONS"))}`);
     for (const v of violations) {
-      const icon = v.severity === "error" ? pc.red("❌ ERROR") : pc.yellow("⚠️  WARN");
-      console.log(`   ${icon} ${pc.bold(v.file)}: ${v.message}`);
-      if (v.lineContent) {
-        console.log(`      ${pc.dim("👉 Code:")} ${pc.italic(v.lineContent)}`);
-      }
+      console.log((v.severity === "error" ? ui.error : ui.warn)(v.file, v.message));
+      if (v.lineContent) console.log(ui.detail(v.lineContent.trim()));
     }
   } else {
-    console.log(`\n✅ ${pc.green(pc.bold("Best Practices Audit Passed:"))} 0 lint or SEO violations detected!`);
+    console.log(ui.done("No lint or SEO issues"));
   }
 
-  console.log(`\n🎉 ${pc.green(pc.bold("HTML Diagnostic Report generated successfully!"))}`);
-  console.log(`   Report path: ${pc.dim(reportPath)}`);
+  console.log(`\n  ${c.green(ui.symbols.done)} ${c.bold("Report ready")}  ${c.dim(path.relative(projectRoot, reportPath).replaceAll("\\", "/"))}`);
 
   // 8. Auto-open report in the browser
   const startCommand =
@@ -243,15 +234,20 @@ async function main() {
       ? `start "" "${reportPath}"`
       : `${startCommand} "${reportPath}"`;
 
-  console.log(`   Opening report in your browser...\n`);
+  // Only open a browser for someone at an interactive terminal (not CI or piped output).
+  if (!process.stdout.isTTY || process.env.CI) {
+    console.log("");
+    return;
+  }
+  console.log(`${ui.detail("Opening it in your browser…")}\n`);
   exec(command, (err) => {
     if (err) {
-      console.warn(pc.yellow(`⚠️  Failed to open browser automatically: ${err.message}`));
+      console.warn(ui.warn("Could not open the browser", `open ${reportPath} yourself`));
     }
   });
 }
 
 main().catch((err) => {
-  console.error(pc.red(`❌ Unexpected analyzer error: ${err.message}`));
+  console.error(ui.errorBlock("analyze failed", err.message));
   process.exit(1);
 });

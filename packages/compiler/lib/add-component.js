@@ -9,7 +9,10 @@ import {
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import pc from 'picocolors';
+import { createUi } from './terminal-ui.js';
+
+const ui = createUi();
+const { c } = ui;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -85,7 +88,7 @@ export async function addComponent(component, options) {
     );
   }
 
-  console.log(pc.cyan(`\n  ForgeWP add — ${component}\n`));
+  console.log(ui.header('add', component));
 
   // ── Step 1: Guarantee components.json exists ───────────────────────────────
   ensureComponentsJson(projectRoot);
@@ -94,7 +97,7 @@ export async function addComponent(component, options) {
   const { installCmd, shadcnCmd } = detectPackageManager(projectRoot);
 
   // ── Step 3: Run shadcn add (primary install source for everything) ─────────
-  console.log(pc.dim(`  Installing ${component} via shadcn...`));
+  console.log(ui.step(`Installing ${component} via shadcn`));
   try {
     execSync(`${shadcnCmd} add ${component} --yes`, {
       stdio: 'inherit',
@@ -110,16 +113,12 @@ export async function addComponent(component, options) {
           `Details: ${err.message}`,
       );
     }
-    console.log(
-      pc.yellow(
-        `  ⚠  shadcn does not know "${component}" — using ForgeWP local registry instead.`,
-      ),
-    );
+    console.log(ui.warn(`shadcn does not know "${component}" — using ForgeWP local registry instead.`));
   }
 
   // ── Step 5: Install ForgeWP local override (if present) ───────────────────
   if (hasLocalOverride) {
-    console.log(pc.dim(`  Applying ForgeWP override for ${component}...`));
+    console.log(ui.step(`Applying ForgeWP override for ${component}`));
 
     const targetDir = path.join(projectRoot, 'src', 'components', 'ui');
     if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true });
@@ -138,9 +137,7 @@ export async function addComponent(component, options) {
       );
     }
 
-    console.log(
-      pc.dim(`  ↳ Override written to src/components/ui/${component}.tsx`),
-    );
+    console.log(ui.detail(`Override written to src/components/ui/${component}.tsx`));
   }
 
   // ── Step 6: Apply ForgeWP sharpening (when style === "forgewp") ────────────
@@ -159,7 +156,7 @@ export async function addComponent(component, options) {
     }
   }
 
-  console.log(pc.green(`\n  ✅ ${component} ready in src/components/ui/\n`));
+  console.log(ui.done(`${component} ready in src/components/ui/`));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -181,18 +178,10 @@ function ensureComponentsJson(projectRoot) {
       JSON.stringify(SHADCN_COMPONENTS_JSON, null, 2),
       'utf8',
     );
-    console.log(
-      pc.green(`  ✅ Created components.json (shadcn configuration)`),
-    );
+    console.log(ui.done(`Created components.json (shadcn configuration)`));
   } catch (err) {
-    console.log(
-      pc.yellow(`  ⚠  Could not create components.json: ${err.message}`),
-    );
-    console.log(
-      pc.yellow(
-        `     Run "pnpm dlx shadcn@latest init" to initialize shadcn manually.`,
-      ),
-    );
+    console.log(ui.warn(`Could not create components.json: ${err.message}`));
+    console.log(ui.detail(`Run "pnpm dlx shadcn@latest init" to initialize shadcn manually.`));
   }
 }
 
@@ -295,21 +284,17 @@ async function ensureTailwindPlugins(plugins, installCmd, projectRoot) {
   for (const plugin of plugins) {
     // Install if missing
     if (!currentDeps[plugin]) {
-      console.log(
-        pc.yellow(`\n  ⚡ Requires Tailwind plugin: ${pc.bold(plugin)}`),
-      );
+      console.log(ui.info(`Requires Tailwind plugin: ${c.bold(plugin)}`));
       try {
         execSync(`${installCmd} ${plugin}`, {
           stdio: 'inherit',
           cwd: projectRoot,
           shell: process.platform === 'win32',
         });
-        console.log(pc.green(`  ✅ Installed ${plugin}`));
+        console.log(ui.done(`Installed ${plugin}`));
       } catch (err) {
-        console.log(pc.red(`  ❌ Failed to install ${plugin}: ${err.message}`));
-        console.log(
-          pc.yellow(`  Please manually run: ${installCmd} ${plugin}\n`),
-        );
+        console.log(ui.error(`Failed to install ${plugin}: ${err.message}`));
+        console.log(ui.detail(`Please manually run: ${installCmd} ${plugin}`));
         continue;
       }
     }
@@ -324,22 +309,14 @@ async function ensureTailwindPlugins(plugins, installCmd, projectRoot) {
 
     const globalsPath = cssSearchPaths.find((p) => existsSync(p));
     if (!globalsPath) {
-      console.log(
-        pc.yellow(
-          `  ⚠  Could not find globals.css. Add manually: @plugin "${plugin}";`,
-        ),
-      );
+      console.log(ui.warn(`Could not find globals.css. Add manually: @plugin "${plugin}";`));
       continue;
     }
 
     let css = readFileSync(globalsPath, 'utf8');
     const directive = `@plugin "${plugin}";`;
     if (css.includes(directive)) {
-      console.log(
-        pc.dim(
-          `  ↳ ${plugin} already registered in ${path.basename(globalsPath)}`,
-        ),
-      );
+      console.log(ui.detail(`${plugin} already registered in ${path.basename(globalsPath)}`));
       continue;
     }
 
@@ -357,11 +334,7 @@ async function ensureTailwindPlugins(plugins, installCmd, projectRoot) {
     }
 
     writeFileSync(globalsPath, lines.join('\n'), 'utf8');
-    console.log(
-      pc.green(
-        `  ✅ Registered @plugin "${plugin}" in ${path.basename(globalsPath)}`,
-      ),
-    );
+    console.log(ui.done(`Registered @plugin "${plugin}" in ${path.basename(globalsPath)}`));
   }
 }
 
@@ -386,6 +359,6 @@ function sharpenFile(filePath) {
 
   if (content !== sharpened) {
     writeFileSync(filePath, sharpened, 'utf8');
-    console.log(pc.dim(`    Sharpened ${path.basename(filePath)}`));
+    console.log(ui.detail(`Sharpened ${path.basename(filePath)}`));
   }
 }

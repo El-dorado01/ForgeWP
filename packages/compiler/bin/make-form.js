@@ -4,9 +4,13 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import pc from "picocolors";
+import { createUi } from '../lib/terminal-ui.js';
+
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
+
+const ui = createUi();
+const { c } = ui;
 
 const args = process.argv.slice(2);
 let rawName = args.find(a => !a.startsWith("-"));
@@ -22,19 +26,18 @@ if (nameIndex !== -1 && args[nameIndex + 1]) {
   }
 }
 
-if (!rawName) {
+// Only ask when someone is at the keyboard; otherwise fall through to the missing-name error.
+if (!rawName && process.stdin.isTTY) {
   const rl = readline.createInterface({ input, output });
   try {
-    const answer = await rl.question(pc.cyan("? Enter a form name (e.g. Contact or contact): "));
+    const answer = await rl.question(`  ${c.orange(ui.symbols.active)} Enter a form name (e.g. Contact or contact): `);
     rawName = answer.trim();
   } catch (err) {}
   rl.close();
 }
 
 if (!rawName) {
-  console.error(pc.red("\n❌ Error: Please specify a form name."));
-  console.log(pc.cyan("   Example: pnpm forgewp make:form Contact"));
-  console.log(pc.cyan("   Or:      pnpm forgewp make:form --name Contact\n"));
+  console.error(ui.errorBlock("Missing form name.", `Example: ${ui.command("pnpm forgewp make:form Contact --fields=name:text,email:email")}`));
   process.exit(1);
 }
 
@@ -47,7 +50,7 @@ const slug = rawName
   .replace(/[^a-z0-9-]/g, "");
 
 if (!slug) {
-  console.error(pc.red("\n❌ Error: Invalid form name. Use letters, numbers, dashes, and underscores.\n"));
+  console.error(ui.errorBlock("Invalid form name.", "Use letters, numbers, dashes and underscores."));
   process.exit(1);
 }
 
@@ -59,12 +62,12 @@ const pascalCase = slug
 const projectRoot = process.cwd();
 
 if (!existsSync(path.join(projectRoot, "src"))) {
-  console.error(pc.red(`\n❌ Error: "src" folder not found. Are you in your theme's root directory?\n`));
+  console.error(ui.errorBlock("No src/ folder here.", "Run this from your theme project root."));
   process.exit(1);
 }
 
 if (existsSync(path.join(projectRoot, "cms", "forms", `${slug}.ts`))) {
-  console.error(pc.red(`\n❌ Error: Form "${slug}.ts" already exists at cms/forms/\n`));
+  console.error(ui.errorBlock(`Already exists: cms/forms/${slug}.ts`, "Choose a different name, or edit the existing form."));
   process.exit(1);
 }
 
@@ -119,13 +122,13 @@ try {
       pascalCase,
       fields: fieldsList,
       mailTo,
-      pc,
+      pc: c,
     });
   } else {
-    console.error(pc.red(`\n❌ Error: Framework adapter "${frameworkAdapter}" does not support making forms.`));
+    console.error(ui.errorBlock(`The ${frameworkAdapter} adapter does not support make:form.`));
     process.exit(1);
   }
 } catch (err) {
-  console.error(pc.red(`\n❌ Failed to execute make:form: ${err.message}`));
+  console.error(ui.errorBlock("make:form failed", err.message));
   process.exit(1);
 }

@@ -4,10 +4,14 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import pc from "picocolors";
+import { createUi } from '../lib/terminal-ui.js';
+
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
 import { blockAuthoringHelp } from "../lib/block-authoring-help.js";
+
+const ui = createUi();
+const { c } = ui;
 
 const args = process.argv.slice(2);
 if (args.includes('--help') || args.includes('-h')) {
@@ -35,26 +39,25 @@ if (nameIndex !== -1 && args[nameIndex + 1]) {
   }
 }
 
-if (!rawBlockName) {
+// Only ask when someone is at the keyboard; otherwise fall through to the missing-name error.
+if (!rawBlockName && process.stdin.isTTY) {
   const rl = readline.createInterface({ input, output });
   try {
-    const answer = await rl.question(pc.cyan("? Enter a block name: "));
+    const answer = await rl.question(`  ${c.orange(ui.symbols.active)} Enter a block name: `);
     rawBlockName = answer.trim();
   } catch (err) {}
   rl.close();
 }
 
 if (!rawBlockName) {
-  console.error(pc.red("\n❌ Error: Please specify a block name."));
-  console.log(pc.cyan("   Example: pnpm forgewp make:block TestimonialBlock"));
-  console.log(pc.cyan("   Or:      pnpm forgewp make:block --name TestimonialBlock\n"));
+  console.error(ui.errorBlock("Missing block name.", `Example: ${ui.command("pnpm forgewp make:block TestimonialBlock")}`));
   process.exit(1);
 }
 
 // 1. Sanitize & convert to PascalCase and kebab-case
 const cleanName = rawBlockName.replace(/[^a-zA-Z0-9_-]/g, "");
 if (!cleanName) {
-  console.error(pc.red("\n❌ Error: Invalid block name. Use letters, numbers, dashes, and underscores.\n"));
+  console.error(ui.errorBlock("Invalid block name.", "Use letters, numbers, dashes and underscores."));
   process.exit(1);
 }
 
@@ -72,7 +75,7 @@ const readableTitle = pascalCase
 const projectRoot = process.cwd();
 
 if (!existsSync(path.join(projectRoot, "src"))) {
-  console.error(pc.red(`\n❌ Error: "src" folder not found. Are you in your theme's root directory?\n`));
+  console.error(ui.errorBlock("No src/ folder here.", "Run this from your theme project root."));
   process.exit(1);
 }
 
@@ -108,14 +111,14 @@ try {
       pascalCase,
       readableTitle,
       attributesList,
-      pc
+      pc: c
     });
   } else {
-    console.error(pc.red(`\n❌ Error: Framework adapter "${frameworkAdapter}" does not support making Gutenberg blocks.`));
+    console.error(ui.errorBlock(`The ${frameworkAdapter} adapter does not support make:block.`));
     process.exit(1);
   }
 } catch (err) {
-  console.error(pc.red(`\n❌ Failed to execute make:block: ${err.message}`));
+  console.error(ui.errorBlock("make:block failed", err.message));
   process.exit(1);
 }
 

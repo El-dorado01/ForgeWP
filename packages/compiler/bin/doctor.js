@@ -3,7 +3,6 @@ import { isSupportedNode, SUPPORTED_NODE_RANGE } from '../lib/node-runtime.js';
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import pc from "picocolors";
 import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
@@ -11,8 +10,12 @@ import { diagnoseNextNativeCompatibility } from "../lib/next-adapter.js";
 import { findWpConfigPath } from "../lib/project-language.js";
 import { scanForHydrationIslands, runStaticLintChecks } from "../lib/hydration/index.js";
 import { analyzeHydrationIslands, printDiagnosticsReport } from "../lib/diagnostics.js";
+import { createUi, formatDuration } from "../lib/terminal-ui.js";
 
-console.log(`\n🩺 ${pc.bold(pc.bgCyan(pc.black("  FORGEWP SYSTEM DOCTOR  ")))}\n`);
+const ui = createUi();
+const { c } = ui;
+const startedAt = Date.now();
+
 
 const projectRoot = process.cwd();
 let failuresFound = 0;
@@ -33,22 +36,40 @@ try {
   configLoadError = err;
 }
 
+console.log(ui.header('doctor', loadedConfig ? `${loadedConfig.name} · ${frameworkAdapter}` : undefined));
+let checksRun = 0;
+
+/**
+ * Run one check. Anything the check prints is collected and shown indented under
+ * its result line, so detail never interleaves with a half-written status line.
+ */
 function runCheck(name, fn) {
-  process.stdout.write(`  Checking ${name.padEnd(45, ".")} `);
+  const captured = [];
+  const originalLog = console.log;
+  console.log = (...args) => captured.push(args.join(" "));
+  let status = "ok";
+  let note = null;
   try {
     const warning = fn();
     if (warning) {
-      console.log(pc.yellow("⚠️  WARNING"));
-      console.log(pc.yellow(`     👉 ${warning}`));
+      status = "warn";
+      note = warning;
       warningsFound++;
-    } else {
-      console.log(pc.green("✅ OK"));
     }
   } catch (err) {
-    console.log(pc.red("❌ FAILED"));
-    console.log(pc.red(`     👉 Error: ${err.message}`));
+    status = "fail";
+    note = err.message;
     failuresFound++;
+  } finally {
+    console.log = originalLog;
   }
+  checksRun++;
+
+  const print = status === "ok" ? ui.done : status === "warn" ? ui.warn : ui.error;
+  console.log(print(name));
+  const detailLines = captured.join("\n").split("\n").filter((line) => line.trim() !== "");
+  for (const line of detailLines) console.log(`    ${line.replace(/^\s{0,4}/, "")}`);
+  if (note) console.log(ui.detail(note));
 }
 
 // 1. Node Version Check
@@ -154,8 +175,8 @@ if (frameworkAdapter === "nextjs") {
     if (!compat.ok) {
       console.log("");
       for (const err of compat.errors) {
-        console.log(pc.yellow(`     [${err.code}] ${err.file}: ${err.message}`));
-        console.log(pc.dim(`       → ${err.suggestion}`));
+        console.log(`${c.yellow(ui.symbols.warn)} ${c.bold(err.file)}  ${err.message} ${c.dim(`[${err.code}]`)}`);
+        console.log(`  ${c.dim(`${ui.symbols.arrow} ${err.suggestion}`)}`);
       }
       warnings.push(
         `Found ${compat.errors.length} server-only Next.js feature(s). Use decoupled mode (FORGEWP_DEPLOYMENT_MODE=decoupled) or refactor them for native WordPress export.`,
@@ -277,26 +298,27 @@ runCheck("Static Code Lint & SEO Best Practices", () => {
   
   console.log("");
   for (const v of violations) {
-    const prefix = v.severity === "error" ? pc.red("    [ERROR]") : pc.yellow("    [WARN] ");
-    console.log(`${prefix} ${pc.bold(v.file)}: ${v.message}`);
+    const symbol = v.severity === "error" ? c.red(ui.symbols.error) : c.yellow(ui.symbols.warn);
+    console.log(`${symbol} ${c.bold(v.file)}  ${v.message}`);
   }
   
   return `Detected ${errors} error(s) and ${warnings} warning(s) in template source files. Run "pnpm forgewp analyze" to review detailed remedies inside the visual report.`;
 });
 
 // Final Diagnostic
-console.log("\n" + "─".repeat(60));
+const summaryMeta = `${checksRun} checks · ${formatDuration(Date.now() - startedAt)}`;
+console.log("");
 if (failuresFound === 0) {
   if (warningsFound > 0) {
-    console.log(pc.yellow(`\n⚠️  ${pc.bold("SYSTEM READY WITH WARNINGS:")} Found ${warningsFound} warning-level suggestion(s).`));
-    console.log(pc.cyan("   Your theme environment is healthy, but review recommendations above for best practices.\n"));
+    console.log(`  ${c.yellow(ui.symbols.warn)} ${c.bold(`Ready, with ${warningsFound} warning${warningsFound === 1 ? "" : "s"}`)}  ${c.dim(summaryMeta)}`);
+    console.log(`${ui.detail("Your project works; the notes above are recommendations.")}\n`);
   } else {
-    console.log(pc.green(`\n🎉 ${pc.bold("SYSTEM HEALTHY:")} Your ForgeWP monorepo is in perfect condition!`));
-    console.log(pc.cyan("   You are ready to compile, scaffold, and upload themes safely.\n"));
+    console.log(`  ${c.green(ui.symbols.done)} ${c.bold("Project healthy")}  ${c.dim(summaryMeta)}`);
+    console.log(`${ui.detail(`Ready to build. Run ${ui.command("pnpm forgewp export")} when you are.`)}\n`);
   }
   process.exit(0);
 } else {
-  console.log(pc.red(`\n❌ ${pc.bold("DIAGNOSTIC COMPLETED:")} Found ${failuresFound} critical system issue(s) and ${warningsFound} warning(s).`));
-  console.log(pc.yellow(`   💡 Tip: Follow the instructions above or run "pnpm forgewp repair" to auto-heal framework internals.\n`));
+  console.log(`  ${c.red(ui.symbols.error)} ${c.bold(`${failuresFound} problem${failuresFound === 1 ? "" : "s"} found`)}${warningsFound ? `, ${warningsFound} warning${warningsFound === 1 ? "" : "s"}` : ""}  ${c.dim(summaryMeta)}`);
+  console.log(`${ui.detail(`Fix the problems above, or run ${ui.command("pnpm forgewp repair")} to restore missing framework files.`)}\n`);
   process.exit(1);
 }

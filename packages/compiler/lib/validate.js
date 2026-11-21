@@ -1,8 +1,10 @@
 import { existsSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import pc from "picocolors";
 import { getSystemBlueprints, SYSTEM_BLUEPRINTS } from "./blueprints.js";
 import { findWpConfigPath } from "./project-language.js";
+import { createUi } from './terminal-ui.js';
+
+const ui = createUi();
 
 const DEFAULT_CRITICAL_FILES = [
   { relativePath: "wp.config.ts", name: "Theme configuration file" },
@@ -86,7 +88,7 @@ export function validateCriticalFiles(themeRoot, options = {}) {
   for (const file of requiredFiles) {
     if (!criticalFileExists(themeRoot, file.relativePath)) {
       throw new Error(
-        `Critical project file is missing: ${pc.bold(file.relativePath)}\n` +
+        `Critical project file is missing: ${file.relativePath}\n` +
         `  Description: ${file.name}\n\n` +
         `  👉 To fix this, please restore the file from your version control (Git) or re-create it from the original ForgeWP theme template.`
       );
@@ -112,13 +114,13 @@ export function validateCriticalFiles(themeRoot, options = {}) {
           continue; // Typed .ts file exists, do not recreate default .json blueprint
         }
       }
-      console.log(pc.yellow(`  ⚠️  System file ${pc.bold(relativePath)} was missing! Restoring default system blueprint...`));
+      console.log(ui.warn(`Restoring missing framework file`, relativePath));
       shouldWrite = true;
     } else if (!relativePath.startsWith("cms/")) {
       try {
         const existingContent = readFileSync(fullPath, "utf8");
         if (existingContent !== blueprintContent) {
-          console.log(pc.yellow(`  🔄  System file ${pc.bold(relativePath)} is out of date! Updating to latest system blueprint...`));
+          console.log(ui.info(`Updating framework file`, relativePath));
           shouldWrite = true;
         }
       } catch (e) {
@@ -134,7 +136,7 @@ export function validateCriticalFiles(themeRoot, options = {}) {
       }
 
       writeFileSync(fullPath, blueprintContent, "utf8");
-      console.log(pc.green(`  ✅ Successfully restored/updated system file: ${relativePath}`));
+      console.log(ui.done(`Framework file ready`, relativePath));
     }
   }
 }

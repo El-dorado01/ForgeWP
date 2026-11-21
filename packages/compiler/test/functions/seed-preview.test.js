@@ -68,7 +68,7 @@ describe('mock seed preview CLI', () => {
     configure({ mockData: 'once' });
     const result = run('mock-data');
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain('has not exported PHP or connected to WordPress');
+    expect(result.stdout).toContain('did not export the theme or connect to WordPress');
     expect(result.stdout).not.toContain('have been compiled');
   });
 });
