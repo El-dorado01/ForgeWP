@@ -132,12 +132,11 @@ Latest implementation (Linux VM, Node v24.22.3, PHP 8.2.35, pnpm 10.34.9, WordPr
 
 ## Post-Slice-10 follow-ups
 
-The fixed-route native WordPress + decoupled Next.js workflow, `forgewp init`, adapter-aware `doctor`/`repair`/`clean`/`analyze`, `make:block`/`make:page`/`make:island`, standardized `create-forgewp --adapter nextjs` boilerplates, the 6 adapter hardening fixes (`test/functions/next-adapter-hardening.test.js`), single-segment dynamic App Router routes (`test/functions/next-dynamic-routes.test.js`), opt-in auto-detected interactive client islands (`test/functions/next-auto-islands.test.js`), and **`next/image` & `next/font` native WordPress compilation** (`test/functions/next-image-font.test.js`) are now implemented and verified. Remaining follow-ups:
+The fixed-route native WordPress + decoupled Next.js workflow, `forgewp init`, adapter-aware `doctor`/`repair`/`clean`/`analyze`, `make:block`/`make:page`/`make:island`, standardized `create-forgewp --adapter nextjs` boilerplates, the 6 adapter hardening fixes (`test/functions/next-adapter-hardening.test.js`), single-segment dynamic App Router routes (`test/functions/next-dynamic-routes.test.js`), opt-in auto-detected interactive client islands (`test/functions/next-auto-islands.test.js`), `next/image` & `next/font` native WordPress compilation (`test/functions/next-image-font.test.js`), and **WordPress Navigation Menus & Site Info helpers (`getMenu`, `getSiteInfo`, `WpServerMenu`, `/wp-json/forgewp/v1/menus/<location>`, `/wp-json/forgewp/v1/site-info`)** (`test/functions/next-menus-site-info.test.js`) are now implemented and verified. Remaining follow-ups:
 
-1. WordPress Navigation Menus & Site Info helpers (`wpClient.getMenu()`, `wpClient.getSiteInfo()`) in `@forgewp/react/server`.
-2. Optional module parity audit for Next.js (Forms, SEO, Auth, WooCommerce).
-3. Turbopack compatibility verification alongside webpack (`next build --webpack` is the verified path today).
-4. Catch-all `[...slug]` / taxonomy hierarchy templates and remaining shared-framework backlog items in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md`.
+1. Optional module parity audit for Next.js (Forms, SEO, Auth, WooCommerce).
+2. Turbopack compatibility verification alongside webpack (`next build --webpack` is the verified path today).
+3. Catch-all `[...slug]` / taxonomy hierarchy templates and remaining shared-framework backlog items in `FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md`.
 
 ## Commands and environment notes
 

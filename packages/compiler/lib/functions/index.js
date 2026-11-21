@@ -1773,6 +1773,90 @@ if (!function_exists('forgewp_register_decoupled_rest_bridge')) {
                 ));
             },
         ));
+
+        register_rest_route('forgewp/v1', '/menus/(?P<location>[a-zA-Z0-9_-]+)', array(
+            'methods'             => 'GET',
+            'permission_callback' => '__return_true',
+            'callback'            => function ($request) {
+                $location = sanitize_key((string) $request['location']);
+                $lang = function_exists('pll_current_language') ? pll_current_language() : (defined('ICL_LANGUAGE_CODE') ? ICL_LANGUAGE_CODE : '');
+                $menu_id = function_exists('forgewp_get_menu_id_for_lang')
+                    ? forgewp_get_menu_id_for_lang($location, $lang)
+                    : null;
+                if (!$menu_id) {
+                    $locations = get_nav_menu_locations();
+                    if (isset($locations[$location])) {
+                        $menu_id = (int) $locations[$location];
+                    }
+                }
+                $raw_items = $menu_id ? wp_get_nav_menu_items($menu_id) : array();
+                if (!is_array($raw_items)) {
+                    $raw_items = array();
+                }
+
+                $home_url = home_url('/');
+                $parsed_home = wp_parse_url($home_url);
+                $base_path = isset($parsed_home['path']) ? rtrim($parsed_home['path'], '/') : '';
+
+                $by_id = array();
+                foreach ($raw_items as $item) {
+                    $item_url = (string) $item->url;
+                    $parsed_item = wp_parse_url($item_url);
+                    $raw_path = isset($parsed_item['path']) ? $parsed_item['path'] : '/';
+                    if ($base_path !== '' && ($raw_path === $base_path || strpos($raw_path, $base_path . '/') === 0)) {
+                        $rel_path = substr($raw_path, strlen($base_path));
+                        $rel_path = $rel_path === '' ? '/' : $rel_path;
+                    } else {
+                        $rel_path = $raw_path;
+                    }
+                    $by_id[(int) $item->ID] = array(
+                        'id'       => (int) $item->ID,
+                        'parentId' => (int) $item->menu_item_parent,
+                        'title'    => html_entity_decode(wp_strip_all_tags((string) $item->title), ENT_QUOTES, 'UTF-8'),
+                        'url'      => $item_url,
+                        'path'     => $rel_path,
+                        'target'   => !empty($item->target) ? (string) $item->target : '',
+                        'classes'  => is_array($item->classes) ? array_values(array_filter($item->classes)) : array(),
+                        'children' => array(),
+                    );
+                }
+
+                $tree = array();
+                foreach ($by_id as $id => &$node) {
+                    $parent_id = $node['parentId'];
+                    unset($node['parentId']);
+                    if ($parent_id > 0 && isset($by_id[$parent_id])) {
+                        $by_id[$parent_id]['children'][] = &$node;
+                    } else {
+                        $tree[] = &$node;
+                    }
+                }
+                unset($node);
+
+                return rest_ensure_response(array(
+                    'location' => $location,
+                    'items'    => $tree,
+                ));
+            },
+        ));
+
+        register_rest_route('forgewp/v1', '/site-info', array(
+            'methods'             => 'GET',
+            'permission_callback' => '__return_true',
+            'callback'            => function () {
+                $logo_id = (int) get_theme_mod('custom_logo');
+                $logo_url = $logo_id ? (string) wp_get_attachment_image_url($logo_id, 'full') : '';
+                $home_url = home_url('/');
+                return rest_ensure_response(array(
+                    'name'        => html_entity_decode((string) get_bloginfo('name'), ENT_QUOTES, 'UTF-8'),
+                    'description' => html_entity_decode((string) get_bloginfo('description'), ENT_QUOTES, 'UTF-8'),
+                    'url'         => $home_url,
+                    'homeUrl'     => $home_url,
+                    'language'    => (string) get_bloginfo('language'),
+                    'logoUrl'     => $logo_url,
+                ));
+            },
+        ));
     }
     add_action('rest_api_init', 'forgewp_register_decoupled_rest_bridge');
 }
