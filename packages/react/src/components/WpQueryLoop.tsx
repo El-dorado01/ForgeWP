@@ -28,16 +28,23 @@ export interface WpQueryLoopProps {
   /** Optional relational dynamic post ID collection selector */
   postIn?: string;
   /**
-   * Posts data — injected by ForgeWP's Vite runtime data bridge.
-   * You do not need to pass this yourself; WpQueryLoop in your project handles it.
+   * Posts data — injected by ForgeWP's Vite runtime data bridge, or passed explicitly
+   * in Next.js Server Components (`posts={posts}`).
    */
-  posts?: WpPost[];
-  children: React.ReactNode;
+  posts?: Array<WpPost | Record<string, any>>;
+  /**
+   * Used by the Next.js Server Component adapter: when true (default), compiles to
+   * the main WordPress archive loop (`have_posts()`); set false for a custom `WP_Query`.
+   */
+  useMainQuery?: boolean;
+  /** Optional render function per post item (supported in both Vite React and Next.js). */
+  renderItem?: (post: any, index: number) => React.ReactNode;
+  children?: React.ReactNode | ((post: any, index: number) => React.ReactNode);
 }
 
 /**
  * WpQueryLoop — Iterates over an array of WpPost objects and provides
- * each post to child hooks via WpPostContext.
+ * each post to child hooks via WpPostContext (or calls `renderItem` / function `children`).
  *
  * This component is framework-level infrastructure — it contains no
  * styling, no layout opinions, and no rendering assumptions.
@@ -59,13 +66,32 @@ export function WpQueryLoop({
   taxTerms = '',
   postIn,
   posts: postsProp,
+  renderItem,
   children,
 }: WpQueryLoopProps) {
+  const renderPost = (post: any, index: number): React.ReactNode => {
+    if (typeof renderItem === 'function') return renderItem(post, index);
+    if (typeof children === 'function') return children(post, index);
+    return children ?? null;
+  };
+
   const isCompileTime =
     typeof window !== 'undefined' &&
     (window as any)._forgeWpCompileTime === true;
 
   if (isCompileTime) {
+    const compileTokenPost = {
+      id: 0,
+      slug: '__forgewp-loop-item__',
+      title: '__FORGEWP_THE_TITLE__',
+      excerpt: '__FORGEWP_THE_EXCERPT__',
+      content: '__FORGEWP_THE_CONTENT__',
+      date: '__FORGEWP_THE_DATE__',
+      author: '__FORGEWP_THE_AUTHOR__',
+      permalink: '__FORGEWP_THE_PERMALINK__',
+      featuredImage: '__FORGEWP_THE_POST_THUMBNAIL_URL__',
+      __postType: postType,
+    };
     return React.createElement(
       React.Fragment,
       null,
@@ -83,7 +109,7 @@ export function WpQueryLoop({
         taxTerms,
         postIn,
       }),
-      children,
+      renderPost(compileTokenPost, 0),
       React.createElement('forgewp-query-loop-end'),
     );
   }
@@ -184,8 +210,8 @@ export function WpQueryLoop({
     filteredPosts = filteredPosts.filter((p) => p.id === postId);
   }
 
-  const items = (postsPerPage === -1 ? filteredPosts : filteredPosts.slice(0, postsPerPage))
-    .map((p) => ({ ...p, __postType: postType }));
+  const items: WpPost[] = (postsPerPage === -1 ? filteredPosts : filteredPosts.slice(0, postsPerPage))
+    .map((p) => ({ ...(p as WpPost), __postType: postType }));
 
   if (items.length === 0) {
     // Fallback placeholders so the layout is always visible during dev
@@ -205,12 +231,12 @@ export function WpQueryLoop({
 
     return (
       <>
-        {fallbacks.map((post) => (
+        {fallbacks.map((post, idx) => (
           <WpPostContext.Provider
             key={post.id}
             value={post}
           >
-            {children}
+            {renderPost(post, idx)}
           </WpPostContext.Provider>
         ))}
       </>
@@ -219,12 +245,12 @@ export function WpQueryLoop({
 
   return (
     <>
-      {items.map((post) => (
+      {items.map((post, idx) => (
         <WpPostContext.Provider
           key={post.id}
           value={post}
         >
-          {children}
+          {renderPost(post, idx)}
         </WpPostContext.Provider>
       ))}
     </>

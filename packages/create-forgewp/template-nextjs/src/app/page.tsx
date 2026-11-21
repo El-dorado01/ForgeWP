@@ -1,4 +1,4 @@
-import { BlockArea } from '@forgewp/react/server';
+import { BlockArea } from '@forgewp/react';
 import { ArrowUpRightIcon, GithubIcon } from '@/components/BrandLogos';
 import { WaveLines } from '@/components/WaveLines';
 import { getPageContent } from '@/lib/content';

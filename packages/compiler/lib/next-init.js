@@ -213,8 +213,8 @@ export function initNextProject(projectRoot, options = {}) {
   );
   if (!existingContentHelper) {
     const contentCode = isJs
-      ? `import { createWpServerClient } from '@forgewp/react/server';\nimport { mockData } from '${mockImportPath}';\n\nexport const wpClient = createWpServerClient({\n  fixtures: mockData,\n});\n\nexport async function getPageContent(slug) {\n  const page = await wpClient.getLivePage(slug);\n  return (\n    page ?? {\n      id: 0,\n      slug,\n      title: slug,\n      content: '',\n      blocks: [],\n      source: 'fixture',\n    }\n  );\n}\n`
-      : `import { createWpServerClient } from '@forgewp/react/server';\nimport { mockData } from '${mockImportPath}';\n\nexport const wpClient = createWpServerClient({\n  fixtures: mockData,\n});\n\nexport async function getPageContent(slug: string) {\n  const page = await wpClient.getLivePage(slug);\n  return (\n    page ?? {\n      id: 0,\n      slug,\n      title: slug,\n      content: '',\n      blocks: [],\n      source: 'fixture' as const,\n    }\n  );\n}\n`;
+      ? `import { createWpServerClient } from '@forgewp/react';\nimport { mockData } from '${mockImportPath}';\n\nexport const wpClient = createWpServerClient({\n  fixtures: mockData,\n});\n\nexport async function getPageContent(slug) {\n  const page = await wpClient.getLivePage(slug);\n  return (\n    page ?? {\n      id: 0,\n      slug,\n      title: slug,\n      content: '',\n      blocks: [],\n      source: 'fixture',\n    }\n  );\n}\n`
+      : `import { createWpServerClient } from '@forgewp/react';\nimport { mockData } from '${mockImportPath}';\n\nexport const wpClient = createWpServerClient({\n  fixtures: mockData,\n});\n\nexport async function getPageContent(slug: string) {\n  const page = await wpClient.getLivePage(slug);\n  return (\n    page ?? {\n      id: 0,\n      slug,\n      title: slug,\n      content: '',\n      blocks: [],\n      source: 'fixture' as const,\n    }\n  );\n}\n`;
     if (!dryRun) {
       mkdirSync(path.dirname(contentAbs), { recursive: true });
       writeFileSync(contentAbs, contentCode, 'utf8');
@@ -222,7 +222,7 @@ export function initNextProject(projectRoot, options = {}) {
     actions.push({
       file: contentRel,
       action: 'create',
-      detail: 'Created unified @forgewp/react/server content client helper',
+      detail: 'Created unified @forgewp/react content client helper',
     });
   } else {
     actions.push({

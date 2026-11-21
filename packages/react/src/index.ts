@@ -221,3 +221,26 @@ export type {
 
 // Context (exposed for advanced integrations — use sparingly)
 export { WpPostContext } from './context';
+
+// Unified server-safe client, editable resolver, and auth guards (also resolved via
+// `"react-server"` conditional export in Next.js App Router Server Components)
+export {
+  createWpServerClient,
+  isNativeWordPressExport,
+  getWpEditable,
+  WpRequireAuth,
+  WpAuthGate,
+} from './server';
+export type {
+  WpServerClient,
+  WpServerClientOptions,
+  WpServerPageRecord,
+  WpServerPostRecord,
+  WpServerRouteRecord,
+  WpServerMenuItem,
+  WpServerSiteInfo,
+  WpServerBlockNode,
+  WpServerAuth,
+  WpRequireAuthProps,
+  WpAuthGateProps,
+} from './server';

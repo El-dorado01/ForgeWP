@@ -194,7 +194,7 @@ describe('Next.js DX tooling: forgewp init, adapter-aware doctor/repair/clean, a
       expect(makePage.status, makePage.stderr).toBe(0);
       const pagePath = path.join(tmp, 'src', 'app', 'contact-us', 'page.tsx');
       expect(existsSync(pagePath)).toBe(true);
-      expect(readFileSync(pagePath, 'utf8')).toContain("from '@forgewp/react/server'");
+      expect(readFileSync(pagePath, 'utf8')).toContain("from '@forgewp/react'");
 
       // 6. make:island creates a 'use client' island in src/components/NewsletterSignup.tsx
       const makeIsland = spawnSync(

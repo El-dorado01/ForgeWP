@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Hydrate } from '@forgewp/react/server';
+import { Hydrate } from '@forgewp/react';
 import { ForgeWPLogo, NextLogo } from '@/components/BrandLogos';
 import { ThemeHotkey } from '@/components/ThemeHotkey';
 import { THEME_STORAGE_KEY } from '@/lib/theme';
