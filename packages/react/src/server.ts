@@ -1234,4 +1234,4 @@ export {
   optionToggle,
   optionNumber,
   optionPostPicker,
-} from './config';
+} from './config.js';
