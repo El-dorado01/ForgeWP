@@ -773,7 +773,7 @@ export interface WpServerLoopProps {
   /** WordPress post type slug (default: 'post'). */
   postType?: string;
   /** Posts array rendered in local dev / decoupled mode. */
-  posts: WpServerPostRecord[];
+  posts?: WpServerPostRecord[];
   /**
    * When true (default), compiles to the main WordPress archive loop (`have_posts()`).
    * Set to false when embedding a custom `WP_Query` feed inside a static page.
@@ -782,7 +782,11 @@ export interface WpServerLoopProps {
   /** Optional `posts_per_page` when `useMainQuery` is false. */
   postsPerPage?: number;
   /** Render function for each post item. */
-  renderItem: (post: WpServerPostRecord, index: number) => React.ReactNode;
+  renderItem?: (post: WpServerPostRecord, index: number) => React.ReactNode;
+  /** Optional children render function (same signature as `renderItem`) or static fallback. */
+  children?:
+    | React.ReactNode
+    | ((post: WpServerPostRecord, index: number) => React.ReactNode);
 }
 
 const NATIVE_LOOP_TOKEN_POST: WpServerPostRecord = {
@@ -803,18 +807,25 @@ const NATIVE_LOOP_TOKEN_POST: WpServerPostRecord = {
 /**
  * Pure-TypeScript, Server-Component-safe WordPress post loop for Next.js App Router.
  *
- * - Local dev & decoupled mode: renders `posts.map(renderItem)`.
+ * - Local dev & decoupled mode: renders `posts.map(renderItem)` (or function `children`).
  * - Native WordPress export (`FORGEWP_NATIVE_EXPORT=1`): emits ForgeWP loop markers
  *   around a single token-populated item so `markup-processor.js` compiles it to
  *   a native WordPress `have_posts()` or `WP_Query` PHP loop.
  */
 export function WpServerLoop({
   postType = 'post',
-  posts,
+  posts = [],
   useMainQuery = true,
   postsPerPage = 10,
   renderItem,
+  children,
 }: WpServerLoopProps): React.ReactElement {
+  const render =
+    renderItem ??
+    (typeof children === 'function'
+      ? (children as (post: WpServerPostRecord, index: number) => React.ReactNode)
+      : () => children ?? null);
+
   if (isNativeWordPressExport()) {
     const tokenItem: WpServerPostRecord = {
       ...NATIVE_LOOP_TOKEN_POST,
@@ -825,7 +836,7 @@ export function WpServerLoop({
         React.Fragment,
         null,
         React.createElement('forgewp-loop-start'),
-        renderItem(tokenItem, 0),
+        render(tokenItem, 0),
         React.createElement('forgewp-loop-end'),
       );
     }
@@ -836,7 +847,7 @@ export function WpServerLoop({
         posttype: postType,
         postsperpage: String(postsPerPage),
       }),
-      renderItem(tokenItem, 0),
+      render(tokenItem, 0),
       React.createElement('forgewp-query-loop-end'),
     );
   }
@@ -844,7 +855,7 @@ export function WpServerLoop({
   return React.createElement(
     React.Fragment,
     null,
-    ...(Array.isArray(posts) ? posts.map((post, i) => renderItem(post, i)) : []),
+    ...(Array.isArray(posts) ? posts.map((post, i) => render(post, i)) : []),
   );
 }
 
@@ -1104,3 +1115,123 @@ export function WpServerAuthGate({
   }
   return React.createElement(React.Fragment, null, children ?? null);
 }
+
+/**
+ * Pure-TypeScript, Server-Component-safe helper that resolves a `defineEditable()`
+ * schema from either a `WpServerClient` (`wp.getField(...)`), a plain meta/page
+ * object, or the schema's own defaults.
+ *
+ * - Native WordPress export (`FORGEWP_NATIVE_EXPORT=1`) with a `WpServerClient`:
+ *   emits `__FORGEWP_META_<key>_DEFAULT_<default>__` compile tokens so each field
+ *   compiles to live `get_post_meta()` in PHP.
+ * - Local dev & decoupled mode: reads live/fixture meta values with typed defaults.
+ */
+export function getWpEditable<T extends Record<string, any>>(
+  schema: T,
+  source?: WpServerClient | Record<string, any> | null,
+): { [K in keyof T]: any } {
+  const out: Record<string, any> = {};
+  const isClient =
+    source &&
+    typeof source === 'object' &&
+    typeof (source as WpServerClient).getField === 'function';
+  const recordSource =
+    !isClient && source && typeof source === 'object'
+      ? ((source as Record<string, any>).customFields ??
+        (source as Record<string, any>).meta ??
+        (source as Record<string, any>))
+      : null;
+
+  for (const [key, field] of Object.entries(schema || {})) {
+    let defaultVal: any;
+    if (
+      field &&
+      typeof field === 'object' &&
+      'default' in field &&
+      field.default !== undefined
+    ) {
+      defaultVal = field.default;
+    } else {
+      switch (field?.type) {
+        case 'boolean':
+          defaultVal = false;
+          break;
+        case 'number':
+          defaultVal = 0;
+          break;
+        case 'repeater':
+          defaultVal = [];
+          break;
+        default:
+          defaultVal = '';
+      }
+    }
+
+    if (isClient) {
+      if (field?.type === 'repeater') {
+        out[key] = defaultVal;
+        continue;
+      }
+      const raw = (source as WpServerClient).getField(
+        key,
+        typeof defaultVal === 'string' ? defaultVal : String(defaultVal ?? ''),
+      );
+      if (typeof raw === 'string' && raw.startsWith('__FORGEWP_META_')) {
+        out[key] = raw;
+      } else if (field?.type === 'boolean') {
+        out[key] = raw === 'true' || raw === '1';
+      } else if (field?.type === 'number') {
+        const parsed = Number(raw);
+        out[key] = Number.isNaN(parsed) ? defaultVal : parsed;
+      } else {
+        out[key] = raw;
+      }
+    } else if (
+      recordSource &&
+      Object.prototype.hasOwnProperty.call(recordSource, key) &&
+      recordSource[key] !== undefined
+    ) {
+      out[key] = recordSource[key];
+    } else {
+      out[key] = defaultVal;
+    }
+  }
+
+  return out as { [K in keyof T]: any };
+}
+
+// Unified component aliases so Next.js Server Components can import the exact same
+// component names from `@forgewp/react` (resolved via the `"react-server"` export condition)
+// as Vite React apps. `WpServer*` names remain exported for backwards compatibility.
+export const WpQueryLoop = WpServerLoop;
+export const WpMenu = WpServerMenu;
+export const WpRequireAuth = WpServerRequireAuth;
+export const WpAuthGate = WpServerAuthGate;
+
+export type {
+  WpServerLoopProps as WpQueryLoopProps,
+  WpServerMenuProps as WpMenuProps,
+  WpServerRequireAuthProps as WpRequireAuthProps,
+  WpServerAuthGateProps as WpAuthGateProps,
+};
+
+// Re-export pure-TypeScript config helpers so they are also available from `@forgewp/react`
+// inside Next.js Server Components without pulling in client hooks.
+export {
+  defineWpForm,
+  definePageConfig,
+  defineWpPosts,
+  defineWpMenus,
+  defineWpUsers,
+  defineWpRoles,
+  defineTranslations,
+  defineWpThemeMods,
+  defineWpOptions,
+  optionText,
+  optionUrl,
+  optionEmail,
+  optionTextarea,
+  optionToggle,
+  optionNumber,
+  optionPostPicker,
+} from './config';

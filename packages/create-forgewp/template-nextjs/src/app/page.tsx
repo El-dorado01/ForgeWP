@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BlockArea, Hydrate } from '@forgewp/react/server';
+import { BlockArea, Hydrate } from '@forgewp/react';
 import { CounterIsland } from '@/components/CounterIsland';
 import { getPageContent } from '@/lib/content';
 

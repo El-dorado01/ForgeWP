@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BlockArea } from '@forgewp/react/server';
+import { BlockArea } from '@forgewp/react';
 import { getPageContent } from '@/lib/content';
 
 export default async function AboutPage() {
