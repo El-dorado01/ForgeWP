@@ -1404,10 +1404,76 @@ function isInsideStringLiteral(code, offset) {
 export function rewriteAttrRefsSafely(code, attrKeys) {
   if (!code || !attrKeys || attrKeys.length === 0) return code;
 
-  let out = code;
-  for (const key of attrKeys) {
-    if (!key || !/^[A-Za-z_$][\w$]*$/.test(key)) continue;
+  const validKeys = attrKeys.filter((k) => k && /^[A-Za-z_$][\w$]*$/.test(k));
+  if (validKeys.length === 0) return code;
+  const attrSet = new Set(validKeys);
 
+  // Syntax-aware AST path: handles JSX children ({heading}), JSX expression
+  // attributes (value={heading}), spreads (...team), shorthand object properties
+  // ({ title } -> { title: attributes.title }), AND preserves callback-local
+  // bindings such as `(heading) => setAttributes({ heading })`.
+  let offsetShift = 0;
+  let ast = tryParseSource(`(${code})`);
+  if (ast) {
+    offsetShift = 1;
+  } else {
+    ast = tryParseSource(code);
+    offsetShift = 0;
+  }
+
+  if (ast) {
+    /** @type {Array<{ start: number, end: number, text: string }>} */
+    const edits = [];
+    const seenStarts = new Set();
+
+    traverse(ast, {
+      Identifier(path) {
+        const name = path.node.name;
+        if (!attrSet.has(name)) return;
+        if (typeof path.node.start !== 'number' || typeof path.node.end !== 'number') return;
+
+        // Preserve bindings introduced in callback/function/block scopes
+        // (e.g. `(heading) => setAttributes({ heading })`), while preserving
+        // top-level Program-scope attribute read rewriting expected by callers.
+        const binding = path.scope.getBinding(name);
+        if (binding && binding.scope.path.type !== 'Program') return;
+
+        const start = path.node.start - offsetShift;
+        const end = path.node.end - offsetShift;
+        if (start < 0 || end > code.length || seenStarts.has(start)) return;
+
+        // Shorthand object property `{ key }` -> `{ key: attributes.key }`
+        // Babel visits both `key` and `value` with the same source range; only
+        // act on `value` so we emit a single edit.
+        if (
+          path.parentPath?.isObjectProperty() &&
+          path.parent.shorthand &&
+          path.parent.value === path.node
+        ) {
+          seenStarts.add(start);
+          edits.push({ start, end, text: `${name}: attributes.${name}` });
+          return;
+        }
+
+        if (!path.isReferencedIdentifier()) return;
+
+        seenStarts.add(start);
+        edits.push({ start, end, text: `attributes.${name}` });
+      },
+    });
+
+    if (edits.length === 0) return code;
+    edits.sort((a, b) => b.start - a.start);
+    let out = code;
+    for (const edit of edits) {
+      out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);
+    }
+    return out;
+  }
+
+  markLegacyFallback('rewriteAttrRefsSafely');
+  let out = code;
+  for (const key of validKeys) {
     // 1. Shorthand object properties: { listicleId } -> { listicleId: attributes.listicleId }
     const shorthandRegex = new RegExp(`(?<=[{,]\\s*)${key}(?=\\s*[,}])`, 'g');
     out = out.replace(shorthandRegex, (match, offset, full) => {
