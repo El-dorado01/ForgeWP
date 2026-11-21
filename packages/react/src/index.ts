@@ -230,10 +230,6 @@ export {
   getWpEditable,
   WpRequireAuth,
   WpAuthGate,
-  WpServerLoop,
-  WpServerMenu,
-  WpServerRequireAuth,
-  WpServerAuthGate,
 } from './server';
 export type {
   WpServerClient,
@@ -247,8 +243,4 @@ export type {
   WpServerAuth,
   WpRequireAuthProps,
   WpAuthGateProps,
-  WpServerLoopProps,
-  WpServerMenuProps,
-  WpServerRequireAuthProps,
-  WpServerAuthGateProps,
 } from './server';
