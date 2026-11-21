@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ensureGitignore } from './gitignore.js';
 import {
   REQUIRED_NEXTJS_TEMPLATE_FILES,
   REQUIRED_TEMPLATE_FILES,
@@ -90,4 +91,7 @@ export function copyTemplate(targetDir, adapter = 'react') {
       return true;
     },
   });
+
+  // npm strips .gitignore from published packages; restore one for the project.
+  ensureGitignore(targetDir, adapter);
 }
