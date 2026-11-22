@@ -5,6 +5,7 @@ import {
   normalizeStaticRoutePath,
   resolveStaticPageRoute,
 } from './render-static.js';
+import { discoverNextDynamicHierarchy } from './next-dynamic-routes.js';
 
 const NEXT_ONLY_LINK_PROPS = new Set([
   'prefetch',
@@ -19,7 +20,7 @@ const NEXT_ONLY_LINK_PROPS = new Set([
 const NEXT_DIAGNOSTIC_PROPS = new Set(['locale']);
 
 const ROUTELINK_TOKEN_RE =
-  /^__FORGEWP_ROUTELINK:([~a-zA-Z0-9-]+):([^:_"'\s<>]*):([^:_"'\s<>]*):([^:_"'\s<>]*)__$/;
+  /^__FORGEWP_ROUTELINK:([~a-zA-Z0-9_-]+):([^:_"'\s<>]*):([^:_"'\s<>]*):([^:_"'\s<>]*)__$/;
 
 function encodeTokenPart(value) {
   return encodeURIComponent(String(value || '')).replace(/_/g, '%5F');
@@ -107,30 +108,51 @@ export function parseNextHrefDestination(href) {
 }
 
 /**
- * Build a normalized path lookup table from ForgeWPStaticRoute records.
+ * Build a normalized path lookup table from ForgeWPStaticRoute records and discovered archive routes.
  * @param {import('./index.js').ForgeWPStaticRoute[]} [routes]
+ * @param {Array<{ routePath?: string, path?: string, postType?: string }>} [archiveRoutes]
  */
-export function buildKnownRouteIndex(routes = []) {
+export function buildKnownRouteIndex(routes = [], archiveRoutes = []) {
   const index = new Map();
-  if (!Array.isArray(routes)) return index;
-  for (const route of routes) {
-    if (!route || typeof route !== 'object') continue;
-    const normalizedPath = normalizeStaticRoutePath(route.path);
-    if (!normalizedPath) continue;
-    if (route.kind === 'home') {
-      index.set('/', {
-        path: '/',
-        kind: 'home',
-        slug: '',
-        templateSlug: '~home',
-      });
-    } else if (route.kind === 'page') {
-      const resolved = resolveStaticPageRoute(route);
+  if (Array.isArray(routes)) {
+    for (const route of routes) {
+      if (!route || typeof route !== 'object') continue;
+      const normalizedPath = normalizeStaticRoutePath(route.path);
+      if (!normalizedPath) continue;
+      if (route.kind === 'home') {
+        index.set('/', {
+          path: '/',
+          kind: 'home',
+          slug: '',
+          templateSlug: '~home',
+        });
+      } else if (route.kind === 'page') {
+        const resolved = resolveStaticPageRoute(route);
+        index.set(normalizedPath, {
+          path: resolved.path,
+          kind: 'page',
+          slug: resolved.slug,
+          templateSlug: resolved.templateSlug,
+        });
+      }
+    }
+  }
+  if (Array.isArray(archiveRoutes)) {
+    for (const ar of archiveRoutes) {
+      if (!ar || typeof ar !== 'object') continue;
+      const normalizedPath = normalizeStaticRoutePath(ar.routePath || ar.path);
+      if (!normalizedPath || index.has(normalizedPath)) continue;
+      const postType =
+        String(ar.postType || 'post')
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9_-]/g, '') || 'post';
       index.set(normalizedPath, {
-        path: resolved.path,
-        kind: 'page',
-        slug: resolved.slug,
-        templateSlug: resolved.templateSlug,
+        path: normalizedPath,
+        kind: 'archive',
+        slug: normalizedPath.replace(/^\/+|\/+$/g, ''),
+        postType,
+        templateSlug: `~archive-${postType}`,
       });
     }
   }
@@ -185,6 +207,25 @@ export function resolveNextDestinationToWordPress(dest, knownRouteIndex) {
     return {
       action: 'rewrite',
       routeKind: 'fixed-route',
+      routeSlug: matched.templateSlug,
+      fallbackPath,
+      query: dest.search,
+      hash: dest.hash,
+      token,
+    };
+  }
+
+  if (matched && matched.kind === 'archive') {
+    const fallbackPath = `/${matched.slug}/`;
+    const token = encodeRouteLinkToken({
+      routeSlug: matched.templateSlug,
+      fallbackPath,
+      query: dest.search,
+      hash: dest.hash,
+    });
+    return {
+      action: 'rewrite',
+      routeKind: 'archive',
       routeSlug: matched.templateSlug,
       fallbackPath,
       query: dest.search,
@@ -406,14 +447,14 @@ function buildCandidateRenderedHrefs(dest) {
  * - `@forgewp/react` `useWpPageLink(slug, fallback)` calls (including aliases)
  *
  * @param {string} code
- * @param {{ filePath?: string, knownRoutes?: import('./index.js').ForgeWPStaticRoute[] }} [options]
+ * @param {{ filePath?: string, knownRoutes?: import('./index.js').ForgeWPStaticRoute[], knownArchiveRoutes?: Array<{ routePath?: string, path?: string, postType?: string }> }} [options]
  */
 export function analyzeNextLinks(
   code,
-  { filePath = '<inline>', knownRoutes = [] } = {},
+  { filePath = '<inline>', knownRoutes = [], knownArchiveRoutes = [] } = {},
 ) {
   const ast = parseSource(code);
-  const knownRouteIndex = buildKnownRouteIndex(knownRoutes);
+  const knownRouteIndex = buildKnownRouteIndex(knownRoutes, knownArchiveRoutes);
   const links = [];
   const diagnostics = [];
   const pageLinkBindings = new Map(); // Babel Binding -> { routeSlug, fallback }
@@ -620,13 +661,17 @@ export function analyzeNextLinks(
  * and external URLs are preserved untouched.
  *
  * @param {string} code
- * @param {{ filePath?: string, knownRoutes?: import('./index.js').ForgeWPStaticRoute[] }} [options]
+ * @param {{ filePath?: string, knownRoutes?: import('./index.js').ForgeWPStaticRoute[], knownArchiveRoutes?: Array<{ routePath?: string, path?: string, postType?: string }> }} [options]
  */
 export function transformNextLinksInSource(
   code,
-  { filePath = '<inline>', knownRoutes = [] } = {},
+  { filePath = '<inline>', knownRoutes = [], knownArchiveRoutes = [] } = {},
 ) {
-  const { links, diagnostics } = analyzeNextLinks(code, { filePath, knownRoutes });
+  const { links, diagnostics } = analyzeNextLinks(code, {
+    filePath,
+    knownRoutes,
+    knownArchiveRoutes,
+  });
   const edits = [];
 
   for (const link of links) {
@@ -697,9 +742,15 @@ export function transformNextLinksInSource(
  *
  * @param {string} themeRoot
  * @param {import('./index.js').ForgeWPStaticRoute[]} [knownRoutes]
+ * @param {{ knownArchiveRoutes?: Array<{ routePath?: string, path?: string, postType?: string }>, postTypes?: Record<string, any> }} [options]
  */
-export function scanProjectNextLinks(themeRoot, knownRoutes = []) {
+export function scanProjectNextLinks(themeRoot, knownRoutes = [], options = {}) {
   const resolvedRoot = path.resolve(themeRoot);
+  const knownArchiveRoutes = Array.isArray(options?.knownArchiveRoutes)
+    ? options.knownArchiveRoutes
+    : discoverNextDynamicHierarchy(resolvedRoot, {
+        postTypes: options?.postTypes || {},
+      }).archiveRoutes;
   const scanDirs = [
     path.join(resolvedRoot, 'src'),
     path.join(resolvedRoot, 'app'),
@@ -746,6 +797,7 @@ export function scanProjectNextLinks(themeRoot, knownRoutes = []) {
         const { links, diagnostics } = analyzeNextLinks(source, {
           filePath: relPath,
           knownRoutes,
+          knownArchiveRoutes,
         });
         for (const { _nodes, ...clean } of links) {
           allLinks.push(clean);
@@ -779,26 +831,46 @@ const NEXT_LINK_MARKER_RE = /\s*\bdata-forgewp-next-link=(["'])1\1/i;
  * rewritten and the internal marker attribute is stripped — leaving raw `<a href="...">`
  * tags completely untouched even when they share the exact same `href`.
  */
-function rewriteVerifiedAnchorsInHtml(html, verifiedHrefToToken) {
-  if (!html || verifiedHrefToToken.size === 0) {
+function rewriteVerifiedAnchorsInHtml(html, tokenMaps) {
+  if (!html) {
     return { html, count: 0 };
   }
+  const nextLinkHrefToToken =
+    tokenMaps instanceof Map ? tokenMaps : tokenMaps?.nextLinkHrefToToken || new Map();
+  const wpPageLinkHrefToToken =
+    tokenMaps instanceof Map ? new Map() : tokenMaps?.wpPageLinkHrefToToken || new Map();
   const hasIdentityMarkers = NEXT_LINK_MARKER_RE.test(html);
+  if (
+    nextLinkHrefToToken.size === 0 &&
+    wpPageLinkHrefToToken.size === 0 &&
+    !hasIdentityMarkers
+  ) {
+    return { html, count: 0 };
+  }
+
   let count = 0;
-  const rewritten = html.replace(
+  let rewritten = html.replace(
     /<a\b([^>]*?)\bhref=(["'])([^"']*)\2([^>]*)>/gi,
     (fullMatch, before, quote, rawAttrVal, after) => {
       const hasMarker =
         NEXT_LINK_MARKER_RE.test(before) || NEXT_LINK_MARKER_RE.test(after);
       const cleanBefore = before.replace(NEXT_LINK_MARKER_RE, '');
       const cleanAfter = after.replace(NEXT_LINK_MARKER_RE, '');
+      const decoded = decodeHtmlAttrEntities(rawAttrVal);
 
       if (hasIdentityMarkers && !hasMarker) {
-        return fullMatch;
+        // Preserve raw <a href="..."> even when its href matches a <Link>; still allow
+        // unmarked @forgewp/react useWpPageLink() anchors on the same page to rewrite.
+        const pageLinkToken = wpPageLinkHrefToToken.get(decoded);
+        if (!pageLinkToken) {
+          return fullMatch;
+        }
+        count += 1;
+        return `<a${before}href=${quote}${pageLinkToken}${quote}${after}>`;
       }
 
-      const decoded = decodeHtmlAttrEntities(rawAttrVal);
-      const token = verifiedHrefToToken.get(decoded);
+      const token =
+        nextLinkHrefToToken.get(decoded) || wpPageLinkHrefToToken.get(decoded);
       if (!token) {
         return hasMarker
           ? `<a${cleanBefore}href=${quote}${rawAttrVal}${quote}${cleanAfter}>`
@@ -808,6 +880,11 @@ function rewriteVerifiedAnchorsInHtml(html, verifiedHrefToToken) {
       return `<a${cleanBefore}href=${quote}${token}${quote}${cleanAfter}>`;
     },
   );
+  if (NEXT_LINK_MARKER_RE.test(rewritten)) {
+    rewritten = rewritten.replace(/<a\b[^>]*>/gi, (tag) =>
+      NEXT_LINK_MARKER_RE.test(tag) ? tag.replace(NEXT_LINK_MARKER_RE, '') : tag,
+    );
+  }
   return { html: rewritten, count };
 }
 
@@ -817,34 +894,57 @@ function rewriteVerifiedAnchorsInHtml(html, verifiedHrefToToken) {
  * remain untouched.
  *
  * @param {import('./index.js').ForgeWPStaticMarkup} markup
- * @param {{ themeRoot?: string, links?: any[], diagnostics?: any[] }} [options]
+ * @param {{ themeRoot?: string, links?: any[], diagnostics?: any[], knownArchiveRoutes?: any[], postTypes?: Record<string, any> }} [options]
  */
 export function applyVerifiedNextLinksToMarkup(markup, options = {}) {
-  const scanned = options.links
-    ? { links: options.links, diagnostics: options.diagnostics || [] }
-    : options.themeRoot
-      ? scanProjectNextLinks(options.themeRoot, markup.routes || [])
-      : { links: [], diagnostics: [] };
+  let scanned;
+  if (options.links) {
+    scanned = { links: options.links, diagnostics: options.diagnostics || [] };
+  } else if (options.themeRoot) {
+    const hierarchyArchives = Array.isArray(markup.hierarchyTemplates)
+      ? markup.hierarchyTemplates
+          .filter((tpl) => tpl && tpl.kind === 'archive' && tpl.routePath)
+          .map((tpl) => ({ routePath: tpl.routePath, postType: tpl.postType }))
+      : [];
+    const discoveredArchives = discoverNextDynamicHierarchy(options.themeRoot, {
+      postTypes: options.postTypes || {},
+    }).archiveRoutes;
+    const knownArchiveRoutes = [
+      ...(Array.isArray(options.knownArchiveRoutes) ? options.knownArchiveRoutes : []),
+      ...hierarchyArchives,
+      ...discoveredArchives,
+    ];
+    scanned = scanProjectNextLinks(options.themeRoot, markup.routes || [], {
+      knownArchiveRoutes,
+      postTypes: options.postTypes || {},
+    });
+  } else {
+    scanned = { links: [], diagnostics: [] };
+  }
 
-  const verifiedHrefToToken = new Map();
+  const nextLinkHrefToToken = new Map();
+  const wpPageLinkHrefToToken = new Map();
   for (const link of scanned.links) {
-    if (
-      (link.owner === 'next-link' || link.owner === 'forgewp-page-link') &&
-      link.resolution?.token &&
-      Array.isArray(link.renderedHrefs)
-    ) {
-      for (const candidate of link.renderedHrefs) {
-        if (!verifiedHrefToToken.has(candidate)) {
-          verifiedHrefToToken.set(candidate, link.resolution.token);
-        }
+    if (!link.resolution?.token || !Array.isArray(link.renderedHrefs)) continue;
+    const targetMap =
+      link.owner === 'forgewp-page-link'
+        ? wpPageLinkHrefToToken
+        : link.owner === 'next-link'
+          ? nextLinkHrefToToken
+          : null;
+    if (!targetMap) continue;
+    for (const candidate of link.renderedHrefs) {
+      if (!targetMap.has(candidate)) {
+        targetMap.set(candidate, link.resolution.token);
       }
     }
   }
 
   let rewrittenCount = 0;
+  const tokenMaps = { nextLinkHrefToToken, wpPageLinkHrefToToken };
   const rewriteField = (value) => {
     if (typeof value !== 'string' || !value) return value;
-    const res = rewriteVerifiedAnchorsInHtml(value, verifiedHrefToToken);
+    const res = rewriteVerifiedAnchorsInHtml(value, tokenMaps);
     rewrittenCount += res.count;
     return res.html;
   };
@@ -855,12 +955,20 @@ export function applyVerifiedNextLinksToMarkup(markup, options = {}) {
     headerHtml: rewriteField(markup.headerHtml),
     footerHtml: rewriteField(markup.footerHtml),
     notFoundHtml: rewriteField(markup.notFoundHtml),
+    singleHtml: rewriteField(markup.singleHtml),
+    archiveHtml: rewriteField(markup.archiveHtml),
     routes: Array.isArray(markup.routes)
       ? markup.routes.map((route) => ({
           ...route,
           html: rewriteField(route.html),
         }))
       : markup.routes,
+    hierarchyTemplates: Array.isArray(markup.hierarchyTemplates)
+      ? markup.hierarchyTemplates.map((tpl) => ({
+          ...tpl,
+          html: rewriteField(tpl.html),
+        }))
+      : markup.hierarchyTemplates,
   };
 
   return {

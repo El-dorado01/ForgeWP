@@ -283,8 +283,20 @@ export async function submitWpForm(
     let plain: Record<string, unknown>;
     if (data instanceof FormData) {
       plain = {};
+      const counts = new Map<string, number>();
+      data.forEach((_value, key) => {
+        const cleanKey = key.endsWith('[]') ? key.slice(0, -2) : key;
+        counts.set(cleanKey, (counts.get(cleanKey) || 0) + 1);
+      });
       data.forEach((value, key) => {
-        plain[key] = value;
+        const isArrayKey = key.endsWith('[]');
+        const cleanKey = isArrayKey ? key.slice(0, -2) : key;
+        if (isArrayKey || (counts.get(cleanKey) || 0) > 1) {
+          const prev = plain[cleanKey];
+          plain[cleanKey] = Array.isArray(prev) ? [...prev, value] : [value];
+        } else {
+          plain[cleanKey] = value;
+        }
       });
     } else {
       plain = data;
@@ -322,15 +334,35 @@ export async function submitWpForm(
 
     let response: Response;
     if (data instanceof FormData) {
-      data.set('_forgewp_elapsed', elapsed);
-      if (lang) data.set('lang', lang);
+      // Rewrite duplicate non-[] keys (e.g. `<select name="topics" multiple>`) as `topics[]`
+      // so WordPress REST's $_POST multipart parser receives all selected values instead of only the last.
+      const keyCounts = new Map<string, number>();
+      let needsMultiClone = false;
+      data.forEach((_val, key) => {
+        if (key.endsWith('[]')) return;
+        const nextCount = (keyCounts.get(key) || 0) + 1;
+        keyCounts.set(key, nextCount);
+        if (nextCount > 1) needsMultiClone = true;
+      });
+      let outgoing = data;
+      if (needsMultiClone && typeof FormData !== 'undefined') {
+        const cloned = new FormData();
+        data.forEach((val, key) => {
+          const targetKey =
+            !key.endsWith('[]') && (keyCounts.get(key) || 0) > 1 ? `${key}[]` : key;
+          cloned.append(targetKey, val);
+        });
+        outgoing = cloned;
+      }
+      outgoing.set('_forgewp_elapsed', elapsed);
+      if (lang) outgoing.set('lang', lang);
       const headers: Record<string, string> = {};
       if (win.forgeWpHydration.restNonce) {
         headers['X-WP-Nonce'] = win.forgeWpHydration.restNonce;
       }
       response = await fetch(`${restUrl}/forms/${name}/submit`, {
         method: 'POST',
-        body: data,
+        body: outgoing,
         headers,
       });
     } else {

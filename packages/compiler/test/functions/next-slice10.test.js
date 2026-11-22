@@ -210,6 +210,16 @@ describe('Slice 10: Public Next.js adapter registration, withForgeWP(), and crea
           expect(existsSync(path.join(result.outDir, 'assets', 'islands', 'theme-hotkey.js'))).toBe(true);
           expect(readFileSync(path.join(result.outDir, 'forgewp-static', 'header.html'), 'utf8')).toContain('theme-hotkey');
 
+          // Document <body className="fwp-page"> and inline <head> theme bootstrap script survive export
+          const headerPhp = readFileSync(path.join(result.outDir, 'header.php'), 'utf8');
+          expect(headerPhp).toContain("body_class('fwp-page')");
+          const headStatic = readFileSync(
+            path.join(result.outDir, 'forgewp-static', 'head.html'),
+            'utf8',
+          );
+          expect(headStatic).toContain('localStorage.getItem');
+          expect(headStatic).toContain('forgewp-theme');
+
           const homeStatic = readFileSync(
             path.join(result.outDir, 'forgewp-static', 'content.html'),
             'utf8',

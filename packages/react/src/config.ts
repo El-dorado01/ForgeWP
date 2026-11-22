@@ -111,13 +111,26 @@ export type WpFormFieldType =
   | 'number'
   | 'textarea'
   | 'select'
-  | 'checkbox';
+  | 'multiselect'
+  | 'radio'
+  | 'checkbox'
+  | 'hidden';
 
 export interface WpFormField {
   type: WpFormFieldType;
   label?: string;
   required?: boolean;
   options?: string[];
+  /** Enable multiple selections on `select` (or implied by `type: 'multiselect'`). */
+  multiple?: boolean;
+  /** Minimum value enforced on `type: 'number'` fields. */
+  min?: number;
+  /** Maximum value enforced on `type: 'number'` fields. */
+  max?: number;
+  /** Step increment enforced on `type: 'number'` fields (must be > 0). */
+  step?: number;
+  /** Optional default value (commonly used on `type: 'hidden'` fields). */
+  defaultValue?: string;
   maxLength?: number;
   placeholder?: string;
 }

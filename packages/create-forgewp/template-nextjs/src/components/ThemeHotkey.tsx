@@ -22,9 +22,8 @@ export function ThemeHotkey() {
   useEffect(() => {
     const root = document.documentElement;
 
-    // Re-apply a saved choice. In next dev/decoupled the <head> script in layout.tsx
-    // already did this before first paint; the WordPress export drops <head> scripts,
-    // so there this island is what restores it.
+    // Keep the saved light/dark class in sync on load as a defensive fallback
+    // alongside the blocking <head> theme script exported from layout.tsx.
     try {
       const saved = localStorage.getItem(THEME_STORAGE_KEY);
       if ((saved === 'dark' || saved === 'light') && !root.classList.contains(saved)) {

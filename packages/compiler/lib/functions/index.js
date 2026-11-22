@@ -1414,6 +1414,19 @@ if (!function_exists('forgewp_resolve_route_url')) {
             $base_url = function_exists('pll_home_url')
                 ? pll_home_url(function_exists('pll_current_language') ? pll_current_language() : '')
                 : home_url('/');
+        } elseif (strpos($route_slug, '__archive__:') === 0) {
+            $archive_pt = substr($route_slug, strlen('__archive__:'));
+            if ($archive_pt === 'post') {
+                $posts_page_id = (int) get_option('page_for_posts');
+                if ($posts_page_id > 0) {
+                    $base_url = get_permalink($posts_page_id);
+                }
+            } elseif ($archive_pt !== '' && function_exists('get_post_type_archive_link')) {
+                $archive_url = get_post_type_archive_link($archive_pt);
+                if ($archive_url) {
+                    $base_url = $archive_url;
+                }
+            }
         } elseif ($route_slug !== '') {
             $target_id = forgewp_resolve_route_page_id($route_slug);
             if ($target_id) {

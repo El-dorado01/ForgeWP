@@ -83,13 +83,26 @@ export type ForgeWPFormFieldType =
   | 'number'
   | 'textarea'
   | 'select'
-  | 'checkbox';
+  | 'multiselect'
+  | 'radio'
+  | 'checkbox'
+  | 'hidden';
 
 export interface ForgeWPFormField {
   type: ForgeWPFormFieldType;
   label?: string;
   required?: boolean;
   options?: string[];
+  /** Enable multiple selections on `select` (or implied by `type: 'multiselect'`). */
+  multiple?: boolean;
+  /** Minimum value enforced on `type: 'number'` fields. */
+  min?: number;
+  /** Maximum value enforced on `type: 'number'` fields. */
+  max?: number;
+  /** Step increment enforced on `type: 'number'` fields (must be > 0). */
+  step?: number;
+  /** Optional default value (commonly used on `type: 'hidden'` fields). */
+  defaultValue?: string;
   maxLength?: number;
   placeholder?: string;
 }
@@ -338,6 +351,8 @@ export interface ForgeWPStaticRoute {
 
 export interface ForgeWPStaticLayout {
   lang?: string;
+  htmlClass?: string;
+  bodyClass?: string;
   sharedHeaderDetected?: boolean;
   sharedFooterDetected?: boolean;
 }
@@ -355,6 +370,10 @@ export interface ForgeWPHierarchyTemplate {
   headHtml?: string;
   /** True when the adapter already split shared layout chrome out of template html. */
   layoutExtracted?: boolean;
+  /** Template-level asset and stripped client-runtime ownership inventory. */
+  assets?: ForgeWPStaticRouteAssets;
+  /** Normalized route path for the source template (when discovered from static export). */
+  routePath?: string;
   /** Source artifact path relative to themeRoot (for diagnostics). */
   sourceFile?: string;
 }
@@ -368,6 +387,9 @@ export interface ForgeWPStaticMarkup {
   singleHeadHtml?: string;
   notFoundHtml?: string;
   archiveHtml?: string;
+  archiveHeadHtml?: string;
+  singleAssets?: ForgeWPStaticRouteAssets;
+  archiveAssets?: ForgeWPStaticRouteAssets;
   /** Optional adapter-owned fixed route records; preserves legacy .forgewp/template-*.html flow when omitted. */
   routes?: ForgeWPStaticRoute[];
   /** Optional adapter-owned WordPress hierarchy templates (single-<cpt>, archive-<cpt>). */

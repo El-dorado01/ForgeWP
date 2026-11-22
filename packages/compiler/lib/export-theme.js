@@ -5,6 +5,7 @@ import { buildAdapterAssets } from './adapter-build.js';
 import { loadFrameworkAdapter } from './framework-adapter.js';
 import { generateTheme } from './generate-theme.js';
 import { loadConfig } from './load-config.js';
+import { findWpConfigPath } from './project-language.js';
 import { renderStaticMarkup } from './render-static.js';
 import { assertZipCreated, zipTheme } from './zip-theme.js';
 
@@ -35,9 +36,9 @@ export async function exportTheme(options) {
   const strict = !!options.strict;
   const verbose = process.env.FORGEWP_VERBOSE === '1';
 
-  if (!options.config && !existsSync(path.join(themeRoot, 'wp.config.ts'))) {
+  if (!options.config && !findWpConfigPath(themeRoot)) {
     throw new Error(
-      `Critical project file is missing: wp.config.ts\n` +
+      `Critical project file is missing: wp.config.ts (or wp.config.js)\n` +
         `  Description: Theme configuration file\n\n` +
         `  👉 To fix this, please restore the file from your version control (Git) or re-create it from the original ForgeWP theme template.`,
     );
@@ -159,6 +160,7 @@ export async function exportTheme(options) {
     singleHeadHtml: markup.singleHeadHtml,
     notFoundHtml: markup.notFoundHtml,
     archiveHtml: markup.archiveHtml,
+    archiveHeadHtml: markup.archiveHeadHtml,
     singleHtml: markup.singleHtml,
     routes: markup.routes,
     hierarchyTemplates: markup.hierarchyTemplates,

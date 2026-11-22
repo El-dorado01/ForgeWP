@@ -231,11 +231,67 @@ export const LINK_RESET_CSS = `    a { text-decoration-line: none; }
     .underline { text-decoration-line: underline !important; }
     .hover\\:underline:hover { text-decoration-line: underline !important; }`;
 
+function escapeHtmlAttrValue(value) {
+  return String(value || '')
+    .replace(/<\?|\?>/g, '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function escapePhpSingleQuotedValue(value) {
+  return String(value || '')
+    .replace(/<\?|\?>/g, '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'");
+}
+
+export function formatHtmlOpenTag(htmlClass = '') {
+  const trimmed = typeof htmlClass === 'string' ? htmlClass.trim() : '';
+  if (!trimmed) return '<html <?php language_attributes(); ?>>';
+  return `<html <?php language_attributes(); ?> class="${escapeHtmlAttrValue(trimmed)}">`;
+}
+
+export function formatBodyOpenTag(bodyClass = '') {
+  const trimmed = typeof bodyClass === 'string' ? bodyClass.trim() : '';
+  if (!trimmed) return '<body <?php body_class(); ?>>';
+  return `<body <?php body_class('${escapePhpSingleQuotedValue(trimmed)}'); ?>>`;
+}
+
+export function buildHeadTargetOutputPhp(indent = '  ') {
+  const pad = String(indent || '');
+  return [
+    `${pad}<?php`,
+    `${pad}// Yield SEO metadata control to active SEO plugins to prevent duplication,`,
+    `${pad}// while preserving structural route-scoped stylesheets, preloads, and non-JSON-LD author scripts.`,
+    `${pad}// forgewp_seo_plugin_active() (functions.php) is the single source of truth.`,
+    `${pad}$target = function_exists('forgewp_resolve_head_target') ? forgewp_resolve_head_target() : '';`,
+    `${pad}if ($target && file_exists($target)) {`,
+    `${pad}    ob_start();`,
+    `${pad}    include $target;`,
+    `${pad}    $content = ob_get_clean();`,
+    `${pad}    if ( ! forgewp_seo_plugin_active() ) {`,
+    `${pad}        // Strip duplicate title tag so standard wp_head title-tag support outputs it cleanly`,
+    `${pad}        echo preg_replace('/<title>.*?<\\/title>/is', '', $content);`,
+    `${pad}    } else {`,
+    `${pad}        if (preg_match_all('/<link\\b(?=[^>]*\\brel=(?:"(?:stylesheet|preload)"|\\'(?:stylesheet|preload)\\'|(?:stylesheet|preload)(?=[\\s>])))[^>]*>|<style\\b[^>]*>.*?<\\/style>|<script\\b(?![^>]*\\btype\\s*=\\s*["\\']?\\s*application\\/ld\\+json\\b)[^>]*>.*?<\\/script>/is', $content, $forgewp_head_assets)) {`,
+    `${pad}            echo implode("\\n", $forgewp_head_assets[0]);`,
+    `${pad}        }`,
+    `${pad}    }`,
+    `${pad}}`,
+    `${pad}?>`,
+  ].join('\n');
+}
+
 export function buildHeaderPhp(config, options = {}) {
   const preloadHtml =
     Array.isArray(options.preloadTags) && options.preloadTags.length > 0
       ? '  ' + options.preloadTags.join('\n  ') + '\n'
       : '';
+  const htmlTag = formatHtmlOpenTag(options.htmlClass);
+  const bodyTag = formatBodyOpenTag(options.bodyClass);
+  const headOutputPhp = buildHeadTargetOutputPhp('  ');
 
   return `<?php
 /**
@@ -244,33 +300,18 @@ export function buildHeaderPhp(config, options = {}) {
  * @package ${config.textDomain}
  */
 ?><!DOCTYPE html>
-<html <?php language_attributes(); ?>>
+${htmlTag}
 <head>
   <meta charset="<?php bloginfo('charset'); ?>">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-${preloadHtml}  <?php
-  // Yield metadata control to active SEO plugins to prevent duplication.
-  // forgewp_seo_plugin_active() (functions.php) is the single source of
-  // truth for this check — every place ForgeWP yields to a standard SEO
-  // plugin uses the same function so the detected plugin list can't drift.
-  if ( ! forgewp_seo_plugin_active() ) {
-      $target = forgewp_resolve_head_target();
-      if (file_exists($target)) {
-          ob_start();
-          include $target;
-          $content = ob_get_clean();
-          // Strip duplicate title tag so standard wp_head title-tag support outputs it cleanly
-          echo preg_replace('/<title>.*?<\\/title>/is', '', $content);
-      }
-  }
-  ?>
+${preloadHtml}${headOutputPhp}
   <?php wp_head(); ?>
   <style>
     /* Reset WP link underlines to match React/Tailwind expected styling */
 ${LINK_RESET_CSS}
   </style>
 </head>
-<body <?php body_class(); ?>>
+${bodyTag}
 <?php wp_body_open(); ?>
 <?php
 $header_file = get_template_directory() . '/forgewp-static/header.html';
@@ -299,7 +340,10 @@ wp_footer();
 `;
 }
 
-function shellOwnedFrontPagePhp() {
+function shellOwnedFrontPagePhp(options = {}) {
+  const htmlTag = formatHtmlOpenTag(options.htmlClass);
+  const bodyTag = formatBodyOpenTag(options.bodyClass);
+  const headOutputPhp = buildHeadTargetOutputPhp('  ');
   return `<?php
 /**
  * Front page whose route renders with a blank layout.
@@ -354,26 +398,17 @@ if ($forgewp_use_builder && have_posts()) {
 } else {
 ?>
 <!DOCTYPE html>
-<html <?php language_attributes(); ?>>
+${htmlTag}
 <head>
   <meta charset="<?php bloginfo('charset'); ?>">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <?php
-  if ( ! forgewp_seo_plugin_active() ) {
-      $target = forgewp_resolve_head_target();
-      if (file_exists($target)) {
-          ob_start();
-          include $target;
-          echo preg_replace('/<title>.*?<\\/title>/is', '', ob_get_clean());
-      }
-  }
-  ?>
+${headOutputPhp}
   <?php wp_head(); ?>
   <style>
 ${LINK_RESET_CSS}
   </style>
 </head>
-<body <?php body_class(); ?>>
+${bodyTag}
 <?php wp_body_open(); ?>
 <?php
     $markup_file = get_template_directory() . '/forgewp-static/content.html';
@@ -412,7 +447,7 @@ ${LINK_RESET_CSS}
 }
 
 export function buildIndexPhp(options = {}) {
-  if (options.ownsShell) return shellOwnedFrontPagePhp();
+  if (options.ownsShell) return shellOwnedFrontPagePhp(options);
   return `<?php
 /**
  * Main template / front page — baked static markup by default.

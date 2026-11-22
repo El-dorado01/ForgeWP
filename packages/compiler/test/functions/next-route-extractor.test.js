@@ -228,4 +228,72 @@ describe('extractNextStaticMarkup', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it('preserves <html class>, <body class>, and author <head> scripts while still stripping Next runtime & RSC payloads', () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'forgewp-next-head-classes-'));
+    try {
+      const outDir = path.join(root, 'out');
+      mkdirSync(path.join(outDir, '_next', 'static', 'css'), { recursive: true });
+      mkdirSync(path.join(outDir, 'js'), { recursive: true });
+      writeFileSync(path.join(outDir, '_next', 'static', 'css', 'app.css'), 'body{margin:0}');
+      writeFileSync(path.join(outDir, 'js', 'consent.js'), 'window.__consent = true;');
+
+      const authorInlineScript =
+        `<script>try{var t=localStorage.getItem('fwp-theme');if(t)document.documentElement.classList.add(t);}catch(e){}</script>`;
+      const authorExternalScript = `<script src="/js/consent.js" defer=""></script>`;
+      const nextPolyfillScript = `<script src="/_next/static/chunks/polyfills.js" noModule=""></script>`;
+      const nextHeadFlightScript = `<script>(self.__next_f=self.__next_f||[]).push([1,"head"])</script>`;
+
+      writeFileSync(
+        path.join(outDir, 'index.html'),
+        `<!DOCTYPE html>` +
+          `<html lang="en" class="__variable_sans font-sans">` +
+          `<head>` +
+          `<meta charSet="utf-8"/>` +
+          `<link rel="stylesheet" href="/_next/static/css/app.css"/>` +
+          `<title>Starter</title>` +
+          authorInlineScript +
+          authorExternalScript +
+          nextPolyfillScript +
+          nextHeadFlightScript +
+          `<script type="application/ld+json">{"@type":"WebSite"}</script>` +
+          `</head>` +
+          `<body class="fwp-page antialiased">` +
+          `<main><h1>Hello</h1></main>` +
+          `<script src="/_next/static/chunks/main.js" id="_R_" async=""></script>` +
+          `<script>(self.__next_f=self.__next_f||[]).push([0])</script>` +
+          `</body></html>`,
+        'utf8',
+      );
+
+      const markup = extractNextStaticMarkup(root);
+      expect(markup.layout).toEqual({
+        lang: 'en',
+        htmlClass: '__variable_sans font-sans',
+        bodyClass: 'fwp-page antialiased',
+        sharedHeaderDetected: false,
+        sharedFooterDetected: false,
+      });
+
+      expect(markup.headHtml).toContain(authorInlineScript);
+      expect(markup.headHtml).toContain(authorExternalScript);
+      expect(markup.headHtml).toContain('<script type="application/ld+json">{"@type":"WebSite"}</script>');
+      expect(markup.headHtml).not.toContain('polyfills.js');
+      expect(markup.headHtml).not.toContain('self.__next_f');
+
+      const homeRoute = markup.routes.find((r) => r.path === '/');
+      expect(homeRoute.assets.clientScripts).toEqual([
+        '_next/static/chunks/main.js',
+        '_next/static/chunks/polyfills.js',
+      ]);
+      expect(homeRoute.assets.otherAssets).toContain('js/consent.js');
+      expect(homeRoute.assets.strippedRuntime).toEqual({
+        rscPayloadCount: 2,
+        scriptCount: 2,
+        preloadCount: 0,
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

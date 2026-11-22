@@ -9,6 +9,7 @@ const OPTIONAL_HTML_FIELDS = [
   'singleHeadHtml',
   'notFoundHtml',
   'archiveHtml',
+  'archiveHeadHtml',
 ];
 const VALID_TEMPLATE_SLUG = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i;
 

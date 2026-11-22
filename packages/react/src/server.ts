@@ -484,37 +484,41 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         const restBase =
           cleanType === 'post' ? 'posts' : cleanType === 'page' ? 'pages' : cleanType;
         const perPage = opts.perPage ?? 20;
-        const { data: raw } = await wpFetchJson(
-          wpBase,
-          `/wp-json/wp/v2/${encodeURIComponent(restBase)}?per_page=${perPage}&_embed=1`,
-        );
-        if (Array.isArray(raw)) {
-          return raw.map((item: any) => {
-            const slug = String(item.slug || item.id || '');
-            const renderedTitle =
-              typeof item.title === 'object' ? item.title?.rendered : item.title;
-            const renderedContent =
-              typeof item.content === 'object' ? item.content?.rendered : item.content;
-            const renderedExcerpt =
-              typeof item.excerpt === 'object' ? item.excerpt?.rendered : item.excerpt;
-            const mediaUrl =
-              item._embedded?.['wp:featuredmedia']?.[0]?.source_url || '';
-            const authorName = item._embedded?.author?.[0]?.name || '';
-            return {
-              id: Number(item.id || 0),
-              slug,
-              postType: cleanType,
-              title: stripTags(String(renderedTitle || '')),
-              excerpt: stripTags(String(renderedExcerpt || '')),
-              content: String(renderedContent || ''),
-              date: String(item.date || ''),
-              author: String(authorName || ''),
-              permalink: `${defaultBase}/${slug}`,
-              featuredImage: String(mediaUrl || ''),
-              blocks: Array.isArray(item.forgewp_blocks) ? item.forgewp_blocks : [],
-              source: 'wordpress' as const,
-            };
-          });
+        try {
+          const raw = await wpFetchJson(
+            wpBase,
+            `/wp-json/wp/v2/${encodeURIComponent(restBase)}?per_page=${perPage}&_embed=1`,
+          );
+          if (Array.isArray(raw)) {
+            return raw.map((item: any) => {
+              const slug = String(item.slug || item.id || '');
+              const renderedTitle =
+                typeof item.title === 'object' ? item.title?.rendered : item.title;
+              const renderedContent =
+                typeof item.content === 'object' ? item.content?.rendered : item.content;
+              const renderedExcerpt =
+                typeof item.excerpt === 'object' ? item.excerpt?.rendered : item.excerpt;
+              const mediaUrl =
+                item._embedded?.['wp:featuredmedia']?.[0]?.source_url || '';
+              const authorName = item._embedded?.author?.[0]?.name || '';
+              return {
+                id: Number(item.id || 0),
+                slug,
+                postType: cleanType,
+                title: stripTags(String(renderedTitle || '')),
+                excerpt: stripTags(String(renderedExcerpt || '')),
+                content: String(renderedContent || ''),
+                date: String(item.date || ''),
+                author: String(authorName || ''),
+                permalink: `${defaultBase}/${slug}`,
+                featuredImage: String(mediaUrl || ''),
+                blocks: Array.isArray(item.forgewp_blocks) ? item.forgewp_blocks : [],
+                source: 'wordpress' as const,
+              };
+            });
+          }
+        } catch {
+          // Fall back to local fixtures if REST endpoint is unavailable
         }
       }
 
@@ -667,8 +671,8 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
             return {
               name: String(data.name || fallbackName),
               description: String(data.description ?? fallbackDesc),
-              url: String(data.url || data.homeUrl || base),
-              homeUrl: String(data.homeUrl || data.url || base),
+              url: String(data.url || data.homeUrl || base.baseUrl),
+              homeUrl: String(data.homeUrl || data.url || base.baseUrl),
               language: String(data.language || fallbackLang),
               ...(data.logoUrl ? { logoUrl: String(data.logoUrl) } : {}),
               mode: 'decoupled',
@@ -1090,7 +1094,7 @@ export function WpServerAuthGate({
           ? React.createElement(
               React.Fragment,
               null,
-              React.createElement('forgewp-capability-gate-else'),
+              React.createElement('forgewp-capability-gate-fallback'),
               fallback,
             )
           : null,
@@ -1106,7 +1110,7 @@ export function WpServerAuthGate({
         ? React.createElement(
             React.Fragment,
             null,
-            React.createElement('forgewp-auth-gate-else'),
+            React.createElement('forgewp-auth-gate-fallback'),
             fallback,
           )
         : null,

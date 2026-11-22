@@ -75,7 +75,7 @@ if (existingFormExt) {
 }
 
 // Parse --fields=name:type,name2:type2 (type defaults to "text" when omitted)
-const VALID_TYPES = ["text", "email", "tel", "number", "textarea", "select", "checkbox"];
+const VALID_TYPES = ["text", "email", "tel", "number", "textarea", "select", "multiselect", "radio", "checkbox", "hidden"];
 let fieldsList = [];
 const fieldsArg = args.find(a => /^-+fields=/.test(a));
 const fieldsRaw = fieldsArg

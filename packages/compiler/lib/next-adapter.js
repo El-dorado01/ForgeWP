@@ -5,6 +5,7 @@ import { createUi } from './terminal-ui.js';
 import { extractNextStaticMarkup } from './next-route-extractor.js';
 import { applyVerifiedNextLinksToMarkup } from './next-link-transform.js';
 import {
+  getExtraStylesheetEntriesFromMarkup,
   injectRouteScopedStylesheetLinks,
   packageNextAssets,
   partitionNextStylesheets,
@@ -108,13 +109,37 @@ export function clearNextExtractionCache(themeRoot) {
   }
 }
 
-function getCachedNextStaticMarkup(resolvedRoot) {
-  const fingerprint = getOutDirFingerprint(resolvedRoot);
+async function loadNextPostTypes(resolvedRoot) {
+  try {
+    const cfg = await loadConfig(resolvedRoot);
+    if (cfg && cfg.postTypes) return cfg.postTypes;
+  } catch {
+    // Optional when called without wp.config.* (e.g. unit fixtures)
+  }
+  return {};
+}
+
+function buildPostTypesCacheSignature(postTypes = {}) {
+  const keys = Object.keys(postTypes || {}).sort();
+  if (keys.length === 0) return '';
+  return JSON.stringify(
+    keys.map((key) => {
+      const cfg = postTypes[key] || {};
+      return [key, cfg.rewrite ?? null, cfg.hasArchive ?? null];
+    }),
+  );
+}
+
+function getCachedNextStaticMarkup(resolvedRoot, { postTypes = {} } = {}) {
+  const baseFingerprint = getOutDirFingerprint(resolvedRoot);
+  const fingerprint = baseFingerprint
+    ? `${baseFingerprint}::${buildPostTypesCacheSignature(postTypes)}`
+    : null;
   const cached = extractionCache.get(resolvedRoot);
   if (cached && fingerprint && cached.fingerprint === fingerprint) {
     return cached.extracted;
   }
-  const extracted = extractNextStaticMarkup(resolvedRoot);
+  const extracted = extractNextStaticMarkup(resolvedRoot, { postTypes });
   if (fingerprint) {
     extractionCache.set(resolvedRoot, { fingerprint, extracted });
   }
@@ -287,8 +312,12 @@ export function getCriticalFiles(themeRoot) {
 export async function readBuildAssets(themeRoot) {
   const resolvedRoot = path.resolve(themeRoot);
   assertNativeCompatible(resolvedRoot);
-  const extracted = getCachedNextStaticMarkup(resolvedRoot);
-  const { sharedStylesheets } = partitionNextStylesheets(extracted.routes);
+  const postTypes = await loadNextPostTypes(resolvedRoot);
+  const extracted = getCachedNextStaticMarkup(resolvedRoot, { postTypes });
+  const { sharedStylesheets } = partitionNextStylesheets(
+    extracted.routes,
+    getExtraStylesheetEntriesFromMarkup(extracted),
+  );
   return {
     cssFile: resolvePackagedCssPath(sharedStylesheets),
   };
@@ -342,21 +371,13 @@ export async function buildAssets(themeRoot, options = {}) {
 export async function renderStaticMarkup(themeRoot) {
   const resolvedRoot = path.resolve(themeRoot);
   assertNativeCompatible(resolvedRoot);
-  let postTypes = {};
-  try {
-    const cfg = await loadConfig(resolvedRoot);
-    if (cfg && cfg.postTypes) postTypes = cfg.postTypes;
-  } catch {
-    // Optional when called without wp.config.ts (e.g. unit fixtures)
-  }
-  const extracted =
-    Object.keys(postTypes).length > 0
-      ? extractNextStaticMarkup(resolvedRoot, { postTypes })
-      : getCachedNextStaticMarkup(resolvedRoot);
+  const postTypes = await loadNextPostTypes(resolvedRoot);
+  const extracted = getCachedNextStaticMarkup(resolvedRoot, { postTypes });
   const withScopedCss = injectRouteScopedStylesheetLinks(extracted);
   const withMediaRewritten = rewriteNextMediaUrlsInMarkup(withScopedCss);
   const rewritten = applyVerifiedNextLinksToMarkup(withMediaRewritten, {
     themeRoot: resolvedRoot,
+    postTypes,
   });
 
   const linkErrors = (rewritten.diagnostics || []).filter((d) => d.severity === 'error');
@@ -372,9 +393,11 @@ export async function renderStaticMarkup(themeRoot) {
 
 export async function packageAssets(themeRoot, outDir, options = {}) {
   const resolvedRoot = path.resolve(themeRoot);
-  const extracted = getCachedNextStaticMarkup(resolvedRoot);
+  const postTypes = await loadNextPostTypes(resolvedRoot);
+  const extracted = getCachedNextStaticMarkup(resolvedRoot, { postTypes });
   const packaged = packageNextAssets(resolvedRoot, outDir, {
     routes: extracted.routes,
+    markup: extracted,
   });
   const islands = Array.isArray(options?.islands)
     ? options.islands
@@ -672,6 +695,12 @@ export async function onMakeForm(
   const fieldDefs = normalizedFields
     .map((f) => {
       const label = f.name.charAt(0).toUpperCase() + f.name.slice(1);
+      if (f.type === 'select' || f.type === 'multiselect' || f.type === 'radio') {
+        return `    ${f.name}: { type: '${f.type}', label: '${label}', required: ${f.required}, options: ['Option 1', 'Option 2'] },`;
+      }
+      if (f.type === 'hidden') {
+        return `    ${f.name}: { type: 'hidden', defaultValue: '' },`;
+      }
       return `    ${f.name}: { type: '${f.type}', label: '${label}', required: ${f.required} },`;
     })
     .join('\n');
@@ -696,7 +725,19 @@ export default form;
       if (f.type === 'textarea') {
         return `      <label>\n        ${label}\n        <textarea name="${f.name}"${req} rows={4} />\n      </label>`;
       }
-      const inputType = f.type === 'email' ? 'email' : 'text';
+      if (f.type === 'select' || f.type === 'multiselect') {
+        const multipleProp = f.type === 'multiselect' ? ' multiple' : '';
+        return `      <label>\n        ${label}\n        <select name="${f.name}"${multipleProp}${req}>\n          <option value="Option 1">Option 1</option>\n          <option value="Option 2">Option 2</option>\n        </select>\n      </label>`;
+      }
+      if (f.type === 'radio') {
+        return `      <fieldset>\n        <legend>${label}</legend>\n        <label><input type="radio" name="${f.name}" value="Option 1"${req} /> Option 1</label>\n        <label><input type="radio" name="${f.name}" value="Option 2"${req} /> Option 2</label>\n      </fieldset>`;
+      }
+      if (f.type === 'hidden') {
+        return `      <input type="hidden" name="${f.name}" value="" />`;
+      }
+      const inputType = ['email', 'tel', 'number', 'checkbox'].includes(f.type)
+        ? f.type
+        : 'text';
       return `      <label>\n        ${label}\n        <input type="${inputType}" name="${f.name}"${req} />\n      </label>`;
     })
     .join('\n');

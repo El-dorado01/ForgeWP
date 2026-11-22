@@ -36,6 +36,9 @@ import {
   buildPlaceholderPagePhp,
   buildBuilderPagePhp,
   buildGeneratedPageTemplateContentPhp,
+  formatHtmlOpenTag,
+  formatBodyOpenTag,
+  buildHeadTargetOutputPhp,
   LINK_RESET_CSS,
 } from './php-builders.js';
 import { collectFallbackPageRoutes } from './collect-static-routes.js';
@@ -76,6 +79,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * @param {string} [options.singleHtml]
  * @param {string} [options.notFoundHtml]
  * @param {string} [options.archiveHtml]
+ * @param {string} [options.archiveHeadHtml]
  * @param {import('./index.js').ForgeWPStaticRoute[]} [options.routes]
  * @param {import('./index.js').ForgeWPStaticLayout | null} [options.layout]
  * @param {import('./types.js').ForgeWPBuildAssets} options.assets
@@ -94,6 +98,7 @@ export async function generateTheme({
   singleHtml = '',
   notFoundHtml = '',
   archiveHtml = '',
+  archiveHeadHtml = '',
   routes = [],
   hierarchyTemplates = [],
   layout = null,
@@ -113,7 +118,10 @@ export async function generateTheme({
   const effectiveAppHtml = appHtml || homeRoute?.html || '';
   const effectiveHeadHtml = headHtml || homeRoute?.headHtml || '';
   const effectiveNotFoundHtml = notFoundHtml || notFoundRoute?.html || '';
-  void layout;
+  const documentHtmlClass =
+    typeof layout?.htmlClass === 'string' ? layout.htmlClass.trim() : '';
+  const documentBodyClass =
+    typeof layout?.bodyClass === 'string' ? layout.bodyClass.trim() : '';
 
   if (!preserveOutDir && existsSync(outDir)) {
     rmSync(outDir, { recursive: true, force: true });
@@ -966,6 +974,13 @@ export async function generateTheme({
     writeFileSync(
       path.join(staticDir, 'single-head.html'),
       replaceAssetPlaceholders(singleHeadHtml),
+      'utf8',
+    );
+  }
+  if (archiveHeadHtml) {
+    writeFileSync(
+      path.join(staticDir, 'archive-head.html'),
+      replaceAssetPlaceholders(archiveHeadHtml),
       'utf8',
     );
   }
@@ -2066,7 +2081,11 @@ if (window.forgeWpBlocks) {
 
   writeFileSync(
     path.join(outDir, 'header.php'),
-    buildHeaderPhp(config, { preloadTags }),
+    buildHeaderPhp(config, {
+      preloadTags,
+      htmlClass: documentHtmlClass,
+      bodyClass: documentBodyClass,
+    }),
     'utf8',
   );
   writeFileSync(
@@ -2083,7 +2102,11 @@ if (window.forgeWpBlocks) {
       effectiveAppHtml.includes('data-forgewp-owns-shell="true"'));
   writeFileSync(
     path.join(outDir, 'front-page.php'),
-    buildIndexPhp({ ownsShell: frontPageOwnsShell }),
+    buildIndexPhp({
+      ownsShell: frontPageOwnsShell,
+      htmlClass: documentHtmlClass,
+      bodyClass: documentBodyClass,
+    }),
     'utf8',
   );
   writeFileSync(path.join(outDir, 'archive.php'), buildArchivePhp(), 'utf8');
@@ -2449,11 +2472,27 @@ ${redirectSetup ? redirectSetup + '\n' : ''}    wp_safe_redirect( ${redirectUrlE
 }`;
 
             if (allowed) {
-              redirectPhp += `
-if ( ! current_user_can( '${allowed}' ) ) {
+              const allowedCaps = allowed
+                .split(',')
+                .map((c) => c.trim())
+                .filter(Boolean)
+                .map((c) => c.replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+              if (allowedCaps.length === 1) {
+                redirectPhp += `
+if ( ! current_user_can( '${allowedCaps[0]}' ) ) {
     wp_safe_redirect( home_url( '/' ) );
     exit;
 }`;
+              } else if (allowedCaps.length > 1) {
+                const capChecks = allowedCaps
+                  .map((cap) => `current_user_can( '${cap}' )`)
+                  .join(' || ');
+                redirectPhp += `
+if ( ! ( ${capChecks} ) ) {
+    wp_safe_redirect( home_url( '/' ) );
+    exit;
+}`;
+              }
             }
           }
           cleanedRawHtml = rawHtml.replace(
@@ -2571,26 +2610,17 @@ if ( ! current_user_can( '${allowed}' ) ) {
 
         if (pageConfigHeader === false) {
           headerCall = `?><!DOCTYPE html>
-<html <?php language_attributes(); ?>>
+${formatHtmlOpenTag(documentHtmlClass)}
 <head>
   <meta charset="<?php bloginfo('charset'); ?>">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <?php
-  if ( ! forgewp_seo_plugin_active() ) {
-      $target = forgewp_resolve_head_target();
-      if (file_exists($target)) {
-          ob_start();
-          include $target;
-          echo preg_replace('/<title>.*?<\\/title>/is', '', ob_get_clean());
-      }
-  }
-  ?>
+${buildHeadTargetOutputPhp('  ')}
   <?php wp_head(); ?>
   <style>
 ${LINK_RESET_CSS}
   </style>
 </head>
-<body <?php body_class(); ?>>
+${formatBodyOpenTag(documentBodyClass)}
 <?php wp_body_open(); ?>
 <?php`;
         } else if (typeof pageConfigHeader === 'string') {

@@ -1886,8 +1886,11 @@ export function onMakeForm(
   const fieldsConfigPhp = fields
     .map(({ name, type }) => {
       const label = toLabel(name);
-      if (type === 'select') {
-        return `    ${name}: { type: 'select', label: '${label}', required: true, options: ['Option 1', 'Option 2'] },`;
+      if (type === 'select' || type === 'multiselect' || type === 'radio') {
+        return `    ${name}: { type: '${type}', label: '${label}', required: true, options: ['Option 1', 'Option 2'] },`;
+      }
+      if (type === 'hidden') {
+        return `    ${name}: { type: 'hidden', defaultValue: '' },`;
       }
       return `    ${name}: { type: '${type}', label: '${label}', required: true },`;
     })
@@ -1936,14 +1939,23 @@ ${fieldsConfigPhp}
           rows={5}
           className="${inputClassName} resize-none"
         />`;
-      } else if (type === 'select') {
-        control = `<select name="${name}" required className="${inputClassName} bg-white">
-          <option value="">Please choose…</option>
+      } else if (type === 'select' || type === 'multiselect') {
+        const multipleProp = type === 'multiselect' ? ' multiple' : '';
+        const placeholderOpt =
+          type === 'select' ? '\n          <option value="">Please choose…</option>' : '';
+        control = `<select name="${name}"${multipleProp} required className="${inputClassName} bg-white">${placeholderOpt}
           <option value="Option 1">Option 1</option>
           <option value="Option 2">Option 2</option>
         </select>`;
+      } else if (type === 'radio') {
+        control = `<div className="flex gap-4">
+          <label className="inline-flex items-center gap-2"><input type="radio" name="${name}" value="Option 1" required /> Option 1</label>
+          <label className="inline-flex items-center gap-2"><input type="radio" name="${name}" value="Option 2" required /> Option 2</label>
+        </div>`;
       } else if (type === 'checkbox') {
         control = `<input type="checkbox" name="${name}" required />`;
+      } else if (type === 'hidden') {
+        return `        <input type="hidden" name="${name}" value="" />`;
       } else {
         control = `<input
           type="${type}"

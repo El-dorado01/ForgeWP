@@ -24,6 +24,35 @@ export function resolvePackagedCssPath(stylesheets) {
 }
 
 /**
+ * Build pseudo-route asset entries for non-page templates (single, archive, and hierarchyTemplates)
+ * so dynamic and CPT template stylesheets participate in shared vs. route-scoped partitioning.
+ *
+ * @param {import('./index.js').ForgeWPStaticMarkup | null | undefined} markup
+ */
+export function getExtraStylesheetEntriesFromMarkup(markup) {
+  const entries = [];
+  if (!markup || typeof markup !== 'object') return entries;
+  if (markup.singleAssets) {
+    entries.push({ path: '~single', kind: 'single', assets: markup.singleAssets });
+  }
+  if (markup.archiveAssets) {
+    entries.push({ path: '~archive', kind: 'archive', assets: markup.archiveAssets });
+  }
+  if (Array.isArray(markup.hierarchyTemplates)) {
+    for (const tpl of markup.hierarchyTemplates) {
+      if (tpl && tpl.templateName && tpl.assets) {
+        entries.push({
+          path: `~hierarchy:${tpl.templateName}`,
+          kind: tpl.kind || 'single',
+          assets: tpl.assets,
+        });
+      }
+    }
+  }
+  return entries;
+}
+
+/**
  * Partition extracted Next.js route stylesheets into:
  * - `sharedStylesheets`: stylesheets present on ALL primary routes, in the exact
  *   DOM `<head>` cascade order observed on the first primary route.
@@ -31,16 +60,20 @@ export function resolvePackagedCssPath(stylesheets) {
  * - `routeAssetMap`: map of source stylesheet relPath -> theme-relative `assets/css/<name>` path.
  *
  * @param {import('./index.js').ForgeWPStaticRoute[]} routes
+ * @param {Array<{ path: string, kind?: string, assets?: import('./index.js').ForgeWPStaticRouteAssets }>} [extraEntries]
  */
-export function partitionNextStylesheets(routes = []) {
-  const allRoutes = Array.isArray(routes) ? routes : [];
-  const primaryRoutes = allRoutes.filter((r) => r.kind !== 'not-found');
-  const scopeRoutes = primaryRoutes.length > 0 ? primaryRoutes : allRoutes;
+export function partitionNextStylesheets(routes = [], extraEntries = []) {
+  const allEntries = [
+    ...(Array.isArray(routes) ? routes : []),
+    ...(Array.isArray(extraEntries) ? extraEntries : []),
+  ];
+  const primaryEntries = allEntries.filter((r) => r.kind !== 'not-found');
+  const scopeEntries = primaryEntries.length > 0 ? primaryEntries : allEntries;
 
   const sharedStylesheets = [];
-  if (scopeRoutes.length > 0) {
-    const firstOrder = scopeRoutes[0].assets?.stylesheets || [];
-    const otherSets = scopeRoutes
+  if (scopeEntries.length > 0) {
+    const firstOrder = scopeEntries[0].assets?.stylesheets || [];
+    const otherSets = scopeEntries
       .slice(1)
       .map((r) => new Set(r.assets?.stylesheets || []));
     for (const css of firstOrder) {
@@ -55,7 +88,7 @@ export function partitionNextStylesheets(routes = []) {
   const routeAssetMap = new Map();
   const usedBasenames = new Set();
 
-  for (const route of allRoutes) {
+  for (const route of allEntries) {
     const routeOnly = (route.assets?.stylesheets || []).filter(
       (css) => !sharedSet.has(css),
     );
@@ -88,6 +121,7 @@ export function partitionNextStylesheets(routes = []) {
 
 /**
  * Inject route-scoped `<link rel="stylesheet">` tags into each route's `headHtml`
+ * (including `singleHeadHtml`, `archiveHeadHtml`, and `hierarchyTemplates[].headHtml`)
  * for stylesheets that belong only to a subset of routes, preventing cross-route
  * CSS leakage while preserving exact Next.js cascade order.
  *
@@ -96,21 +130,28 @@ export function partitionNextStylesheets(routes = []) {
  */
 export function injectRouteScopedStylesheetLinks(markup) {
   const routes = Array.isArray(markup?.routes) ? markup.routes : [];
-  const { routeOnlyByPath, routeAssetMap } = partitionNextStylesheets(routes);
+  const extraEntries = getExtraStylesheetEntriesFromMarkup(markup);
+  const { routeOnlyByPath, routeAssetMap } = partitionNextStylesheets(
+    routes,
+    extraEntries,
+  );
   if (routeOnlyByPath.size === 0) {
     return markup;
   }
 
-  let updatedHomeHead = markup.headHtml || '';
-  const updatedRoutes = routes.map((route) => {
-    const routeOnly = routeOnlyByPath.get(route.path);
-    if (!routeOnly || routeOnly.length === 0) return route;
-    const linksHtml = routeOnly
+  const buildLinksHtml = (routeOnly) =>
+    routeOnly
       .map((rel) => {
         const assetRel = routeAssetMap.get(rel);
         return `<link rel="stylesheet" href="<?php echo esc_url(get_template_directory_uri()); ?>/${assetRel}" />`;
       })
       .join('');
+
+  let updatedHomeHead = markup.headHtml || '';
+  const updatedRoutes = routes.map((route) => {
+    const routeOnly = routeOnlyByPath.get(route.path);
+    if (!routeOnly || routeOnly.length === 0) return route;
+    const linksHtml = buildLinksHtml(routeOnly);
     const nextHead = `${route.headHtml || ''}${linksHtml}`;
     if (route.kind === 'home') {
       updatedHomeHead = `${updatedHomeHead}${linksHtml}`;
@@ -121,10 +162,36 @@ export function injectRouteScopedStylesheetLinks(markup) {
     };
   });
 
+  const singleOnly = routeOnlyByPath.get('~single');
+  const updatedSingleHead =
+    singleOnly && singleOnly.length > 0
+      ? `${markup.singleHeadHtml || ''}${buildLinksHtml(singleOnly)}`
+      : markup.singleHeadHtml;
+
+  const archiveOnly = routeOnlyByPath.get('~archive');
+  const updatedArchiveHead =
+    archiveOnly && archiveOnly.length > 0
+      ? `${markup.archiveHeadHtml || ''}${buildLinksHtml(archiveOnly)}`
+      : markup.archiveHeadHtml;
+
+  const updatedHierarchy = Array.isArray(markup.hierarchyTemplates)
+    ? markup.hierarchyTemplates.map((tpl) => {
+        const tplOnly = routeOnlyByPath.get(`~hierarchy:${tpl.templateName}`);
+        if (!tplOnly || tplOnly.length === 0) return tpl;
+        return {
+          ...tpl,
+          headHtml: `${tpl.headHtml || ''}${buildLinksHtml(tplOnly)}`,
+        };
+      })
+    : markup.hierarchyTemplates;
+
   return {
     ...markup,
     headHtml: updatedHomeHead,
+    ...(updatedSingleHead !== undefined ? { singleHeadHtml: updatedSingleHead } : {}),
+    ...(updatedArchiveHead !== undefined ? { archiveHeadHtml: updatedArchiveHead } : {}),
     routes: updatedRoutes,
+    ...(updatedHierarchy !== undefined ? { hierarchyTemplates: updatedHierarchy } : {}),
   };
 }
 
@@ -212,7 +279,9 @@ export function rewriteNextMediaUrlsInMarkup(markup) {
     headHtml: rewriteHtml(markup.headHtml),
     notFoundHtml: rewriteHtml(markup.notFoundHtml),
     singleHtml: rewriteHtml(markup.singleHtml),
+    singleHeadHtml: rewriteHtml(markup.singleHeadHtml),
     archiveHtml: rewriteHtml(markup.archiveHtml),
+    archiveHeadHtml: rewriteHtml(markup.archiveHeadHtml),
     routes: Array.isArray(markup.routes)
       ? markup.routes.map((route) => ({
           ...route,
@@ -271,22 +340,32 @@ function copyPublicStaticFiles(themeRoot, outDir, assetFiles) {
  *
  * @param {string} themeRoot
  * @param {string} outDir
- * @param {{ routes?: import('./index.js').ForgeWPStaticRoute[], outExportDir?: string }} [options]
+ * @param {{ routes?: import('./index.js').ForgeWPStaticRoute[], markup?: import('./index.js').ForgeWPStaticMarkup, extraEntries?: any[], outExportDir?: string }} [options]
  */
 export function packageNextAssets(themeRoot, outDir, options = {}) {
   const resolvedRoot = path.resolve(themeRoot);
   const outExportDir = options.outExportDir
     ? path.resolve(options.outExportDir)
     : path.join(resolvedRoot, 'out');
+  const fallbackMarkup =
+    !Array.isArray(options.routes) && !options.markup
+      ? extractNextStaticMarkup(resolvedRoot, { outDir: outExportDir })
+      : null;
   const routes = Array.isArray(options.routes)
     ? options.routes
-    : extractNextStaticMarkup(resolvedRoot, { outDir: outExportDir }).routes;
+    : options.markup?.routes || fallbackMarkup?.routes || [];
+  const extraEntries = Array.isArray(options.extraEntries)
+    ? options.extraEntries
+    : getExtraStylesheetEntriesFromMarkup(options.markup || fallbackMarkup);
 
-  const { sharedStylesheets, routeAssetMap } = partitionNextStylesheets(routes);
+  const { sharedStylesheets, routeAssetMap } = partitionNextStylesheets(
+    routes,
+    extraEntries,
+  );
   const otherAssetSet = new Set();
   const skippedClientScriptSet = new Set();
 
-  for (const route of routes) {
+  for (const route of [...routes, ...extraEntries]) {
     for (const other of route.assets?.otherAssets || []) otherAssetSet.add(other);
     for (const script of route.assets?.clientScripts || []) skippedClientScriptSet.add(script);
   }

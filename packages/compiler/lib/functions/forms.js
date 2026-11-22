@@ -18,9 +18,91 @@ const VALID_FIELD_TYPES = [
   'number',
   'textarea',
   'select',
+  'multiselect',
+  'radio',
+  'checkbox',
+  'hidden',
+];
+const CLIENT_EDITABLE_FIELD_TYPES = [
+  'text',
+  'email',
+  'tel',
+  'number',
+  'textarea',
+  'select',
+  'multiselect',
+  'radio',
   'checkbox',
 ];
 const FORM_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
+
+function validateFieldDefinition(scopeLabel, field, { isClientSeed = false } = {}) {
+  if (!field || typeof field !== 'object') {
+    throw new Error(`[ForgeWP Forms] ${scopeLabel} must be a field configuration object.`);
+  }
+  const type = field.type;
+  if (type !== undefined && !VALID_FIELD_TYPES.includes(type)) {
+    throw new Error(
+      `[ForgeWP Forms] ${scopeLabel} has invalid field type "${String(type)}". ` +
+        `Supported types: ${VALID_FIELD_TYPES.join(', ')}.`,
+    );
+  }
+  if (isClientSeed && type === 'hidden') {
+    throw new Error(
+      `[ForgeWP Forms] ${scopeLabel} uses type: 'hidden', which is developer-owned and must be declared in \`fields\` rather than \`clientFields.seed\`.`,
+    );
+  }
+  if (field.multiple !== undefined) {
+    if (typeof field.multiple !== 'boolean') {
+      throw new Error(`[ForgeWP Forms] ${scopeLabel}.multiple must be a boolean.`);
+    }
+    if (field.multiple === true && type !== 'select' && type !== 'multiselect') {
+      throw new Error(
+        `[ForgeWP Forms] ${scopeLabel}.multiple is only supported on 'select' and 'multiselect' fields.`,
+      );
+    }
+  }
+  if (
+    field.options !== undefined &&
+    (!Array.isArray(field.options) || field.options.some((o) => typeof o !== 'string'))
+  ) {
+    throw new Error(`[ForgeWP Forms] ${scopeLabel}.options must be an array of strings.`);
+  }
+  if (
+    !isClientSeed &&
+    (type === 'radio' || type === 'multiselect' || (type === 'select' && field.multiple === true))
+  ) {
+    if (!Array.isArray(field.options) || field.options.length === 0) {
+      throw new Error(
+        `[ForgeWP Forms] ${scopeLabel} with type "${type}" requires a non-empty \`options\` array.`,
+      );
+    }
+  }
+  if (field.min !== undefined || field.max !== undefined || field.step !== undefined) {
+    if (type !== 'number') {
+      throw new Error(
+        `[ForgeWP Forms] ${scopeLabel} declares numeric bounds (min/max/step), which are only supported on type: 'number'.`,
+      );
+    }
+    for (const [boundName, boundVal] of [
+      ['min', field.min],
+      ['max', field.max],
+      ['step', field.step],
+    ]) {
+      if (boundVal !== undefined && (typeof boundVal !== 'number' || !Number.isFinite(boundVal))) {
+        throw new Error(`[ForgeWP Forms] ${scopeLabel}.${boundName} must be a finite number.`);
+      }
+    }
+    if (field.step !== undefined && field.step <= 0) {
+      throw new Error(`[ForgeWP Forms] ${scopeLabel}.step must be greater than 0.`);
+    }
+    if (field.min !== undefined && field.max !== undefined && field.min > field.max) {
+      throw new Error(
+        `[ForgeWP Forms] ${scopeLabel}.min (${field.min}) cannot be greater than max (${field.max}).`,
+      );
+    }
+  }
+}
 
 /**
  * Config-shape diagnostics (Principle 10 — fail at compile time, not at
@@ -141,6 +223,12 @@ export function validateFormsConfig(forms) {
       }
     }
 
+    for (const [fieldName, fieldDef] of Object.entries(formConfig.fields || {})) {
+      validateFieldDefinition(`forms.${name}.fields.${fieldName}`, fieldDef, {
+        isClientSeed: false,
+      });
+    }
+
     const devFieldNames = new Set(Object.keys(formConfig.fields || {}));
     const rawSeed = formConfig.clientFields?.enabled
       ? formConfig.clientFields.seed || []
@@ -148,6 +236,13 @@ export function validateFormsConfig(forms) {
     const seedFields = Array.isArray(rawSeed)
       ? rawSeed
       : Object.values(rawSeed).flat();
+    for (const field of seedFields) {
+      validateFieldDefinition(
+        `forms.${name}.clientFields.seed.${field?.name || '<unknown>'}`,
+        field,
+        { isClientSeed: true },
+      );
+    }
     const notificationKeys = new Set([...devFieldNames, ...seedFields.map((field) => field.name)]);
     for (const setting of ['subject', 'notificationBody']) {
       for (const [, field] of (formConfig[setting] || '').matchAll(/\{([a-zA-Z0-9_-]+)\}/g)) {
@@ -390,6 +485,25 @@ function fieldDefToPhpArray(name, field, opts = {}) {
     opts.textDomain && field.placeholder
       ? `__(${phpString(field.placeholder)}, ${phpString(opts.textDomain)})`
       : phpString(field.placeholder || '');
+  const extraLines = [];
+  if (type === 'multiselect' || (type === 'select' && field.multiple === true)) {
+    extraLines.push(`            'multiple'    => true,`);
+  }
+  if (type === 'number') {
+    if (typeof field.min === 'number' && Number.isFinite(field.min)) {
+      extraLines.push(`            'min'         => ${field.min},`);
+    }
+    if (typeof field.max === 'number' && Number.isFinite(field.max)) {
+      extraLines.push(`            'max'         => ${field.max},`);
+    }
+    if (typeof field.step === 'number' && Number.isFinite(field.step) && field.step > 0) {
+      extraLines.push(`            'step'        => ${field.step},`);
+    }
+  }
+  if (typeof field.defaultValue === 'string') {
+    extraLines.push(`            'defaultValue' => ${phpString(field.defaultValue)},`);
+  }
+  const extraPhp = extraLines.length > 0 ? `\n${extraLines.join('\n')}` : '';
   return `array(
             'name'        => ${phpString(name)},
             'label'       => ${labelPhp},
@@ -397,7 +511,7 @@ function fieldDefToPhpArray(name, field, opts = {}) {
             'required'    => ${required},
             'maxLength'   => ${Number.isFinite(maxLength) ? maxLength : 200},
             'options'     => ${optionsPhp},
-            'placeholder' => ${placeholderPhp},
+            'placeholder' => ${placeholderPhp},${extraPhp}
         )`;
 }
 
@@ -431,8 +545,34 @@ function seedByLocalePhpArray(seed, locales) {
 /**
  * Shared runtime helpers, emitted once regardless of how many forms exist.
  */
-function buildSharedHelpersPhp(defaultLocale) {
-  const fallbackLangPhp = phpString(defaultLocale || '');
+function buildSharedHelpersPhp(i18nConfig = null) {
+  const isObjI18n = i18nConfig && typeof i18nConfig === 'object';
+  const defaultLocale = isObjI18n
+    ? (i18nConfig.defaultLocale || (Array.isArray(i18nConfig.locales) ? i18nConfig.locales[0] : '') || '')
+    : (i18nConfig || '');
+  const fallbackLangPhp = phpString(defaultLocale);
+  const usesLocalProvider =
+    isObjI18n &&
+    i18nConfig.provider === 'local' &&
+    Array.isArray(i18nConfig.locales) &&
+    i18nConfig.locales.length > 0;
+  const localProviderPathPhp = usesLocalProvider
+    ? `
+        $forgewp_local_locales = array(${i18nConfig.locales.map((l) => phpString(l)).join(', ')});
+        $forgewp_req_path = isset($_SERVER['REQUEST_URI']) ? parse_url(wp_unslash($_SERVER['REQUEST_URI']), PHP_URL_PATH) : '';
+        $forgewp_home_path = rtrim((string) parse_url(home_url('/'), PHP_URL_PATH), '/');
+        if ($forgewp_home_path !== '' && strpos((string) $forgewp_req_path, $forgewp_home_path . '/') === 0) {
+            $forgewp_req_path = substr((string) $forgewp_req_path, strlen($forgewp_home_path));
+        }
+        $forgewp_path_segs = explode('/', trim((string) $forgewp_req_path, '/'));
+        $forgewp_path_locale = sanitize_key(reset($forgewp_path_segs));
+        if ($forgewp_path_locale !== '' && in_array($forgewp_path_locale, $forgewp_local_locales, true)) {
+            return $forgewp_path_locale;
+        }
+        if (${fallbackLangPhp} !== '') {
+            return ${fallbackLangPhp};
+        }`
+    : '';
   return `
 if (!function_exists('forgewp_forms_rate_limit_ok')) {
     /**
@@ -524,10 +664,61 @@ if (!function_exists('forgewp_forms_validate_and_sanitize')) {
             $type = isset($field_def['type']) ? $field_def['type'] : 'text';
             $required = !empty($field_def['required']);
             $raw = isset($submitted[$name]) ? $submitted[$name] : '';
+            $is_multi = ($type === 'multiselect') || ($type === 'select' && !empty($field_def['multiple']));
 
-            if ($type === 'select' && $raw !== '' && !empty($field_def['options']) && !in_array($raw, $field_def['options'], true)) {
-                $errors[$name] = __('Please choose a valid option.', 'forgewp');
+            if ($is_multi) {
+                $raw_items = array();
+                if (is_array($raw)) {
+                    $raw_items = $raw;
+                } elseif ($raw !== '' && $raw !== null && is_scalar($raw)) {
+                    $raw_items = array((string) $raw);
+                } elseif ($raw !== '' && $raw !== null) {
+                    $errors[$name] = __('Please choose valid options.', 'forgewp');
+                    continue;
+                }
+                $max_length = isset($field_def['maxLength']) ? (int) $field_def['maxLength'] : 200;
+                $clean_items = array();
+                $has_invalid = false;
+                foreach ($raw_items as $item) {
+                    if (!is_scalar($item)) {
+                        $has_invalid = true;
+                        break;
+                    }
+                    $s = sanitize_text_field(forgewp_forms_strip_header_injection((string) $item));
+                    if ($max_length > 0) {
+                        $s = function_exists('mb_substr') ? mb_substr($s, 0, $max_length) : substr($s, 0, $max_length);
+                    }
+                    if ($s === '') {
+                        continue;
+                    }
+                    if (!empty($field_def['options']) && !in_array($s, $field_def['options'], true)) {
+                        $has_invalid = true;
+                        break;
+                    }
+                    $clean_items[] = $s;
+                }
+                if ($has_invalid) {
+                    $errors[$name] = __('Please choose valid options.', 'forgewp');
+                    continue;
+                }
+                $clean_items = array_values(array_unique($clean_items));
+                if ($required && empty($clean_items)) {
+                    $errors[$name] = __('This field is required.', 'forgewp');
+                    continue;
+                }
+                $values[$name] = implode(', ', $clean_items);
                 continue;
+            }
+
+            if ($type === 'select' || $type === 'radio') {
+                if ($raw !== '' && $raw !== null && !is_scalar($raw)) {
+                    $errors[$name] = __('Please choose a valid option.', 'forgewp');
+                    continue;
+                }
+                if ($raw !== '' && $raw !== null && !empty($field_def['options']) && !in_array((string) $raw, $field_def['options'], true)) {
+                    $errors[$name] = __('Please choose a valid option.', 'forgewp');
+                    continue;
+                }
             }
 
             $clean = forgewp_forms_sanitize_field($raw, $field_def);
@@ -540,6 +731,31 @@ if (!function_exists('forgewp_forms_validate_and_sanitize')) {
             if ($type === 'email' && $clean !== '' && !is_email($clean)) {
                 $errors[$name] = __('Please enter a valid email address.', 'forgewp');
                 continue;
+            }
+
+            if ($type === 'number' && $clean !== '') {
+                if (!is_numeric($clean) || !is_finite((float) $clean)) {
+                    $errors[$name] = __('Please enter a valid number.', 'forgewp');
+                    continue;
+                }
+                $num = (float) $clean;
+                if (isset($field_def['min']) && $field_def['min'] !== '' && $field_def['min'] !== null && $num < (float) $field_def['min']) {
+                    $errors[$name] = sprintf(__('Please enter a value of at least %s.', 'forgewp'), $field_def['min']);
+                    continue;
+                }
+                if (isset($field_def['max']) && $field_def['max'] !== '' && $field_def['max'] !== null && $num > (float) $field_def['max']) {
+                    $errors[$name] = sprintf(__('Please enter a value of at most %s.', 'forgewp'), $field_def['max']);
+                    continue;
+                }
+                if (isset($field_def['step']) && $field_def['step'] !== '' && $field_def['step'] !== null && (float) $field_def['step'] > 0) {
+                    $step = (float) $field_def['step'];
+                    $base = (isset($field_def['min']) && $field_def['min'] !== '' && $field_def['min'] !== null) ? (float) $field_def['min'] : 0.0;
+                    $ratio = ($num - $base) / $step;
+                    if (abs($ratio - round($ratio)) > 1e-7 * max(1.0, abs($ratio))) {
+                        $errors[$name] = sprintf(__('Please enter a value matching step %s.', 'forgewp'), $field_def['step']);
+                        continue;
+                    }
+                }
             }
 
             $values[$name] = $clean;
@@ -575,7 +791,7 @@ if (!function_exists('forgewp_forms_resolve_lang')) {
             if (!empty($lang)) {
                 return $lang;
             }
-        }
+        }${localProviderPathPhp}
         $locale = get_locale();
         if (strpos($locale, '_') !== false) {
             $locale = explode('_', $locale)[0];
@@ -603,7 +819,7 @@ if (!function_exists('forgewp_forms_get_client_fields')) {
     function forgewp_forms_get_client_fields($form_name, $seed, $lang = null) {
         $option_name = 'forgewp_form_fields_' . $form_name;
         $stored = get_option($option_name, null);
-        $is_multilingual_seed = is_array($seed) && !isset($seed[0]);
+        $is_multilingual_seed = is_array($seed) && !empty($seed) && !isset($seed[0]);
 
         if (!$is_multilingual_seed) {
             // Single-locale theme — unchanged flat-list behavior.
@@ -1740,7 +1956,7 @@ ${editableForms
 
 if (!function_exists('forgewp_forms_valid_field_shape')) {
     function forgewp_forms_valid_field_shape($field, $existing_names) {
-        $valid_types = array('text', 'email', 'tel', 'number', 'textarea', 'select', 'checkbox');
+        $valid_types = array(${CLIENT_EDITABLE_FIELD_TYPES.map((t) => phpString(t)).join(', ')});
         if (!is_array($field) || empty($field['label']) || !isset($field['type']) || !in_array($field['type'], $valid_types, true)) {
             return false;
         }
@@ -1804,13 +2020,13 @@ if (!function_exists('forgewp_forms_admin_save_handler')) {
             $used_names[] = $name;
 
             $options = array();
-            if ($field['type'] === 'select' && !empty($field['options']) && is_array($field['options'])) {
+            if (in_array($field['type'], array('select', 'multiselect', 'radio'), true) && !empty($field['options']) && is_array($field['options'])) {
                 $options = array_values(array_filter(array_map(function ($o) {
                     return sanitize_text_field(trim((string) $o));
                 }, $field['options'])));
             }
 
-            $clean[] = array(
+            $entry = array(
                 'name'        => $name,
                 'label'       => sanitize_text_field($field['label']),
                 'type'        => $field['type'],
@@ -1819,6 +2035,27 @@ if (!function_exists('forgewp_forms_admin_save_handler')) {
                 'options'     => $options,
                 'placeholder' => isset($field['placeholder']) ? sanitize_text_field($field['placeholder']) : '',
             );
+            if ($field['type'] === 'multiselect') {
+                $entry['multiple'] = true;
+            }
+            if ($field['type'] === 'number') {
+                $raw_min = isset($field['min']) ? $field['min'] : '';
+                $raw_max = isset($field['max']) ? $field['max'] : '';
+                $raw_step = isset($field['step']) ? $field['step'] : '';
+                $min_num = ($raw_min !== '' && $raw_min !== null && is_numeric($raw_min)) ? (0 + $raw_min) : null;
+                $max_num = ($raw_max !== '' && $raw_max !== null && is_numeric($raw_max)) ? (0 + $raw_max) : null;
+                $step_num = ($raw_step !== '' && $raw_step !== null && is_numeric($raw_step)) ? (0 + $raw_step) : null;
+                if ($min_num !== null && $max_num !== null && $min_num > $max_num) {
+                    wp_send_json_error(__('Minimum value cannot exceed maximum value.', '${textDomain}'), 400);
+                }
+                if ($step_num !== null && $step_num <= 0) {
+                    wp_send_json_error(__('Step must be a positive number.', '${textDomain}'), 400);
+                }
+                if ($min_num !== null) { $entry['min'] = $min_num; }
+                if ($max_num !== null) { $entry['max'] = $max_num; }
+                if ($step_num !== null) { $entry['step'] = $step_num; }
+            }
+            $clean[] = $entry;
         }
 
         $option_name = 'forgewp_form_fields_' . $form_name;
@@ -2047,8 +2284,9 @@ ${formSectionsPhp}
               exportFormSelect.addEventListener('change', updateExportFieldGroups);
               updateExportFieldGroups();
             }
-            var TYPE_LABELS = { text: 'Text', email: 'Email', tel: 'Phone', number: 'Number', textarea: 'Textarea', select: 'Select', checkbox: 'Checkbox' };
-            var TYPES = ['text', 'email', 'tel', 'number', 'textarea', 'select', 'checkbox'];
+            var TYPE_LABELS = { text: 'Text', email: 'Email', tel: 'Phone', number: 'Number', textarea: 'Textarea', select: 'Select', multiselect: 'Multi-select', radio: 'Radio group', checkbox: 'Checkbox' };
+            var TYPES = ['text', 'email', 'tel', 'number', 'textarea', 'select', 'multiselect', 'radio', 'checkbox'];
+            function supportsOptions(type) { return type === 'select' || type === 'multiselect' || type === 'radio'; }
 
             function el(tag, attrs, children) {
                 var node = document.createElement(tag);
@@ -2142,14 +2380,29 @@ ${formSectionsPhp}
                 var placeholderInput = el('input', { type: 'text', value: field.placeholder || '', 'class': 'regular-text forgewp-field-placeholder' });
 
                 var optionsEditor = buildOptionsEditor(field.options);
-                optionsEditor.style.display = field.type === 'select' ? '' : 'none';
+                var optionsControl = controlGroup('Options', optionsEditor, 'forgewp-field-options-control');
+                optionsControl.style.display = supportsOptions(field.type) ? '' : 'none';
+
+                var minInput = el('input', { type: 'number', step: 'any', value: (field.min !== undefined && field.min !== null) ? String(field.min) : '', 'class': 'small-text forgewp-field-min' });
+                var maxInput = el('input', { type: 'number', step: 'any', value: (field.max !== undefined && field.max !== null) ? String(field.max) : '', 'class': 'small-text forgewp-field-max' });
+                var stepInput = el('input', { type: 'number', step: 'any', min: '0.0001', value: (field.step !== undefined && field.step !== null) ? String(field.step) : '', 'class': 'small-text forgewp-field-step' });
+                var numberBoundsControl = el('div', { 'class': 'forgewp-field-control forgewp-field-number-bounds' }, [
+                  el('span', {}, ['Min / Max / Step']),
+                  el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, [
+                    el('label', { style: 'display:inline-flex;align-items:center;gap:4px' }, ['Min', minInput]),
+                    el('label', { style: 'display:inline-flex;align-items:center;gap:4px' }, ['Max', maxInput]),
+                    el('label', { style: 'display:inline-flex;align-items:center;gap:4px' }, ['Step', stepInput]),
+                  ]),
+                ]);
+                numberBoundsControl.style.display = field.type === 'number' ? '' : 'none';
 
               card.appendChild(el('div', { 'class': 'forgewp-forms-row-grid' }, [
                 control('Label', labelInput),
                 control('Field type', typeSelect),
                 el('label', { 'class': 'forgewp-field-required-control' }, [requiredCheckbox, 'Required']),
                 control('Placeholder', placeholderInput),
-                    controlGroup('Select options', optionsEditor, 'forgewp-field-options-control'),
+                    optionsControl,
+                    numberBoundsControl,
               ]));
               card.appendChild(el('div', { 'class': 'forgewp-field-machine-name' }, [
                 'Field key: ',
@@ -2157,7 +2410,8 @@ ${formSectionsPhp}
               ]));
 
                 typeSelect.addEventListener('change', function () {
-                    optionsEditor.style.display = typeSelect.value === 'select' ? '' : 'none';
+                    optionsControl.style.display = supportsOptions(typeSelect.value) ? '' : 'none';
+                    numberBoundsControl.style.display = typeSelect.value === 'number' ? '' : 'none';
                 });
 
               var upBtn = el('button', { type: 'button', 'class': 'button', 'aria-label': 'Move field up' }, ['Move up']);
@@ -2183,14 +2437,24 @@ ${formSectionsPhp}
 
             function readRow(row) {
                 var optionsEditorEl = row.querySelector('.forgewp-field-options');
-                return {
+                var type = row.querySelector('.forgewp-field-type').value;
+                var obj = {
                     name: row.dataset.name || '',
                     label: row.querySelector('.forgewp-field-label').value,
-                    type: row.querySelector('.forgewp-field-type').value,
+                    type: type,
                     required: row.querySelector('.forgewp-field-required').checked,
                     placeholder: row.querySelector('.forgewp-field-placeholder').value,
                     options: (optionsEditorEl && optionsEditorEl.getOptions) ? optionsEditorEl.getOptions() : [],
                 };
+                if (type === 'number') {
+                    var minEl = row.querySelector('.forgewp-field-min');
+                    var maxEl = row.querySelector('.forgewp-field-max');
+                    var stepEl = row.querySelector('.forgewp-field-step');
+                    if (minEl && minEl.value !== '') { obj.min = Number(minEl.value); }
+                    if (maxEl && maxEl.value !== '') { obj.max = Number(maxEl.value); }
+                    if (stepEl && stepEl.value !== '') { obj.step = Number(stepEl.value); }
+                }
+                return obj;
             }
 
             function showNotice(editorEl, success, message) {
@@ -2363,6 +2627,21 @@ ${isMultilingual ? `        $forgewp_forms_current_lang = forgewp_forms_resolve_
         return $payload;
     }
 }
+
+if (!function_exists('forgewp_forms_get_registered_client_fields')) {
+    /**
+     * Returns saved WordPress client-owned fields for server-side rendering,
+     * reading through the same locale and storage contract as hydration so
+     * initial HTML and client hydration match with zero duplicate fields.
+     */
+    function forgewp_forms_get_registered_client_fields($form_name, $requested_lang = null) {
+        $payload = forgewp_forms_hydration_payload($requested_lang);
+        if (isset($payload[$form_name]['fields']) && is_array($payload[$form_name]['fields'])) {
+            return $payload[$form_name]['fields'];
+        }
+        return array();
+    }
+}
 `;
 }
 
@@ -2408,7 +2687,7 @@ export function buildFormsPhp(config) {
  */
 `;
 
-  php += buildSharedHelpersPhp(config.i18n?.defaultLocale);
+  php += buildSharedHelpersPhp(config.i18n);
 
   if (anyStoreSubmissions) {
     const storingFormNames = nativeFormNames.filter(

@@ -49,6 +49,47 @@ function parseTagAttributes(tag) {
 }
 
 /**
+ * Sanitize a space-separated class list read from `<html>` or `<body>` in static HTML.
+ * @param {string} raw
+ * @returns {string | undefined}
+ */
+function sanitizeDocumentClassList(raw) {
+  if (typeof raw !== 'string') return undefined;
+  const cleaned = decodeHtmlEntities(raw)
+    .replace(/[<>"'`\\;?]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || undefined;
+}
+
+/**
+ * Classify a `<script>` element found inside `<head>` or `<body>` of a Next.js export document.
+ * Distinguishes JSON-LD metadata, Next.js RSC/Flight payloads, Next runtime chunks, and author scripts.
+ *
+ * @param {Record<string, string>} attrs
+ * @param {string} inner
+ */
+function classifyNextScriptTag(attrs, inner) {
+  const scriptType = (attrs.type || '').toLowerCase().trim();
+  const localSrc = normalizeLocalAssetUrl(attrs.src || '');
+  const isJsonLd = scriptType === 'application/ld+json';
+  const isRscPayload =
+    !isJsonLd &&
+    (attrs.id === '__NEXT_DATA__' ||
+      inner.includes('self.__next_f') ||
+      inner.includes('window.__next_f'));
+  const isNextRuntimeScript =
+    !isJsonLd && ((localSrc && localSrc.startsWith('_next/')) || attrs.id === '_R_');
+  return {
+    scriptType,
+    localSrc,
+    isJsonLd,
+    isRscPayload,
+    isNextRuntimeScript,
+  };
+}
+
+/**
  * Find the closing `>` of an HTML tag starting at `startIndex`, respecting quoted attribute values.
  * @param {string} html
  * @param {number} startIndex
@@ -217,6 +258,11 @@ export function parseNextExportHtml(html, { outDir, sourceFile }) {
   const htmlOpenMatch = html.match(/<html\b[^>]*>/i);
   const htmlAttrs = htmlOpenMatch ? parseTagAttributes(htmlOpenMatch[0]) : {};
   const lang = htmlAttrs.lang || undefined;
+  const htmlClass = sanitizeDocumentClassList(htmlAttrs.class || '');
+
+  const bodyOpenMatch = html.match(/<body\b[^>]*>/i);
+  const bodyAttrs = bodyOpenMatch ? parseTagAttributes(bodyOpenMatch[0]) : {};
+  const bodyClass = sanitizeDocumentClassList(bodyAttrs.class || '');
 
   const headInner = extractSectionInner(html, 'head');
   const bodyInner = extractSectionInner(html, 'body');
@@ -297,18 +343,27 @@ export function parseNextExportHtml(html, { outDir, sourceFile }) {
         continue;
       }
 
-      // <script> inside <head>
-      const scriptType = (attrs.type || '').toLowerCase().trim();
-      if (scriptType === 'application/ld+json') {
+      // <script> inside <head>: strip Next runtime & RSC payloads, preserve JSON-LD and author scripts.
+      const classified = classifyNextScriptTag(attrs, inner);
+      if (classified.isJsonLd) {
         keptHeadParts.push(fullTag);
         continue;
       }
-
-      const localSrc = normalizeLocalAssetUrl(attrs.src || '');
-      if (localSrc) {
-        clientScripts.add(localSrc);
+      if (classified.isRscPayload) {
+        strippedRuntime.rscPayloadCount += 1;
+        continue;
       }
-      strippedRuntime.scriptCount += 1;
+      if (classified.isNextRuntimeScript) {
+        if (classified.localSrc) {
+          clientScripts.add(classified.localSrc);
+        }
+        strippedRuntime.scriptCount += 1;
+        continue;
+      }
+      if (classified.localSrc && existsSync(path.join(outDir, classified.localSrc))) {
+        otherAssets.add(classified.localSrc);
+      }
+      keptHeadParts.push(fullTag);
       continue;
     }
 
@@ -382,22 +437,14 @@ export function parseNextExportHtml(html, { outDir, sourceFile }) {
     const closeMatch = closeRe.exec(bodyInner);
     const fullEnd = closeMatch ? closeMatch.index + closeMatch[0].length : openEnd + 1;
     const inner = closeMatch ? bodyInner.slice(openEnd + 1, closeMatch.index) : '';
-    const scriptType = (attrs.type || '').toLowerCase().trim();
-    const localSrc = normalizeLocalAssetUrl(attrs.src || '');
+    const classified = classifyNextScriptTag(attrs, inner);
 
-    const isRscPayload =
-      attrs.id === '__NEXT_DATA__' ||
-      inner.includes('self.__next_f') ||
-      inner.includes('window.__next_f');
-    const isNextRuntimeScript =
-      (localSrc && localSrc.startsWith('_next/')) || attrs.id === '_R_';
-
-    if (scriptType !== 'application/ld+json' && (isRscPayload || isNextRuntimeScript)) {
+    if (!classified.isJsonLd && (classified.isRscPayload || classified.isNextRuntimeScript)) {
       cleanedBody += bodyInner.slice(bodyCursor, startIdx);
-      if (isRscPayload) {
+      if (classified.isRscPayload) {
         strippedRuntime.rscPayloadCount += 1;
       } else {
-        if (localSrc) clientScripts.add(localSrc);
+        if (classified.localSrc) clientScripts.add(classified.localSrc);
         strippedRuntime.scriptCount += 1;
       }
       bodyCursor = fullEnd;
@@ -417,6 +464,8 @@ export function parseNextExportHtml(html, { outDir, sourceFile }) {
 
   return {
     lang,
+    ...(htmlClass ? { htmlClass } : {}),
+    ...(bodyClass ? { bodyClass } : {}),
     titleText,
     headHtml: keptHeadParts.join(''),
     bodyHtml: cleanedBody,
@@ -653,7 +702,10 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
 
   let singleHtml = '';
   let singleHeadHtml = '';
+  let singleAssets = null;
   let archiveHtml = '';
+  let archiveHeadHtml = '';
+  let archiveAssets = null;
   const hierarchyTemplates = [];
   const seenHierarchyTemplates = new Set();
   const routes = [];
@@ -667,6 +719,7 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
         if (!singleHtml) {
           singleHtml = body;
           singleHeadHtml = entry.headHtml || '';
+          singleAssets = entry.assets;
         }
       } else if (!seenHierarchyTemplates.has(meta.templateName)) {
         seenHierarchyTemplates.add(meta.templateName);
@@ -677,6 +730,8 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
           html: body,
           headHtml: entry.headHtml || '',
           layoutExtracted: !ownsShell,
+          assets: entry.assets,
+          routePath: entry.routePath,
           sourceFile: entry.sourceFile,
         });
       }
@@ -688,6 +743,8 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
       if (meta.templateName === 'archive') {
         if (!archiveHtml) {
           archiveHtml = body;
+          archiveHeadHtml = entry.headHtml || '';
+          archiveAssets = entry.assets;
         }
       } else if (!seenHierarchyTemplates.has(meta.templateName)) {
         seenHierarchyTemplates.add(meta.templateName);
@@ -698,6 +755,8 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
           html: body,
           headHtml: entry.headHtml || '',
           layoutExtracted: !ownsShell,
+          assets: entry.assets,
+          routePath: entry.routePath,
           sourceFile: entry.sourceFile,
         });
       }
@@ -759,10 +818,15 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
     singleHeadHtml,
     notFoundHtml: notFoundRoute?.html || '',
     archiveHtml,
+    archiveHeadHtml,
+    ...(singleAssets ? { singleAssets } : {}),
+    ...(archiveAssets ? { archiveAssets } : {}),
     routes,
     ...(hierarchyTemplates.length > 0 ? { hierarchyTemplates } : {}),
     layout: {
       ...(homeParsed.lang ? { lang: homeParsed.lang } : {}),
+      ...(homeParsed.htmlClass ? { htmlClass: homeParsed.htmlClass } : {}),
+      ...(homeParsed.bodyClass ? { bodyClass: homeParsed.bodyClass } : {}),
       sharedHeaderDetected,
       sharedFooterDetected,
     },

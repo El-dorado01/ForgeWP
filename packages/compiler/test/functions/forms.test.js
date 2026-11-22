@@ -2,6 +2,7 @@
  * ForgeWP Native Forms — buildFormsPhp/validateFormsConfig/lintFormsUsage.
  * See forgewp_forms_spec.md §9 for the test plan this satisfies.
  */
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -1210,5 +1211,280 @@ describe('multilingual client fields', () => {
     // function itself ignores it for a flat-list $seed) — the *admin page*
     // data-initial is the one call site that actually varies by locale-count.
     expect(php).toContain("forgewp_forms_get_client_fields( 'contact', array(");
+  });
+});
+
+describe('expanded native field contract (radio, multiselect, hidden, number bounds) and live PHP 8 execution', () => {
+  const EXPANDED_CONFIG = {
+    textDomain: 'expanded',
+    i18n: { locales: ['en', 'de'], defaultLocale: 'en', provider: 'local' },
+    forms: {
+      booking: {
+        mailTo: 'bookings@example.test',
+        subject: 'Booking {source} — {rooms} rooms ({amenities})',
+        fields: {
+          source: { type: 'hidden', required: true, defaultValue: 'web' },
+          email: { type: 'email', label: 'Email', required: true },
+          rooms: { type: 'number', label: 'Rooms', required: true, min: 1, max: 10, step: 1 },
+          rating: { type: 'number', label: 'Rating', min: 0, max: 5, step: 0.1 },
+          tier: { type: 'radio', label: 'Tier', required: true, options: ['Standard', 'Deluxe'] },
+          amenities: { type: 'multiselect', label: 'Amenities', required: true, options: ['Spa', 'Breakfast', 'Parking'] },
+          extras: { type: 'select', multiple: true, options: ['Late Checkout', 'Airport Pickup'] },
+        },
+        clientFields: {
+          enabled: true,
+          seed: {
+            en: [{ name: 'pref', label: 'Preference', type: 'radio', required: false, options: ['Quiet', 'View'] }],
+            de: [],
+          },
+        },
+        storeSubmissions: true,
+      },
+      single: {
+        mailTo: 'admin',
+        fields: { email: { type: 'email', required: true } },
+        clientFields: { enabled: true, seed: [] },
+      },
+    },
+  };
+
+  it('validates config definitions for new field types and numeric bounds', () => {
+    expect(() => validateFormsConfig(EXPANDED_CONFIG.forms)).not.toThrow();
+
+    expect(() =>
+      validateFormsConfig({
+        f: { mailTo: 'admin', fields: { bad: { type: 'slider' } } },
+      }),
+    ).toThrow(/invalid field type/);
+
+    expect(() =>
+      validateFormsConfig({
+        f: { mailTo: 'admin', fields: { ok: { type: 'text' } }, clientFields: { enabled: true, seed: [{ name: 'secret', type: 'hidden' }] } },
+      }),
+    ).toThrow(/type: 'hidden'/);
+
+    expect(() =>
+      validateFormsConfig({
+        f: { mailTo: 'admin', fields: { tier: { type: 'radio' } } },
+      }),
+    ).toThrow(/requires a non-empty `options` array/);
+
+    expect(() =>
+      validateFormsConfig({
+        f: { mailTo: 'admin', fields: { m: { type: 'multiselect', options: [] } } },
+      }),
+    ).toThrow(/requires a non-empty `options` array/);
+
+    expect(() =>
+      validateFormsConfig({
+        f: { mailTo: 'admin', fields: { qty: { type: 'text', min: 1 } } },
+      }),
+    ).toThrow(/only supported on type: 'number'/);
+
+    expect(() =>
+      validateFormsConfig({
+        f: { mailTo: 'admin', fields: { qty: { type: 'number', min: 5, max: 2 } } },
+      }),
+    ).toThrow(/cannot be greater than max/);
+
+    expect(() =>
+      validateFormsConfig({
+        f: { mailTo: 'admin', fields: { qty: { type: 'number', step: 0 } } },
+      }),
+    ).toThrow(/step must be greater than 0/);
+
+    expect(() =>
+      validateFormsConfig({
+        f: { mailTo: 'admin', fields: { name: { type: 'text', multiple: true } } },
+      }),
+    ).toThrow(/only supported on 'select' and 'multiselect'/);
+  });
+
+  it('validates radio, multiselect, hidden, number bounds, admin saves, empty client seeds, and local-provider locales in live PHP 8', () => {
+    const php = buildFormsPhp(EXPANDED_CONFIG);
+    const tmp = mkdtempSync(path.join(tmpdir(), 'forgewp-forms-php8-'));
+    try {
+      const functionsPath = path.join(tmp, 'forms.php');
+      writeFileSync(
+        functionsPath,
+        `<?php
+define('MINUTE_IN_SECONDS', 60);
+$__opts = array(
+  'admin_email' => 'admin@example.test',
+  'forgewp_form_fields_booking' => array('en' => array(array('name' => 'pref', 'label' => 'Preference', 'type' => 'radio', 'required' => false, 'options' => array('Quiet', 'View'))), 'de' => array()),
+  'forgewp_form_fields_single' => array(),
+);
+$__posts = array();
+$__mails = array();
+$__meta = array();
+$__next_post_id = 100;
+$__nonce_ok = true;
+$__can_cap = true;
+function __($s, $d = 'default') { return $s; }
+function esc_html__($s, $d = 'default') { return $s; }
+function esc_html_e($s, $d = 'default') { echo $s; }
+function esc_attr_e($s, $d = 'default') { echo $s; }
+function esc_html($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+function esc_attr($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+function esc_textarea($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+function esc_url($s) { return (string)$s; }
+function get_option($k, $d = null) { global $__opts; return array_key_exists($k, $__opts) ? $__opts[$k] : $d; }
+function update_option($k, $v, $a = null) { global $__opts; $__opts[$k] = $v; return true; }
+function get_transient($k) { return 0; }
+function set_transient($k, $v, $exp) { return true; }
+function is_user_logged_in() { return false; }
+function current_user_can($c) { global $__can_cap; return $__can_cap; }
+function wp_unslash($v) { return $v; }
+function sanitize_key($k) { return preg_replace('/[^a-z0-9_-]/', '', strtolower((string)$k)); }
+function sanitize_text_field($s) { return trim(strip_tags((string)$s)); }
+function sanitize_textarea_field($s) { return trim(strip_tags((string)$s)); }
+function sanitize_email($s) { return trim((string)$s); }
+function is_email($s) { return (bool) filter_var((string)$s, FILTER_VALIDATE_EMAIL); }
+function get_locale() { return 'en_US'; }
+function home_url($p = '/') { return 'https://example.test/' . ltrim((string)$p, '/'); }
+function wp_salt($scheme = 'auth') { return 'test-salt'; }
+function current_time($t) { return '2026-11-22 12:00:00'; }
+function is_wp_error($v) { return false; }
+function wp_insert_post($args) { global $__next_post_id, $__posts; $id = ++$__next_post_id; $__posts[$id] = $args; return $id; }
+function update_post_meta($id, $k, $v) { global $__meta; $__meta[$id][$k] = $v; return true; }
+function add_post_meta($id, $k, $v) { global $__meta; $__meta[$id][$k] = $v; return true; }
+function get_post_meta($id, $k = '', $single = false) { global $__meta; return $k === '' ? ($__meta[$id] ?? array()) : ($__meta[$id][$k] ?? ''); }
+function wp_mail($to, $subj, $body, $headers = array()) { global $__mails; $__mails[] = compact('to', 'subj', 'body', 'headers'); return true; }
+function add_action($h, $cb, $p = 10, $a = 1) {}
+function add_filter($h, $cb, $p = 10, $a = 1) {}
+function apply_filters($h, $v) { return $v; }
+function check_ajax_referer($a, $k) {}
+function wp_json_encode($v) { return json_encode($v); }
+class WP_REST_Request {
+  private $params;
+  public function __construct($params) { $this->params = $params; }
+  public function get_params() { return $this->params; }
+  public function get_header($h) { return ''; }
+}
+class WP_REST_Response {
+  public $data; public $status;
+  public function __construct($data, $status = 200) { $this->data = $data; $this->status = $status; }
+}
+class FwpAjaxExit extends Exception { public $code; public $payload; public function __construct($p, $c) { $this->payload = $p; $this->code = $c; } }
+function wp_send_json_success($d) { throw new FwpAjaxExit(array('success' => true, 'data' => $d), 200); }
+function wp_send_json_error($d, $c = 400) { throw new FwpAjaxExit(array('success' => false, 'data' => $d), $c); }
+${php}
+`,
+      );
+      const lint = spawnSync('php', ['-l', functionsPath], { encoding: 'utf8' });
+      expect(lint.status, lint.stderr).toBe(0);
+
+      const runnerPath = path.join(tmp, 'runner.php');
+      writeFileSync(
+        runnerPath,
+        `<?php
+require ${JSON.stringify(functionsPath)};
+
+$invalid_res = forgewp_handle_form_booking(new WP_REST_Request(array(
+  '_forgewp_elapsed' => 5000,
+  'source' => '',
+  'email' => 'guest@example.test',
+  'rooms' => '11',
+  'rating' => '0.35',
+  'tier' => 'Presidential',
+  'amenities' => array('Spa', 'Helipad'),
+)));
+
+$valid_res = forgewp_handle_form_booking(new WP_REST_Request(array(
+  '_forgewp_elapsed' => 5000,
+  'source' => 'promo-banner',
+  'email' => 'guest@example.test',
+  'rooms' => '3',
+  'rating' => '0.3',
+  'tier' => 'Deluxe',
+  'amenities' => array('Spa', 'Parking', 'Spa'),
+  'extras' => 'Late Checkout',
+  'pref' => 'Quiet',
+)));
+
+$_SERVER['REQUEST_URI'] = '/de/booking';
+$de_fields = forgewp_forms_get_registered_client_fields('booking');
+$_SERVER['REQUEST_URI'] = '/en/booking';
+$en_fields = forgewp_forms_get_registered_client_fields('booking');
+$single_empty = forgewp_forms_get_registered_client_fields('single');
+
+$_POST = array(
+  'form' => 'booking',
+  'lang' => 'en',
+  'fields' => json_encode(array(
+    array('name' => 'guest_ages', 'label' => 'Guest Ages', 'type' => 'number', 'required' => true, 'min' => 1, 'max' => 99, 'step' => 1),
+    array('name' => 'tags', 'label' => 'Tags', 'type' => 'multiselect', 'options' => array('VIP', 'Quiet')),
+  )),
+);
+$admin_save = null;
+try { forgewp_forms_admin_save_handler(); } catch (FwpAjaxExit $e) { $admin_save = $e->payload; }
+
+$_POST = array(
+  'form' => 'booking',
+  'lang' => 'en',
+  'fields' => json_encode(array(
+    array('name' => 'bad_range', 'label' => 'Bad Range', 'type' => 'number', 'min' => 10, 'max' => 2),
+  )),
+);
+$bad_bounds_save = null;
+try { forgewp_forms_admin_save_handler(); } catch (FwpAjaxExit $e) { $bad_bounds_save = array('code' => $e->code, 'payload' => $e->payload); }
+
+echo json_encode(array(
+  'invalid_status' => $invalid_res->status,
+  'invalid_errors' => $invalid_res->data['errors'],
+  'valid_status' => $valid_res->status,
+  'mail_subj' => $__mails[0]['subj'],
+  'stored_amenities' => get_post_meta(101, 'field_amenities', true),
+  'stored_extras' => get_post_meta(101, 'field_extras', true),
+  'stored_source' => get_post_meta(101, 'field_source', true),
+  'de_fields' => $de_fields,
+  'en_fields_count' => count($en_fields),
+  'single_empty' => $single_empty,
+  'admin_save' => $admin_save,
+  'bad_bounds_save' => $bad_bounds_save,
+));
+`,
+      );
+      const exec = spawnSync('php', [runnerPath], { encoding: 'utf8' });
+      expect(exec.status, exec.stderr).toBe(0);
+      const out = JSON.parse(exec.stdout);
+
+      expect(out.invalid_status).toBe(400);
+      expect(out.invalid_errors).toMatchObject({
+        source: 'This field is required.',
+        rooms: 'Please enter a value of at most 10.',
+        rating: 'Please enter a value matching step 0.1.',
+        tier: 'Please choose a valid option.',
+        amenities: 'Please choose valid options.',
+      });
+
+      expect(out.valid_status).toBe(200);
+      expect(out.mail_subj).toBe('Booking promo-banner — 3 rooms (Spa, Parking)');
+      expect(out.stored_amenities).toBe('Spa, Parking');
+      expect(out.stored_extras).toBe('Late Checkout');
+      expect(out.stored_source).toBe('promo-banner');
+
+      expect(out.de_fields).toEqual([]);
+      expect(out.en_fields_count).toBe(1);
+      expect(out.single_empty).toEqual([]);
+
+      expect(out.admin_save.success).toBe(true);
+      expect(out.admin_save.data.fields[0]).toMatchObject({
+        name: 'guest_ages',
+        type: 'number',
+        min: 1,
+        max: 99,
+        step: 1,
+      });
+      expect(out.admin_save.data.fields[1]).toMatchObject({
+        name: 'tags',
+        type: 'multiselect',
+        multiple: true,
+        options: ['VIP', 'Quiet'],
+      });
+      expect(out.bad_bounds_save.code).toBe(400);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });

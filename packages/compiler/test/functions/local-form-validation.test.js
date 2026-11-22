@@ -6,15 +6,27 @@ import { submitWpForm, useWpForm } from '../../../react/src/hooks.ts';
 import { buildFormsPreviewData, formsPreviewScript } from '../../lib/forms-preview.js';
 
 const contract = {
-  forms: { contact: {
-    fields: {
-      name: { type: 'text', required: true },
-      email: { type: 'email', required: true },
-      consent: { type: 'checkbox', required: true },
-      topic: { type: 'select', options: ['Support', 'Other'] },
+  forms: {
+    contact: {
+      fields: {
+        name: { type: 'text', required: true },
+        email: { type: 'email', required: true },
+        consent: { type: 'checkbox', required: true },
+        topic: { type: 'select', options: ['Support', 'Other'] },
+      },
+      clientFields: { enabled: true, seed: { en: [], de: [{ name: 'company', type: 'text', required: true }] } },
     },
-    clientFields: { enabled: true, seed: { en: [], de: [{ name: 'company', type: 'text', required: true }] } },
-  } },
+    survey: {
+      fields: {
+        source: { type: 'hidden', required: true },
+        tier: { type: 'radio', required: true, options: ['Starter', 'Pro'] },
+        features: { type: 'multiselect', required: true, options: ['SSO', 'Audit', 'SLA'] },
+        extras: { type: 'select', multiple: true, options: ['Onboarding', 'Training'] },
+        seats: { type: 'number', required: true, min: 1, max: 20, step: 1 },
+        score: { type: 'number', min: 0, max: 5, step: 0.1 },
+      },
+    },
+  },
   i18n: { locales: ['en', 'de'], defaultLocale: 'en' },
 };
 const valid = { name: 'Example', email: 'person@example.test', consent: 'on', topic: 'Support' };
@@ -103,5 +115,44 @@ describe('opt-in local native form validation', () => {
     expect(result).toMatchObject({ ok: false, errors: { email: 'Please enter a valid email address.' } });
     expect(event.preventDefault).toHaveBeenCalled();
     expect(target.reset).not.toHaveBeenCalled();
+  });
+
+  it('validates radio, multiselect, hidden, and number min/max/step locally and preserves multi-value FormData', async () => {
+    const invalid = await submitWpForm(
+      'survey',
+      { source: '', tier: 'Enterprise', features: ['SSO', 'Invalid'], extras: ['Bad'], seats: '21', score: '0.35' },
+      { validateLocal: true },
+    );
+    expect(invalid).toMatchObject({
+      ok: false,
+      errors: {
+        source: 'This field is required.',
+        tier: 'Please choose a valid option.',
+        features: 'Please choose valid options.',
+        extras: 'Please choose valid options.',
+        seats: 'Please enter a value of at most 20.',
+        score: 'Please enter a value matching step 0.1.',
+      },
+    });
+
+    const fd = new FormData();
+    fd.append('source', 'landing');
+    fd.append('tier', 'Pro');
+    fd.append('features', 'SSO');
+    fd.append('features', 'SLA');
+    fd.append('extras[]', 'Onboarding');
+    fd.append('seats', '5');
+    fd.append('score', '0.3');
+    expect(await settle(submitWpForm('survey', fd, { validateLocal: true }))).toMatchObject({ ok: true });
+
+    // Production FormData transport promotes repeated non-[] keys to key[] so PHP $_POST receives an array
+    vi.stubGlobal('window', { forgeWpHydration: { restUrl: '/wp-json/forgewp/v1' } });
+    fetch.mockResolvedValue({ ok: true, json: async () => ({ message: 'Saved' }) });
+    const prodFd = new FormData();
+    prodFd.append('features', 'SSO');
+    prodFd.append('features', 'SLA');
+    expect(await submitWpForm('survey', prodFd)).toMatchObject({ ok: true, message: 'Saved' });
+    const postedBody = fetch.mock.calls[0][1].body;
+    expect(postedBody.getAll('features[]')).toEqual(['SSO', 'SLA']);
   });
 });

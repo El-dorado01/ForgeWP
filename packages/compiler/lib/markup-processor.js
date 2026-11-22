@@ -624,6 +624,18 @@ ${phpArgs}
   processed = processed.replace(/<\/forgewp-repeater-end>/g, '<?php } ?>');
 
   // ── Authentication & Capability Gates ──
+  const buildCapabilityCheckPhp = (allowedRaw) => {
+    const caps = String(allowedRaw || '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean)
+      .map((c) => c.replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+    if (caps.length <= 1) {
+      return `current_user_can( '${caps[0] || ''}' )`;
+    }
+    return caps.map((cap) => `current_user_can( '${cap}' )`).join(' || ');
+  };
+
   processed = processed.replace(
     /<forgewp-auth-gate-start\s*\/?>/g,
     '<?php if ( is_user_logged_in() ) : ?>',
@@ -631,10 +643,10 @@ ${phpArgs}
   processed = processed.replace(/<\/forgewp-auth-gate-start>/g, '');
 
   processed = processed.replace(
-    /<forgewp-auth-gate-fallback\s*\/?>/g,
+    /<forgewp-auth-gate-(?:fallback|else)\s*\/?>/g,
     '<?php else : ?>',
   );
-  processed = processed.replace(/<\/forgewp-auth-gate-fallback>/g, '');
+  processed = processed.replace(/<\/forgewp-auth-gate-(?:fallback|else)>/g, '');
 
   processed = processed.replace(
     /<forgewp-auth-gate-end\s*\/?>/g,
@@ -644,15 +656,15 @@ ${phpArgs}
 
   processed = processed.replace(
     /<forgewp-capability-gate-start\s+[^>]*allowed="([^"]+)"\s*\/?>/g,
-    "<?php if ( current_user_can( '$1' ) ) : ?>",
+    (_match, allowed) => `<?php if ( ${buildCapabilityCheckPhp(allowed)} ) : ?>`,
   );
   processed = processed.replace(/<\/forgewp-capability-gate-start>/g, '');
 
   processed = processed.replace(
-    /<forgewp-capability-gate-fallback\s*\/?>/g,
+    /<forgewp-capability-gate-(?:fallback|else)\s*\/?>/g,
     '<?php else : ?>',
   );
-  processed = processed.replace(/<\/forgewp-capability-gate-fallback>/g, '');
+  processed = processed.replace(/<\/forgewp-capability-gate-(?:fallback|else)>/g, '');
 
   processed = processed.replace(
     /<forgewp-capability-gate-end\s*\/?>/g,
@@ -690,14 +702,16 @@ ${phpArgs}
     },
   );
   processed = processed.replace(
-    /__FORGEWP_ROUTELINK:([~a-zA-Z0-9-]+):([^:_"'\s<>]*):([^:_"'\s<>]*):([^:_"'\s<>]*)__/g,
+    /__FORGEWP_ROUTELINK:([~a-zA-Z0-9_-]+):([^:_"'\s<>]*):([^:_"'\s<>]*):([^:_"'\s<>]*)__/g,
     (match, routeSlug, encFallback, encQuery, encHash) => {
       const slug =
         routeSlug === '~home'
           ? '__home__'
           : routeSlug === '~unknown'
             ? ''
-            : routeSlug;
+            : routeSlug.startsWith('~archive-')
+              ? `__archive__:${routeSlug.slice('~archive-'.length)}`
+              : routeSlug;
       const fallback = decodeURIComponent(encFallback || '/');
       const query = decodeURIComponent(encQuery || '');
       const hash = decodeURIComponent(encHash || '');
@@ -938,7 +952,323 @@ ${phpArgs}
     },
   );
 
+  // ── Server-Render Client-Owned <WpFormFields> from Saved WordPress Definitions ──
+  processed = compileServerRenderedFormFields(processed);
+
   return processed;
+}
+
+function getTagAttrValue(attrsStr, attrName) {
+  const re = new RegExp(`(?:^|\\s)${attrName}=(?:"([^"]*)"|'([^']*)')`, 'i');
+  const m = String(attrsStr || '').match(re);
+  return m ? (m[1] !== undefined ? m[1] : m[2]) : '';
+}
+
+function extractSingleVariantLoop(oneHtml, twoHtml, emptyHtml) {
+  if (
+    !oneHtml ||
+    !twoHtml ||
+    !oneHtml.includes('__FWP_FF_OPT_0__') ||
+    !twoHtml.includes('__FWP_FF_OPT_1__')
+  ) {
+    return oneHtml;
+  }
+
+  const delta = twoHtml.length - oneHtml.length;
+  if (delta <= 0) {
+    return oneHtml;
+  }
+
+  let prefixLen = 0;
+  const maxPrefix = Math.min(oneHtml.length, twoHtml.length);
+  while (prefixLen < maxPrefix && oneHtml[prefixLen] === twoHtml[prefixLen]) {
+    prefixLen += 1;
+  }
+
+  let matchedSplit = -1;
+  let fallbackSplit = -1;
+  for (let s = Math.min(prefixLen, oneHtml.length); s >= delta; s--) {
+    if (twoHtml.slice(s + delta) !== oneHtml.slice(s)) continue;
+    const cand1 = twoHtml.slice(s, s + delta);
+    if (!cand1.includes('__FWP_FF_OPT_1__')) continue;
+    const cand0 = oneHtml.slice(s - delta, s);
+    if (cand1.replaceAll('__FWP_FF_OPT_1__', '__FWP_FF_OPT_0__') !== cand0) continue;
+    if (cand1.trimStart().startsWith('<')) {
+      matchedSplit = s;
+      break;
+    }
+    if (fallbackSplit === -1) {
+      fallbackSplit = s;
+    }
+  }
+
+  const splitIdx = matchedSplit !== -1 ? matchedSplit : fallbackSplit;
+  if (splitIdx === -1) {
+    return oneHtml;
+  }
+
+  const itemTpl = twoHtml
+    .slice(splitIdx, splitIdx + delta)
+    .replaceAll('__FWP_FF_OPT_1__', '__FWP_FF_OPT__');
+  const loopPhp = `<?php foreach ( $__fwp_ff_opts as $__fwp_ff_opt ) : ?>${itemTpl}<?php endforeach; ?>`;
+  const withLoop = oneHtml.slice(0, splitIdx - delta) + loopPhp + oneHtml.slice(splitIdx);
+  const withoutLoop = oneHtml.slice(0, splitIdx - delta) + oneHtml.slice(splitIdx);
+
+  if (typeof emptyHtml === 'string' && emptyHtml !== withoutLoop) {
+    return `<?php if ( ! empty( $__fwp_ff_opts ) ) : ?>${withLoop}<?php else : ?>${emptyHtml}<?php endif; ?>`;
+  }
+  return withLoop;
+}
+
+function extractRepeatedOptionLoop(reqHtml, req2Html, optHtml, opt2Html, emptyHtml) {
+  const req = extractSingleVariantLoop(reqHtml, req2Html, emptyHtml);
+  const opt = opt2Html
+    ? extractSingleVariantLoop(optHtml, opt2Html, emptyHtml)
+    : extractSingleVariantLoop(
+        optHtml,
+        optHtml && req2Html
+          ? optHtml.replace('__FWP_FF_OPT_0__', '__FWP_FF_OPT_0__')
+          : '',
+        emptyHtml,
+      );
+  return { req, opt: opt || optHtml };
+}
+
+function rawValueToPhpExpr(rawVal) {
+  const trimmed = String(rawVal || '').trim();
+  const phpEchoMatch = trimmed.match(/^<\?php\s+echo\s+([\s\S]*?);\s*\?>$/i);
+  if (phpEchoMatch) {
+    return phpEchoMatch[1].trim();
+  }
+  return `'${trimmed.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+function compileDynamicFieldAttributes(reqHtml, optHtml) {
+  const optSource = optHtml || '';
+  const compileOptionalAttr = (html, sentinel, attrName, phpVarExpr) => {
+    const reqAttrRe = new RegExp(`\\s${attrName}=(["'])${sentinel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\1`, 'gi');
+    const optAttrRe = new RegExp(`\\s${attrName}=(["'])((?:(?!\\1)[\\s\\S])*)\\1`, 'i');
+    const optMatch = optSource.match(optAttrRe);
+    const optVal = optMatch ? optMatch[2] : '';
+
+    return html.replace(reqAttrRe, () => {
+      if (optVal !== '' && optVal !== sentinel) {
+        const fallbackExpr = rawValueToPhpExpr(optVal);
+        return ` ${attrName}="<?php echo esc_attr( ${phpVarExpr} !== '' ? ${phpVarExpr} : ${fallbackExpr} ); ?>"`;
+      }
+      return `<?php if ( ${phpVarExpr} !== '' ) { echo ' ${attrName}="' . esc_attr( ${phpVarExpr} ) . '"'; } ?>`;
+    });
+  };
+
+  const compileNumericBound = (html, sentinel, attrName) => {
+    const reqBoundRe = new RegExp(`\\s${attrName}=(["'])${sentinel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\1`, 'gi');
+    const optBoundRe = new RegExp(`\\s${attrName}=(["'])((?:(?!\\1)[\\s\\S])*)\\1`, 'i');
+    const optMatch = optSource.match(optBoundRe);
+    const optVal = optMatch ? optMatch[2] : '';
+
+    return html.replace(reqBoundRe, () => {
+      if (optVal !== '' && optVal !== sentinel) {
+        const fallbackExpr = rawValueToPhpExpr(optVal);
+        return ` ${attrName}="<?php echo esc_attr( ( isset( $__fwp_ff['${attrName}'] ) && $__fwp_ff['${attrName}'] !== '' && $__fwp_ff['${attrName}'] !== null ) ? (string) $__fwp_ff['${attrName}'] : ${fallbackExpr} ); ?>"`;
+      }
+      return `<?php if ( isset( $__fwp_ff['${attrName}'] ) && $__fwp_ff['${attrName}'] !== '' && $__fwp_ff['${attrName}'] !== null ) { echo ' ${attrName}="' . esc_attr( (string) $__fwp_ff['${attrName}'] ) . '"'; } ?>`;
+    });
+  };
+
+  let out = compileOptionalAttr(reqHtml, '__FWP_FF_PLACEHOLDER__', 'placeholder', '$__fwp_ff_ph');
+  out = compileNumericBound(out, '-987654321', 'min');
+  out = compileNumericBound(out, '987654321', 'max');
+  out = compileNumericBound(out, '987654.321', 'step');
+  return out;
+}
+
+function normalizeFieldVariantForComparison(html) {
+  return String(html || '')
+    .replace(/\splaceholder=(["'])(?:(?!\1)[\s\S])*\1/gi, '')
+    .replace(/\smin=(["'])(?:(?!\1)[\s\S])*\1/gi, '')
+    .replace(/\smax=(["'])(?:(?!\1)[\s\S])*\1/gi, '')
+    .replace(/\sstep=(["'])(?:(?!\1)[\s\S])*\1/gi, '')
+    .replace(/\srequired(?:=(["'])(?:required|true|)?\1)?(?=\s|>|\/)/gi, '');
+}
+
+const FORM_FIELD_TOKEN_MAP = {
+  __FWP_FF_NAME__: '$__fwp_ff_name',
+  __FWP_FF_LABEL__: '$__fwp_ff_label',
+  __FWP_FF_TYPE__: '$__fwp_ff_type',
+  __FWP_FF_PLACEHOLDER__: '$__fwp_ff_ph',
+  __FWP_FF_OPT__: '$__fwp_ff_opt',
+};
+const FORM_FIELD_TOKEN_RE = /__FWP_FF_(?:NAME|LABEL|TYPE|PLACEHOLDER|OPT)__/g;
+
+/**
+ * Replaces `__FWP_FF_*__` tokens with context-appropriate WordPress escaping
+ * (`esc_attr()` inside HTML tags, `esc_html()` in text content), while skipping
+ * embedded `<?php ... ?>` blocks even inside open HTML tags.
+ */
+function substituteFormFieldTokens(html) {
+  let out = '';
+  let i = 0;
+  let inHtmlTag = false;
+  let tagQuote = null;
+
+  const flushSlice = (slice, insideTag) => {
+    if (!slice) return;
+    out += slice.replace(FORM_FIELD_TOKEN_RE, (tok) => {
+      const phpVar = FORM_FIELD_TOKEN_MAP[tok];
+      return insideTag
+        ? `<?php echo esc_attr( ${phpVar} ); ?>`
+        : `<?php echo esc_html( ${phpVar} ); ?>`;
+    });
+  };
+
+  let segStart = 0;
+  while (i < html.length) {
+    if (html.startsWith('<?php', i) || html.startsWith('<?=', i)) {
+      flushSlice(html.slice(segStart, i), inHtmlTag);
+      const phpEnd = html.indexOf('?>', i + 2);
+      const endPos = phpEnd === -1 ? html.length : phpEnd + 2;
+      out += html.slice(i, endPos);
+      i = endPos;
+      segStart = i;
+      continue;
+    }
+
+    const ch = html[i];
+    if (!inHtmlTag) {
+      if (ch === '<' && i + 1 < html.length && /[a-zA-Z!/]/.test(html[i + 1])) {
+        flushSlice(html.slice(segStart, i), false);
+        inHtmlTag = true;
+        tagQuote = null;
+        segStart = i;
+      }
+      i += 1;
+    } else {
+      if (tagQuote) {
+        if (ch === tagQuote) tagQuote = null;
+        i += 1;
+      } else if (ch === '"' || ch === "'") {
+        tagQuote = ch;
+        i += 1;
+      } else if (ch === '>') {
+        i += 1;
+        flushSlice(html.slice(segStart, i), true);
+        inHtmlTag = false;
+        segStart = i;
+      } else {
+        i += 1;
+      }
+    }
+  }
+  flushSlice(html.slice(segStart), inHtmlTag);
+  return out;
+}
+
+function compileSingleFormFieldTypeTemplate(variants) {
+  const { req = '', opt = '', req2 = '', opt2 = '', noattr = '', empty } = variants;
+  if (!req && !opt) return '';
+
+  const looped = extractRepeatedOptionLoop(req, req2, opt, opt2, empty);
+  const reqRaw = looped.req || looped.opt;
+  const optRaw = looped.opt || looped.req;
+  const fallbackRef = noattr || optRaw;
+
+  const reqWithAttrs = compileDynamicFieldAttributes(reqRaw, fallbackRef);
+  const optWithAttrs = compileDynamicFieldAttributes(optRaw, fallbackRef);
+
+  if (normalizeFieldVariantForComparison(reqRaw) === normalizeFieldVariantForComparison(optRaw)) {
+    const unified = reqWithAttrs.replace(
+      /\srequired(?:=(["'])(?:required|true|)?\1)?(?=\s|>|\/)/gi,
+      () => `<?php if ( $__fwp_ff_req ) { echo ' required'; } ?>`,
+    );
+    return substituteFormFieldTokens(unified);
+  }
+
+  return (
+    `<?php if ( $__fwp_ff_req ) : ?>` +
+    substituteFormFieldTokens(reqWithAttrs) +
+    `<?php else : ?>` +
+    substituteFormFieldTokens(optWithAttrs) +
+    `<?php endif; ?>`
+  );
+}
+
+function compileServerRenderedFormFields(html) {
+  if (!html || !html.includes('<forgewp-form-fields')) {
+    return html;
+  }
+
+  return html.replace(
+    /<forgewp-form-fields\b([^>]*)>([\s\S]*?)<\/forgewp-form-fields>/gi,
+    (_fullMatch, attrsStr, innerHtml) => {
+      const formName = getTagAttrValue(attrsStr, 'form').replace(/[^a-zA-Z0-9_-]/g, '');
+      if (!formName) return '';
+
+      const byType = new Map();
+      const tplRe = /<forgewp-form-field-tpl\b([^>]*)>([\s\S]*?)<\/forgewp-form-field-tpl>/gi;
+      const remainder = innerHtml.replace(tplRe, (_tplMatch, tplAttrs, tplBody) => {
+        const type = getTagAttrValue(tplAttrs, 'data-type');
+        const variant = getTagAttrValue(tplAttrs, 'data-variant') || 'req';
+        if (type) {
+          if (!byType.has(type)) byType.set(type, {});
+          byType.get(type)[variant] = tplBody;
+        }
+        return '';
+      });
+
+      const compiledByType = new Map();
+      for (const [type, variants] of byType.entries()) {
+        const compiled = compileSingleFormFieldTypeTemplate(variants);
+        if (compiled) compiledByType.set(type, compiled);
+      }
+
+      const normalizeTypeInputPhp = (renderedPhp, literalType) =>
+        renderedPhp.replace(
+          new RegExp(`(<input\\b[^>]*\\stype=(["']))${literalType}\\2`, 'gi'),
+          `$1<?php echo esc_attr( $__fwp_ff_type ); ?>$2`,
+        );
+
+      const textPhp = compiledByType.get('text');
+      let defaultPhp = textPhp ? normalizeTypeInputPhp(textPhp, 'text') : '';
+      const cases = [];
+
+      for (const [type, rendered] of compiledByType.entries()) {
+        if (type === 'text') continue;
+        if (
+          defaultPhp &&
+          (type === 'email' || type === 'tel') &&
+          normalizeTypeInputPhp(rendered, type) === defaultPhp
+        ) {
+          continue;
+        }
+        cases.push(`    case '${type.replace(/'/g, "\\'")}':\n?>${rendered}<?php\n        break;`);
+      }
+
+      if (defaultPhp) {
+        cases.push(`    default:\n?>${defaultPhp}<?php\n        break;`);
+      }
+
+      const phpFormName = `'${formName.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+      const serverLoop = cases.length
+        ? `<?php
+$__fwp_ff_list = function_exists('forgewp_forms_get_registered_client_fields') ? forgewp_forms_get_registered_client_fields(${phpFormName}) : array();
+foreach ($__fwp_ff_list as $__fwp_ff) :
+    $__fwp_ff_name = isset($__fwp_ff['name']) ? (string) $__fwp_ff['name'] : '';
+    $__fwp_ff_label = isset($__fwp_ff['label']) ? (string) $__fwp_ff['label'] : $__fwp_ff_name;
+    $__fwp_ff_type = isset($__fwp_ff['type']) ? (string) $__fwp_ff['type'] : 'text';
+    $__fwp_ff_render_type = ( $__fwp_ff_type === 'select' && ! empty( $__fwp_ff['multiple'] ) ) ? 'multiselect' : $__fwp_ff_type;
+    $__fwp_ff_req = !empty($__fwp_ff['required']);
+    $__fwp_ff_ph = isset($__fwp_ff['placeholder']) ? (string) $__fwp_ff['placeholder'] : '';
+    $__fwp_ff_opts = isset($__fwp_ff['options']) && is_array($__fwp_ff['options']) ? $__fwp_ff['options'] : array();
+    switch ($__fwp_ff_render_type) :
+${cases.join('\n')}
+    endswitch;
+endforeach;
+?>`
+        : '';
+
+      return `${serverLoop}${remainder.trim()}`;
+    },
+  );
 }
 
 function getResponsiveImageAttributes(src, assetGraph, existingAttrs) {
