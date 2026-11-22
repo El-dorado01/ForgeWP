@@ -3,16 +3,48 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export async function openChrome() {
-  const executable = process.env.CHROME_PATH || [
-    'C:/Program Files/Google/Chrome/Application/chrome.exe',
-    '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
-  ].find((candidate) => fs.existsSync(candidate));
-  if (!executable) throw new Error('Set CHROME_PATH to a Chrome/Chromium executable.');
+export async function openChrome(options = {}) {
+  const headed =
+    typeof options.headed === 'boolean'
+      ? options.headed
+      : process.env.FORGEWP_BROWSER_HEADED === '1';
+  const viewportWidth = Number(options.viewport?.width) || 1440;
+  const viewportHeight = Number(options.viewport?.height) || 900;
+  const slowMo =
+    typeof options.slowMo === 'number'
+      ? Math.max(0, options.slowMo)
+      : Math.max(0, Number(process.env.FORGEWP_BROWSER_SLOWMO || 0));
+
+  const executable =
+    process.env.CHROME_PATH ||
+    [
+      'C:/Program Files/Google/Chrome/Application/chrome.exe',
+      'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+      'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+      'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium',
+      '/usr/bin/chromium-browser',
+    ].find((candidate) => fs.existsSync(candidate));
+  if (!executable) {
+    throw new Error('Set CHROME_PATH to a Chrome/Chromium executable.');
+  }
+
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'forgewp-browser-'));
-  const child = spawn(executable, ['--headless', '--disable-gpu', '--no-first-run',
-    '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'],
-  { windowsHide: true, stdio: 'ignore' });
+  const args = [
+    ...(headed
+      ? [`--window-size=${viewportWidth},${viewportHeight}`, '--new-window']
+      : ['--headless', '--disable-gpu']),
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--remote-debugging-port=0',
+    `--user-data-dir=${profile}`,
+    'about:blank',
+  ];
+  const child = spawn(executable, args, {
+    windowsHide: !headed,
+    stdio: 'ignore',
+  });
   let socket;
   const pending = new Map();
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -48,9 +80,17 @@ export async function openChrome() {
     });
     let id = 0;
     const events = [];
+    const loadWaiters = new Set();
     socket.addEventListener('message', ({ data }) => {
       const message = JSON.parse(data);
-      if (!message.id) { events.push(message); return; }
+      if (!message.id) {
+        events.push(message);
+        if (message.method === 'Page.loadEventFired') {
+          for (const resolveLoad of loadWaiters) resolveLoad();
+          loadWaiters.clear();
+        }
+        return;
+      }
       const request = pending.get(message.id);
       if (!request) return;
       pending.delete(message.id);
@@ -77,11 +117,86 @@ export async function openChrome() {
       })()`);
       await call('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point });
       await call('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point });
+      if (slowMo > 0) await delay(slowMo);
+    };
+    const fill = async (selector, value) => {
+      await evaluate(`(() => {
+        const matches = [...document.querySelectorAll(${JSON.stringify(selector)})].filter(e => e.getClientRects().length);
+        if (matches.length !== 1) throw new Error('Expected one visible input target: ' + ${JSON.stringify(selector)} + '; got ' + matches.length);
+        const el = matches[0];
+        el.scrollIntoView({ block: 'center' });
+        el.focus();
+        const proto =
+          el instanceof HTMLTextAreaElement
+            ? HTMLTextAreaElement.prototype
+            : el instanceof HTMLSelectElement
+              ? HTMLSelectElement.prototype
+              : HTMLInputElement.prototype;
+        const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+        if (descriptor && descriptor.set) {
+          descriptor.set.call(el, ${JSON.stringify(String(value))});
+        } else {
+          el.value = ${JSON.stringify(String(value))};
+        }
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`);
+      if (slowMo > 0) await delay(slowMo);
+    };
+    const goto = async (url, { timeout = 20000 } = {}) => {
+      let loadTimer;
+      let settled = false;
+      const loadFired = new Promise((resolve, reject) => {
+        const onLoad = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(loadTimer);
+          resolve();
+        };
+        loadWaiters.add(onLoad);
+        loadTimer = setTimeout(() => {
+          loadWaiters.delete(onLoad);
+          if (!settled) {
+            settled = true;
+            reject(new Error(`Timed out waiting for navigation load: ${url}`));
+          }
+        }, timeout);
+      });
+      const navResult = await call('Page.navigate', { url });
+      if (navResult?.errorText) {
+        settled = true;
+        clearTimeout(loadTimer);
+        throw new Error(`Navigation failed for ${url}: ${navResult.errorText}`);
+      }
+      await loadFired;
+      await wait(async () => {
+        try {
+          return (await evaluate('document.readyState')) === 'complete';
+        } catch {
+          return false;
+        }
+      }, `document ready (${url})`, timeout);
+      if (slowMo > 0) await delay(slowMo);
+    };
+    const setViewport = async (width, height, { mobile = false } = {}) => {
+      await call('Emulation.setDeviceMetricsOverride', {
+        width: Number(width),
+        height: Number(height),
+        deviceScaleFactor: 1,
+        mobile: Boolean(mobile),
+      });
+    };
+    const clearEvents = () => {
+      events.length = 0;
     };
     await call('Page.enable');
     await call('Runtime.enable');
     await call('Log.enable');
-    return { call, evaluate, click, wait, events, close,
+    await call('Network.enable');
+    if (headed) {
+      await setViewport(viewportWidth, viewportHeight, { mobile: false });
+    }
+    return { call, evaluate, click, fill, goto, setViewport, clearEvents, wait, events, close,
       screenshot: async (file) => {
         fs.mkdirSync(path.dirname(file), { recursive: true });
         const shot = await call('Page.captureScreenshot', { format: 'png' });
