@@ -1,169 +1,188 @@
 #!/usr/bin/env node
 
-import { rmSync, existsSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import readline from "node:readline";
-import { createUi, formatDuration } from "../lib/terminal-ui.js";
-
-import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
+import { createUi } from "../lib/terminal-ui.js";
 import { loadConfig } from "../lib/load-config.js";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
+import { findWpConfigPath } from "../lib/project-language.js";
 
 const ui = createUi();
 const { c } = ui;
 
-console.log(ui.header("fresh", "reset to a clean starter"));
+/**
+ * `forgewp fresh` returns a project to exactly what create-forgewp scaffolded:
+ * everything the generators create is removed, then the adapter restores the
+ * starter files in the project's language (see the adapter's onFresh).
+ */
+
+// Folders the generators (make:*, sync:routes, make:sandbox) create.
+const GENERATED_DIRS = [
+  "src/app/pages",
+  "src/blocks",
+  "src/components",
+  "src/loops",
+  "cms/forms",
+  "cms/editables",
+  "cms/mail",
+];
+// Individual generated files: post-type/archive/taxonomy templates and auth sandbox data.
+const GENERATED_FILES = [
+  { dir: "src/app", match: /^(single|archive|taxonomy)-.+\.(tsx|jsx|ts|js)$/ },
+  { dir: "cms", match: /^(users|sessions|roles|email-logs)\.(json|ts|js|mjs)$/ },
+];
+const CACHE_DIRS = [".forgewp", "dist", ".vite"];
+// Starter-owned files inside GENERATED_DIRS: fresh restores them, so they are not "your work".
+const STARTER_OWNED = /^src\/(blocks\/IntroBlock|components\/(brand-logos|theme-hotkey))\.(tsx|jsx|ts|js)$/;
 
 const projectRoot = process.cwd();
+const isForce = ["--force", "-f", "-y", "--yes"].some((flag) => process.argv.includes(flag));
+const toRel = (abs) => path.relative(projectRoot, abs).replaceAll("\\", "/");
 
-async function runReset() {
-  // Load the project config to determine the framework adapter
-  let frameworkAdapter = 'react';
+function listFiles(dir) {
+  const out = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...listFiles(full));
+    else out.push(full);
+  }
+  return out;
+}
+
+/** Everything fresh will delete: generated folders and files that exist right now. */
+function collectTargets() {
+  const dirs = [];
+  const files = [];
+  for (const rel of GENERATED_DIRS) {
+    const full = path.join(projectRoot, rel);
+    if (existsSync(full) && statSync(full).isDirectory()) {
+      dirs.push(full);
+      files.push(...listFiles(full));
+    }
+  }
+  const looseFiles = [];
+  for (const { dir, match } of GENERATED_FILES) {
+    const full = path.join(projectRoot, dir);
+    if (!existsSync(full)) continue;
+    for (const name of readdirSync(full)) {
+      const file = path.join(full, name);
+      if (match.test(name) && statSync(file).isFile()) looseFiles.push(file);
+    }
+  }
+  files.push(...looseFiles);
+  const yourWork = files.map(toRel).filter((rel) => !STARTER_OWNED.test(rel)).sort();
+  return { dirs, looseFiles, yourWork };
+}
+
+async function loadAdapter() {
+  let frameworkAdapter = "react";
   try {
     const config = await loadConfig(projectRoot);
-    frameworkAdapter = config.frameworkAdapter || 'react';
+    frameworkAdapter = config.frameworkAdapter || "react";
   } catch (err) {
-    console.log(ui.warn("Could not load wp.config", "using the react adapter"));
+    const configFile = findWpConfigPath(projectRoot)?.fileName || "wp.config.ts (or wp.config.js)";
+    console.log(ui.warn(`Could not load ${configFile}`, `${err.message} · assuming the react adapter`));
   }
-
-// 1. Clean Build Caches & Artifacts
-const foldersToClean = [".forgewp", "dist", ".vite"];
-for (const folder of foldersToClean) {
-  const target = path.join(projectRoot, folder);
-  if (existsSync(target)) {
-    try {
-      rmSync(target, { recursive: true, force: true });
-      console.log(ui.done("Cleared cache folder", folder));
-    } catch (err) {
-      console.log(ui.error(`Failed to clear ${folder}`, err.message));
-    }
-  }
-}
-
-// 2. Prune Scaffolded Directories (pages, blocks, components/ui, components)
-const directoriesToPrune = [
-  { dir: "src/app/pages", label: "Pages (src/app/pages/)" },
-  { dir: "src/blocks", label: "Gutenberg Blocks (src/blocks/)" },
-  { dir: "src/components/ui", label: "UI Components (src/components/ui/)" },
-  { dir: "src/components", label: "Components (src/components/)" }
-];
-
-for (const targetPrune of directoriesToPrune) {
-  const fullPath = path.join(projectRoot, targetPrune.dir);
-  if (existsSync(fullPath)) {
-    try {
-      rmSync(fullPath, { recursive: true, force: true });
-      console.log(ui.done("Removed folder", targetPrune.label));
-    } catch (err) {
-      console.log(ui.error(`Failed to remove ${targetPrune.label}`, err.message));
-    }
-  }
-}
-
-// 3. Restore Standard Database & Sitemap Menus from Core Blueprints
-const coreFilesToReset = ["cms/menus.json", "cms/mock-data.json", "cms/products.json"];
-for (const relPath of coreFilesToReset) {
-  const tsVariant = relPath.replace(/\.json$/, ".ts");
-  if (existsSync(path.join(projectRoot, tsVariant))) {
-    console.log(ui.info(`Kept ${relPath}`, `${tsVariant} is the active source`));
-    continue;
-  }
-  const fullPath = path.join(projectRoot, relPath);
-  const blueprintContent = SYSTEM_BLUEPRINTS[relPath];
-  if (blueprintContent) {
-    try {
-      const dirPath = path.dirname(fullPath);
-      if (!existsSync(dirPath)) {
-        mkdirSync(dirPath, { recursive: true });
-      }
-      writeFileSync(fullPath, blueprintContent, "utf8");
-      console.log(ui.done("Reset database schema", relPath));
-    } catch (err) {
-      console.log(ui.error(`Failed to reset ${relPath}`, err.message));
-    }
-  }
-}
-
-// 4. Restore Framework-Specific Canvas Blueprints via Adapter
-try {
   const adapterModule = await loadFrameworkAdapter(frameworkAdapter);
-  const adapter = adapterModule.default || adapterModule;
-  if (typeof adapter.onFresh === "function") {
-    await adapter.onFresh(projectRoot);
-  } else {
-    console.log(ui.warn(`The ${frameworkAdapter} adapter has no starter files to restore`));
-  }
-} catch (err) {
-  console.log(ui.error(`Could not load the ${frameworkAdapter} adapter`, err.message));
+  return { frameworkAdapter, adapter: adapterModule.default || adapterModule };
 }
 
-// 6. Automatically Trigger Monorepo CLI Template Synchronization Silently
-// If running inside the monorepo starter, sync the template as well in the background!
-const monorepoSyncScript = path.join(projectRoot, "..", "..", "scripts", "sync-cli-template.mjs");
-if (existsSync(monorepoSyncScript)) {
-  try {
-    spawnSync("node", [monorepoSyncScript], {
-      stdio: "ignore",
-      shell: process.platform === "win32"
+function confirm(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(`\n  ${c.orange(ui.symbols.active)} ${question} ${c.dim("(y/N)")} `, (answer) => {
+      rl.close();
+      resolve(["y", "yes"].includes(answer.trim().toLowerCase()));
     });
-  } catch (err) {
-    // Fail silently in development background sync
-  }
+  });
 }
 
-console.log("");
-console.log(`  ${c.green(ui.symbols.done)} ${c.bold("Reset to a clean starter")}`);
-console.log(`${ui.hint("Next", `${ui.command("pnpm dev")} ${c.dim("then edit")} ${ui.command("src/app/page.tsx")}`)}\n`);
-}
+async function main() {
+  console.log(ui.header("fresh", "reset to the starter"));
 
-function hasWorkBeenDone() {
-  const dirsToCheck = [
-    "src/app/pages",
-    "src/blocks",
-    "src/components"
-  ];
-  for (const dir of dirsToCheck) {
-    const fullPath = path.join(projectRoot, dir);
-    if (existsSync(fullPath)) {
-      try {
-        const files = readdirSync(fullPath);
-        if (files.length > 0) {
-          return true;
-        }
-      } catch (e) {
-        // Directory exists but failed to read or is empty
-      }
-    }
-  }
-  return false;
-}
-
-const isForce = process.argv.includes("--force") || process.argv.includes("-f") || process.argv.includes("-y");
-
-if (hasWorkBeenDone() && !isForce) {
-  if (!process.stdin.isTTY) {
-    console.log(ui.errorBlock("Your project has custom pages, blocks or components.", `fresh deletes them. To confirm without a prompt, run ${ui.command("pnpm forgewp fresh --force")}`));
+  const { frameworkAdapter, adapter } = await loadAdapter();
+  // Refuse before deleting anything if this adapter cannot put the starter back.
+  if (!adapter.freshRestoresStarter || typeof adapter.onFresh !== "function") {
+    console.log(ui.errorBlock(
+      `fresh isn't available for the ${frameworkAdapter} adapter yet. Nothing was changed.`,
+      "Use version control to return to your starter files, e.g. git checkout and git clean.",
+    ));
     process.exit(1);
   }
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
+  const { dirs, looseFiles, yourWork } = collectTargets();
 
-  console.log(ui.warn("Your project has custom pages, blocks or components"));
-  console.log(ui.detail("Continuing permanently deletes them and resets the project to the starter."));
-
-  rl.question(`\n  ${c.orange(ui.symbols.active)} Reset anyway? ${c.dim("(y/N)")} `, (answer) => {
-    rl.close();
-    const confirmed = answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes";
-    if (!confirmed) {
+  if (yourWork.length > 0 && !isForce) {
+    const preview = yourWork.slice(0, 8).map((rel) => ui.detail(rel));
+    if (yourWork.length > 8) preview.push(ui.detail(`and ${yourWork.length - 8} more`));
+    if (!process.stdin.isTTY) {
+      console.log(ui.errorBlock(
+        `fresh would delete ${yourWork.length} file${yourWork.length === 1 ? "" : "s"} you created.`,
+        `To confirm without a prompt, run ${ui.command("pnpm forgewp fresh --force")}`,
+      ));
+      process.exit(1);
+    }
+    console.log(ui.warn(`This permanently deletes ${yourWork.length} file${yourWork.length === 1 ? "" : "s"} you created:`));
+    for (const line of preview) console.log(line);
+    if (!(await confirm("Reset to the starter?"))) {
       console.log(`\n${ui.info("Cancelled. Nothing was changed.")}\n`);
       process.exit(0);
     }
-    runReset();
-  });
-} else {
-  runReset();
+    console.log("");
+  }
+
+  // 1. Build caches and output
+  for (const folder of CACHE_DIRS) {
+    const target = path.join(projectRoot, folder);
+    if (!existsSync(target)) continue;
+    try {
+      rmSync(target, { recursive: true, force: true });
+      console.log(ui.done("Cleared", `${folder}/`));
+    } catch (err) {
+      console.log(ui.error(`Could not clear ${folder}/`, err.message));
+    }
+  }
+
+  // 2. Everything the generators created
+  for (const dir of dirs) {
+    try {
+      const count = listFiles(dir).length;
+      rmSync(dir, { recursive: true, force: true });
+      console.log(ui.done("Removed", `${toRel(dir)}/  ${c.dim(`${count} file${count === 1 ? "" : "s"}`)}`));
+    } catch (err) {
+      console.log(ui.error(`Could not remove ${toRel(dir)}/`, err.message));
+    }
+  }
+  for (const file of looseFiles) {
+    try {
+      rmSync(file, { force: true });
+      console.log(ui.done("Removed", toRel(file)));
+    } catch (err) {
+      console.log(ui.error(`Could not remove ${toRel(file)}`, err.message));
+    }
+  }
+
+  // 3. Starter files, in the project's language
+  await adapter.onFresh(projectRoot);
+
+  // Inside the ForgeWP monorepo, keep the CLI template in sync with packages/starter.
+  const monorepoSyncScript = path.join(projectRoot, "..", "..", "scripts", "sync-cli-template.mjs");
+  if (existsSync(monorepoSyncScript)) {
+    try {
+      spawnSync("node", [monorepoSyncScript], { stdio: "ignore", shell: process.platform === "win32" });
+    } catch {
+      // Development convenience only.
+    }
+  }
+
+  console.log("");
+  console.log(`  ${c.green(ui.symbols.done)} ${c.bold("Reset to the starter")}`);
+  console.log(`${ui.hint("Next", `${ui.command("pnpm dev")} ${c.dim("to see the welcome page")}`)}\n`);
 }
+
+main().catch((err) => {
+  console.error(ui.errorBlock("fresh failed", err instanceof Error ? err.message : String(err)));
+  process.exit(1);
+});

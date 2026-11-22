@@ -4,6 +4,7 @@ import {
   writeFileSync,
   mkdirSync,
   readdirSync,
+  rmSync,
 } from 'node:fs';
 import path from 'node:path';
 import { createUi } from './terminal-ui.js';
@@ -669,9 +670,16 @@ export function getCriticalFiles(themeRoot) {
   ];
 }
 
+/** This adapter's onFresh restores the complete starter, so `forgewp fresh` may run. */
+export const freshRestoresStarter = true;
+
+/**
+ * Restore the React starter exactly as create-forgewp scaffolds it: welcome page,
+ * routes, welcome components, the example block and the starter CMS data.
+ * Files are written in the project's language (.jsx/.js in JavaScript projects).
+ * bin/fresh.js removes generated files before calling this.
+ */
 export async function onFresh(themeRoot) {
-  const routesPath = path.join(themeRoot, 'src', 'app', 'routes.tsx');
-  const pagePath = path.join(themeRoot, 'src', 'app', 'page.tsx');
 
   const routesContent = `import type { ComponentType, ReactNode } from "react";
 import { Route, Switch } from "@forgewp/react";
@@ -1058,38 +1066,309 @@ export function ThemeHotkey() {
 export default ThemeHotkey;
 `;
 
-  try {
-    writeFileSync(routesPath, routesContent, 'utf8');
-    console.log(
-      ui.done("Reset routes definition", "src/app/routes.tsx"),
-    );
-  } catch (err) {
-    console.log(
-      ui.error(`Failed to reset src/app/routes.tsx`, err.message),
-    );
-  }
+  const introBlockContent = `import { defineBlock, WpEditable } from "@forgewp/react";
 
-  try {
-    writeFileSync(pagePath, pageContent, 'utf8');
-    console.log(ui.done("Reset core template", "src/app/page.tsx"));
-  } catch (err) {
-    console.log(
-      ui.error(`Failed to reset src/app/page.tsx`, err.message),
-    );
-  }
+/**
+ * Example Gutenberg block. After \`pnpm forgewp export\` it appears in the block
+ * inserter as "Example: Hero". Both fields are edited inline in Gutenberg:
+ * <WpEditable> compiles to <RichText> in the editor and escaped HTML for visitors.
+ *
+ * Create your own with \`pnpm forgewp make:block <Name>\`, then delete this one.
+ */
+export default defineBlock({
+  name: "hero-intro",
+  title: "Example: Hero",
+  category: "text",
+  icon: "cover-image",
+  description: "Example block with an editable heading and text.",
+  attributes: {
+    heading: { type: "string", default: "Built with ForgeWP" },
+    text: { type: "string", default: "Edit this text inline in Gutenberg." },
+  },
+  edit: ({ attributes, setAttributes }) => (
+    <section className="hero-intro">
+      <WpEditable
+        tagName="h2"
+        value={attributes.heading}
+        onChange={(value) => setAttributes({ heading: value })}
+      />
+      <WpEditable
+        tagName="p"
+        value={attributes.text}
+        onChange={(value) => setAttributes({ text: value })}
+      />
+    </section>
+  ),
+  save: ({ attributes }) => (
+    <section className="hero-intro">
+      <h2>{attributes.heading}</h2>
+      <p>{attributes.text}</p>
+    </section>
+  ),
+});
+`;
 
-  // The welcome page imports components from src/components, which fresh prunes.
-  const welcomeComponents = [
-    ['brand-logos.tsx', brandLogosContent, 'Restored welcome logos'],
-    ['theme-hotkey.tsx', themeHotkeyContent, 'Restored theme hotkey'],
+  // Starter CMS data (cms/*.ts), restored in the project's language.
+  const cmsContent = {
+    'menus.ts': `import { defineWpMenus } from '@forgewp/react';
+
+export const menus = defineWpMenus({
+  primary: [
+    { title: "Home", url: "/" },
+    { title: "About", url: "/about" },
+    { title: "Blog", url: "/blog" },
+    { title: "Contact", url: "/contact" }
+  ],
+  footer: [
+    { title: "Privacy Policy", url: "/privacy" },
+    { title: "Terms of Service", url: "/terms" }
+  ]
+});
+
+export default menus;
+`,
+    'mock-data.ts': `import { defineWpPosts } from '@forgewp/react';
+
+export const mockData = defineWpPosts({
+  post: [
+    {
+      id: 1,
+      slug: "welcome-to-forgewp",
+      title: "Welcome to ForgeWP: The Headless Revolution",
+      excerpt: "Discover how ForgeWP bridges standard WordPress themes with blistering fast React architectures.",
+      content: "<p>This is the first mock post. In local dev, you can modify <code>cms/mock-data.ts</code> to test layout content changes.</p>",
+      date: "2026-05-10T09:00:00Z",
+      author: "Antigravity",
+      featuredImage: "https://picsum.photos/seed/forgewp/1200/630",
+      customFields: { read_time: "5" },
+      _terms: {
+        category: [
+          { id: 1, slug: "tutorials", name: "Tutorials" },
+          { id: 2, slug: "framework", name: "Framework" }
+        ],
+        post_tag: [
+          { id: 10, slug: "react", name: "React" },
+          { id: 11, slug: "wordpress", name: "WordPress" }
+        ]
+      }
+    },
+    {
+      id: 2,
+      slug: "unlocking-brutalist-web-design",
+      title: "Unlocking Brutalist Web Design Aesthetics",
+      excerpt: "A deep dive into high-contrast grids, sharp corners, and premium flat shadows in modern interfaces.",
+      content: "<p>This is the second mock post. Style these grids using beautiful Tailwind utilities.</p>",
+      date: "2026-05-12T14:30:00Z",
+      author: "DeepMind Partner",
+      featuredImage: "https://picsum.photos/seed/brutalist/1200/630",
+      customFields: { read_time: "8" },
+      _terms: {
+        category: [
+          { id: 3, slug: "design", name: "Design" },
+          { id: 4, slug: "css", name: "CSS" }
+        ],
+        post_tag: [
+          { id: 12, slug: "brutalism", name: "Brutalism" },
+          { id: 13, slug: "tailwind", name: "Tailwind" }
+        ]
+      }
+    }
+  ],
+  project: [
+    {
+      id: 1,
+      slug: "forgewp-scaffolding-platform",
+      title: "ForgeWP Scaffolding Platform",
+      excerpt: "Building a custom compiler framework to transpile React elements into standard PHP themes.",
+      content: "<p>Detailed description of the ForgeWP compiler pipeline project.</p>",
+      date: "2026-05-15T12:00:00Z",
+      author: "Lead Architect",
+      featuredImage: "https://picsum.photos/seed/platform/1200/630",
+      customFields: {
+        client_name: "El Dorado",
+        project_budget: "45000",
+        status: "active"
+      },
+      _terms: {
+        project_type: [{ id: 20, slug: "open-source", name: "Open Source" }],
+        technology: [{ id: 30, slug: "react", name: "React" }]
+      }
+    },
+    {
+      id: 2,
+      slug: "brutalist-starter-theme",
+      title: "Brutalist Starter Theme",
+      excerpt: "A clean, responsive, and robust high-contrast interface leveraging Tailwind CSS v4.",
+      content: "<p>A brutalist theme showcasing raw black borders and vivid accent colors.</p>",
+      date: "2026-05-16T16:00:00Z",
+      author: "Theme Engineer",
+      featuredImage: "https://picsum.photos/seed/starter/1200/630",
+      customFields: {
+        client_name: "ForgeWP Community",
+        project_budget: "0",
+        status: "completed"
+      },
+      _terms: {
+        project_type: [{ id: 20, slug: "open-source", name: "Open Source" }],
+        technology: [{ id: 32, slug: "tailwind", name: "Tailwind CSS" }]
+      }
+    }
+  ],
+  attachment: [
+    {
+      id: 101,
+      url: "https://picsum.photos/seed/forgewp/1200/630",
+      alt: "ForgeWP Logo and Brand Artwork",
+      title: "ForgeWP Logo",
+      caption: "A high-fidelity minimalist logo graphic.",
+      width: 1200,
+      height: 630
+    },
+    {
+      id: 102,
+      url: "https://picsum.photos/seed/layout/1200/800",
+      alt: "Brutalist Layout Preview",
+      title: "Layout Preview",
+      width: 1200,
+      height: 800
+    }
+  ]
+});
+
+export default mockData;
+`,
+    'products.ts': `import { defineProducts } from '@forgewp/woocommerce';\n\nexport const products = defineProducts([]);\n\nexport const _taxonomy_product_cat = [];\nexport const _taxonomy_product_tag = [];\n\nexport default products;\n`,
+    'site-options.ts': `import {
+  defineWpOptions,
+  optionText,
+  optionUrl,
+  optionEmail,
+} from '@forgewp/react/config';
+
+export const siteOptions = defineWpOptions({
+  contact_phone: optionText({
+    label: 'Contact Phone',
+    default: '+1 (555) 019-9000',
+  }),
+  contact_email: optionEmail({
+    label: 'Contact Email',
+    default: 'admin@forgewp.local',
+  }),
+  social_facebook: optionUrl({
+    label: 'Facebook URL',
+    default: 'https://facebook.com',
+  }),
+  social_instagram: optionUrl({
+    label: 'Instagram URL',
+    default: 'https://instagram.com',
+  }),
+  social_twitter: optionUrl({
+    label: 'Twitter URL',
+    default: 'https://twitter',
+  }),
+  social_youtube: optionUrl({
+    label: 'YouTube URL',
+    default: '',
+  }),
+  social_tiktok: optionUrl({
+    label: 'TikTok URL',
+    default: '',
+  }),
+  social_linkedin: optionUrl({
+    label: 'LinkedIn URL',
+    default: '',
+  }),
+  social_pinterest: optionUrl({
+    label: 'Pinterest URL',
+    default: '',
+  }),
+});
+`,
+    'theme-mods.ts': `export const themeMods = {
+  custom_logo: "",
+  header_textcolor: "#0f172a",
+  footer_text: "© 2026 ForgeWP. All rights reserved.",
+};
+`,
+    'translations.ts': `import { defineTranslations } from '@forgewp/react';
+
+export const translations = defineTranslations({
+  en: {},
+  de: {}
+});
+
+export default translations;
+`,
+  };
+
+  const restore = (relTsPath, content) => {
+    const target = path.join(themeRoot, ...relTsPath.split('/'));
+    mkdirSync(path.dirname(target), { recursive: true });
+    const { writtenPath } = writeScaffoldFile(themeRoot, target, content);
+    return path.relative(themeRoot, writtenPath).replaceAll('\\', '/');
+  };
+
+  const starterFiles = [
+    ['src/app/routes.tsx', routesContent],
+    ['src/app/page.tsx', pageContent],
+    ['src/components/brand-logos.tsx', brandLogosContent],
+    ['src/components/theme-hotkey.tsx', themeHotkeyContent],
+    ['src/blocks/IntroBlock.tsx', introBlockContent],
   ];
-  for (const [file, content, label] of welcomeComponents) {
+  for (const [rel, content] of starterFiles) {
     try {
-      mkdirSync(path.join(themeRoot, 'src', 'components'), { recursive: true });
-      writeFileSync(path.join(themeRoot, 'src', 'components', file), content, 'utf8');
-      console.log(ui.done(label, `src/components/${file}`));
+      console.log(ui.done('Restored', restore(rel, content)));
     } catch (err) {
-      console.log(ui.error(`Failed to restore src/components/${file}`, err.message));
+      console.log(ui.error(`Could not restore ${rel}`, err.message));
+    }
+  }
+
+  // CMS data: replace every variant (.ts/.js/.mjs/.json) with the starter version.
+  // Products are only restored when the project had them (e-commerce enabled).
+  const cmsDir = path.join(themeRoot, 'cms');
+  for (const [file, content] of Object.entries(cmsContent)) {
+    const base = file.replace(/\.ts$/, '');
+    const variants = ['.ts', '.js', '.mjs', '.json']
+      .map((ext) => path.join(cmsDir, `${base}${ext}`))
+      .filter((variant) => existsSync(variant));
+    if (base === 'products' && variants.length === 0) continue;
+    try {
+      for (const variant of variants) rmSync(variant, { force: true });
+      console.log(ui.done('Reset', restore(`cms/${file}`, content)));
+    } catch (err) {
+      console.log(ui.error(`Could not reset cms/${file}`, err.message));
+    }
+  }
+
+  // shadcn's components.json lets `forgewp add` work right after a fresh.
+  const componentsJsonPath = path.join(themeRoot, 'components.json');
+  if (!existsSync(componentsJsonPath)) {
+    const defaultComponentsJson = {
+      $schema: 'https://ui.shadcn.com/schema.json',
+      style: 'new-york',
+      rsc: false,
+      tsx: true,
+      tailwind: {
+        config: 'tailwind.config.js',
+        css: 'src/app/globals.css',
+        baseColor: 'zinc',
+        cssVariables: true,
+        prefix: '',
+      },
+      aliases: {
+        components: '@/components',
+        utils: '@/lib/utils',
+        ui: '@/components/ui',
+        lib: '@/lib',
+        hooks: '@/hooks',
+      },
+      iconLibrary: 'lucide',
+    };
+    try {
+      writeFileSync(componentsJsonPath, JSON.stringify(defaultComponentsJson, null, 2), 'utf8');
+      console.log(ui.done('Created', 'components.json'));
+    } catch (err) {
+      console.log(ui.warn('Could not create components.json', err.message));
     }
   }
 }

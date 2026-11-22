@@ -1,24 +1,6 @@
 import { existsSync, writeFileSync } from 'node:fs';
-import { stripTypeScriptTypes } from 'node:module';
+import { stripTsFromScript, stripTsFromTsx } from './ts-to-js.js';
 
-/**
- * node:module stripTypeScriptTypes prints an ExperimentalWarning on first use.
- * Users of ForgeWP's CLIs shouldn't see Node internals, so silence exactly that
- * warning around the call and leave every other warning untouched.
- */
-function stripTypesQuietly(code) {
-  const emitWarning = process.emitWarning;
-  process.emitWarning = (warning, ...rest) => {
-    const type = typeof rest[0] === 'string' ? rest[0] : rest[0]?.type;
-    if (type === 'ExperimentalWarning' && String(warning).includes('stripTypeScriptTypes')) return;
-    return emitWarning.call(process, warning, ...rest);
-  };
-  try {
-    return stripTypeScriptTypes(code, { mode: 'transform' });
-  } finally {
-    process.emitWarning = emitWarning;
-  }
-}
 import path from 'node:path';
 
 export const WP_CONFIG_CANDIDATES = [
@@ -146,48 +128,6 @@ export function getProjectExtensions(themeRoot) {
   };
 }
 
-function stripTsFromTsxSource(code) {
-  let out = code;
-  out = out.replace(/^\s*import\s+type\s+[^;\n]+;?\s*\n?/gm, '');
-  out = out.replace(/import\s*\{([^}]+)\}\s*from/g, (match, specifiers) => {
-    const cleaned = specifiers
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s && !/^type\s+/.test(s));
-    if (cleaned.length === 0) return '';
-    return `import { ${cleaned.join(', ')} } from`;
-  });
-  out = out.replace(/^\s*['"][^'"]+['"];?\s*$/gm, '');
-  out = out.replace(/^(?:export\s+)?interface\s+[A-Za-z_$][\w$]*(?:\s+extends\s+[^{]+)?\s*\{[\s\S]*?\n\}\s*\n?/gm, '');
-  out = out.replace(/^(?:export\s+)?type\s+[A-Za-z_$][\w$]*(?:<[^>]+>)?\s*=\s*[\s\S]*?;\s*\n?/gm, '');
-  out = out.replace(/(?<!\*\s)\s+as\s+const\b/g, '');
-  out = out.replace(
-    /^(\s*(?:import|export)\b.*$)|\s+as\s+(?:[A-Za-z_$][\w$.]*(?:<(?:[^<>\n]|<[^<>\n]*>)*>)?(?:\[\])?(?:\s*\|\s*[A-Za-z_$][\w$.]*(?:<(?:[^<>\n]|<[^<>\n]*>)*>)?(?:\[\])?)*)/gm,
-    (match, importExportLine) => (importExportLine ? importExportLine : ''),
-  );
-  out = out.replace(
-    /\b(useState|useRef|useCallback|useMemo|useReducer|createContext|forwardRef|glob)<((?:[^<>\n]|<[^<>\n]*>)*)>\s*\(/g,
-    '$1(',
-  );
-  out = out.replace(
-    /\b(const|let|var)\s+([A-Za-z_$][\w$]*)\s*:\s*[^=\n;]+(?=\s*=)/g,
-    '$1 $2',
-  );
-  out = out.replace(/\}\s*:\s*[A-Za-z_$][\w$.<>,\s|[\]{}:?]+(?=\s*\))/g, '}');
-  out = out.replace(/\(([^()\n]*)\)/g, (match, inner) => {
-    if (!inner.includes(':') || inner.trim().startsWith('{')) return match;
-    const parts = inner.split(',').map((part) => {
-      const m = part
-        .trim()
-        .match(/^(\.\.\.)?([A-Za-z_$][\w$]*)(\?)?\s*:\s*[^=]+(\s*=\s*[\s\S]+)?$/);
-      return m ? `${m[1] || ''}${m[2]}${m[4] || ''}` : part;
-    });
-    return `(${parts.join(', ')})`;
-  });
-  out = out.replace(/\)\s*:\s*[A-Za-z_$][\w$.<>,\s|[\]{}:?]+(?=\s*(?:\{|=>))/g, ')');
-  out = out.replace(/\n{3,}/g, '\n\n');
-  return out.trimStart();
-}
 
 /**
  * Write a scaffolded `.ts` or `.tsx` source file, automatically stripping
@@ -211,12 +151,8 @@ export function writeScaffoldFile(themeRoot, tsTargetPath, tsSource) {
     : tsTargetPath.endsWith('.ts')
       ? tsTargetPath.slice(0, -3) + '.js'
       : tsTargetPath;
-  const transformed = isJsx
-    ? stripTsFromTsxSource(tsSource)
-    : stripTypesQuietly(tsSource)
-        .replace(/^[ \t]+$/gm, '')
-        .replace(/\n{3,}/g, '\n\n')
-        .trimStart();
+  // Same converter create-forgewp uses for --js scaffolds (lib/ts-to-js.js).
+  const transformed = isJsx ? stripTsFromTsx(tsSource) : stripTsFromScript(tsSource);
   writeFileSync(jsTargetPath, transformed, 'utf8');
   return { writtenPath: jsTargetPath, isJs: true };
 }
