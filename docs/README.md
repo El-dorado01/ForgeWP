@@ -5,6 +5,8 @@ This folder keeps the framework's design history out of the repository root. Use
 | Guide | Use it for |
 | --- | --- |
 | [Architecture overview](architecture.md) | The current theme-authoring model, package boundaries and links to implementation |
+| [Dual-mode portability architecture](dual-mode-portability-architecture.md) | Native / Hybrid / Decoupled portability audit, companion backend plugin split, and WordPress plugin compatibility strategy |
+| [Shortcode form preview spec](shortcode-form-preview-spec.md) | Scoped design & portability boundaries for plugin-managed `<WpShortcode>` forms |
 | [Next.js adapter design brief](nextjs-archive/nextjs-adapter-design-brief.md) | Goals, design rules, deployment modes, and the agent handoff |
 | [Design history](history.md) | How the proposals relate, which discussions to consult, and how to interpret old plans |
 | [Remaining work](../FORGEWP_FRAMEWORK_UX_AND_CONTENT_MODEL_IMPROVEMENT_BRIEF.md) | The active UX/content-model acceptance and improvement tracker |
