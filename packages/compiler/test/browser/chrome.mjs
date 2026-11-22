@@ -35,6 +35,10 @@ export async function openChrome(options = {}) {
     ...(headed
       ? [`--window-size=${viewportWidth},${viewportHeight}`, '--new-window']
       : ['--headless', '--disable-gpu']),
+    // Chrome refuses to start as root without --no-sandbox (cloud/CI containers).
+    ...(process.platform === 'linux' && process.getuid?.() === 0
+      ? ['--no-sandbox']
+      : []),
     '--no-first-run',
     '--no-default-browser-check',
     '--remote-debugging-port=0',

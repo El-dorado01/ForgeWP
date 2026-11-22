@@ -50,6 +50,20 @@ Because the sandbox runs locally on disk, install exported themes directly inste
 2. Cleanly replace `${FORGEWP_LOCALWP_THEMES_PATH}/<slug>` with `.forgewp/out/<slug>` (back up or remove stale files in that theme folder first so deleted templates/assets do not linger, or use `WORDPRESS_THEMES_PATH=$FORGEWP_LOCALWP_THEMES_PATH node scripts/sync-to-wp.mjs <project>` when testing workspace projects supported by that script).
 3. Verify PHP syntax with `php -l` on exported `.php` files if any compiler PHP builder code was touched.
 
+### Cloud Sandbox (Linux cloud containers without LocalWP)
+When running in a cloud/CI container (no LocalWP desktop app), use the Docker sandbox instead:
+```bash
+scripts/cloud-e2e/sandbox.sh up      # dockerd + WordPress (latest) + MariaDB + Mailpit; writes .env.localwp
+export CHROME_PATH=$(ls /opt/pw-browsers/chromium-*/chrome-linux64/chrome | head -1)
+node scripts/wp-e2e-browser.mjs check-access --headless
+```
+- WordPress: `http://localhost:8080` (`admin` / `admin`, throwaway) · Mailpit UI/API: `http://localhost:8025` (`/api/v1/messages`).
+- `wp_mail()` is routed to Mailpit by the `e2e-mailpit.php` mu-plugin, replacing LocalWP's Mailpit.
+- WP-CLI: `scripts/cloud-e2e/sandbox.sh wp <args>`; fresh site: `sandbox.sh reset`.
+- Install exported themes by copying `.forgewp/out/<slug>` into `$FORGEWP_LOCALWP_THEMES_PATH` exactly as in the LocalWP workflow, then `sandbox.sh wp theme activate <slug>` or activate via wp-admin in the browser.
+- Runs headless: share screenshots from `.forgewp/e2e-artifacts/` with the user (they cannot see a browser window).
+- External hosts (Gravatar, wordpress.org) may be blocked by the network policy; such failed requests are environment noise, not theme bugs.
+
 ### Live Browser Prerequisite Check
 - Prefer IDE browser tools (Chrome DevTools MCP / `/browser`) when connected, **or** use the IDE-agnostic visible Chrome runner built into the repository (`scripts/wp-e2e-browser.mjs`, backed by `openChrome({ headed: true })` in `packages/compiler/test/browser/chrome.mjs`), which launches a real visible Chrome window on desktop and works identically in Antigravity, VS Code, and terminal sessions.
 - Run a quick read-only connectivity probe before starting UI verification:
