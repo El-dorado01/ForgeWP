@@ -13,7 +13,12 @@
 
 import React from 'react';
 import {
+  ForgeWpRuntimeError,
+  normalizeFormResource,
+  normalizeFormsCollection,
   normalizeSiteSettings,
+  type FormResource,
+  type FormsCollectionResource,
   type SiteSettingsResource,
 } from './runtime/index.js';
 
@@ -75,6 +80,7 @@ export interface WpServerSiteInfo {
 export interface WpServerClientOptions {
   fixtures?: Record<string, Array<Record<string, any>>>;
   menus?: Record<string, Array<Record<string, any>>>;
+  forms?: Record<string, any>;
   siteInfo?: Partial<Omit<WpServerSiteInfo, 'mode'>>;
   siteOptions?: Record<string, any>;
   themeMods?: Record<string, any>;
@@ -137,6 +143,8 @@ export interface WpServerClient {
   getMenu(location?: string): Promise<WpServerMenuItem[]>;
   getSiteInfo(): Promise<WpServerSiteInfo>;
   getSiteSettings(): Promise<SiteSettingsResource>;
+  getForm(name: string, options?: { lang?: string }): Promise<FormResource | null>;
+  getForms(options?: { lang?: string }): Promise<FormsCollectionResource>;
   getOption(key: string, defaultValue?: string): string;
   getThemeMod(key: string, defaultValue?: string): string;
   getLiveOption(key: string, defaultValue?: string): Promise<string>;
@@ -273,7 +281,10 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
   }) || { options: {}, themeMods: {} };
   const siteOptions = normalizedFixtureSettings.options;
   const themeMods = normalizedFixtureSettings.themeMods;
+  const fixtureForms = normalizeFormsCollection(options.forms || {}) || { forms: {} };
   let cachedSiteSettings: SiteSettingsResource | null = null;
+  const cachedFormByKey = new Map<string, FormResource | null>();
+  const cachedFormsByLang = new Map<string, FormsCollectionResource>();
   const metaMap = options.meta || {};
   const fetchImpl = options.fetch || globalThis.fetch;
   const cacheMode = options.cache ?? 'no-store';
@@ -760,6 +771,134 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       };
       cachedSiteSettings = fallbackSettings;
       return fallbackSettings;
+    },
+
+    async getForm(name, formOptions = {}) {
+      const cleanName = sanitizeTokenKey(name);
+      const lang =
+        typeof formOptions.lang === 'string' && formOptions.lang.trim()
+          ? formOptions.lang.trim()
+          : undefined;
+      const cacheKey = `${cleanName}::${lang || ''}`;
+
+      if (isNativeWordPressExport()) {
+        const fixture = fixtureForms.forms[cleanName];
+        if (fixture) {
+          return { ...fixture, ...(lang ? { lang } : {}) };
+        }
+        return {
+          name: cleanName,
+          mode: 'native',
+          ...(lang ? { lang } : {}),
+          fieldLabels: {},
+          fields: [],
+        };
+      }
+
+      if (cachedFormByKey.has(cacheKey)) {
+        return cachedFormByKey.get(cacheKey) ?? null;
+      }
+
+      const base = resolveWpBase();
+      if (base) {
+        const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+        const url = `${base.baseUrl}/wp-json/forgewp/v1/forms/${encodeURIComponent(cleanName)}${qs}`;
+        const mergedTags = Array.from(
+          new Set(['forms', `form:${cleanName}`, ...(nextOptions?.tags || [])]),
+        );
+        const init: Record<string, any> = {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          cache: cacheMode,
+          next: {
+            ...(nextOptions || {}),
+            tags: mergedTags,
+          },
+        };
+        const response = await fetchImpl(url, init);
+        if (response.status === 404) {
+          cachedFormByKey.set(cacheKey, null);
+          return null;
+        }
+        const json = await response.json().catch(() => null);
+        if (!response.ok) {
+          const code = json && typeof json.code === 'string' ? json.code : '';
+          const msg =
+            json && typeof json.message === 'string'
+              ? json.message
+              : `Failed to fetch form "${cleanName}" (HTTP ${response.status}).`;
+          throw new ForgeWpRuntimeError(
+            'FORGEWP_RESOURCE_FETCH_FAILED',
+            code ? `[${code}] ${msg}` : msg,
+            { resource: `forms:${cleanName}`, status: response.status },
+          );
+        }
+        const normalized = normalizeFormResource(json, cleanName);
+        cachedFormByKey.set(cacheKey, normalized);
+        return normalized;
+      }
+
+      const fixture = fixtureForms.forms[cleanName] ?? null;
+      const resolved = fixture ? { ...fixture, ...(lang ? { lang } : {}) } : null;
+      cachedFormByKey.set(cacheKey, resolved);
+      return resolved;
+    },
+
+    async getForms(formsOptions = {}) {
+      const lang =
+        typeof formsOptions.lang === 'string' && formsOptions.lang.trim()
+          ? formsOptions.lang.trim()
+          : undefined;
+      const cacheKey = lang || '';
+
+      if (isNativeWordPressExport()) {
+        return {
+          ...(lang ? { lang } : {}),
+          forms: { ...fixtureForms.forms },
+        };
+      }
+
+      if (cachedFormsByLang.has(cacheKey)) {
+        return cachedFormsByLang.get(cacheKey)!;
+      }
+
+      const base = resolveWpBase();
+      if (base) {
+        const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+        const url = `${base.baseUrl}/wp-json/forgewp/v1/forms${qs}`;
+        const mergedTags = Array.from(
+          new Set(['forms', ...(nextOptions?.tags || [])]),
+        );
+        const init: Record<string, any> = {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          cache: cacheMode,
+          next: {
+            ...(nextOptions || {}),
+            tags: mergedTags,
+          },
+        };
+        const response = await fetchImpl(url, init);
+        if (response.ok) {
+          const json = await response.json().catch(() => null);
+          const normalized = normalizeFormsCollection(json) || {
+            ...(lang ? { lang } : {}),
+            forms: {},
+          };
+          cachedFormsByLang.set(cacheKey, normalized);
+          for (const [fName, fRecord] of Object.entries(normalized.forms)) {
+            cachedFormByKey.set(`${fName}::${lang || ''}`, fRecord);
+          }
+          return normalized;
+        }
+      }
+
+      const fallbackCollection: FormsCollectionResource = {
+        ...(lang ? { lang } : {}),
+        forms: { ...fixtureForms.forms },
+      };
+      cachedFormsByLang.set(cacheKey, fallbackCollection);
+      return fallbackCollection;
     },
 
     getOption(key, defaultValue = '') {
@@ -1364,6 +1503,8 @@ export {
   defineResource,
   getResourceDefinition,
   normalizeSiteSettings,
+  normalizeFormResource,
+  normalizeFormsCollection,
   createForgeWpRuntime,
   configureForgeWpRuntime,
   getForgeWpRuntime,

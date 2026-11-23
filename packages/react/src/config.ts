@@ -20,6 +20,11 @@ export type WpOptionField = {
   min?: number;
   max?: number;
   step?: number;
+  /**
+   * When `true`, omits this option from `GET /wp-json/forgewp/v1/site-settings`
+   * and `window.forgeWpHydration.resources['site-settings']` (PHP-only).
+   */
+  private?: boolean;
   [key: string]: unknown;
 };
 

@@ -296,6 +296,8 @@ export {
   defineResource,
   getResourceDefinition,
   normalizeSiteSettings,
+  normalizeFormResource,
+  normalizeFormsCollection,
 } from './registry.js';
 export type {
   ForgeWpResourceAuth,
