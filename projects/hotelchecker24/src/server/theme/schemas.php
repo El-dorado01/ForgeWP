@@ -9,6 +9,13 @@
 global $forgewp_custom_schemas;
 $forgewp_custom_schemas = array();
 
+function forgewp_schemas_seo_active() {
+    if (function_exists('forgewp_seo_plugin_active')) {
+        return forgewp_seo_plugin_active();
+    }
+    return defined('WPSEO_VERSION') || class_exists('RankMath') || defined('AIOSEO_VERSION') || class_exists('All_in_One_SEO_Pack');
+}
+
 function forgewp_init_custom_json_ld_schema() {
     global $post, $forgewp_custom_schemas;
     
@@ -29,7 +36,7 @@ function forgewp_init_custom_json_ld_schema() {
     $current_lang = strtolower($current_lang);
     
     $schemas = array();
-    $seo_active = defined('WPSEO_VERSION') || class_exists('RankMath') || defined('AIOSEO_VERSION') || class_exists('All_in_One_SEO_Pack');
+    $seo_active = forgewp_schemas_seo_active();
     
     // A. BreadcrumbList Schema (Sitewide except Home)
     if (!is_front_page() && !$seo_active) {
@@ -353,8 +360,9 @@ function forgewp_init_custom_json_ld_schema() {
     // otherwise stash them for printing in wp_head.
     if (!empty($schemas)) {
         $forgewp_custom_schemas = $schemas;
-        
-        if (defined('WPSEO_VERSION')) {
+        $seo_active = forgewp_schemas_seo_active();
+
+        if ($seo_active && defined('WPSEO_VERSION')) {
             add_filter('wpseo_schema_graph', function($graph) use ($schemas) {
                 if (is_array($graph)) {
                     foreach ($schemas as $s) {
@@ -365,7 +373,7 @@ function forgewp_init_custom_json_ld_schema() {
             }, 99);
         }
         
-        if (class_exists('RankMath')) {
+        if ($seo_active && class_exists('RankMath')) {
             add_filter('rank_math/json_ld', function($data, $jsonld) use ($schemas) {
                 if (is_array($data)) {
                     foreach ($schemas as $s) {
@@ -382,8 +390,8 @@ add_action('template_redirect', 'forgewp_init_custom_json_ld_schema');
 // Print fallback custom schemas if Yoast/RankMath are NOT active
 function forgewp_print_custom_json_ld_schema() {
     global $forgewp_custom_schemas;
-    
-    if (!empty($forgewp_custom_schemas) && !defined('WPSEO_VERSION') && !class_exists('RankMath')) {
+
+    if (!empty($forgewp_custom_schemas) && !forgewp_schemas_seo_active()) {
         echo "\n<!-- ForgeWP Custom JSON-LD Schema -->\n";
         foreach ($forgewp_custom_schemas as $s) {
             echo '<script type="application/ld+json">' . wp_json_encode($s, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . '</script>' . "\n";

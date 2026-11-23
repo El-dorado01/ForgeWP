@@ -1745,7 +1745,7 @@ function forgewp_cart_register_rest_routes() {
         ),
     ) );
 
-    register_rest_route( 'forgewp/v1', '/customer/orders/(?P<id>[\d]+)', array(
+    register_rest_route( 'forgewp/v1', '/customer/orders/(?P<id>\\d+)', array(
         array(
             'methods'             => 'GET',
             'callback'            => 'forgewp_rest_get_customer_order_detail',

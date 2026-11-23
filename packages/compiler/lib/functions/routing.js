@@ -580,11 +580,15 @@ function forgewp_resolve_head_target() {
  * the detected plugin list can't drift out of sync between call sites.
  */
 function forgewp_seo_plugin_active() {
+    $rank_math_active = class_exists('RankMath')
+        && (!class_exists('RankMath\\\\Helper')
+            || !method_exists('RankMath\\\\Helper', 'is_invalid_registration')
+            || !RankMath\\Helper::is_invalid_registration());
     return defined('WPSEO_VERSION')
-        || class_exists('RankMath')
+        || $rank_math_active
         || class_exists('All_in_One_SEO_Pack')
         || defined('AIOSEO_VERSION')
-        || class_exists('SEOPress\\Services\\Title');
+        || class_exists('SEOPress\\\\Services\\\\Title');
 }
 
 /**

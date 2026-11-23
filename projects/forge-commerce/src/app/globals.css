@@ -64,3 +64,11 @@
   50%  { transform: translateX(350%) skewX(-25deg); }
   100% { transform: translateX(350%) skewX(-25deg); }
 }
+
+/* Offset native WooCommerce templates (single product, cart, checkout, my-account) below fixed Navbar */
+body.single-product main,
+body.woocommerce-cart main,
+body.woocommerce-checkout main,
+body.woocommerce-account main {
+  padding-top: 7rem;
+}

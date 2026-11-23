@@ -54,6 +54,18 @@ add_filter('em_bookings_table_cols_bookings_template', function ($columns) {
     return array_merge($columns, hospitality_booking_field_labels());
 });
 
+add_filter('em_bookings_table_get_current_context', function ($context_settings, $table) {
+    if (($table->view ?? '') !== 'bookings' || !isset($context_settings['cols']) || !is_array($context_settings['cols'])) {
+        return $context_settings;
+    }
+    foreach (array_keys(hospitality_booking_field_labels()) as $key) {
+        if (!in_array($key, $context_settings['cols'], true)) {
+            $context_settings['cols'][] = $key;
+        }
+    }
+    return $context_settings;
+}, 10, 2);
+
 foreach (array_keys(hospitality_booking_field_labels()) as $hospitality_field_key) {
     add_filter('em_bookings_table_rows_col_' . $hospitality_field_key, function ($value, $item, $table, $format) use ($hospitality_field_key) {
         $objects = $table->get_item_objects($item);

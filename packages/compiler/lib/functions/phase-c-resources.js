@@ -39,10 +39,19 @@ export function buildPhaseCResourcesPhp(config, themeRoot, declaredMenuLocations
  * ── Phase C resources: menus, routes, i18n (docs/resource-contracts.md §5–§7) ──
  */
 if (!function_exists('forgewp_resource_path')) {
+    /** Unfiltered WordPress home URL with trailing slash (ignores Polylang's per-language home_url filter). */
+    function forgewp_raw_home_url() {
+        $raw_home = function_exists('get_option') ? get_option('home') : '';
+        if (is_string($raw_home) && $raw_home !== '') {
+            return rtrim($raw_home, '/') . '/';
+        }
+        return home_url('/');
+    }
+
     /** Site-relative path for a URL on this site; external URLs are returned unchanged. */
     function forgewp_resource_path($url, &$external = null) {
         $url = (string) $url;
-        $home = wp_parse_url(home_url('/'));
+        $home = wp_parse_url(forgewp_raw_home_url());
         $parsed = wp_parse_url($url);
         $external = isset($parsed['host'], $home['host']) && strtolower($parsed['host']) !== strtolower($home['host']);
         if ($external) {
@@ -206,7 +215,7 @@ ${config.forms && Object.keys(config.forms).length > 0 ? `        if ($current =
 
     // ── routes (§6) ───────────────────────────────────────────────────────
     function forgewp_routes_resource($lang) {
-        $home_url = home_url('/');
+        $home_url = forgewp_raw_home_url();
         $parsed_home = wp_parse_url($home_url);
         $base_path = isset($parsed_home['path']) ? rtrim($parsed_home['path'], '/') : '';
         $pages = get_posts(array(
