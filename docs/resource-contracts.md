@@ -389,7 +389,7 @@ Minor, optional — **adopted in the PHP (2026-11-23):** every menu item carries
 
 ---
 
-## 9. `auth-me` (Phase C — Status: Draft by Claude 2026-11-23 — Awaiting Founder & Gemini Approval) — **beta-critical**
+## 9. `auth-me` (Phase C — Status: Approved 2026-11-23 with Gemini's amendments (§12a)) — **beta-critical**
 
 Why first: in decoupled mode `WpServerRequireAuth`, `WpServerAuthGate` and `pageConfig.protected` currently render their children for everyone (`packages/react/src/server.ts`), so protected pages are public. This contract gives server-side guards one reliable answer.
 
@@ -443,7 +443,7 @@ Add `authenticated`; `private, no-store` + `Vary` headers; same shape in `resour
 
 ---
 
-## 10. `posts` (Phase C — Status: Draft by Claude 2026-11-23 — Awaiting Founder & Gemini Approval)
+## 10. `posts` (Phase C — Status: Approved 2026-11-23 with Gemini's amendments (§12a))
 
 Why: decoupled pages today read `wp/v2/*` with `_embed` and reshape it in `server.ts`, while native templates use PHP template tags. One normalized, privacy-safe shape removes that drift and covers custom post types.
 
@@ -502,7 +502,7 @@ Existing `/forgewp/v1/query-<id>` routes (from `useWpQuery`) stay as they are fo
 
 ---
 
-## 11. `terms` (Phase C — Status: Draft by Claude 2026-11-23 — Awaiting Founder & Gemini Approval)
+## 11. `terms` (Phase C — Status: Approved 2026-11-23 with Gemini's amendments (§12a))
 
 - **REST Routes:** `GET /wp-json/forgewp/v1/terms/<taxonomy>?lang=&hideEmpty=true&parent=` and `GET /wp-json/forgewp/v1/terms/<taxonomy>/<slug>?lang=`
 - **Auth:** public, public taxonomies only.
@@ -519,7 +519,7 @@ Single: the item object plus `"taxonomy"` and `"lang"`. Errors: `404 FORGEWP_TER
 
 ---
 
-## 12. `comments` (Phase C — Status: Draft by Claude 2026-11-23 — Awaiting Founder & Gemini Approval)
+## 12. `comments` (Phase C — Status: Approved 2026-11-23 with Gemini's amendments (§12a))
 
 - **REST Routes:**
   - `GET /wp-json/forgewp/v1/comments?post=<id>&page=1&perPage=50`
@@ -549,6 +549,16 @@ Errors: `403 FORGEWP_COMMENTS_CLOSED`, `400 FORGEWP_VALIDATION_FAILED` (with `er
 
 ---
 
+## 12a. Approved amendments to §9–§12 (Gemini review, accepted by Claude and founder, 2026-11-23)
+
+1. **Guard names and 403 handling (§9).** `server.ts` exports both `WpServerRequireAuth` / `WpServerAuthGate` and the aliases `WpRequireAuth` / `WpAuthGate`; keep all four. Do not hard-require Next.js `forbidden()` (it needs `experimental.authInterrupts`): authenticated-but-not-allowed visitors get `forbiddenFallback` (default: a built-in 403 view with status 403) or `forbiddenRedirect` when set; unauthenticated visitors get `redirect()`.
+2. **JWT cookie forwarding (§9).** Cross-origin JWT deployments store the token in an HttpOnly cookie on the app domain, default name `forgewp_auth_token` (configurable via `createWpServerClient({ authCookieName })`). The Next.js server sends it to `/auth/me` as `Authorization: Bearer <token>`, alongside the `wordpress_logged_in_*` / `wordpress_sec_*` cookies and any incoming `Authorization` header.
+3. **`blocks` on single posts (§10).** Single `post` responses include `"blocks": WpServerBlockNode[]` (from `forgewp_blocks`; `[]` when unused) so `<BlockArea>` keeps decoupled parity without `wp/v2`.
+4. **Plain-text titles (§10).** `title` is entity-decoded plain text; `excerpt` and `content` are rendered HTML. `/forgewp/v1/query-<id>` stays as is (compiled queries are safer than arbitrary public query params).
+5. **Comment anti-spam fields (§12).** `POST /comments` uses the same client fields as forms: `_forgewp_elapsed`, `_forgewp_interacted`, and the honeypot `_forgewp_hp`, so `@forgewp/react` shares one dwell/interaction tracker with `submitWpForm()`.
+
+---
+
 ## 8. Remaining Phase C Resource Contracts (Reserved Names)
 
 Registered in `@forgewp/react`'s lean resource registry with reserved paths so runtime wiring stays uniform:
@@ -562,7 +572,7 @@ Registered in `@forgewp/react`'s lean resource registry with reserved paths so r
 | `i18n` | `/i18n` | `public` | `["i18n", "i18n:<lang>"]` | Approved (Phase C — §7) |
 | `seo` | `/seo` | `public` | `["seo"]` | Reserved (Phase C) |
 | `editables` | `/editables` | `public` | `["editables"]` | Reserved (Phase C) |
-| `auth-me` | `/auth/me` | `session` | `["auth"]` | Draft (Phase C — §9) |
-| `posts` / `post` | `/posts`, `/posts/<type>/<slug>` | `public` | `["posts", "type:<type>", "post:<id>"]` | Draft (Phase C — §10) |
-| `terms` | `/terms/<taxonomy>` | `public` | `["terms", "taxonomy:<taxonomy>"]` | Draft (Phase C — §11) |
-| `comments` | `/comments` | `public` read / guarded write | `["comments", "comments:post:<id>"]` | Draft (Phase C — §12) |
+| `auth-me` | `/auth/me` | `session` | `["auth"]` | Approved (Phase C — §9, §12a) |
+| `posts` / `post` | `/posts`, `/posts/<type>/<slug>` | `public` | `["posts", "type:<type>", "post:<id>"]` | Approved (Phase C — §10, §12a) |
+| `terms` | `/terms/<taxonomy>` | `public` | `["terms", "taxonomy:<taxonomy>"]` | Approved (Phase C — §11) |
+| `comments` | `/comments` | `public` read / guarded write | `["comments", "comments:post:<id>"]` | Approved (Phase C — §12, §12a) |
