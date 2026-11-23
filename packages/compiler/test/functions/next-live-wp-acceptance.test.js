@@ -319,20 +319,29 @@ describe('Live disposable WordPress acceptance & native <-> decoupled round trip
         expect(decoupledAbout?.routeId).toBe('about');
 
         // 5b. LIVE DECOUPLED NEXT.JS APP ROUTER HTTP SERVER:
-        //     Create a published WordPress 'home' page with forgewp/next-intro, boot the real
-        //     Next.js server pointed at WordPress, verify SSR reads Edit 1, save Edit 2 in WP,
-        //     and verify the next Next.js HTTP response reflects Edit 2 with zero rebuild/restart!
-        const wpHomeCreateRes = await fetch(`${wpUrl}/wp-json/wp/v2/pages`, {
-          method: 'POST',
-          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: 'Live WordPress Home Title',
-            slug: 'home',
-            status: 'publish',
-            content: '<!-- wp:forgewp/next-intro {"heading":"Next SSR Live Edit 1"} /-->',
-          }),
-        });
-        expect(wpHomeCreateRes.status).toBe(201);
+        //     Update the provisioned WordPress 'home' page (or create it if absent) with
+        //     forgewp/next-intro, boot the real Next.js server pointed at WordPress, verify SSR
+        //     reads Edit 1, save Edit 2 in WP, and verify the next Next.js HTTP response reflects
+        //     Edit 2 with zero rebuild/restart!
+        const existingHomeList = await (await fetch(`${wpUrl}/wp-json/wp/v2/pages?slug=home`)).json();
+        const existingHomeId =
+          Array.isArray(existingHomeList) && existingHomeList[0]?.id ? existingHomeList[0].id : null;
+        const wpHomeCreateRes = await fetch(
+          existingHomeId
+            ? `${wpUrl}/wp-json/wp/v2/pages/${existingHomeId}`
+            : `${wpUrl}/wp-json/wp/v2/pages`,
+          {
+            method: 'POST',
+            headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: 'Live WordPress Home Title',
+              slug: 'home',
+              status: 'publish',
+              content: '<!-- wp:forgewp/next-intro {"heading":"Next SSR Live Edit 1"} /-->',
+            }),
+          },
+        );
+        expect(wpHomeCreateRes.status).toBe(existingHomeId ? 200 : 201);
         const wpHomePage = await wpHomeCreateRes.json();
 
         const nextPort = await getFreePort();
