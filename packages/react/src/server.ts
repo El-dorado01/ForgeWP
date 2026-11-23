@@ -37,6 +37,7 @@ import {
   type MenusCollectionResource,
   type PostResource,
   type PostsListResource,
+  type PostTermRefContract,
   type RoutesResource,
   type SiteSettingsResource,
   type TermResource,
@@ -167,8 +168,11 @@ export interface WpServerPostRecord {
   date: string;
   author: string;
   permalink: string;
+  path?: string;
   featuredImage: string;
+  terms?: Record<string, PostTermRefContract[]>;
   blocks: WpServerBlockNode[];
+  protected?: boolean;
   source: 'fixture' | 'wordpress' | 'native';
 }
 
@@ -1136,23 +1140,29 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
           if (response.ok && json) {
             const normalized = normalizePostsListResource(json, cleanType);
             if (normalized) {
-              return normalized.items.map((item) => ({
-                id: item.id,
-                slug: item.slug,
-                postType: item.type,
-                title: item.title,
-                excerpt: stripTags(item.excerpt),
-                content: item.content ?? '',
-                date: item.date,
-                author: item.author?.name || '',
-                permalink:
+              return normalized.items.map((item) => {
+                const resolvedPath =
                   opts.basePath !== undefined
                     ? `${defaultBase}/${item.slug}`
-                    : item.path || `${defaultBase}/${item.slug}`,
-                featuredImage: item.featuredImage?.url || '',
-                blocks: Array.isArray(item.blocks) ? item.blocks : [],
-                source: 'wordpress' as const,
-              }));
+                    : item.path || `${defaultBase}/${item.slug}`;
+                return {
+                  id: item.id,
+                  slug: item.slug,
+                  postType: item.type,
+                  title: item.title,
+                  excerpt: stripTags(item.excerpt),
+                  content: item.content ?? '',
+                  date: item.date,
+                  author: item.author?.name || '',
+                  permalink: resolvedPath,
+                  path: resolvedPath,
+                  featuredImage: item.featuredImage?.url || '',
+                  terms: item.terms || {},
+                  blocks: Array.isArray(item.blocks) ? item.blocks : [],
+                  protected: item.protected === true,
+                  source: 'wordpress' as const,
+                };
+              });
             }
           }
         } catch (err) {
@@ -1172,22 +1182,42 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
           typeof item.featuredImage === 'string'
             ? item.featuredImage
             : item.featuredImage?.url || '';
+        const fallbackPath = `${defaultBase}/${slug}`;
+        const normalized = normalizePostResource(
+          {
+            ...item,
+            id: Number(item.id ?? idx + 1),
+            type: cleanType,
+            slug,
+            path: item.path || fallbackPath,
+            permalink: item.permalink || fallbackPath,
+          },
+          { isListItem: true, fallbackType: cleanType },
+        );
+        const isProtected = normalized?.protected === true;
+        const resolvedPath =
+          opts.basePath !== undefined
+            ? fallbackPath
+            : normalized?.path || fallbackPath;
         return {
           id: Number(item.id ?? idx + 1),
           slug,
           postType: cleanType,
           title: String(item.title || ''),
-          excerpt: String(item.excerpt || ''),
-          content: String(item.content || ''),
+          excerpt: isProtected ? '' : String(item.excerpt || ''),
+          content: isProtected ? '' : String(item.content || ''),
           date: String(item.date || ''),
           author: String(
             typeof item.author === 'object' && item.author !== null
               ? item.author.name || ''
               : item.author || '',
           ),
-          permalink: `${defaultBase}/${slug}`,
+          permalink: fallbackPath,
+          path: resolvedPath,
           featuredImage: String(img),
+          terms: normalized?.terms || {},
           blocks: Array.isArray(item.blocks) ? item.blocks : [],
+          protected: isProtected,
           source: 'fixture' as const,
         };
       });
@@ -1206,8 +1236,11 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
           date: '__FORGEWP_THE_DATE__',
           author: '__FORGEWP_THE_AUTHOR__',
           permalink: '__FORGEWP_THE_PERMALINK__',
+          path: '__FORGEWP_THE_PERMALINK__',
           featuredImage: '__FORGEWP_THE_POST_THUMBNAIL_URL__',
+          terms: {},
           blocks: [],
+          protected: false,
           source: 'native' as const,
         };
       }
@@ -1222,6 +1255,10 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       if (wpBase) {
         const single = await this.getPost(cleanType, slug, { lang: opts.lang });
         if (single) {
+          const resolvedPath =
+            opts.basePath !== undefined
+              ? `${defaultBase}/${single.slug}`
+              : single.path || `${defaultBase}/${single.slug}`;
           return {
             id: single.id,
             slug: single.slug,
@@ -1231,12 +1268,12 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
             content: single.content ?? '',
             date: single.date,
             author: single.author?.name || '',
-            permalink:
-              opts.basePath !== undefined
-                ? `${defaultBase}/${single.slug}`
-                : single.path || `${defaultBase}/${single.slug}`,
+            permalink: resolvedPath,
+            path: resolvedPath,
             featuredImage: single.featuredImage?.url || '',
+            terms: single.terms || {},
             blocks: Array.isArray(single.blocks) ? single.blocks : [],
+            protected: single.protected === true,
             source: 'wordpress' as const,
           };
         }
@@ -2049,8 +2086,11 @@ const NATIVE_LOOP_TOKEN_POST: WpServerPostRecord = {
   date: '__FORGEWP_THE_DATE__',
   author: '__FORGEWP_THE_AUTHOR__',
   permalink: '__FORGEWP_THE_PERMALINK__',
+  path: '__FORGEWP_THE_PERMALINK__',
   featuredImage: '__FORGEWP_THE_POST_THUMBNAIL_URL__',
+  terms: {},
   blocks: [],
+  protected: false,
   source: 'native',
 };
 
