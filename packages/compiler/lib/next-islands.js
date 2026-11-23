@@ -414,6 +414,31 @@ export function findNextIslandComponentPath(themeRoot, kebabName, knownMappings)
  * @param {string} outDir
  * @param {string[]} islands
  */
+// Every named export of the installed React, so island dependencies that import
+// any of them (e.g. html-react-parser's `version`, useSyncExternalStore,
+// startTransition, Suspense) resolve against the shared window.React instead of
+// silently becoming undefined. Falls back to a conservative list.
+const FALLBACK_REACT_EXPORTS = [
+  'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback', 'useContext', 'useReducer',
+  'useLayoutEffect', 'useId', 'useTransition', 'useDeferredValue', 'useSyncExternalStore',
+  'useInsertionEffect', 'useImperativeHandle', 'useDebugValue', 'startTransition',
+  'createElement', 'Fragment', 'createContext', 'forwardRef', 'memo', 'lazy', 'Suspense',
+  'StrictMode', 'Profiler', 'Component', 'PureComponent', 'Children', 'cloneElement',
+  'isValidElement', 'createRef', 'version',
+];
+export function windowReactExportNames(resolveBase) {
+  try {
+    const react = createRequire(path.join(resolveBase, 'package.json'))('react');
+    const names = Object.keys(react).filter(
+      (name) => /^[A-Za-z_$][\w$]*$/.test(name) && name !== 'default',
+    );
+    if (names.includes('createElement')) return names;
+  } catch {
+    // fall through
+  }
+  return FALLBACK_REACT_EXPORTS;
+}
+
 export async function bundleNextIslands(themeRoot, outDir, islands = []) {
   const uniqueIslands = Array.from(new Set(islands)).filter(Boolean).sort();
   if (uniqueIslands.length === 0) {
@@ -482,9 +507,7 @@ export { React, createRoot, hydrateRoot };
         contents: `const R = globalThis.React;
 export default R;
 export const {
-  useState, useEffect, useRef, useMemo, useCallback, useContext, useReducer,
-  useLayoutEffect, useId, useTransition, useDeferredValue,
-  createElement, Fragment, createContext, forwardRef, memo, Component, Children, cloneElement, isValidElement
+  ${windowReactExportNames(resolveBase).join(', ')}
 } = R;
 `,
         loader: 'js',

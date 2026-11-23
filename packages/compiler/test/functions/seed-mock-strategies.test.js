@@ -68,7 +68,7 @@ function update_option($key, $value) { global $options; $options[$key] = $value;
 function get_users($args) { return array((object)array('ID' => 1)); }
 function wp_count_posts($type) { global $posts; return (object)array('publish' => count(array_filter($posts, fn($p) => $p['post_type'] === $type))); }
 function sanitize_text_field($v) { return $v; } function sanitize_title($v) { return $v; }
-function get_page_by_path($slug, $output, $type) { global $posts; foreach ($posts as $id => $p) if ($p['post_name'] === $slug && $p['post_type'] === $type) return (object)array('ID' => $id); return null; }
+function get_page_by_path($slug, $output, $type) { global $posts; foreach ($posts as $id => $p) if ($p['post_name'] === $slug && $p['post_type'] === $type) return (object)array_merge($p, array('ID' => $id)); return null; }
 function wp_insert_post($args, $wp_error = false) { global $posts, $writes, $fail; if ($fail) { $fail = false; return (object)array('error' => true); } $id = count($posts) + 1; $posts[$id] = $args; $writes[] = $args['post_type']; return $id; }
 function wp_update_post($args, $wp_error = false) { global $posts, $writes; $posts[$args['ID']] = $args; $writes[] = $args['post_type']; return $args['ID']; }
 function is_wp_error($v) { return is_object($v) && isset($v->error); }
@@ -89,6 +89,21 @@ echo json_encode($history);
   expect(result.status, result.stderr).toBe(0);
   return JSON.parse(result.stdout);
 }
+describe('once seeding on a fresh WordPress install', () => {
+  const corePost = { post_type: 'post', post_name: 'hello-world', post_title: 'Hello world!', post_status: 'publish' };
+  it('ignores the core "Hello world!" sample post when deciding whether posts exist', () => {
+    const php = generate('once', { post: [{ title: 'Seeded', slug: 'seeded' }] });
+    const [result] = run([{ php }], { initialPosts: { 1: corePost } });
+    expect(result.writes).toEqual(['post']);
+  });
+  it('still skips seeding when the site already has real user posts', () => {
+    const php = generate('once', { post: [{ title: 'Seeded', slug: 'seeded' }] });
+    const userPost = { post_type: 'post', post_name: 'my-news', post_title: 'My news', post_status: 'publish' };
+    const [result] = run([{ php }], { initialPosts: { 1: corePost, 2: userPost } });
+    expect(result.writes).toEqual([]);
+  });
+});
+
 describe('generated PHP per-type seed strategies', () => {
   it('excludes disabled and omitted types even with force', () => {
     const php = generate({ post: 'upsert', project: false });

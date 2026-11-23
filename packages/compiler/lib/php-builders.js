@@ -701,7 +701,7 @@ if (empty($forgewp_page_desc)) {
     $forgewp_page_desc = get_the_content();
 }
 if (empty($forgewp_page_desc)) {
-    $forgewp_page_desc = __('This page is scaffolded and will be built in the next phase of the storefront.', '${td}');
+    $forgewp_page_desc = __('This page is scaffolded and will be built soon.', '${td}');
 }
 ?>
 <div class="container-wide py-20 md:py-28 text-center max-w-xl mx-auto">
@@ -710,7 +710,9 @@ if (empty($forgewp_page_desc)) {
     <p class="mt-4 text-muted-foreground leading-relaxed"><?php echo esc_html($forgewp_page_desc); ?></p>
     <div class="mt-8 flex flex-wrap justify-center gap-3">
         <a class="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium" href="<?php echo esc_url(home_url('/')); ?>"><?php esc_html_e('Home', '${td}'); ?></a>
-        <a class="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium" href="<?php echo esc_url(home_url('/shop')); ?>"><?php esc_html_e('Shop', '${td}'); ?></a>
+        <?php if (function_exists('wc_get_page_permalink') && wc_get_page_id('shop') > 0) : ?>
+        <a class="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium" href="<?php echo esc_url(wc_get_page_permalink('shop')); ?>"><?php esc_html_e('Shop', '${td}'); ?></a>
+        <?php endif; ?>
     </div>
 </div>
 <?php

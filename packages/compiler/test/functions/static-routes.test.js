@@ -190,3 +190,13 @@ describe('404 permalink guessing', () => {
     expect(php).toContain('$forgewp_page_desc');
   });
 });
+
+describe('placeholder page template copy', () => {
+  it('uses neutral copy and only links to a shop when WooCommerce has one', async () => {
+    const { buildPlaceholderPagePhp } = await import('../../lib/php-builders.js');
+    const php = buildPlaceholderPagePhp({ textDomain: 'demo' });
+    expect(php).not.toContain('storefront');
+    expect(php).not.toContain("home_url('/shop')");
+    expect(php).toContain("if (function_exists('wc_get_page_permalink') && wc_get_page_id('shop') > 0)");
+  });
+});

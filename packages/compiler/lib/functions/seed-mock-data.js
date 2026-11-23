@@ -278,7 +278,16 @@ FORGEWP_MOCK_DATA_JSON;
         // of skipping the entire 'page' post type.
         if (!$force && $strategy === 'once' && $post_type !== 'page') {
             $existing_count = wp_count_posts($post_type);
-            if (!empty($existing_count->publish) && intval($existing_count->publish) > 0) {
+            $published = !empty($existing_count->publish) ? intval($existing_count->publish) : 0;
+            // WordPress core's own sample post ("Hello world!") exists on every fresh
+            // install; it is not user content and must not block first-time seeding.
+            if ($post_type === 'post' && $published > 0) {
+                $core_sample = get_page_by_path('hello-world', OBJECT, 'post');
+                if ($core_sample && $core_sample->post_status === 'publish') {
+                    $published--;
+                }
+            }
+            if ($published > 0) {
                 continue;
             }
         }
