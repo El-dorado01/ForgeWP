@@ -164,7 +164,8 @@ ${page_links_php}
 ${manifestPairs}
                 ),${providersPhp}
                 'resources' => array(
-                    'site-settings' => function_exists('forgewp_site_settings_resource') ? forgewp_site_settings_resource() : null,
+                    'site-settings' => function_exists('forgewp_site_settings_resource') ? forgewp_site_settings_resource() : null,${hasForms ? `
+                    'forms' => function_exists('forgewp_forms_resource') ? forgewp_forms_resource($current_lang) : null,` : ''}
                 ),
                 'siteSettings' => array(
                     'options' => array(

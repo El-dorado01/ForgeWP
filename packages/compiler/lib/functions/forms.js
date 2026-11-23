@@ -8,6 +8,7 @@
  * config.forms is absent/empty, so themes without forms get byte-identical
  * functions.php output.
  */
+import { buildNetworkHelpersPhp } from './network-helpers.js';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
@@ -583,14 +584,16 @@ function buildSharedHelpersPhp(i18nConfig = null) {
         }`
     : '';
   return `
+${buildNetworkHelpersPhp()}
 if (!function_exists('forgewp_forms_rate_limit_ok')) {
     /**
-     * Max 5 submissions per 10 minutes per IP, across all forms. Uses
-     * REMOTE_ADDR only — X-Forwarded-For is attacker-controlled and would
-     * let a bot trivially reset its own limit.
+     * Max 5 submissions per 10 minutes per IP, across all forms. The IP is
+     * REMOTE_ADDR unless the peer is a configured trusted proxy (see
+     * forgewp_client_ip()); X-Forwarded-For from anyone else is ignored, so a
+     * bot cannot reset its own limit.
      */
     function forgewp_forms_rate_limit_ok() {
-        $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
+        $ip = forgewp_client_ip();
         $key = 'forgewp_form_rl_' . md5($ip);
         $count = (int) get_transient($key);
         if ($count >= 5) {
@@ -1037,7 +1040,7 @@ if (!function_exists('forgewp_submission_meta_box')) {
 
     if (!function_exists('forgewp_store_submission')) {
       function forgewp_store_submission($form_name, $values, $field_defs, $language = '', $title_template = '') {
-        $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
+        $ip = function_exists('forgewp_client_ip') ? forgewp_client_ip() : (isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '');
         $title = trim((string) $title_template) !== ''
             ? sanitize_text_field(forgewp_forms_interpolate_template($title_template, $values))
             : '';
@@ -1636,6 +1639,11 @@ function buildFormHandlerPhp(name, formConfig, textDomain, locales) {
   return `
 if (!function_exists('forgewp_handle_form_${slug}')) {
     function forgewp_handle_form_${slug}(WP_REST_Request $request) {
+        $request_origin = (string) $request->get_header('origin');
+        if ($request_origin !== '' && !forgewp_origin_allowed($request_origin)) {
+            return new WP_Error('FORGEWP_ORIGIN_DENIED', __('This site does not accept form submissions from that origin.', '${textDomain}'), array('status' => 403));
+        }
+
         if (!forgewp_forms_rate_limit_ok()) {
             return new WP_REST_Response(array(
                 'ok'      => false,
@@ -2671,6 +2679,107 @@ if (!function_exists('forgewp_forms_get_registered_client_fields')) {
 `;
 }
 
+/**
+ * `forms` resource (docs/resource-contracts.md §2): one builder for
+ * GET /forgewp/v1/forms[/<name>] and forgeWpHydration.resources.forms, built
+ * on forgewp_forms_hydration_payload() so client fields and labels match
+ * native rendering exactly. Never exposes server-only config.
+ */
+function buildFormsResourcePhp(shortcodeFormNames = []) {
+  return `
+if (!function_exists('forgewp_forms_resource')) {
+    function forgewp_forms_resource_lang($requested_lang = null) {
+        if (function_exists('forgewp_forms_resolve_lang')) {
+            $lang = forgewp_forms_resolve_lang($requested_lang);
+            if (is_string($lang) && $lang !== '' && $lang !== 'default') {
+                return $lang;
+            }
+        }
+        $locale = function_exists('determine_locale') ? determine_locale() : get_locale();
+        return strtolower(substr((string) $locale, 0, 2));
+    }
+
+    function forgewp_form_resource_entry($name, $entry, $lang) {
+        $labels = isset($entry['fieldLabels']) && is_array($entry['fieldLabels']) ? $entry['fieldLabels'] : array();
+        $fields = isset($entry['fields']) && is_array($entry['fields']) ? array_values($entry['fields']) : array();
+        return array(
+            'name'        => (string) $name,
+            'mode'        => 'native',
+            'lang'        => $lang,
+            'submitUrl'   => esc_url_raw(rest_url('forgewp/v1/forms/' . $name . '/submit')),
+            'fieldLabels' => (object) $labels,
+            'fields'      => $fields,
+        );
+    }
+
+    function forgewp_forms_resource($requested_lang = null) {
+        $lang = forgewp_forms_resource_lang($requested_lang);
+        $forms = array();
+        foreach (forgewp_forms_hydration_payload($requested_lang) as $name => $entry) {
+            $forms[$name] = forgewp_form_resource_entry($name, $entry, $lang);
+        }
+        return array('lang' => $lang, 'forms' => (object) $forms);
+    }
+
+    function forgewp_forms_resource_response($data) {
+        $response = rest_ensure_response($data);
+        $response->header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+        return $response;
+    }
+
+    add_action('rest_api_init', function () {
+        register_rest_route('forgewp/v1', '/forms', array(
+            'methods'             => 'GET',
+            'permission_callback' => '__return_true',
+            'callback'            => function (WP_REST_Request $request) {
+                $lang = $request->get_param('lang');
+                $response = forgewp_forms_resource_response(forgewp_forms_resource(is_string($lang) ? sanitize_key($lang) : null));
+                $response->header('X-ForgeWP-Cache-Tags', 'forms');
+                return $response;
+            },
+        ));
+        register_rest_route('forgewp/v1', '/forms/(?P<name>[A-Za-z0-9_-]+)', array(
+            'methods'             => 'GET',
+            'permission_callback' => '__return_true',
+            'callback'            => function (WP_REST_Request $request) {
+                $name = (string) $request['name'];
+                if (in_array($name, array(${shortcodeFormNames.map((n) => `'${String(n).replace(/'/g, "\\\\'")}'`).join(', ')}), true)) {
+                    return new WP_Error('FORGEWP_FORM_SHORTCODE_ONLY', 'This form is rendered by a WordPress plugin shortcode and has no client contract.', array('status' => 400));
+                }
+                $lang = $request->get_param('lang');
+                $all = forgewp_forms_resource(is_string($lang) ? sanitize_key($lang) : null);
+                $forms = (array) $all['forms'];
+                if (!isset($forms[$name])) {
+                    return new WP_Error('FORGEWP_FORM_NOT_FOUND', 'No native form with that name exists.', array('status' => 404));
+                }
+                $response = forgewp_forms_resource_response($forms[$name]);
+                $response->header('X-ForgeWP-Cache-Tags', 'forms,form:' . $name);
+                return $response;
+            },
+        ));
+    });
+
+    // WordPress answers every Origin with CORS headers; when
+    // FORGEWP_FRONTEND_ORIGIN is configured, withhold them from other origins
+    // on ForgeWP forms routes (submissions from them are also rejected).
+    add_filter('rest_pre_serve_request', function ($served, $result, $request) {
+        if (strpos((string) $request->get_route(), '/forgewp/v1/forms') !== 0) {
+            return $served;
+        }
+        $origin = get_http_origin();
+        if ($origin && !forgewp_origin_allowed($origin) && !headers_sent()) {
+            header_remove('Access-Control-Allow-Origin');
+            header_remove('Access-Control-Allow-Credentials');
+        }
+        if ($origin && !headers_sent()) {
+            header('Vary: Origin', false);
+        }
+        return $served;
+    }, 20, 3);
+}
+`;
+}
+
 export function buildFormsPhp(config) {
   const forms = config.forms;
   if (!forms || Object.keys(forms).length === 0) return '';
@@ -2772,6 +2881,9 @@ add_filter('forgewp_form_dev_field_names_${name}', function () {
     adminCapability,
   );
   php += buildFormsHydrationPayloadPhp(nativeForms, locales);
+  php += buildFormsResourcePhp(
+    Object.keys(forms).filter((n) => isShortcodeModeForm(forms[n])),
+  );
 
   return php;
 }

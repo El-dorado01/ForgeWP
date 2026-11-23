@@ -1,3 +1,4 @@
+import { buildNetworkHelpersPhp } from './network-helpers.js';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { registrationMetaFields } from '../registration-metadata.js';
@@ -691,6 +692,7 @@ function forgewp_auth_register_rest_routes() {
 }
 
 /** Compare origins without trusting request Host or forwarded headers. */
+${buildNetworkHelpersPhp()}
 function forgewp_auth_url_origin( $url ) {
     if ( ! is_string( $url ) || preg_match( '/[\\x00-\\x20\\x7f]/', $url ) ) {
         return '';
@@ -725,7 +727,8 @@ function forgewp_auth_rate_limit( $request ) {
     if ( ! is_array( $rule ) || ! isset( $rule['limit'], $rule['window'] ) || ! is_int( $rule['limit'] ) || ! is_int( $rule['window'] ) || $rule['limit'] < 1 || $rule['window'] < 1 ) {
         return new WP_Error( 'rest_auth_rate_limit_config', 'Authentication is temporarily unavailable.', array( 'status' => 503 ) );
     }
-    $peer = isset( $_SERVER['REMOTE_ADDR'] ) && filter_var( $_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP ) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
+    $peer = forgewp_client_ip();
+    $peer = filter_var( $peer, FILTER_VALIDATE_IP ) ? $peer : 'unknown';
     $key = 'forgewp_auth_rate_' . hash_hmac( 'sha256', $action . '|' . $peer, wp_salt( 'auth' ) );
     $now = time();
     $bucket = get_transient( $key );
@@ -751,7 +754,7 @@ function forgewp_auth_write_permission( $request ) {
     $source = $origin !== '' ? $origin : $referer;
     if ( $source !== '' ) {
         $allowed = array( forgewp_auth_url_origin( home_url() ), forgewp_auth_url_origin( site_url() ) );
-        if ( defined( 'FORGEWP_FRONTEND_ORIGIN' ) ) $allowed[] = forgewp_auth_url_origin( FORGEWP_FRONTEND_ORIGIN );
+        foreach ( forgewp_frontend_origins() as $frontend_origin ) $allowed[] = $frontend_origin;
         $incoming = forgewp_auth_url_origin( $source );
         if ( $incoming === '' || ! in_array( $incoming, $allowed, true ) ) {
             return new WP_Error( 'rest_auth_origin_denied', 'This origin cannot make account requests.', array( 'status' => 403 ) );
@@ -781,11 +784,10 @@ function forgewp_rest_auth_config() {
     ) );
 }
 
+/** Base URL for links sent to visitors (verification, reset): the first configured frontend origin, else the site. */
 function forgewp_get_frontend_origin() {
-    $origin = home_url();
-    if ( defined( 'FORGEWP_FRONTEND_ORIGIN' ) ) {
-        $origin = FORGEWP_FRONTEND_ORIGIN;
-    }
+    $origins = forgewp_frontend_origins();
+    $origin = ! empty( $origins ) ? $origins[0] : home_url();
     return rtrim( $origin, '/' );
 }
 

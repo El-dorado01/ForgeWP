@@ -183,7 +183,7 @@ WordPress stores theme mods per theme (`theme_mods_{stylesheet}`), and `nav_menu
 - `themeMods.custom_logo` in the resource is the logo **URL** (per §1); the stored value stays the attachment ID.
 
 ### 4.3 Cross-origin and proxies (forms GET + submit; shared with `@forgewp/auth`)
-- **CORS:** when `FORGEWP_FRONTEND_ORIGIN` is defined (constant or env, comma-separated), responses to a matching `Origin` send `Access-Control-Allow-Origin: <origin>`, `Vary: Origin`, `Access-Control-Allow-Credentials: true`; preflight allows `GET, POST, OPTIONS` with `Content-Type, X-WP-Nonce`.
+- **CORS:** WordPress core already answers every `Origin` on REST routes with `Access-Control-Allow-Origin: <origin>` and credentials, so cross-origin decoupled frontends work by default. When `FORGEWP_FRONTEND_ORIGIN` is defined (constant or env, comma-separated), it becomes an allowlist for ForgeWP forms routes: other origins get no CORS headers and their submissions are rejected with `403 FORGEWP_ORIGIN_DENIED`; listed origins and the site's own origins are served with `Vary: Origin`. `@forgewp/auth` is stricter: it always accepts only the site's own origins plus this list. The first listed origin is the base URL for links in auth emails.
 - **Client IP for rate limiting:** `REMOTE_ADDR` by default. From a trusted proxy (`FORGEWP_TRUSTED_PROXIES` IPs/CIDRs, or `X-ForgeWP-Proxy-Secret` equal to `FORGEWP_PROXY_SECRET`), use the right-most address in `X-Forwarded-For` that is not itself a trusted proxy, so a Next.js server or edge router does not collapse all visitors into one bucket.
 
 ### 4.4 Legacy hydration keys
