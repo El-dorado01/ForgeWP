@@ -196,6 +196,180 @@ async function detectAppRouterPageMatch(
   return false;
 }
 
+/**
+ * Strip JS/TS comments outside string literals so URLs like `https://...`
+ * inside strings are preserved intact.
+ */
+function stripJsCommentsPreserveStrings(source: string): string {
+  let out = '';
+  let i = 0;
+  const len = source.length;
+  let quote: string | null = null;
+  while (i < len) {
+    const ch = source[i];
+    const next = source[i + 1];
+    if (quote) {
+      out += ch;
+      if (ch === '\\' && i + 1 < len) {
+        out += next;
+        i += 2;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      i++;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      out += ch;
+      i++;
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      i += 2;
+      while (i < len && source[i] !== '\n') i++;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      i += 2;
+      while (i + 1 < len && !(source[i] === '*' && source[i + 1] === '/')) i++;
+      i += 2;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
+/**
+ * Extract a balanced bracketed substring starting at `openIdx` (respecting quotes).
+ */
+function extractBalancedBlock(
+  source: string,
+  openIdx: number,
+  openChar: string,
+  closeChar: string,
+): string | null {
+  if (source[openIdx] !== openChar) return null;
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = openIdx; i < source.length; i++) {
+    const ch = source[i];
+    if (quote) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === openChar) depth++;
+    else if (ch === closeChar) {
+      depth--;
+      if (depth === 0) return source.slice(openIdx, i + 1);
+    }
+  }
+  return null;
+}
+
+/**
+ * Statically extract `redirects: [ { from, to, status?, ifNotFound? }, ... ]`
+ * from a `wp.config.{ts,js,mjs,cjs}` source string without executing TS/ESM
+ * imports (avoids Next.js config-loader crashes on `.js` TS extensions).
+ */
+export function extractRedirectsFromWpConfigSource(
+  source: string,
+): ForgeWPNextRedirectRule[] {
+  const clean = stripJsCommentsPreserveStrings(source);
+  const match = /\bredirects\s*:\s*\[/.exec(clean);
+  if (!match) return [];
+  const openBracketIdx = match.index + match[0].length - 1;
+  const arrayLiteral = extractBalancedBlock(clean, openBracketIdx, '[', ']');
+  if (!arrayLiteral) return [];
+
+  const inner = arrayLiteral.slice(1, -1);
+  const rules: ForgeWPNextRedirectRule[] = [];
+  let i = 0;
+  while (i < inner.length) {
+    if (inner[i] === '{') {
+      const objLiteral = extractBalancedBlock(inner, i, '{', '}');
+      if (!objLiteral) break;
+      i += objLiteral.length;
+
+      const fromMatch = /(?:^|[{,\s])['"]?from['"]?\s*:\s*(['"`])((?:\\.|(?!\1).)*)\1/.exec(
+        objLiteral,
+      );
+      const toMatch = /(?:^|[{,\s])['"]?to['"]?\s*:\s*(['"`])((?:\\.|(?!\1).)*)\1/.exec(
+        objLiteral,
+      );
+      if (!fromMatch || !toMatch) continue;
+
+      const statusMatch = /(?:^|[{,\s])['"]?status['"]?\s*:\s*(\d+)/.exec(objLiteral);
+      const ifNotFoundMatch =
+        /(?:^|[{,\s])['"]?ifNotFound['"]?\s*:\s*(true|false)/.exec(objLiteral);
+
+      const rule: ForgeWPNextRedirectRule = {
+        from: fromMatch[2],
+        to: toMatch[2],
+      };
+      if (statusMatch) {
+        rule.status = Number(statusMatch[1]) as 301 | 302 | 307 | 308;
+      }
+      if (ifNotFoundMatch) {
+        rule.ifNotFound = ifNotFoundMatch[1] === 'true';
+      }
+      rules.push(rule);
+    } else {
+      i++;
+    }
+  }
+
+  return rules;
+}
+
+async function loadRedirectsFromWpConfig(
+  projectRoot: string,
+): Promise<ForgeWPNextRedirectRule[]> {
+  try {
+    const fsSpec = 'node:fs';
+    const pathSpec = 'node:path';
+    const fsMod: any = await import(/* @vite-ignore */ fsSpec);
+    const pathMod: any = await import(/* @vite-ignore */ pathSpec);
+    const existsSync = fsMod.existsSync ?? fsMod.default?.existsSync;
+    const readFileSync = fsMod.readFileSync ?? fsMod.default?.readFileSync;
+    const join = pathMod.join ?? pathMod.default?.join;
+    if (
+      typeof existsSync !== 'function' ||
+      typeof readFileSync !== 'function' ||
+      typeof join !== 'function'
+    ) {
+      return [];
+    }
+
+    const candidates = [
+      'wp.config.ts',
+      'wp.config.mts',
+      'wp.config.mjs',
+      'wp.config.js',
+      'wp.config.cjs',
+    ];
+    for (const file of candidates) {
+      const full = join(projectRoot, file);
+      if (!existsSync(full)) continue;
+      const source = readFileSync(full, 'utf8');
+      return extractRedirectsFromWpConfigSource(source);
+    }
+  } catch {
+    // Non-Node runtime or unreadable config
+  }
+  return [];
+}
+
 function readEnvDeploymentMode(): ForgeWPNextDeploymentMode {
   const raw =
     (globalThis as any).process?.env?.FORGEWP_DEPLOYMENT_MODE ?? 'native';
@@ -360,13 +534,15 @@ export function withForgeWP<
     serverWpUrl.trim() !== '' &&
     !(typeof explicitPublicWpUrl === 'string' && explicitPublicWpUrl.trim() !== '');
 
+  const hasExplicitRedirects = options.redirects !== undefined;
   const configuredRedirects = Array.isArray(options.redirects)
     ? options.redirects
     : [];
   const userRedirects =
     typeof nextConfig.redirects === 'function' ? nextConfig.redirects : null;
-  const shouldWireRedirects = isDecoupled && configuredRedirects.length > 0;
-  // Validate rules eagerly at config load time so invalid redirects fail fast
+  const shouldWireRedirects =
+    isDecoupled && (!hasExplicitRedirects || configuredRedirects.length > 0);
+  // Validate explicit rules eagerly at config load time so invalid redirects fail fast
   if (configuredRedirects.length > 0) {
     toNextRedirects(configuredRedirects, { appRoutes: options.appRoutes });
   }
@@ -390,10 +566,13 @@ export function withForgeWP<
     ...(shouldWireRedirects
       ? {
           async redirects() {
-            const matchedRoutes = new Set<string>(options.appRoutes || []);
             const projectRoot =
               (globalThis as any).process?.cwd?.() || '.';
-            for (const rule of configuredRedirects) {
+            const rules = hasExplicitRedirects
+              ? configuredRedirects
+              : await loadRedirectsFromWpConfig(projectRoot);
+            const matchedRoutes = new Set<string>(options.appRoutes || []);
+            for (const rule of rules) {
               if (rule && rule.ifNotFound === true && typeof rule.from === 'string') {
                 const norm = normalizeRedirectPath(rule.from);
                 if (!matchedRoutes.has(norm) && (await detectAppRouterPageMatch(norm, projectRoot))) {
@@ -402,7 +581,7 @@ export function withForgeWP<
               }
             }
             const { redirects: forgeWpEntries } = toNextRedirects(
-              configuredRedirects,
+              rules,
               { appRoutes: matchedRoutes },
             );
             const existing = userRedirects ? await userRedirects() : [];

@@ -60,8 +60,54 @@ export interface FormsCollectionResource {
   forms: Record<string, FormResource>;
 }
 
+export interface MenuItemContract {
+  id: number | string;
+  title: string;
+  url: string;
+  path: string;
+  target?: string;
+  classes?: string[];
+  description?: string;
+  attrTitle?: string;
+  external?: boolean;
+  children: MenuItemContract[];
+}
+
+/**
+ * Canonical `menus` collection contract (docs/resource-contracts.md §5).
+ */
+export interface MenusCollectionResource {
+  lang?: string;
+  menus: Record<string, MenuItemContract[]>;
+}
+
+export interface RouteRecordContract {
+  routeId: string;
+  id: number;
+  slug: string;
+  title: string;
+  path: string;
+  permalink: string;
+}
+
+/**
+ * Canonical `routes` resource contract (docs/resource-contracts.md §6).
+ */
+export interface RoutesResource {
+  homeUrl: string;
+  basePath: string;
+  lang?: string;
+  routes: RouteRecordContract[];
+  pageLinks: Record<string, string>;
+}
+
+/**
+ * Canonical `i18n` resource contract (docs/resource-contracts.md §7).
+ */
 export interface I18nResource {
   currentLanguage: string;
+  defaultLocale?: string;
+  locales?: string[];
   translations: Record<string, any>;
   urls?: Record<string, string>;
   homeUrls?: Record<string, string>;
@@ -70,8 +116,8 @@ export interface I18nResource {
 export interface ForgeWpResourceMap {
   'site-settings': SiteSettingsResource;
   forms: FormsCollectionResource;
-  menus: Record<string, any[]>;
-  routes: { homeUrl: string; basePath: string; routes: any[] };
+  menus: MenusCollectionResource;
+  routes: RoutesResource;
   i18n: I18nResource;
   seo: Record<string, any>;
   editables: Record<string, any>;
@@ -325,5 +371,193 @@ export function normalizeFormsCollection(raw: any): FormsCollectionResource | nu
   return {
     ...(typeof raw.lang === 'string' && raw.lang.trim() ? { lang: raw.lang.trim() } : {}),
     forms,
+  };
+}
+
+function deriveRelativePathFromUrl(rawUrl: string): { path: string; external: boolean } {
+  const trimmed = String(rawUrl || '').trim();
+  if (!trimmed) return { path: '/', external: false };
+  if (/^https?:\/\//i.test(trimmed)) {
+    return { path: trimmed, external: true };
+  }
+  return {
+    path: trimmed.startsWith('/') ? trimmed : `/${trimmed}`,
+    external: false,
+  };
+}
+
+/**
+ * Normalizes a menu item tree into the canonical `MenuItemContract[]` shape
+ * (docs/resource-contracts.md §5).
+ */
+export function normalizeMenuItemsContract(
+  items: any,
+  prefix = 'item',
+): MenuItemContract[] {
+  if (!Array.isArray(items)) return [];
+  const out: MenuItemContract[] = [];
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx];
+    if (!item || typeof item !== 'object') continue;
+    const rawUrl = String(item.url || item.path || '/');
+    const derived = deriveRelativePathFromUrl(rawUrl);
+    const resolvedPath =
+      typeof item.path === 'string' && item.path.trim()
+        ? item.path.trim()
+        : derived.path;
+    const external =
+      typeof item.external === 'boolean'
+        ? item.external
+        : derived.external && resolvedPath === rawUrl;
+    const classes = Array.isArray(item.classes)
+      ? item.classes.filter(Boolean).map(String)
+      : typeof item.classes === 'string' && item.classes.trim()
+        ? item.classes.trim().split(/\s+/)
+        : [];
+    out.push({
+      id: item.id !== undefined && item.id !== null ? item.id : `${prefix}-${idx + 1}`,
+      title: String(item.title || ''),
+      url: rawUrl,
+      path: resolvedPath,
+      ...(typeof item.target === 'string' && item.target ? { target: item.target } : {}),
+      ...(classes.length > 0 ? { classes } : {}),
+      ...(typeof item.description === 'string' ? { description: item.description } : {}),
+      ...(typeof item.attrTitle === 'string' ? { attrTitle: item.attrTitle } : {}),
+      ...(external ? { external: true } : {}),
+      children: normalizeMenuItemsContract(item.children, `${prefix}-${idx + 1}`),
+    });
+  }
+  return out;
+}
+
+/**
+ * Normalizes canonical `GET /wp-json/forgewp/v1/menus`, single-location
+ * `GET /wp-json/forgewp/v1/menus/<location>`, or legacy `{ primary: [...] }`
+ * payloads into `MenusCollectionResource`.
+ */
+export function normalizeMenusCollection(
+  raw: any,
+  fallbackLocation?: string,
+): MenusCollectionResource | null {
+  if (!raw || typeof raw !== 'object') return null;
+
+  // Single-menu response: { location, lang?, items: [...] }
+  if (Array.isArray(raw.items)) {
+    const loc =
+      typeof raw.location === 'string' && raw.location.trim()
+        ? raw.location.trim()
+        : fallbackLocation || '';
+    if (!loc) return null;
+    return {
+      ...(typeof raw.lang === 'string' && raw.lang.trim() ? { lang: raw.lang.trim() } : {}),
+      menus: {
+        [loc]: normalizeMenuItemsContract(raw.items),
+      },
+    };
+  }
+
+  const sourceMap =
+    raw.menus && typeof raw.menus === 'object' && !Array.isArray(raw.menus)
+      ? raw.menus
+      : raw;
+
+  const menus: Record<string, MenuItemContract[]> = {};
+  for (const [loc, entries] of Object.entries(sourceMap)) {
+    if (loc === 'lang' && typeof entries === 'string') continue;
+    if (Array.isArray(entries)) {
+      menus[loc] = normalizeMenuItemsContract(entries);
+    }
+  }
+
+  return {
+    ...(typeof raw.lang === 'string' && raw.lang.trim() ? { lang: raw.lang.trim() } : {}),
+    menus,
+  };
+}
+
+/**
+ * Normalizes canonical `GET /wp-json/forgewp/v1/routes` or hydration
+ * `resources.routes` payloads into `RoutesResource`, deriving `pageLinks`
+ * from `routes[]` when omitted.
+ */
+export function normalizeRoutesResource(raw: any): RoutesResource | null {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const routes: RouteRecordContract[] = [];
+  if (Array.isArray(raw.routes)) {
+    for (const r of raw.routes) {
+      if (!r || typeof r !== 'object') continue;
+      const routeId = String(r.routeId || r.slug || '').trim();
+      if (!routeId) continue;
+      routes.push({
+        routeId,
+        id: typeof r.id === 'number' ? r.id : 0,
+        slug: String(r.slug || routeId),
+        title: String(r.title || ''),
+        path: String(r.path || '/'),
+        permalink: String(r.permalink || r.path || '/'),
+      });
+    }
+  }
+
+  const pageLinks: Record<string, string> = {};
+  for (const r of routes) {
+    pageLinks[r.routeId] = r.path;
+  }
+  if (raw.pageLinks && typeof raw.pageLinks === 'object' && !Array.isArray(raw.pageLinks)) {
+    for (const [k, v] of Object.entries(raw.pageLinks)) {
+      if (typeof v === 'string' && v.trim()) {
+        pageLinks[k] = v;
+      }
+    }
+  }
+
+  return {
+    homeUrl: String(raw.homeUrl || ''),
+    basePath: String(raw.basePath || ''),
+    ...(typeof raw.lang === 'string' && raw.lang.trim() ? { lang: raw.lang.trim() } : {}),
+    routes,
+    pageLinks,
+  };
+}
+
+/**
+ * Normalizes canonical `GET /wp-json/forgewp/v1/i18n` or hydration
+ * `resources.i18n` payloads into `I18nResource`.
+ */
+export function normalizeI18nResource(raw: any): I18nResource | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const currentLanguage =
+    typeof raw.currentLanguage === 'string' ? raw.currentLanguage.trim() : '';
+  if (!currentLanguage) return null;
+
+  const urls =
+    raw.urls && typeof raw.urls === 'object' ? (raw.urls as Record<string, string>) : undefined;
+  const homeUrls =
+    raw.homeUrls && typeof raw.homeUrls === 'object'
+      ? (raw.homeUrls as Record<string, string>)
+      : undefined;
+  const explicitLocales = Array.isArray(raw.locales)
+    ? raw.locales.filter((l: unknown) => typeof l === 'string' && l.trim()).map((l: string) => l.trim())
+    : [];
+  const derivedLocales =
+    explicitLocales.length > 0
+      ? explicitLocales
+      : urls && Object.keys(urls).length > 0
+        ? Object.keys(urls)
+        : [currentLanguage];
+  const defaultLocale =
+    typeof raw.defaultLocale === 'string' && raw.defaultLocale.trim()
+      ? raw.defaultLocale.trim()
+      : currentLanguage;
+
+  return {
+    currentLanguage,
+    defaultLocale,
+    locales: derivedLocales,
+    translations:
+      raw.translations && typeof raw.translations === 'object' ? raw.translations : {},
+    ...(urls ? { urls } : {}),
+    ...(homeUrls ? { homeUrls } : {}),
   };
 }
