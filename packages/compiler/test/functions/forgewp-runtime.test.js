@@ -139,13 +139,19 @@ describe('Phase A: ForgeWpRuntime, fail-loud production, and site-settings pilot
       expect(err.code).toBe('FORGEWP_LOCALE_UNCONFIGURED');
     }
 
-    // 3. In production with hydrated translations: works cleanly
+    // 3. In production with canonical hydrated resources.i18n: works cleanly
     vi.stubGlobal('window', {
-      forgeWpHydration: { restUrl: '/wp-json/forgewp/v1' },
-      forgeWpTranslations: {
-        currentLanguage: 'fr',
-        translations: { fr: { Hello: 'Bonjour' } },
-        urls: { fr: '/', en: '/en/' },
+      forgeWpHydration: {
+        restUrl: '/wp-json/forgewp/v1',
+        resources: {
+          i18n: {
+            currentLanguage: 'fr',
+            defaultLocale: 'fr',
+            locales: ['fr', 'en'],
+            translations: { fr: { Hello: 'Bonjour' } },
+            urls: { fr: '/', en: '/en/' },
+          },
+        },
       },
     });
     expect(renderToStaticMarkup(React.createElement(Probe))).toBe(

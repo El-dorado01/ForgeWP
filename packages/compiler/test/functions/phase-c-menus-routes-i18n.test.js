@@ -439,4 +439,42 @@ describe('Phase C: menus, routes, and i18n contracts (React runtime + server cli
       '<div>Blog|/company/about|Bienvenue|fr/en/en,fr</div>',
     );
   });
+
+  it('nativeSource ignores legacy top-level hydration.menus, hydration.pageLinks, and window.forgeWpTranslations', () => {
+    vi.stubGlobal('window', {
+      forgeWpHydration: {
+        menus: {
+          primary: [{ id: 1, title: 'Legacy Menu', url: '/legacy', path: '/legacy', children: [] }],
+        },
+        pageLinks: { about: '/legacy-about' },
+      },
+      forgeWpTranslations: {
+        currentLanguage: 'de',
+        translations: { de: { Welcome: 'Willkommen' } },
+        urls: { de: '/de/' },
+        homeUrls: { de: '/de/' },
+      },
+    });
+
+    const nativeSource = createNativeSource();
+    expect(nativeSource.peek('menus')).toBeUndefined();
+    expect(nativeSource.peek('routes')).toBeUndefined();
+    expect(nativeSource.peek('i18n')).toBeUndefined();
+
+    function LegacyProbe() {
+      const { items } = useWpMenu('primary');
+      const aboutHref = useWpPageLink('about', '/fallback-about');
+      const { __ } = useWpI18n();
+      const { currentLanguage } = useWpLanguage();
+      return React.createElement(
+        'div',
+        null,
+        `${items.length}|${aboutHref}|${__('Welcome')}|${currentLanguage}`,
+      );
+    }
+
+    expect(renderToStaticMarkup(React.createElement(LegacyProbe))).toBe(
+      '<div>0|/fallback-about|Welcome|en</div>',
+    );
+  });
 });
