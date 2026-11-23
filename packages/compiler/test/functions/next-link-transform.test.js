@@ -450,6 +450,7 @@ echo forgewp_resolve_route_url('__home__', '/', 'ref=nav', 'top');
         // PHP lint every generated PHP template and compiled static HTML containing PHP tags.
         for (const rel of [
           'functions.php',
+          'companion/backend.php',
           'header.php',
           'front-page.php',
           'page-about.php',
@@ -461,8 +462,13 @@ echo forgewp_resolve_route_url('__home__', '/', 'ref=nav', 'top');
         }
 
         // Execute compiled header.html and content.html under a subdirectory WordPress stand-in with a renamed slug!
+        // Phase B moved backend helpers (including forgewp_resolve_route_url) into companion/backend.php.
         const functionsPhp = readFileSync(path.join(outDir, 'functions.php'), 'utf8');
-        const resolveRouteUrlFn = extractPhpFunction(functionsPhp, 'forgewp_resolve_route_url');
+        const backendPhpPath = path.join(outDir, 'companion', 'backend.php');
+        const generatedPhp = existsSync(backendPhpPath)
+          ? `${functionsPhp}\n${readFileSync(backendPhpPath, 'utf8')}`
+          : functionsPhp;
+        const resolveRouteUrlFn = extractPhpFunction(generatedPhp, 'forgewp_resolve_route_url');
         const renderScript = path.join(tmpDir, 'render.php');
         writeFileSync(
           renderScript,
