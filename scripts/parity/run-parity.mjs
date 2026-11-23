@@ -354,6 +354,43 @@ async function checkCommerce() {
   expect('checkout (bank transfer → on-hold)', order.status === 200 && order.body.status === 'on-hold' && order.body.needsRedirect === false && Number.isInteger(order.body.total), order.body);
   const after = await call('GET', '/cart?contract=2');
   expect('cart emptied after order', after.body?.itemCount === 0, after.body?.itemCount);
+  expect('guest order view needs the key', (await call('GET', `/checkout/order?id=${order.body.orderId}&key=wc_order_wrong`)).status === 404);
+  expect('guest order view with key', (await call('GET', `/checkout/order?id=${order.body.orderId}&key=${order.body.orderKey}`)).body?.status === 'on-hold');
+
+  // Signed in (login cookie, no Origin header: how a Next.js server calls WordPress).
+  const login = async (user, pass) => {
+    const res = await fetch(`${WP}/wp-login.php`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: 'wordpress_test_cookie=WP%20Cookie%20check' },
+      body: new URLSearchParams({ log: user, pwd: pass, testcookie: '1', 'wp-submit': 'Log In' }),
+    });
+    const cookie = res.headers.getSetCookie().map((c) => c.split(';')[0]).filter((c) => !c.endsWith('=deleted')).join('; ');
+    return async (method, route, body) => {
+      const r = await fetch(`${WP}/wp-json/forgewp/v1${route}`, { method, headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: body ? JSON.stringify(body) : undefined });
+      return { status: r.status, body: await r.json().catch(() => null) };
+    };
+  };
+  const ada = await login('parity-ada', 'parity-ada-pass');
+  const bob = await login('parity-bob', 'parity-bob-pass');
+  token = '';
+  expect('account needs a session', (await call('GET', '/customer/orders?contract=2')).status === 401);
+  await ada('DELETE', '/cart/items');
+  await ada('POST', '/cart/items', { productId: shirt.id, quantity: 1 });
+  const mine = await ada('POST', '/checkout', {
+    billingAddress: { firstName: 'Ada', lastName: 'Parity', address1: '2 Main', city: 'Berlin', postcode: '10115', country: 'DE', email: 'parity-ada@example.test' },
+    paymentMethod: 'cod',
+  });
+  expect('signed-in checkout (COD → processing)', mine.status === 200 && mine.body.status === 'processing', mine.body);
+  const orders = await ada('GET', '/customer/orders?contract=2');
+  expect('order history', orders.status === 200 && orders.body.items?.some((o) => o.id === mine.body.orderId), orders.body);
+  expect('order detail', (await ada('GET', `/customer/orders/${mine.body.orderId}?contract=2`)).body?.items?.length === 1);
+  expect("another customer's order is 404", (await bob('GET', `/customer/orders/${mine.body.orderId}?contract=2`)).status === 404);
+  expect('address saved from checkout', (await ada('GET', '/customer/address')).body?.billing?.city === 'Berlin');
+  const wish = await ada('POST', '/wishlist/items', { productId: jacket.id });
+  expect('wishlist add', wish.body?.items?.includes(jacket.id), wish.body);
+  expect('wishlist rejects non-products', (await ada('POST', '/wishlist/items', { productId: 999999 })).status === 404);
+  expect('wishlist remove', !(await ada('DELETE', `/wishlist/items/${jacket.id}`)).body?.items?.includes(jacket.id));
 }
 
 async function checkLeaks(page) {

@@ -44,6 +44,9 @@ fi
 wp wc payment_gateway update bacs --user=admin --enabled=true >/dev/null
 wp wc payment_gateway update cod --user=admin --enabled=true >/dev/null
 exists shop_coupon save10 || wp wc shop_coupon create --user=admin --code=save10 --discount_type=percent --amount=10 --porcelain >/dev/null
+# Two customers for the signed-in account checks (throwaway sandbox credentials).
+wp user get parity-ada --field=ID >/dev/null 2>&1 || wp user create parity-ada parity-ada@example.test --role=customer --user_pass=parity-ada-pass --first_name=Ada --porcelain >/dev/null
+wp user get parity-bob --field=ID >/dev/null 2>&1 || wp user create parity-bob parity-bob@example.test --role=customer --user_pass=parity-bob-pass --porcelain >/dev/null
 # Stock may have been bought by an earlier local run.
 SHIRT="$(wp post list --post_type=product --name=linen-shirt --field=ID)"
 wp wc product update "$SHIRT" --user=admin --stock_quantity=3 >/dev/null

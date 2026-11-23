@@ -62,6 +62,9 @@ class Customer { function __call($m, $a) {} function save() {} }
 class Checkout { function create_order($data) { global $orders, $log; $log[] = 'create_order:' . $data['payment_method'] . ':' . $data['billing_email'] . ':' . $data['shipping_city']; $orders[101] = new Order(101, $data['payment_method']); return 101; } }
 class Gateways { public $available; function get_available_payment_gateways() { return $this->available; } }
 class WCMain { public $cart; public $customer; public $session = null; public $gw; function payment_gateways() { return $this->gw; } function checkout() { return new Checkout(); } }
+function get_current_user_id() { global $current_user_id; return $current_user_id; }
+class WC_Customer { public $id; function __construct($id) { $this->id = $id; } function __call($m, $a) { global $saved_account; $saved_account[$m] = $a[0]; } function save() { global $log; $log[] = 'account_saved:' . $this->id; } }
+$current_user_id = 0; $saved_account = array();
 $log = array(); $orders = array(); $notices = array();
 `;
 
@@ -130,6 +133,13 @@ describe('checkout payment (R7 review)', () => {
     const { r, log } = run(setup({ needs: false }) + checkout(body()));
     expect(r).toMatchObject({ success: true, status: 'processing' });
     expect(log.some((l) => l.startsWith('pay:'))).toBe(false);
+  });
+
+  it.skipIf(!hasPhp)('saves a signed-in customer\'s addresses to the account, not for guests', () => {
+    const guest = run(setup() + checkout(body({ payment_method: 'cod' })));
+    expect(guest.log.some((l) => l.startsWith('account_saved'))).toBe(false);
+    const user = run(setup() + '$current_user_id = 7;' + checkout(body({ payment_method: 'cod' })));
+    expect(user.log).toContain('account_saved:7');
   });
 
   it.skipIf(!hasPhp)('requires a valid billing email and refuses out-of-stock carts', () => {

@@ -35,8 +35,8 @@ if (!function_exists('forgewp_commerce_available')) {
 
     // ── Money (§15.1): integers in minor units + one currency object ──────────
 
-    function forgewp_commerce_currency() {
-        $code = get_woocommerce_currency();
+    function forgewp_commerce_currency($code = null) {
+        $code = $code ? (string) $code : get_woocommerce_currency();
         $symbol = html_entity_decode(get_woocommerce_currency_symbol($code), ENT_QUOTES, 'UTF-8');
         $prefix = '';
         $suffix = '';
@@ -944,6 +944,324 @@ if (!function_exists('forgewp_commerce_available')) {
         return forgewp_commerce_public_response(forgewp_commerce_product_resource($product));
     }
 
+    // ── customer + wishlist (§15.5), session only ─────────────────────────────
+
+    function forgewp_commerce_user($request) {
+        if (function_exists('forgewp_auth_resolve_session_user')) {
+            return (int) forgewp_auth_resolve_session_user($request);
+        }
+        return (int) get_current_user_id();
+    }
+
+    function forgewp_commerce_unauthorized() {
+        return new WP_Error('unauthorized', 'Log in to continue.', array('status' => 401));
+    }
+
+    function forgewp_commerce_address_fields() {
+        return array('firstName' => 'first_name', 'lastName' => 'last_name', 'company' => 'company', 'address1' => 'address_1', 'address2' => 'address_2', 'city' => 'city', 'state' => 'state', 'postcode' => 'postcode', 'country' => 'country', 'phone' => 'phone', 'email' => 'email');
+    }
+
+    /** WooCommerce address array (snake_case) to the contract's camelCase keys. */
+    function forgewp_commerce_address_out($address, $with_email) {
+        $out = array();
+        foreach (forgewp_commerce_address_fields() as $key => $field) {
+            if ($field === 'email' && !$with_email) {
+                continue;
+            }
+            $out[$key] = (string) ($address[$field] ?? '');
+        }
+        return $out;
+    }
+
+    function forgewp_commerce_order_summary($order) {
+        $created = $order->get_date_created();
+        return array(
+            'id'          => (int) $order->get_id(),
+            'number'      => (string) $order->get_order_number(),
+            'date'        => $created ? $created->date('c') : '',
+            'status'      => (string) $order->get_status(),
+            'statusLabel' => (string) wc_get_order_status_name($order->get_status()),
+            'total'       => forgewp_commerce_money($order->get_total()),
+            'itemCount'   => (int) $order->get_item_count(),
+            'path'        => forgewp_commerce_path($order->get_view_order_url()),
+        );
+    }
+
+    function forgewp_commerce_order_detail($order) {
+        $items = array();
+        foreach ($order->get_items() as $item_id => $item) {
+            $product = $item->get_product();
+            $image_id = 0;
+            if ($product) {
+                $image_id = (int) $product->get_image_id();
+                if (!$image_id && $product->get_parent_id()) {
+                    $parent = wc_get_product($product->get_parent_id());
+                    $image_id = $parent ? (int) $parent->get_image_id() : 0;
+                }
+            }
+            $items[] = array(
+                'id'           => (int) $item_id,
+                'productId'    => (int) $item->get_product_id(),
+                'variationId'  => (int) $item->get_variation_id(),
+                'name'         => html_entity_decode((string) $item->get_name(), ENT_QUOTES, 'UTF-8'),
+                'quantity'     => (int) $item->get_quantity(),
+                'totals'       => array(
+                    'subtotal' => forgewp_commerce_money($item->get_subtotal()),
+                    'total'    => forgewp_commerce_money($item->get_total()),
+                    'tax'      => forgewp_commerce_money($item->get_total_tax()),
+                ),
+                'image'        => forgewp_commerce_image($image_id),
+                'downloadable' => (bool) ($product && $product->is_downloadable()),
+            );
+        }
+        $actions = array();
+        foreach ((array) wc_get_account_orders_actions($order) as $key => $action) {
+            if (!empty($action['url'])) {
+                $actions[(string) $key] = (string) $action['url'];
+            }
+        }
+        return array_merge(forgewp_commerce_order_summary($order), array(
+            'items'              => $items,
+            'totals'             => array(
+                'subtotal' => forgewp_commerce_money($order->get_subtotal()),
+                'discount' => forgewp_commerce_money($order->get_total_discount()),
+                'shipping' => forgewp_commerce_money($order->get_shipping_total()),
+                'fees'     => forgewp_commerce_money($order->get_total_fees()),
+                'tax'      => forgewp_commerce_money($order->get_total_tax()),
+                'total'    => forgewp_commerce_money($order->get_total()),
+            ),
+            'billingAddress'     => forgewp_commerce_address_out($order->get_address('billing'), true),
+            'shippingAddress'    => forgewp_commerce_address_out($order->get_address('shipping'), false),
+            'paymentMethodTitle' => (string) $order->get_payment_method_title(),
+            'customerNote'       => (string) $order->get_customer_note(),
+            'actions'            => (object) $actions,
+            'currency'           => forgewp_commerce_currency($order->get_currency()),
+        ));
+    }
+
+    function forgewp_commerce_rest_customer_orders($request) {
+        $user_id = forgewp_commerce_user($request);
+        if (!$user_id) {
+            return forgewp_commerce_unauthorized();
+        }
+        $page = max(1, (int) $request->get_param('page'));
+        $per_page = max(1, min(100, (int) ($request->get_param('perPage') ?: 10)));
+        $result = wc_get_orders(array('customer_id' => $user_id, 'limit' => $per_page, 'page' => $page, 'paginate' => true, 'orderby' => 'date', 'order' => 'DESC'));
+        $items = array();
+        foreach ($result->orders as $order) {
+            $items[] = forgewp_commerce_order_summary($order);
+        }
+        return forgewp_commerce_private_response(array(
+            'page'       => $page,
+            'perPage'    => $per_page,
+            'total'      => (int) $result->total,
+            'totalPages' => (int) $result->max_num_pages,
+            'currency'   => forgewp_commerce_currency(),
+            'items'      => $items,
+        ));
+    }
+
+    function forgewp_commerce_rest_customer_order($request) {
+        $user_id = forgewp_commerce_user($request);
+        if (!$user_id) {
+            return forgewp_commerce_unauthorized();
+        }
+        $order = wc_get_order((int) $request['id']);
+        // Someone else's order is indistinguishable from a missing one.
+        if (!$order || (int) $order->get_customer_id() !== $user_id) {
+            return new WP_Error('order_not_found', 'Order not found.', array('status' => 404));
+        }
+        return forgewp_commerce_private_response(forgewp_commerce_order_detail($order));
+    }
+
+    /** Order-received view for whoever holds the order key (guests included). */
+    function forgewp_commerce_rest_checkout_order($request) {
+        if (!forgewp_commerce_available()) {
+            return new WP_Error('wc_unavailable', 'WooCommerce is not available', array('status' => 503));
+        }
+        $order = wc_get_order((int) $request->get_param('id'));
+        $key = (string) $request->get_param('key');
+        if (!$order || $key === '' || !hash_equals((string) $order->get_order_key(), $key)) {
+            return new WP_Error('order_not_found', 'Order not found.', array('status' => 404));
+        }
+        $detail = forgewp_commerce_order_detail($order);
+        $detail['actions'] = (object) array(); // account actions are for the signed-in owner
+        return forgewp_commerce_private_response($detail);
+    }
+
+    function forgewp_commerce_rest_customer_downloads($request) {
+        $user_id = forgewp_commerce_user($request);
+        if (!$user_id) {
+            return forgewp_commerce_unauthorized();
+        }
+        $items = array();
+        foreach ((array) wc_get_customer_available_downloads($user_id) as $download) {
+            $remaining = $download['downloads_remaining'] ?? '';
+            $expires = $download['access_expires'] ?? null;
+            $items[] = array(
+                'productId'    => (int) ($download['product_id'] ?? 0),
+                'name'         => html_entity_decode((string) ($download['product_name'] ?? ''), ENT_QUOTES, 'UTF-8'),
+                'downloadName' => (string) ($download['download_name'] ?? ''),
+                'url'          => (string) ($download['download_url'] ?? ''),
+                'remaining'    => ($remaining === '' || $remaining === null) ? null : (int) $remaining,
+                'expires'      => $expires ? (is_object($expires) && method_exists($expires, 'date') ? $expires->date('c') : (string) $expires) : null,
+            );
+        }
+        return forgewp_commerce_private_response(array('items' => $items));
+    }
+
+    function forgewp_commerce_profile($user_id) {
+        $user = get_userdata($user_id);
+        return array(
+            'firstName'   => (string) get_user_meta($user_id, 'first_name', true),
+            'lastName'    => (string) get_user_meta($user_id, 'last_name', true),
+            'displayName' => $user ? (string) $user->display_name : '',
+            'email'       => $user ? (string) $user->user_email : '',
+        );
+    }
+
+    function forgewp_commerce_rest_get_profile($request) {
+        $user_id = forgewp_commerce_user($request);
+        return $user_id ? forgewp_commerce_private_response(forgewp_commerce_profile($user_id)) : forgewp_commerce_unauthorized();
+    }
+
+    function forgewp_commerce_rest_update_profile($request) {
+        $user_id = forgewp_commerce_user($request);
+        if (!$user_id) {
+            return forgewp_commerce_unauthorized();
+        }
+        $p = forgewp_commerce_params($request);
+        $data = array('ID' => $user_id);
+        foreach (array('firstName' => 'first_name', 'lastName' => 'last_name', 'displayName' => 'display_name') as $in => $field) {
+            if (isset($p[$in]) && is_scalar($p[$in])) {
+                $data[$field] = sanitize_text_field((string) $p[$in]);
+            }
+        }
+        if (isset($p['email'])) {
+            $email = sanitize_email((string) $p['email']);
+            if (!is_email($email)) {
+                return new WP_Error('invalid_email', 'Enter a valid email address.', array('status' => 400));
+            }
+            $owner = email_exists($email);
+            if ($owner && (int) $owner !== $user_id) {
+                return new WP_Error('email_exists', 'That email address is already in use.', array('status' => 409));
+            }
+            $data['user_email'] = $email;
+        }
+        $updated = wp_update_user($data);
+        if (is_wp_error($updated)) {
+            return new WP_Error('update_failed', forgewp_commerce_plain($updated->get_error_message()), array('status' => 400));
+        }
+        return forgewp_commerce_private_response(forgewp_commerce_profile($user_id));
+    }
+
+    function forgewp_commerce_addresses($user_id) {
+        $customer = new WC_Customer($user_id);
+        return array(
+            'billing'  => forgewp_commerce_address_out($customer->get_billing(), true),
+            'shipping' => forgewp_commerce_address_out($customer->get_shipping(), false),
+        );
+    }
+
+    function forgewp_commerce_rest_get_address($request) {
+        $user_id = forgewp_commerce_user($request);
+        return $user_id ? forgewp_commerce_private_response(forgewp_commerce_addresses($user_id)) : forgewp_commerce_unauthorized();
+    }
+
+    function forgewp_commerce_rest_update_address($request) {
+        $user_id = forgewp_commerce_user($request);
+        if (!$user_id) {
+            return forgewp_commerce_unauthorized();
+        }
+        $p = forgewp_commerce_params($request);
+        $customer = new WC_Customer($user_id);
+        foreach (array('billing', 'shipping') as $type) {
+            if (empty($p[$type]) || !is_array($p[$type])) {
+                continue;
+            }
+            foreach (forgewp_commerce_address_fields() as $in => $field) {
+                if (!array_key_exists($in, $p[$type]) || ($field === 'email' && $type !== 'billing')) {
+                    continue;
+                }
+                $value = (string) $p[$type][$in];
+                if ($field === 'email' && $value !== '' && !is_email($value)) {
+                    return new WP_Error('invalid_email', 'Enter a valid email address.', array('status' => 400));
+                }
+                $setter = 'set_' . $type . '_' . $field;
+                if (method_exists($customer, $setter)) {
+                    $customer->{$setter}($field === 'email' ? sanitize_email($value) : sanitize_text_field($value));
+                }
+            }
+        }
+        $customer->save();
+        return forgewp_commerce_private_response(forgewp_commerce_addresses($user_id));
+    }
+
+    function forgewp_commerce_wishlist_ids($user_id) {
+        $saved = get_user_meta($user_id, '_forgewp_wishlist', true);
+        return is_array($saved) ? array_values(array_unique(array_map('intval', $saved))) : array();
+    }
+
+    /** Only published products may enter a wishlist. */
+    function forgewp_commerce_valid_product_ids($ids) {
+        $out = array();
+        foreach ((array) $ids as $id) {
+            $id = (int) $id;
+            if ($id > 0 && get_post_type($id) === 'product' && get_post_status($id) === 'publish' && !in_array($id, $out, true)) {
+                $out[] = $id;
+            }
+        }
+        return $out;
+    }
+
+    function forgewp_commerce_wishlist_response($user_id) {
+        return forgewp_commerce_private_response(array('items' => forgewp_commerce_wishlist_ids($user_id)));
+    }
+
+    function forgewp_commerce_rest_wishlist($request) {
+        $user_id = forgewp_commerce_user($request);
+        return $user_id ? forgewp_commerce_wishlist_response($user_id) : forgewp_commerce_unauthorized();
+    }
+
+    function forgewp_commerce_rest_wishlist_add($request) {
+        $user_id = forgewp_commerce_user($request);
+        if (!$user_id) {
+            return forgewp_commerce_unauthorized();
+        }
+        $p = forgewp_commerce_params($request);
+        $valid = forgewp_commerce_valid_product_ids(array($p['productId'] ?? 0));
+        if (empty($valid)) {
+            return new WP_Error('product_not_found', 'Product not found.', array('status' => 404));
+        }
+        $ids = forgewp_commerce_wishlist_ids($user_id);
+        if (!in_array($valid[0], $ids, true)) {
+            $ids[] = $valid[0];
+            update_user_meta($user_id, '_forgewp_wishlist', $ids);
+        }
+        return forgewp_commerce_wishlist_response($user_id);
+    }
+
+    function forgewp_commerce_rest_wishlist_remove($request) {
+        $user_id = forgewp_commerce_user($request);
+        if (!$user_id) {
+            return forgewp_commerce_unauthorized();
+        }
+        $remove = (int) $request['id'];
+        update_user_meta($user_id, '_forgewp_wishlist', array_values(array_filter(forgewp_commerce_wishlist_ids($user_id), function ($id) use ($remove) { return $id !== $remove; })));
+        return forgewp_commerce_wishlist_response($user_id);
+    }
+
+    function forgewp_commerce_rest_wishlist_merge($request) {
+        $user_id = forgewp_commerce_user($request);
+        if (!$user_id) {
+            return forgewp_commerce_unauthorized();
+        }
+        $p = forgewp_commerce_params($request);
+        $incoming = forgewp_commerce_valid_product_ids(array_slice((array) ($p['items'] ?? array()), 0, 200));
+        update_user_meta($user_id, '_forgewp_wishlist', array_values(array_unique(array_merge(forgewp_commerce_wishlist_ids($user_id), $incoming))));
+        return forgewp_commerce_wishlist_response($user_id);
+    }
+
     add_action('rest_api_init', function () {
         $public = array('permission_callback' => '__return_true');
         register_rest_route('forgewp/v1', '/commerce/settings', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_settings') + $public));
@@ -962,6 +1280,13 @@ if (!function_exists('forgewp_commerce_available')) {
         register_rest_route('forgewp/v1', '/cart/customer', array(array('methods' => 'POST', 'callback' => 'forgewp_commerce_rest_customer') + $public));
         register_rest_route('forgewp/v1', '/cart/merge', array(array('methods' => 'POST', 'callback' => 'forgewp_commerce_rest_merge') + $public));
         register_rest_route('forgewp/v1', '/checkout', array(array('methods' => 'POST', 'callback' => 'forgewp_commerce_rest_checkout') + $public));
+        register_rest_route('forgewp/v1', '/checkout/order', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_checkout_order') + $public));
+        // GET added next to today's POST-only routes (same path, extra method).
+        register_rest_route('forgewp/v1', '/customer/profile', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_get_profile') + $public));
+        register_rest_route('forgewp/v1', '/customer/address', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_get_address') + $public));
+        register_rest_route('forgewp/v1', '/wishlist/items', array(array('methods' => 'POST', 'callback' => 'forgewp_commerce_rest_wishlist_add') + $public));
+        register_rest_route('forgewp/v1', '/wishlist/items/(?P<id>[0-9]+)', array(array('methods' => 'DELETE', 'callback' => 'forgewp_commerce_rest_wishlist_remove') + $public));
+        register_rest_route('forgewp/v1', '/wishlist/merge', array(array('methods' => 'POST', 'callback' => 'forgewp_commerce_rest_wishlist_merge') + $public));
     });
 }
 `;

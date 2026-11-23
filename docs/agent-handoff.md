@@ -43,7 +43,7 @@ Route-id overwrite fix (`bf909e8`), R6 parity CI (`49c0904`, CI fixes `1d7ef51`,
 | Order | Task | Notes |
 |---|---|---|
 | 1 ✅ | **R2 PHP** (`markup-processor.js`) — done, status §9c | Terms loop, comments loop (memoized `forgewp_native_comments()`, recursive closure with per-loop names + depth guard), count from the resource (C2), unquoted numeric tokens inside island props (C1). Remove the R2 entries from `scripts/parity/known-gaps.json` once CI is green. Starts when Gemini's markers land. |
-| 2 | **R7 PHP** (§15) | ✅ money, `commerce-settings`, `products`/`product` (REST + native), contract cart + `X-ForgeWP-Cart-Token`, `POST /checkout`, parity CI with WooCommerce 11.0.1 (see §15.7a). **Left:** `GET /checkout/order`, customer + wishlist shapes, then removing legacy shapes once Gemini's client is on the contract. |
+| 2 | **R7 PHP** (§15) | ✅ money, `commerce-settings`, `products`/`product` (REST + native), contract cart + `X-ForgeWP-Cart-Token`, `POST /checkout`, parity CI with WooCommerce 11.0.1 (see §15.7a). **Done incl.** order view, customer, wishlist (§15.7a). **Left:** remove legacy shapes once Gemini's client is on the contract. |
 | 3 | **R4 / R5 PHP** | After the founder approves §13/§14 with Claude's answers. |
 | later | R8 `transformBackendPhp`, R9 hand-written plugin sources | Post-beta. |
 

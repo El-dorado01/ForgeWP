@@ -2517,6 +2517,19 @@ function forgewp_rest_process_checkout( $request ) {
         return new WP_Error( 'order_creation_failed', 'Failed to create order. Please try again.', array( 'status' => 500 ) );
     }
     $order->add_order_note( 'Order placed via ForgeWP checkout.' );
+    // Like WooCommerce's checkout: a signed-in customer's addresses are saved for next time.
+    if ( get_current_user_id() && class_exists( 'WC_Customer' ) ) {
+        $account = new WC_Customer( get_current_user_id() );
+        foreach ( array( 'billing', 'shipping' ) as $type ) {
+            foreach ( forgewp_checkout_address_fields( $type ) as $field ) {
+                $setter = 'set_' . $type . '_' . $field;
+                if ( method_exists( $account, $setter ) && isset( $data[ $type . '_' . $field ] ) ) {
+                    $account->{$setter}( $data[ $type . '_' . $field ] );
+                }
+            }
+        }
+        $account->save();
+    }
     do_action( 'woocommerce_checkout_order_processed', $order_id, $data, $order );
 
     // The gateway decides the order status (COD: processing, BACS: on-hold,
@@ -2563,6 +2576,9 @@ function forgewp_rest_process_checkout( $request ) {
 }
 
 function forgewp_rest_get_customer_orders( $request ) {
+    if ( function_exists( 'forgewp_commerce_contract_v2' ) && forgewp_commerce_contract_v2( $request ) ) {
+        return forgewp_commerce_rest_customer_orders( $request );
+    }
     $user_id = get_current_user_id();
     if ( ! $user_id && function_exists( 'forgewp_validate_jwt_token' ) ) {
         $auth_header = isset( $_SERVER['HTTP_AUTHORIZATION'] ) ? $_SERVER['HTTP_AUTHORIZATION'] : '';
@@ -2642,6 +2658,9 @@ function forgewp_rest_get_customer_orders( $request ) {
 }
 
 function forgewp_rest_get_customer_order_detail( $request ) {
+    if ( function_exists( 'forgewp_commerce_contract_v2' ) && forgewp_commerce_contract_v2( $request ) ) {
+        return forgewp_commerce_rest_customer_order( $request );
+    }
     $user_id = get_current_user_id();
     $order_id = intval( $request['id'] );
 
@@ -2704,6 +2723,9 @@ function forgewp_rest_get_customer_order_detail( $request ) {
 }
 
 function forgewp_rest_get_customer_downloads( $request ) {
+    if ( function_exists( 'forgewp_commerce_contract_v2' ) && forgewp_commerce_contract_v2( $request ) ) {
+        return forgewp_commerce_rest_customer_downloads( $request );
+    }
     $user_id = get_current_user_id();
     if ( ! $user_id && function_exists( 'forgewp_validate_jwt_token' ) ) {
         $auth_header = isset( $_SERVER['HTTP_AUTHORIZATION'] ) ? $_SERVER['HTTP_AUTHORIZATION'] : '';
@@ -2736,6 +2758,9 @@ function forgewp_rest_get_customer_downloads( $request ) {
 }
 
 function forgewp_rest_get_wishlist( $request ) {
+    if ( function_exists( 'forgewp_commerce_contract_v2' ) && forgewp_commerce_contract_v2( $request ) ) {
+        return forgewp_commerce_rest_wishlist( $request );
+    }
     $user_id = get_current_user_id();
     if ( ! $user_id && function_exists( 'forgewp_validate_jwt_token' ) ) {
         $auth_header = isset( $_SERVER['HTTP_AUTHORIZATION'] ) ? $_SERVER['HTTP_AUTHORIZATION'] : '';
@@ -3012,6 +3037,9 @@ function forgewp_rest_query_products( $request ) {
 }
 
 function forgewp_rest_update_customer_profile( $request ) {
+    if ( function_exists( 'forgewp_commerce_contract_v2' ) && forgewp_commerce_contract_v2( $request ) ) {
+        return forgewp_commerce_rest_update_profile( $request );
+    }
     $user_id = get_current_user_id();
     if ( ! $user_id && function_exists( 'forgewp_validate_jwt_token' ) ) {
         $auth_header = isset( $_SERVER['HTTP_AUTHORIZATION'] ) ? $_SERVER['HTTP_AUTHORIZATION'] : '';
@@ -3073,6 +3101,9 @@ function forgewp_rest_update_customer_profile( $request ) {
 }
 
 function forgewp_rest_update_customer_address( $request ) {
+    if ( function_exists( 'forgewp_commerce_contract_v2' ) && forgewp_commerce_contract_v2( $request ) ) {
+        return forgewp_commerce_rest_update_address( $request );
+    }
     $user_id = get_current_user_id();
     if ( ! $user_id && function_exists( 'forgewp_validate_jwt_token' ) ) {
         $auth_header = isset( $_SERVER['HTTP_AUTHORIZATION'] ) ? $_SERVER['HTTP_AUTHORIZATION'] : '';

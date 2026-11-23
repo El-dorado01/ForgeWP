@@ -1006,7 +1006,11 @@ Built in `lib/functions/commerce-resources.js` (backend: Companion Plugin + them
 | `POST /checkout` (camelCase, money as integers) | ✅ delegates to the gateway-safe checkout (`dad33fe`); `paymentData` forwarded as posted fields |
 | Shared legacy paths | `GET /cart` and `GET /products` return the contract shape with `?contract=2` or `X-ForgeWP-Contract: 2`; without it, the legacy shape (forge-commerce keeps working). Legacy shapes and the switch go before beta. |
 | Native `resources.posts` on WooCommerce archives | Fixed: now `null` there (it contained WooCommerce's stand-in page); `products` covers them. |
-| `GET /checkout/order`, customer + wishlist shapes (§15.5) | Next |
+| `GET /checkout/order?id=&key=` | ✅ order-received view for whoever holds the order key (wrong key → `404`); `actions` empty there |
+| Customer (§15.5): `GET /customer/orders?contract=2&page=&perPage=`, `GET /customer/orders/<id>?contract=2`, `GET /customer/downloads?contract=2`, `GET`/`POST /customer/profile`, `GET`/`POST /customer/address` (POST contract shape with `?contract=2`) | ✅ `401` without a session (`forgewp_auth_resolve_session_user()`: nonce'd cookie, allowed-origin cookie, or Bearer JWT); another customer's order is `404`; profile email already used by another account → `409`; order `currency` uses the order's currency code |
+| Wishlist (§15.5): `GET /wishlist?contract=2` → `{ items }`, `POST /wishlist/items`, `DELETE /wishlist/items/<id>`, `POST /wishlist/merge` | ✅ only published products accepted (`404` otherwise); same storage as today (`_forgewp_wishlist`) |
+| Signed-in checkout saves billing/shipping to the account | ✅ like WooCommerce's own checkout |
+| Remove legacy shapes + `?contract=2` switch | After Gemini's client moves to the contract (before beta) |
 
 ### 15.8 Decisions (founder, 2026-11-23): Claude's recommendations accepted for Q1–Q6
 
