@@ -12,6 +12,10 @@
  */
 
 import React from 'react';
+import {
+  normalizeSiteSettings,
+  type SiteSettingsResource,
+} from './runtime/index.js';
 
 export interface WpServerBlockNode {
   blockName: string | null;
@@ -72,7 +76,8 @@ export interface WpServerClientOptions {
   fixtures?: Record<string, Array<Record<string, any>>>;
   menus?: Record<string, Array<Record<string, any>>>;
   siteInfo?: Partial<Omit<WpServerSiteInfo, 'mode'>>;
-  siteOptions?: Record<string, string>;
+  siteOptions?: Record<string, any>;
+  themeMods?: Record<string, any>;
   meta?: Record<string, string>;
   wpUrl?: string;
   auth?: WpServerAuth;
@@ -131,7 +136,11 @@ export interface WpServerClient {
   ): Promise<string>;
   getMenu(location?: string): Promise<WpServerMenuItem[]>;
   getSiteInfo(): Promise<WpServerSiteInfo>;
+  getSiteSettings(): Promise<SiteSettingsResource>;
   getOption(key: string, defaultValue?: string): string;
+  getThemeMod(key: string, defaultValue?: string): string;
+  getLiveOption(key: string, defaultValue?: string): Promise<string>;
+  getLiveThemeMod(key: string, defaultValue?: string): Promise<string>;
   getField(key: string, defaultValue?: string): string;
 }
 
@@ -257,7 +266,14 @@ function fromFixture(entry: Record<string, any>, slug: string): WpServerPageReco
  */
 export function createWpServerClient(options: WpServerClientOptions = {}): WpServerClient {
   const fixtures = options.fixtures || {};
-  const siteOptions = options.siteOptions || {};
+  const normalizedFixtureSettings = normalizeSiteSettings({
+    options: options.siteOptions || {},
+    themeMods: options.themeMods || {},
+    ...(options.siteInfo ? { site: options.siteInfo } : {}),
+  }) || { options: {}, themeMods: {} };
+  const siteOptions = normalizedFixtureSettings.options;
+  const themeMods = normalizedFixtureSettings.themeMods;
+  let cachedSiteSettings: SiteSettingsResource | null = null;
   const metaMap = options.meta || {};
   const fetchImpl = options.fetch || globalThis.fetch;
   const cacheMode = options.cache ?? 'no-store';
@@ -644,10 +660,12 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
 
     async getSiteInfo() {
       const localInfo = options.siteInfo || {};
-      const fallbackName =
-        localInfo.name || siteOptions.blogname || 'ForgeWP Site';
-      const fallbackDesc =
-        localInfo.description || siteOptions.blogdescription || '';
+      const fallbackName = String(
+        localInfo.name || siteOptions.blogname || 'ForgeWP Site',
+      );
+      const fallbackDesc = String(
+        localInfo.description || siteOptions.blogdescription || '',
+      );
       const fallbackUrl = localInfo.homeUrl || localInfo.url || '/';
       const fallbackLang = localInfo.language || 'en-US';
 
@@ -694,14 +712,114 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       };
     },
 
+    async getSiteSettings() {
+      if (isNativeWordPressExport()) {
+        const tokenOptions: Record<string, string> = {};
+        for (const [k, v] of Object.entries(siteOptions)) {
+          const safeKey = sanitizeTokenKey(k);
+          tokenOptions[safeKey] = `__FORGEWP_OPTION_${safeKey}_DEFAULT_${encodeURIComponent(String(v ?? ''))}__`;
+        }
+        const tokenMods: Record<string, string> = {};
+        for (const [k, v] of Object.entries(themeMods)) {
+          const safeKey = sanitizeTokenKey(k);
+          tokenMods[safeKey] = `__FORGEWP_THEME_MOD_${safeKey}_DEFAULT_${encodeURIComponent(String(v ?? ''))}__`;
+        }
+        const nativeSite = await this.getSiteInfo();
+        const { mode: _mode, ...siteMeta } = nativeSite;
+        return {
+          options: tokenOptions,
+          themeMods: tokenMods,
+          site: siteMeta,
+        };
+      }
+
+      if (cachedSiteSettings) {
+        return cachedSiteSettings;
+      }
+
+      const base = resolveWpBase();
+      if (base) {
+        try {
+          const data = await wpFetchJson(base, '/wp-json/forgewp/v1/site-settings', false);
+          const normalized = normalizeSiteSettings(data);
+          if (normalized) {
+            cachedSiteSettings = normalized;
+            return normalized;
+          }
+        } catch {
+          // Fall back to fixture settings when endpoint is unavailable
+        }
+      }
+
+      const fixtureSite = await this.getSiteInfo();
+      const { mode: _mode, ...siteMeta } = fixtureSite;
+      const fallbackSettings: SiteSettingsResource = {
+        options: { ...siteOptions },
+        themeMods: { ...themeMods },
+        site: siteMeta,
+      };
+      cachedSiteSettings = fallbackSettings;
+      return fallbackSettings;
+    },
+
     getOption(key, defaultValue = '') {
       const safeKey = sanitizeTokenKey(key);
       if (isNativeWordPressExport()) {
         return `__FORGEWP_OPTION_${safeKey}_DEFAULT_${encodeURIComponent(defaultValue)}__`;
       }
-      return Object.prototype.hasOwnProperty.call(siteOptions, safeKey)
-        ? siteOptions[safeKey]
+      if (
+        cachedSiteSettings &&
+        Object.prototype.hasOwnProperty.call(cachedSiteSettings.options, safeKey) &&
+        cachedSiteSettings.options[safeKey] !== null &&
+        cachedSiteSettings.options[safeKey] !== undefined
+      ) {
+        return String(cachedSiteSettings.options[safeKey]);
+      }
+      return Object.prototype.hasOwnProperty.call(siteOptions, safeKey) &&
+        siteOptions[safeKey] !== null &&
+        siteOptions[safeKey] !== undefined
+        ? String(siteOptions[safeKey])
         : defaultValue;
+    },
+
+    getThemeMod(key, defaultValue = '') {
+      const safeKey = sanitizeTokenKey(key);
+      if (isNativeWordPressExport()) {
+        return `__FORGEWP_THEME_MOD_${safeKey}_DEFAULT_${encodeURIComponent(defaultValue)}__`;
+      }
+      if (
+        cachedSiteSettings &&
+        Object.prototype.hasOwnProperty.call(cachedSiteSettings.themeMods, safeKey) &&
+        cachedSiteSettings.themeMods[safeKey] !== null &&
+        cachedSiteSettings.themeMods[safeKey] !== undefined
+      ) {
+        return String(cachedSiteSettings.themeMods[safeKey]);
+      }
+      return Object.prototype.hasOwnProperty.call(themeMods, safeKey) &&
+        themeMods[safeKey] !== null &&
+        themeMods[safeKey] !== undefined
+        ? String(themeMods[safeKey])
+        : defaultValue;
+    },
+
+    async getLiveOption(key, defaultValue = '') {
+      const safeKey = sanitizeTokenKey(key);
+      if (isNativeWordPressExport()) {
+        return `__FORGEWP_OPTION_${safeKey}_DEFAULT_${encodeURIComponent(defaultValue)}__`;
+      }
+      const settings = await this.getSiteSettings();
+      const value = settings.options[safeKey];
+      return value !== undefined && value !== null ? String(value) : defaultValue;
+    },
+
+    async getLiveThemeMod(key, defaultValue = '') {
+      const safeKey = sanitizeTokenKey(key);
+      if (isNativeWordPressExport()) {
+        return `__FORGEWP_THEME_MOD_${safeKey}_DEFAULT_${encodeURIComponent(defaultValue)}__`;
+      }
+      const settings = await this.getSiteSettings();
+      const value = settings.themeMods[safeKey];
+      return value !== undefined && value !== null ? String(value) : defaultValue;
     },
 
     getField(key, defaultValue = '') {
@@ -1239,3 +1357,41 @@ export {
   optionNumber,
   optionPostPicker,
 } from './config.js';
+
+export {
+  ForgeWpRuntimeError,
+  FORGEWP_RESOURCES,
+  defineResource,
+  getResourceDefinition,
+  normalizeSiteSettings,
+  createForgeWpRuntime,
+  configureForgeWpRuntime,
+  getForgeWpRuntime,
+  resetForgeWpRuntime,
+  createNativeSource,
+  createRestSource,
+  createFixtureSource,
+  isProductionRuntime,
+} from './runtime/index.js';
+export type {
+  ForgeWpRuntime,
+  ForgeWpRuntimeMode,
+  ForgeWpRuntimeOptions,
+  ForgeWpRuntimeErrorCode,
+  ForgeWpRuntimeErrorOptions,
+  ForgeWpResourceAuth,
+  ForgeWpResourceDefinition,
+  ForgeWpResourceMap,
+  ForgeWpResourceName,
+  ForgeWpResourceParams,
+  ForgeWpSource,
+  SiteSettingsResource,
+  SiteSettingsSiteMeta,
+  FormFieldContract,
+  FormResource,
+  FormsCollectionResource,
+  I18nResource,
+  RestSourceOptions,
+  PrimableForgeWpSource,
+  FixtureSourceOptions,
+} from './runtime/index.js';

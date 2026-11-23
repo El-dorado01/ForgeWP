@@ -146,9 +146,14 @@ declare global {
     post?: any;
     currentFeaturedImage?: string;
     themeUri?: string;
+    restUrl?: string;
+    restNonce?: string;
     pageLinks?: Record<string, string>;
     menus?: Record<string, any[]>;
     siteSettings?: any;
+    forms?: Record<string, any>;
+    /** Canonical Phase A resource cache keyed by ForgeWpResourceName (mirrors GET /wp-json/forgewp/v1/*). */
+    resources?: Record<string, any>;
     _compileTime?: boolean;
   }
 
@@ -156,12 +161,16 @@ declare global {
     _forgeWpMockPosts?: Record<string, any[]>;
     _forgeWpMockSiteSettings?: any;
     _forgeWpMockMenus?: Record<string, any[]>;
+    _forgeWpMockForms?: Record<string, any>;
+    _forgeWpMockTranslations?: Record<string, any>;
     _forgeWpCompileTime?: boolean;
     forgeWpHydration?: ForgeWpHydration;
     forgeWpLocale?: string;
     forgeWpTranslations?: {
       currentLanguage?: string;
       translations?: Record<string, any>;
+      urls?: Record<string, string>;
+      homeUrls?: Record<string, string>;
     };
     React?: any;
     ReactDOM?: any;

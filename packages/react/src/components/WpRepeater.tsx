@@ -1,5 +1,6 @@
 import React, { useContext } from "react";
 import { WpPostContext } from "../context";
+import { hasNativeHydration } from "../runtime/index.js";
 
 export interface WpRepeaterProps<T> {
   name: string;                                    // Post meta key for the repeater
@@ -22,7 +23,7 @@ export function WpRepeater<T extends Record<string, any>>({
     (typeof window !== "undefined" && (window as any)._forgeWpCompileTime)
       ? false
       : (typeof import.meta !== "undefined" && (import.meta as any).env?.DEV === true) ||
-        (typeof window !== "undefined" && !(window as any).forgeWpHydration);
+        (typeof window !== "undefined" && !hasNativeHydration());
 
   const post = useContext(WpPostContext);
 
