@@ -15,6 +15,7 @@ import { validateLocalForm } from './local-form-validation.js';
 import {
   ForgeWpRuntimeError,
   getForgeWpRuntime,
+  getNativeEditables,
   getNativeForm,
   getNativeMenu,
   getNativePageLink,
@@ -22,6 +23,7 @@ import {
   getNativePosts,
   getNativeRestNonce,
   getNativeRestUrl,
+  getNativeSeo,
   getNativeTerm,
   getNativeThemeUri,
   getNativeTranslations,
@@ -31,9 +33,11 @@ import {
   resolveConfiguredRestBaseUrl,
   type CommentResource,
   type CommentsListResource,
+  type EditablesResource,
   type I18nResource,
   type PostResource,
   type PostsListResource,
+  type SeoResource,
   type SiteSettingsResource,
   type TermResource,
 } from './runtime/index.js';
@@ -2198,6 +2202,20 @@ export function useWpMeta<T>(key: string, defaultValue: T): T {
   ) {
     return blockAttrs[key] as T;
   }
+  try {
+    const editables = getForgeWpRuntime().peek('editables');
+    if (
+      editables &&
+      !editables.protected &&
+      editables.fields &&
+      typeof editables.fields[key] !== 'undefined' &&
+      !isEmptyMetaValue(editables.fields[key])
+    ) {
+      return editables.fields[key] as T;
+    }
+  } catch {
+    // Ignore when runtime is unconfigured
+  }
   const post = useContext(WpPostContext);
   if (post?.customFields && typeof post.customFields[key] !== 'undefined') {
     const val = post.customFields[key];
@@ -2922,5 +2940,181 @@ export function useWpLanguage(options: UseWpI18nOptions = {}) {
     homeUrls,
     homeUrl,
     switchLanguage,
+  };
+}
+
+export interface UseWpSeoOptions {
+  lang?: string;
+  initialData?: SeoResource;
+}
+
+/**
+ * Reads canonical SEO metadata for a route (`docs/resource-contracts.md` §13).
+ */
+export function useWpSeo(
+  routePath?: string,
+  options: UseWpSeoOptions = {},
+): {
+  seo: SeoResource | null;
+  loading: boolean;
+  error: string | null;
+} {
+  const { lang, initialData } = options;
+  const resolvedPath =
+    routePath ||
+    (typeof window !== 'undefined' && window.location?.pathname
+      ? window.location.pathname
+      : '/');
+  const query = useMemo(
+    () => ({ path: resolvedPath, ...(lang ? { lang } : {}) }),
+    [resolvedPath, lang],
+  );
+
+  const syncData = (() => {
+    if (initialData) return initialData;
+    const native = getNativeSeo();
+    if (native) return native;
+    try {
+      const runtime = getForgeWpRuntime();
+      return runtime.peek('seo', { query }) ?? runtime.peek('seo') ?? null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const [asyncData, setAsyncData] = useState<SeoResource | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (syncData !== null) return;
+    if (typeof window === 'undefined' || isForgeWpCompileTime()) return;
+    let runtime;
+    try {
+      runtime = getForgeWpRuntime();
+    } catch {
+      return;
+    }
+    if (runtime.mode !== 'decoupled') return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    runtime
+      .get('seo', { query })
+      .then((res) => {
+        if (cancelled) return;
+        setAsyncData(res ?? null);
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setError(err?.message || 'Failed to fetch SEO metadata');
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [query, syncData !== null]);
+
+  return {
+    seo: syncData ?? asyncData,
+    loading: syncData !== null ? false : loading,
+    error,
+  };
+}
+
+export interface UseWpEditablesOptions {
+  path?: string;
+  routeId?: string;
+  post?: number;
+  lang?: string;
+  schema?: string;
+  initialData?: EditablesResource;
+}
+
+/**
+ * Reads normalized editable/ACF/repeater fields (`docs/resource-contracts.md` §14).
+ */
+export function useWpEditables(
+  options: UseWpEditablesOptions = {},
+): {
+  editables: EditablesResource | null;
+  fields: Record<string, unknown>;
+  loading: boolean;
+  error: string | null;
+} {
+  const { path, routeId, post, lang, schema, initialData } = options;
+  const query = useMemo(() => {
+    const q: Record<string, string | number | boolean | undefined> = {};
+    if (path) q.path = path;
+    if (routeId) q.routeId = routeId;
+    if (typeof post === 'number' && post > 0) q.post = post;
+    if (lang) q.lang = lang;
+    if (schema) q.schema = schema;
+    return q;
+  }, [path, routeId, post, lang, schema]);
+
+  const hasTarget = Boolean(path || routeId || (typeof post === 'number' && post > 0));
+
+  const syncData = (() => {
+    if (initialData) return initialData;
+    const native = getNativeEditables();
+    if (native) return native;
+    try {
+      const runtime = getForgeWpRuntime();
+      return (
+        (hasTarget ? runtime.peek('editables', { query }) : undefined) ??
+        runtime.peek('editables') ??
+        null
+      );
+    } catch {
+      return null;
+    }
+  })();
+
+  const [asyncData, setAsyncData] = useState<EditablesResource | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (syncData !== null || !hasTarget) return;
+    if (typeof window === 'undefined' || isForgeWpCompileTime()) return;
+    let runtime;
+    try {
+      runtime = getForgeWpRuntime();
+    } catch {
+      return;
+    }
+    if (runtime.mode !== 'decoupled') return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    runtime
+      .get('editables', { query })
+      .then((res) => {
+        if (cancelled) return;
+        setAsyncData(res ?? null);
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setError(err?.message || 'Failed to fetch editables');
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [query, hasTarget, syncData !== null]);
+
+  const data = syncData ?? asyncData;
+  return {
+    editables: data,
+    fields: data && !data.protected ? data.fields : {},
+    loading: syncData !== null ? false : loading,
+    error,
   };
 }

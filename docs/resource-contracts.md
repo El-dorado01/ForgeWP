@@ -571,8 +571,8 @@ Registered in `@forgewp/react`'s lean resource registry with reserved paths so r
 | `menus` | `/menus` | `public` | `["menus", "menu:<location>"]` | Approved (Phase C — §5) |
 | `routes` | `/routes` | `public` | `["routes"]` | Approved (Phase C — §6) |
 | `i18n` | `/i18n` | `public` | `["i18n", "i18n:<lang>"]` | Approved (Phase C — §7) |
-| `seo` | `/seo?path=` | `public` | `["seo", "seo:path:<path>"]` | Draft (§13) |
-| `editables` | `/editables` | `public` | `["editables", "post:<id>"]` | Draft (§14) |
+| `seo` | `/seo?path=` | `public` | `["seo", "seo:path:<path>"]` | Approved (Phase C — §13) |
+| `editables` | `/editables` | `public` | `["editables", "post:<id>"]` | Approved (Phase C — §14) |
 | `auth-me` | `/auth/me` | `session` | `["auth"]` | Approved (Phase C — §9, §12a) |
 | `posts` / `post` | `/posts`, `/posts/<type>/<slug>` | `public` | `["posts", "type:<type>", "post:<id>"]` | Approved (Phase C — §10, §12a) |
 | `terms` | `/terms/<taxonomy>` | `public` | `["terms", "taxonomy:<taxonomy>"]` | Approved (Phase C — §11) |
@@ -586,7 +586,7 @@ Registered in `@forgewp/react`'s lean resource registry with reserved paths so r
 
 ---
 
-## 13. `seo` (Phase C — Status: Draft by Gemini for Claude review & founder approval, 2026-11-23)
+## 13. `seo` (Phase C — Status: Approved 2026-11-24 with Claude's answers below)
 
 Why: in decoupled mode, Next.js has no access to WordPress's `wp_head` hook, so SEO metadata managed by Yoast SEO, Rank Math, Polylang hreflang, or ForgeWP schemas is absent on the decoupled origin. This contract replaces site-specific PHP workarounds (such as `hotelchecker24`'s `hreflang.php`, `og-fallback.php`, and `schemas.php`) with one portable resource powering Next.js `generateMetadata()` and JSON-LD rendering.
 
@@ -716,7 +716,7 @@ Reuses `forgewp_seo_plugin_active()` (which already accounts for Rank Math regis
 
 ---
 
-## 14. `editables` (Phase C — Status: Draft by Gemini for Claude review & founder approval, 2026-11-23)
+## 14. `editables` (Phase C — Status: Approved 2026-11-24 with Claude's answers below)
 
 Why: in decoupled mode, `useWpMeta()` and `<WpRepeater>` currently fall back to static schema defaults (`getEditableDefaults()` / `defaultValue`) because there is no normalized REST resource for `defineEditable()` / ACF fields and repeaters. Today repeaters render stale/default rows in decoupled mode (visible content bug).
 

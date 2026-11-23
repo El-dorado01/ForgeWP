@@ -249,14 +249,107 @@ export interface CommentsListResource {
   items: CommentResource[];
 }
 
+export type SeoProvider = 'yoast' | 'rankmath' | 'aioseo' | 'seopress' | 'core';
+
+export type SeoObjectType =
+  | 'front-page'
+  | 'posts-page'
+  | 'post'
+  | 'term'
+  | 'post-type-archive';
+
+export interface SeoRobotsContract {
+  index: boolean;
+  follow: boolean;
+  maxSnippet?: number;
+  maxImagePreview?: string;
+  maxVideoPreview?: number;
+}
+
+export interface SeoImageContract {
+  url: string;
+  width?: number;
+  height?: number;
+  alt?: string;
+}
+
+export interface SeoOpenGraphContract {
+  title: string;
+  description: string;
+  type: string;
+  url: string;
+  siteName: string;
+  locale: string;
+  images: SeoImageContract[];
+}
+
+export interface SeoTwitterContract {
+  card: string;
+  title: string;
+  description: string;
+  site: string;
+  creator: string;
+  images: string[];
+}
+
+export interface SeoAlternatesContract {
+  canonical: string;
+  languages: Record<string, string>;
+}
+
+/**
+ * Canonical `seo` resource contract (`docs/resource-contracts.md` §13).
+ */
+export interface SeoResource {
+  path: string;
+  lang?: string;
+  provider: SeoProvider;
+  objectType: SeoObjectType;
+  objectId: number | null;
+  title: string;
+  description: string;
+  canonical: string;
+  robots: SeoRobotsContract;
+  openGraph: SeoOpenGraphContract;
+  twitter: SeoTwitterContract;
+  alternates: SeoAlternatesContract;
+  jsonLd: Record<string, unknown>[];
+}
+
+/**
+ * Normalized editable image contract (`docs/resource-contracts.md` §14).
+ */
+export interface EditableImageContract {
+  id?: number;
+  url: string;
+  alt: string;
+  width?: number;
+  height?: number;
+  srcset?: string;
+}
+
+/**
+ * Canonical `editables` resource contract (`docs/resource-contracts.md` §14).
+ */
+export interface EditablesResource {
+  postId: number;
+  postType: string;
+  routeId?: string;
+  path: string;
+  lang?: string;
+  schema?: string;
+  protected: boolean;
+  fields: Record<string, unknown>;
+}
+
 export interface ForgeWpResourceMap {
   'site-settings': SiteSettingsResource;
   forms: FormsCollectionResource;
   menus: MenusCollectionResource;
   routes: RoutesResource;
   i18n: I18nResource;
-  seo: Record<string, any>;
-  editables: Record<string, any>;
+  seo: SeoResource;
+  editables: EditablesResource;
   'auth-me': AuthMeResource;
   post: PostResource;
   posts: PostsListResource;
@@ -1093,5 +1186,199 @@ export function normalizeCommentsListResource(
     perPage,
     total,
     items,
+  };
+}
+
+const VALID_SEO_PROVIDERS = new Set<SeoProvider>([
+  'yoast',
+  'rankmath',
+  'aioseo',
+  'seopress',
+  'core',
+]);
+
+const VALID_SEO_OBJECT_TYPES = new Set<SeoObjectType>([
+  'front-page',
+  'posts-page',
+  'post',
+  'term',
+  'post-type-archive',
+]);
+
+/**
+ * Normalizes `GET /wp-json/forgewp/v1/seo` or `resources.seo` into `SeoResource`
+ * (`docs/resource-contracts.md` §13).
+ */
+export function normalizeSeoResource(raw: any): SeoResource | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+
+  const provider: SeoProvider = VALID_SEO_PROVIDERS.has(raw.provider)
+    ? raw.provider
+    : 'core';
+  const objectType: SeoObjectType = VALID_SEO_OBJECT_TYPES.has(raw.objectType)
+    ? raw.objectType
+    : 'post';
+  const objectId =
+    raw.objectId === null || raw.objectId === undefined
+      ? null
+      : typeof raw.objectId === 'number'
+        ? raw.objectId
+        : Number.isNaN(Number(raw.objectId))
+          ? null
+          : Number(raw.objectId);
+
+  const title = decodePlainTextEntities(String(raw.title || ''));
+  const description = decodePlainTextEntities(String(raw.description || ''));
+  const canonical = String(raw.canonical || raw.alternates?.canonical || '');
+  const pathVal =
+    typeof raw.path === 'string' && raw.path.trim() ? raw.path.trim() : '/';
+
+  const rawRobots = raw.robots && typeof raw.robots === 'object' ? raw.robots : {};
+  const robots: SeoRobotsContract = {
+    index: rawRobots.index !== false,
+    follow: rawRobots.follow !== false,
+    ...(typeof rawRobots.maxSnippet === 'number' ? { maxSnippet: rawRobots.maxSnippet } : {}),
+    ...(typeof rawRobots.maxImagePreview === 'string' && rawRobots.maxImagePreview
+      ? { maxImagePreview: rawRobots.maxImagePreview }
+      : {}),
+    ...(typeof rawRobots.maxVideoPreview === 'number'
+      ? { maxVideoPreview: rawRobots.maxVideoPreview }
+      : {}),
+  };
+
+  const rawOg = raw.openGraph && typeof raw.openGraph === 'object' ? raw.openGraph : {};
+  const ogImages: SeoImageContract[] = [];
+  if (Array.isArray(rawOg.images)) {
+    for (const img of rawOg.images) {
+      if (typeof img === 'string' && img.trim()) {
+        ogImages.push({ url: img.trim() });
+      } else if (img && typeof img === 'object' && typeof img.url === 'string' && img.url.trim()) {
+        ogImages.push({
+          url: img.url.trim(),
+          ...(typeof img.width === 'number' ? { width: img.width } : {}),
+          ...(typeof img.height === 'number' ? { height: img.height } : {}),
+          ...(typeof img.alt === 'string' ? { alt: decodePlainTextEntities(img.alt) } : {}),
+        });
+      }
+    }
+  }
+
+  const rawTw = raw.twitter && typeof raw.twitter === 'object' ? raw.twitter : {};
+  const twImages: string[] = Array.isArray(rawTw.images)
+    ? rawTw.images
+        .map((img: unknown) =>
+          typeof img === 'string'
+            ? img.trim()
+            : img && typeof img === 'object' && typeof (img as any).url === 'string'
+              ? String((img as any).url).trim()
+              : '',
+        )
+        .filter(Boolean)
+    : [];
+
+  const rawAlt = raw.alternates && typeof raw.alternates === 'object' ? raw.alternates : {};
+  const languages: Record<string, string> = {};
+  if (rawAlt.languages && typeof rawAlt.languages === 'object' && !Array.isArray(rawAlt.languages)) {
+    for (const [langCode, href] of Object.entries(rawAlt.languages)) {
+      if (typeof href === 'string' && href.trim()) {
+        languages[langCode] = href.trim();
+      }
+    }
+  }
+
+  const jsonLd: Record<string, unknown>[] = Array.isArray(raw.jsonLd)
+    ? raw.jsonLd.filter(
+        (node: unknown): node is Record<string, unknown> =>
+          Boolean(node && typeof node === 'object' && !Array.isArray(node)),
+      )
+    : [];
+
+  return {
+    path: pathVal,
+    ...(typeof raw.lang === 'string' && raw.lang.trim() ? { lang: raw.lang.trim() } : {}),
+    provider,
+    objectType,
+    objectId,
+    title,
+    description,
+    canonical,
+    robots,
+    openGraph: {
+      title: decodePlainTextEntities(String(rawOg.title || title)),
+      description: decodePlainTextEntities(String(rawOg.description || description)),
+      type: String(rawOg.type || 'website'),
+      url: String(rawOg.url || canonical),
+      siteName: decodePlainTextEntities(String(rawOg.siteName || '')),
+      locale: String(rawOg.locale || ''),
+      images: ogImages,
+    },
+    twitter: {
+      card: String(rawTw.card || 'summary_large_image'),
+      title: decodePlainTextEntities(String(rawTw.title || title)),
+      description: decodePlainTextEntities(String(rawTw.description || description)),
+      site: String(rawTw.site || ''),
+      creator: String(rawTw.creator || ''),
+      images: twImages,
+    },
+    alternates: {
+      canonical: String(rawAlt.canonical || canonical),
+      languages,
+    },
+    jsonLd,
+  };
+}
+
+/**
+ * Normalizes an editable image value (ACF/resource object `{ id?, url, alt, ... }` or URL string).
+ */
+export function normalizeEditableImage(raw: any): EditableImageContract | null {
+  if (!raw) return null;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed ? { url: trimmed, alt: '' } : null;
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const rawUrl =
+      typeof raw.url === 'string'
+        ? raw.url.trim()
+        : typeof raw.src === 'string'
+          ? raw.src.trim()
+          : '';
+    if (!rawUrl) return null;
+    return {
+      ...(typeof raw.id === 'number' && raw.id > 0 ? { id: raw.id } : {}),
+      url: rawUrl,
+      alt: typeof raw.alt === 'string' ? raw.alt : '',
+      ...(typeof raw.width === 'number' ? { width: raw.width } : {}),
+      ...(typeof raw.height === 'number' ? { height: raw.height } : {}),
+      ...(typeof raw.srcset === 'string' && raw.srcset ? { srcset: raw.srcset } : {}),
+    };
+  }
+  return null;
+}
+
+/**
+ * Normalizes `GET /wp-json/forgewp/v1/editables` or `resources.editables` into
+ * `EditablesResource` (`docs/resource-contracts.md` §14).
+ */
+export function normalizeEditablesResource(raw: any): EditablesResource | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const isProtected = raw.protected === true;
+  const fields: Record<string, unknown> =
+    !isProtected && raw.fields && typeof raw.fields === 'object' && !Array.isArray(raw.fields)
+      ? { ...raw.fields }
+      : {};
+
+  return {
+    postId: typeof raw.postId === 'number' ? raw.postId : Number(raw.postId || 0),
+    postType: String(raw.postType || 'page'),
+    ...(typeof raw.routeId === 'string' && raw.routeId.trim()
+      ? { routeId: raw.routeId.trim() }
+      : {}),
+    path: typeof raw.path === 'string' && raw.path.trim() ? raw.path.trim() : '/',
+    ...(typeof raw.lang === 'string' && raw.lang.trim() ? { lang: raw.lang.trim() } : {}),
+    ...(typeof raw.schema === 'string' && raw.schema.trim() ? { schema: raw.schema.trim() } : {}),
+    protected: isProtected,
+    fields,
   };
 }
