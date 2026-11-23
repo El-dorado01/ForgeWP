@@ -34,7 +34,6 @@ jobs:
     timeout-minutes: 25
     env:
       NEXT_TELEMETRY_DISABLED: '1'
-      FORGEWP_E2E_DATA: ${{ runner.temp }}/e2e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -50,7 +49,8 @@ jobs:
         env:
           PARITY_RESET: '1'
           PARITY_REPORT: ${{ github.workspace }}/.forgewp/parity/report.json
-        run: scripts/parity/run.sh
+        # The runner context is not available in job-level env, so the data dir is set here.
+        run: FORGEWP_E2E_DATA="$RUNNER_TEMP/e2e" scripts/parity/run.sh
       - name: Upload parity report
         if: always()
         uses: actions/upload-artifact@v4
