@@ -272,10 +272,26 @@ export interface SubmitWpFormOptions {
   lang?: string;
 }
 
-// Module-load timestamp, used as the server-side time-trap's baseline —
-// a genuine human takes more than a few seconds between page load and
-// submit; a bot firing the request immediately does not.
+// Baseline timestamps for the server-side time-trap: measure from the visitor's
+// first interaction (pointerdown/keydown/focusin/input) when available, falling
+// back to module-load time if no interaction event fired before submit.
 const forgeWpFormsLoadedAt = typeof window !== 'undefined' ? Date.now() : 0;
+let forgeWpFormsFirstInteractionAt = 0;
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  const interactionEvents = ['pointerdown', 'keydown', 'focusin', 'input'] as const;
+  const markFirstInteraction = () => {
+    if (!forgeWpFormsFirstInteractionAt) {
+      forgeWpFormsFirstInteractionAt = Date.now();
+    }
+    for (const evt of interactionEvents) {
+      window.removeEventListener(evt, markFirstInteraction, true);
+    }
+  };
+  for (const evt of interactionEvents) {
+    window.addEventListener(evt, markFirstInteraction, { capture: true, passive: true });
+  }
+}
 
 function peekRuntimeFormMeta(name: string) {
   const nativeForm = getNativeForm(name);
@@ -390,7 +406,8 @@ export async function submitWpForm(
 
   try {
     const restNonce = endpoint?.restNonce ?? getNativeRestNonce();
-    const elapsed = String(Date.now() - forgeWpFormsLoadedAt);
+    const baseline = forgeWpFormsFirstInteractionAt || forgeWpFormsLoadedAt;
+    const elapsed = String(baseline ? Math.max(0, Date.now() - baseline) : 0);
 
     // The visitor's page language (Polylang/WPML), not the browser's own
     // locale — needed server-side so the submission validates against and

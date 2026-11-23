@@ -249,8 +249,17 @@ export function runStaticLintChecks(themeRoot) {
       }
 
       // 3. Hardcoded relative internal links check
+      const importsNextLink = /from\s+['"]next\/link['"]/.test(content);
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        // Next.js <Link href="/..."> (rewritten by next-link-transform.js) and <WpLink>
+        // are compiler-managed internal links, not raw hardcoded anchors.
+        if (
+          (importsNextLink && /<Link\b/.test(line)) ||
+          /<WpLink\b/.test(line)
+        ) {
+          continue;
+        }
         const hrefRegex = /href\s*=\s*["']([^"']*)["']/g;
         let hrefMatch;
         while ((hrefMatch = hrefRegex.exec(line)) !== null) {

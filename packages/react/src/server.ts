@@ -257,7 +257,7 @@ function fromFixture(entry: Record<string, any>, slug: string): WpServerPageReco
     slug: cleanSlug,
     routeId: String(entry.routeId || cleanSlug),
     title: String(entry.title || ''),
-    content: stripTags(rawContent),
+    content: rawContent,
     contentHtml: rawContent,
     excerpt: String(entry.excerpt || ''),
     permalink: relPath,
@@ -384,7 +384,7 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
           ? wpPage.forgewp_route_id
           : String(wpPage.slug || cleanSlug),
       title: stripTags(wpPage.title?.rendered ?? wpPage.title?.raw ?? ''),
-      content: stripTags(renderedHtml),
+      content: renderedHtml,
       contentHtml: renderedHtml,
       excerpt: stripTags(wpPage.excerpt?.rendered ?? ''),
       permalink,
