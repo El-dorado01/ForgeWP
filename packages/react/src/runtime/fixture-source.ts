@@ -1,5 +1,7 @@
 import type { ForgeWpSource } from './native-source.js';
 import {
+  normalizeMenusCollection,
+  normalizeRoutesResource,
   normalizeSiteSettings,
   type ForgeWpResourceMap,
   type ForgeWpResourceName,
@@ -13,6 +15,7 @@ export interface FixtureSourceOptions {
   siteSettings?: any;
   forms?: Record<string, any>;
   menus?: Record<string, any[]>;
+  routes?: any;
   i18n?: Partial<I18nResource>;
   resources?: Partial<ForgeWpResourceMap>;
 }
@@ -68,7 +71,13 @@ export function createFixtureSource(
       }
       case 'menus': {
         const raw = options.menus ?? win?._forgeWpMockMenus;
-        return (raw && typeof raw === 'object' ? raw : undefined) as
+        return (normalizeMenusCollection(raw) ?? undefined) as
+          | ForgeWpResourceMap[K]
+          | undefined;
+      }
+      case 'routes': {
+        const raw = options.routes;
+        return (normalizeRoutesResource(raw) ?? undefined) as
           | ForgeWpResourceMap[K]
           | undefined;
       }

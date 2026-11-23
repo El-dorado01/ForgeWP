@@ -25,6 +25,7 @@ import {
   hasNativeHydration,
   isProductionRuntime,
   resolveConfiguredRestBaseUrl,
+  type I18nResource,
   type SiteSettingsResource,
 } from './runtime/index.js';
 
@@ -770,8 +771,79 @@ export function resolveWpAsset(path: string): string {
   return path;
 }
 
-export function useWpPageLink(name: string, fallback: string): string {
-  return getNativePageLink(name) || fallback;
+export interface UseWpPageLinkOptions {
+  /** Optional explicit locale (`?lang=...`) for decoupled REST lookups. */
+  lang?: string;
+}
+
+function readSyncPageLink(name: string, lang?: string): string | null {
+  const nativeLink = getNativePageLink(name);
+  if (nativeLink) return nativeLink;
+  try {
+    const runtime = getForgeWpRuntime();
+    const scoped = lang ? runtime.peek('routes', { query: { lang } }) : undefined;
+    const routesRes = scoped ?? runtime.peek('routes');
+    if (routesRes) {
+      if (routesRes.pageLinks?.[name]) {
+        return routesRes.pageLinks[name];
+      }
+      const match = routesRes.routes.find(
+        (r) => r.routeId === name || r.slug === name,
+      );
+      if (match?.path) {
+        return match.path;
+      }
+    }
+  } catch {
+    // Unconfigured runtime falls through to fallback
+  }
+  return null;
+}
+
+export function useWpPageLink(
+  name: string,
+  fallback: string,
+  options: UseWpPageLinkOptions = {},
+): string {
+  const { lang } = options;
+  const syncLink = readSyncPageLink(name, lang);
+  const [asyncLink, setAsyncLink] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (syncLink !== null) return;
+    if (typeof window === 'undefined' || (window as any)._forgeWpCompileTime) return;
+
+    let runtime;
+    try {
+      runtime = getForgeWpRuntime();
+    } catch {
+      return;
+    }
+    if (runtime.mode !== 'decoupled') return;
+
+    let cancelled = false;
+    runtime
+      .get('routes', lang ? { query: { lang } } : undefined)
+      .then((routesRes) => {
+        if (cancelled || !routesRes) return;
+        const resolved =
+          routesRes.pageLinks?.[name] ||
+          routesRes.routes.find((r) => r.routeId === name || r.slug === name)?.path ||
+          null;
+        if (resolved) {
+          setAsyncLink(resolved);
+        }
+      })
+      .catch(() => {
+        // Keep fallback if decoupled routes endpoint is unreachable
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [name, lang, syncLink !== null]);
+
+  return syncLink ?? asyncLink ?? fallback;
 }
 
 function normalizeMenuUrl(url: string): string {
@@ -812,22 +884,115 @@ export function normalizeMenuItems(items: WpMenuItem[]): WpMenuItem[] {
   }));
 }
 
-export function useWpMenu(location: string = 'primary'): {
+export interface UseWpMenuOptions {
+  /** Optional explicit locale (`?lang=...`) for decoupled REST lookups. */
+  lang?: string;
+  /** Optional server-fetched initial items (e.g. from `wpClient.getMenu()`). */
+  initialItems?: WpMenuItem[];
+}
+
+function readSyncMenuItems(
+  location: string,
+  options: UseWpMenuOptions,
+): WpMenuItem[] | null {
+  if (Array.isArray(options.initialItems)) {
+    return options.initialItems;
+  }
+  const nativeItems = getNativeMenu(location);
+  if (nativeItems) {
+    return nativeItems as unknown as WpMenuItem[];
+  }
+  try {
+    const runtime = getForgeWpRuntime();
+    const scoped = runtime.peek('menus', {
+      slug: location,
+      ...(options.lang ? { query: { lang: options.lang } } : {}),
+    })?.menus?.[location];
+    if (scoped) return scoped as unknown as WpMenuItem[];
+    const all = runtime.peek('menus')?.menus?.[location];
+    if (all) return all as unknown as WpMenuItem[];
+  } catch {
+    // Unconfigured runtime falls through
+  }
+  if (typeof window !== 'undefined') {
+    const mockItems = (window as any)._forgeWpMockMenus?.[location];
+    if (Array.isArray(mockItems)) {
+      return mockItems;
+    }
+  }
+  return null;
+}
+
+export function useWpMenu(
+  location: string = 'primary',
+  options: UseWpMenuOptions = {},
+): {
   items: WpMenuItem[];
   loading: boolean;
 } {
-  if (typeof window === 'undefined') {
-    return { items: [], loading: true };
-  }
+  const { lang, initialItems } = options;
+  const syncRaw = readSyncMenuItems(location, { lang, initialItems });
+  const [asyncRaw, setAsyncRaw] = useState<WpMenuItem[] | null>(null);
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (syncRaw !== null) return false;
+    if (typeof window === 'undefined') return true;
+    try {
+      return getForgeWpRuntime().mode === 'decoupled';
+    } catch {
+      return false;
+    }
+  });
 
-  const win = window as any;
-  const rawItems =
-    getNativeMenu(location) ||
-    win._forgeWpMockMenus?.[location] ||
-    [];
-  const items = useMemo(() => normalizeMenuItems(rawItems), [rawItems]);
+  useEffect(() => {
+    if (syncRaw !== null) {
+      setLoading(false);
+      return;
+    }
+    if (typeof window === 'undefined' || (window as any)._forgeWpCompileTime) return;
 
-  return { items, loading: false };
+    let runtime;
+    try {
+      runtime = getForgeWpRuntime();
+    } catch {
+      setLoading(false);
+      return;
+    }
+    if (runtime.mode !== 'decoupled') {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    runtime
+      .get('menus', {
+        slug: location,
+        ...(lang ? { query: { lang } } : {}),
+      })
+      .then((collection) => {
+        if (cancelled) return;
+        const resolved = collection?.menus?.[location];
+        setAsyncRaw(Array.isArray(resolved) ? (resolved as unknown as WpMenuItem[]) : []);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location, lang, syncRaw !== null]);
+
+  const effectiveRaw = syncRaw ?? asyncRaw;
+  const items = useMemo(
+    () => normalizeMenuItems(effectiveRaw ?? []),
+    [effectiveRaw],
+  );
+
+  return { items, loading: syncRaw !== null ? false : loading };
 }
 
 // ── Isomorphic Query Hook ─────────────────────────────────────────────────────
@@ -2031,16 +2196,48 @@ export function useWpTerms(taxonomy: string): {
   return { terms, loading: false, error: null };
 }
 
-function resolveI18nState(): {
+export interface UseWpI18nOptions {
+  /** Optional explicit locale (`?lang=...`) for decoupled REST lookups. */
+  lang?: string;
+  /** Optional current path (`?path=...`) for decoupled REST alternate URLs. */
+  path?: string;
+  /** Optional server-fetched initial i18n payload (e.g. from `wpClient.getI18n()`). */
+  initialData?: I18nResource;
+}
+
+function buildI18nQuery(options: UseWpI18nOptions): Record<string, string> | undefined {
+  const query: Record<string, string> = {};
+  if (typeof options.lang === 'string' && options.lang.trim()) {
+    query.lang = options.lang.trim();
+  }
+  if (typeof options.path === 'string' && options.path.trim()) {
+    query.path = options.path.trim();
+  }
+  return Object.keys(query).length > 0 ? query : undefined;
+}
+
+function resolveI18nState(
+  options: UseWpI18nOptions = {},
+  asyncOverride: I18nResource | null = null,
+): {
   currentLanguage: string;
+  defaultLocale: string;
+  locales: string[];
   translations: Record<string, any> | null;
   urls: Record<string, string>;
   homeUrls: Record<string, string>;
+  hasResolvedSource: boolean;
 } {
   const win = typeof window !== 'undefined' ? (window as any) : null;
+  const query = buildI18nQuery(options);
   const runtimeI18n = (() => {
     try {
-      return getForgeWpRuntime().peek('i18n') ?? null;
+      const runtime = getForgeWpRuntime();
+      return (
+        (query ? runtime.peek('i18n', { query }) : undefined) ??
+        runtime.peek('i18n') ??
+        null
+      );
     } catch (err) {
       if (err instanceof ForgeWpRuntimeError && isProductionRuntime()) {
         throw err;
@@ -2049,8 +2246,9 @@ function resolveI18nState(): {
     }
   })();
 
-  const nativeI18n = runtimeI18n ?? getNativeTranslations();
+  const nativeI18n = options.initialData ?? asyncOverride ?? runtimeI18n ?? getNativeTranslations();
   const explicitLocale =
+    (typeof options.lang === 'string' && options.lang.trim()) ||
     (win && typeof win.forgeWpLocale === 'string' && win.forgeWpLocale.trim()) ||
     nativeI18n?.currentLanguage ||
     '';
@@ -2086,43 +2284,108 @@ function resolveI18nState(): {
     nativeI18n?.homeUrls && Object.keys(nativeI18n.homeUrls).length > 0
       ? nativeI18n.homeUrls
       : defaultUrls;
+  const defaultLocale = nativeI18n?.defaultLocale || inferredDevLocale;
+  const locales =
+    Array.isArray(nativeI18n?.locales) && nativeI18n.locales.length > 0
+      ? nativeI18n.locales
+      : Object.keys(urls);
 
   return {
     currentLanguage: inferredDevLocale,
+    defaultLocale,
+    locales,
     translations,
     urls,
     homeUrls,
+    hasResolvedSource: Boolean(nativeI18n),
   };
 }
 
-export function useWpI18n() {
-  const getTranslatedText = useCallback((text: string) => {
-    if (typeof window === 'undefined') return text;
-    const { currentLanguage, translations: dict } = resolveI18nState();
+function useDecoupledI18nHydration(
+  options: UseWpI18nOptions,
+  hasSyncSource: boolean,
+): I18nResource | null {
+  const { lang, path } = options;
+  const [asyncData, setAsyncData] = useState<I18nResource | null>(null);
 
-    if (dict) {
-      if (
-        dict[currentLanguage] &&
-        typeof dict[currentLanguage][text] !== 'undefined'
-      ) {
-        return dict[currentLanguage][text];
-      }
-      if (typeof dict[text] !== 'undefined') {
-        return dict[text];
-      }
+  useEffect(() => {
+    if (hasSyncSource) return;
+    if (typeof window === 'undefined' || (window as any)._forgeWpCompileTime) return;
+
+    let runtime;
+    try {
+      runtime = getForgeWpRuntime();
+    } catch {
+      return;
     }
-    return text;
-  }, []);
+    if (runtime.mode !== 'decoupled') return;
+
+    const effectivePath =
+      path ||
+      (typeof window.location?.pathname === 'string' ? window.location.pathname : undefined);
+    const query = buildI18nQuery({ lang, path: effectivePath });
+
+    let cancelled = false;
+    runtime
+      .get('i18n', query ? { query } : undefined)
+      .then((res) => {
+        if (!cancelled && res) {
+          setAsyncData(res);
+        }
+      })
+      .catch(() => {
+        // Keep fallback state if decoupled i18n endpoint is unreachable
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lang, path, hasSyncSource]);
+
+  return asyncData;
+}
+
+export function useWpI18n(options: UseWpI18nOptions = {}) {
+  const syncState = resolveI18nState(options);
+  const asyncData = useDecoupledI18nHydration(options, syncState.hasResolvedSource);
+  const effectiveState = asyncData ? resolveI18nState(options, asyncData) : syncState;
+
+  const getTranslatedText = useCallback(
+    (text: string) => {
+      const { currentLanguage, translations: dict } = effectiveState;
+
+      if (dict) {
+        if (
+          dict[currentLanguage] &&
+          typeof dict[currentLanguage][text] !== 'undefined'
+        ) {
+          return dict[currentLanguage][text];
+        }
+        if (typeof dict[text] !== 'undefined') {
+          return dict[text];
+        }
+      }
+      return text;
+    },
+    [effectiveState.currentLanguage, effectiveState.translations],
+  );
 
   return {
     __: getTranslatedText,
   };
 }
 
-export function useWpLanguage() {
-  const { currentLanguage, urls, homeUrls } = resolveI18nState();
+export function useWpLanguage(options: UseWpI18nOptions = {}) {
+  const syncState = resolveI18nState(options);
+  const asyncData = useDecoupledI18nHydration(options, syncState.hasResolvedSource);
+  const { currentLanguage, defaultLocale, locales, urls, homeUrls } = asyncData
+    ? resolveI18nState(options, asyncData)
+    : syncState;
   const homeUrl = homeUrls[currentLanguage] || '/';
-  const languages = useMemo(() => Object.keys(urls), [urls]);
+  const languages = useMemo(
+    () => (locales.length > 0 ? locales : Object.keys(urls)),
+    [locales, urls],
+  );
 
   const switchLanguage = useCallback(
     (lang: string) => {
@@ -2140,6 +2403,8 @@ export function useWpLanguage() {
 
   return {
     currentLanguage,
+    defaultLocale,
+    locales,
     languages,
     urls,
     homeUrls,

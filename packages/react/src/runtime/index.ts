@@ -328,6 +328,10 @@ export {
   normalizeSiteSettings,
   normalizeFormResource,
   normalizeFormsCollection,
+  normalizeMenuItemsContract,
+  normalizeMenusCollection,
+  normalizeRoutesResource,
+  normalizeI18nResource,
 } from './registry.js';
 export type {
   ForgeWpResourceAuth,
@@ -340,6 +344,10 @@ export type {
   FormFieldContract,
   FormResource,
   FormsCollectionResource,
+  MenuItemContract,
+  MenusCollectionResource,
+  RouteRecordContract,
+  RoutesResource,
   I18nResource,
 } from './registry.js';
 export {

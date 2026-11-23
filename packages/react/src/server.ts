@@ -16,9 +16,16 @@ import {
   ForgeWpRuntimeError,
   normalizeFormResource,
   normalizeFormsCollection,
+  normalizeI18nResource,
+  normalizeMenuItemsContract,
+  normalizeMenusCollection,
+  normalizeRoutesResource,
   normalizeSiteSettings,
   type FormResource,
   type FormsCollectionResource,
+  type I18nResource,
+  type MenusCollectionResource,
+  type RoutesResource,
   type SiteSettingsResource,
 } from './runtime/index.js';
 
@@ -64,6 +71,7 @@ export interface WpServerMenuItem {
   path: string;
   target?: string;
   classes?: string[];
+  external?: boolean;
   children: WpServerMenuItem[];
 }
 
@@ -81,6 +89,7 @@ export interface WpServerClientOptions {
   fixtures?: Record<string, Array<Record<string, any>>>;
   menus?: Record<string, Array<Record<string, any>>>;
   forms?: Record<string, any>;
+  i18n?: Partial<I18nResource>;
   siteInfo?: Partial<Omit<WpServerSiteInfo, 'mode'>>;
   siteOptions?: Record<string, any>;
   themeMods?: Record<string, any>;
@@ -130,17 +139,18 @@ export interface WpServerClient {
     postType?: string,
     paramName?: string,
   ): Promise<Array<Record<string, string>>>;
-  getRoutes(): Promise<{
-    homeUrl: string;
-    basePath: string;
-    routes: WpServerRouteRecord[];
-  }>;
+  getRoutes(options?: { lang?: string }): Promise<RoutesResource>;
   getRouteHref(
     routeSlug: string,
     fallbackPath?: string,
-    options?: { query?: string; fragment?: string },
+    options?: { query?: string; fragment?: string; lang?: string },
   ): Promise<string>;
-  getMenu(location?: string): Promise<WpServerMenuItem[]>;
+  getMenu(
+    location?: string,
+    options?: { lang?: string },
+  ): Promise<WpServerMenuItem[]>;
+  getMenus(options?: { lang?: string }): Promise<MenusCollectionResource>;
+  getI18n(options?: { lang?: string; path?: string }): Promise<I18nResource>;
   getSiteInfo(): Promise<WpServerSiteInfo>;
   getSiteSettings(): Promise<SiteSettingsResource>;
   getForm(name: string, options?: { lang?: string }): Promise<FormResource | null>;
@@ -282,9 +292,14 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
   const siteOptions = normalizedFixtureSettings.options;
   const themeMods = normalizedFixtureSettings.themeMods;
   const fixtureForms = normalizeFormsCollection(options.forms || {}) || { forms: {} };
+  const fixtureI18n = options.i18n ? normalizeI18nResource(options.i18n) : null;
   let cachedSiteSettings: SiteSettingsResource | null = null;
   const cachedFormByKey = new Map<string, FormResource | null>();
   const cachedFormsByLang = new Map<string, FormsCollectionResource>();
+  const cachedRoutesByLang = new Map<string, RoutesResource>();
+  const cachedMenuByKey = new Map<string, WpServerMenuItem[]>();
+  const cachedMenusByLang = new Map<string, MenusCollectionResource>();
+  const cachedI18nByKey = new Map<string, I18nResource>();
   const metaMap = options.meta || {};
   const fetchImpl = options.fetch || globalThis.fetch;
   const cacheMode = options.cache ?? 'no-store';
@@ -309,6 +324,45 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
     return {
       Authorization: `Basic ${encodeBase64(`${options.auth.username}:${options.auth.applicationPassword}`)}`,
     };
+  }
+
+  function buildTaggedInit(tags: string[], authenticated = false): Record<string, any> {
+    const mergedTags = Array.from(new Set([...tags, ...(nextOptions?.tags || [])]));
+    return {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...(authenticated ? getAuthHeaders() : {}),
+      },
+      cache: cacheMode,
+      next: {
+        ...(nextOptions || {}),
+        tags: mergedTags,
+      },
+    };
+  }
+
+  function throwIfLocaleNotFound(
+    response: Response,
+    json: any,
+    resource: string,
+  ): void {
+    if (
+      !response.ok &&
+      json &&
+      typeof json === 'object' &&
+      json.code === 'FORGEWP_LOCALE_NOT_FOUND'
+    ) {
+      const msg =
+        typeof json.message === 'string' && json.message
+          ? json.message
+          : `Unknown locale requested for resource "${resource}".`;
+      throw new ForgeWpRuntimeError(
+        'FORGEWP_RESOURCE_FETCH_FAILED',
+        `[FORGEWP_LOCALE_NOT_FOUND] ${msg}`,
+        { resource, status: response.status },
+      );
+    }
   }
 
   async function wpFetchJson(
@@ -455,36 +509,67 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       return findFixturePage(slug);
     },
 
-    async getRoutes() {
+    async getRoutes(routeOptions = {}) {
+      const lang =
+        typeof routeOptions.lang === 'string' && routeOptions.lang.trim()
+          ? routeOptions.lang.trim()
+          : undefined;
+      const cacheKey = lang || '';
+
+      if (!isNativeWordPressExport() && cachedRoutesByLang.has(cacheKey)) {
+        return cachedRoutesByLang.get(cacheKey)!;
+      }
+
       const base = !isNativeWordPressExport() ? resolveWpBase() : null;
       if (base) {
-        const bridge = await wpFetchJson(base, '/wp-json/forgewp/v1/routes', false);
-        if (bridge && Array.isArray(bridge.routes)) {
-          return {
-            homeUrl: bridge.homeUrl || `${base.baseUrl}/`,
-            basePath: bridge.basePath ?? base.basePath,
-            routes: bridge.routes,
-          };
+        const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+        const url = `${base.baseUrl}/wp-json/forgewp/v1/routes${qs}`;
+        const response = await fetchImpl(url, buildTaggedInit(['routes']));
+        const json = await response.json().catch(() => null);
+        throwIfLocaleNotFound(response, json, 'routes');
+        if (response.ok && json) {
+          const normalized = normalizeRoutesResource({
+            ...json,
+            homeUrl: json.homeUrl || `${base.baseUrl}/`,
+            basePath: json.basePath ?? base.basePath,
+            ...(lang && !json.lang ? { lang } : {}),
+          });
+          if (normalized) {
+            cachedRoutesByLang.set(cacheKey, normalized);
+            return normalized;
+          }
         }
       }
 
       const pages = Array.isArray(fixtures.page) ? fixtures.page : [];
-      return {
+      const routes = pages.map((p, idx) => {
+        const slug = String(p.slug || '').replace(/^\/+|\/+$/g, '');
+        const relPath = slug === '' || slug === 'home' ? '/' : `/${slug}`;
+        return {
+          routeId: String(p.routeId || slug || '__home__'),
+          id: typeof p.id === 'number' ? p.id : idx + 1,
+          slug,
+          title: String(p.title || ''),
+          path: relPath,
+          permalink: relPath,
+        };
+      });
+      const pageLinks: Record<string, string> = {};
+      for (const route of routes) {
+        if (route.routeId) pageLinks[route.routeId] = route.path;
+        if (route.slug && !pageLinks[route.slug]) pageLinks[route.slug] = route.path;
+      }
+      const fallbackRoutes: RoutesResource = {
         homeUrl: '/',
         basePath: '',
-        routes: pages.map((p, idx) => {
-          const slug = String(p.slug || '').replace(/^\/+|\/+$/g, '');
-          const relPath = slug === '' || slug === 'home' ? '/' : `/${slug}`;
-          return {
-            routeId: String(p.routeId || slug || '__home__'),
-            id: typeof p.id === 'number' ? p.id : idx + 1,
-            slug,
-            title: String(p.title || ''),
-            path: relPath,
-            permalink: relPath,
-          };
-        }),
+        ...(lang ? { lang } : {}),
+        routes,
+        pageLinks,
       };
+      if (!isNativeWordPressExport()) {
+        cachedRoutesByLang.set(cacheKey, fallbackRoutes);
+      }
+      return fallbackRoutes;
     },
 
     async getRouteHref(routeSlug, fallbackPath = '/', opts = {}) {
@@ -492,7 +577,12 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       if (clean === '' || clean === '__home__') {
         return appendQueryAndFragment('/', opts);
       }
-      const { routes } = await this.getRoutes();
+      const { routes, pageLinks } = await this.getRoutes(
+        opts.lang ? { lang: opts.lang } : undefined,
+      );
+      if (pageLinks?.[clean]) {
+        return appendQueryAndFragment(pageLinks[clean], opts);
+      }
       const match = routes.find((r) => r.routeId === clean || r.slug === clean);
       return appendQueryAndFragment(match ? match.path : fallbackPath, opts);
     },
@@ -611,62 +701,193 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       return posts.map((p) => ({ [paramName]: p.slug }));
     },
 
-    async getMenu(location = 'primary') {
+    async getMenu(location = 'primary', menuOptions = {}) {
       const cleanLoc = String(location || 'primary').trim() || 'primary';
-      const normalizeMenuItems = (raw: any, prefix = cleanLoc): WpServerMenuItem[] => {
-        if (!Array.isArray(raw)) return [];
-        return raw.map((item, idx) => {
-          const rawUrl = String(item?.url || item?.path || '/');
-          const relPath =
-            typeof item?.path === 'string' && item.path
-              ? item.path
-              : rawUrl.startsWith('/')
-                ? rawUrl
-                : stripBasePath(
-                    rawUrl,
-                    resolveWpBase() || { origin: 'http://localhost', basePath: '' },
-                  );
-          const classes = Array.isArray(item?.classes)
-            ? item.classes.map(String).filter(Boolean)
-            : typeof item?.classes === 'string' && item.classes.trim()
-              ? item.classes.trim().split(/\s+/)
-              : [];
-          return {
-            id: item?.id ?? `${prefix}-${idx + 1}`,
-            title: String(item?.title || ''),
-            url: rawUrl,
-            path: relPath || '/',
-            ...(item?.target ? { target: String(item.target) } : {}),
-            ...(classes.length > 0 ? { classes } : {}),
-            children: normalizeMenuItems(item?.children, `${prefix}-${idx + 1}`),
-          };
-        });
+      const lang =
+        typeof menuOptions.lang === 'string' && menuOptions.lang.trim()
+          ? menuOptions.lang.trim()
+          : undefined;
+      const cacheKey = `${cleanLoc}::${lang || ''}`;
+
+      const normalizeLocalItems = (raw: unknown): WpServerMenuItem[] => {
+        const items = normalizeMenuItemsContract(raw, cleanLoc);
+        const wpBase = resolveWpBase();
+        if (!wpBase) return items;
+        const fixBasePaths = (list: WpServerMenuItem[]): WpServerMenuItem[] =>
+          list.map((item) => ({
+            ...item,
+            path:
+              item.external || item.path.startsWith('http://') || item.path.startsWith('https://')
+                ? item.path
+                : item.path || stripBasePath(item.url, wpBase),
+            children: fixBasePaths(item.children),
+          }));
+        return fixBasePaths(items);
       };
 
       const menusFixture = options.menus || {};
-      const localItems = normalizeMenuItems(menusFixture[cleanLoc]);
+      const localItems = normalizeLocalItems(menusFixture[cleanLoc]);
 
       if (isNativeWordPressExport()) {
         return localItems;
       }
 
+      if (cachedMenuByKey.has(cacheKey)) {
+        return cachedMenuByKey.get(cacheKey)!;
+      }
+
       const base = resolveWpBase();
       if (base) {
         try {
-          const data = await wpFetchJson(
-            base,
-            `/wp-json/forgewp/v1/menus/${encodeURIComponent(cleanLoc)}`,
-            false,
+          const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+          const url = `${base.baseUrl}/wp-json/forgewp/v1/menus/${encodeURIComponent(cleanLoc)}${qs}`;
+          const response = await fetchImpl(
+            url,
+            buildTaggedInit(['menus', `menu:${cleanLoc}`]),
           );
-          if (data && Array.isArray(data.items)) {
-            return normalizeMenuItems(data.items);
+          const json = await response.json().catch(() => null);
+          throwIfLocaleNotFound(response, json, `menus:${cleanLoc}`);
+          if (response.ok && json && Array.isArray(json.items)) {
+            const normalized = normalizeLocalItems(json.items);
+            cachedMenuByKey.set(cacheKey, normalized);
+            return normalized;
           }
-        } catch {
+        } catch (err) {
+          if (err instanceof ForgeWpRuntimeError) {
+            throw err;
+          }
           // Fall back to local menus fixture if endpoint is unavailable
         }
       }
 
+      cachedMenuByKey.set(cacheKey, localItems);
       return localItems;
+    },
+
+    async getMenus(menusOptions = {}) {
+      const lang =
+        typeof menusOptions.lang === 'string' && menusOptions.lang.trim()
+          ? menusOptions.lang.trim()
+          : undefined;
+      const cacheKey = lang || '';
+
+      const fallbackCollection: MenusCollectionResource =
+        normalizeMenusCollection(options.menus || {}) || { menus: {} };
+      const withLangFallback: MenusCollectionResource = {
+        ...(lang ? { lang } : {}),
+        menus: fallbackCollection.menus,
+      };
+
+      if (isNativeWordPressExport()) {
+        return withLangFallback;
+      }
+
+      if (cachedMenusByLang.has(cacheKey)) {
+        return cachedMenusByLang.get(cacheKey)!;
+      }
+
+      const base = resolveWpBase();
+      if (base) {
+        try {
+          const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+          const url = `${base.baseUrl}/wp-json/forgewp/v1/menus${qs}`;
+          const response = await fetchImpl(url, buildTaggedInit(['menus']));
+          const json = await response.json().catch(() => null);
+          throwIfLocaleNotFound(response, json, 'menus');
+          if (response.ok && json) {
+            const normalized = normalizeMenusCollection(json) || {
+              ...(lang ? { lang } : {}),
+              menus: {},
+            };
+            const finalCollection: MenusCollectionResource = {
+              ...(normalized.lang ? { lang: normalized.lang } : lang ? { lang } : {}),
+              menus: normalized.menus,
+            };
+            cachedMenusByLang.set(cacheKey, finalCollection);
+            for (const [loc, locItems] of Object.entries(finalCollection.menus)) {
+              cachedMenuByKey.set(`${loc}::${lang || ''}`, locItems);
+            }
+            return finalCollection;
+          }
+        } catch (err) {
+          if (err instanceof ForgeWpRuntimeError) {
+            throw err;
+          }
+          // Fall back to local menus fixture if endpoint is unavailable
+        }
+      }
+
+      cachedMenusByLang.set(cacheKey, withLangFallback);
+      return withLangFallback;
+    },
+
+    async getI18n(i18nOptions = {}) {
+      const lang =
+        typeof i18nOptions.lang === 'string' && i18nOptions.lang.trim()
+          ? i18nOptions.lang.trim()
+          : undefined;
+      const path =
+        typeof i18nOptions.path === 'string' && i18nOptions.path.trim()
+          ? i18nOptions.path.trim()
+          : undefined;
+      const cacheKey = `${lang || ''}::${path || ''}`;
+
+      const buildFallbackI18n = (): I18nResource => {
+        if (fixtureI18n) {
+          return {
+            ...fixtureI18n,
+            ...(lang ? { currentLanguage: lang } : {}),
+          };
+        }
+        const effectiveLang = lang || 'en';
+        return {
+          currentLanguage: effectiveLang,
+          defaultLocale: effectiveLang,
+          locales: [effectiveLang],
+          translations: {},
+          urls: { [effectiveLang]: '/' },
+          homeUrls: { [effectiveLang]: '/' },
+        };
+      };
+
+      if (isNativeWordPressExport()) {
+        return buildFallbackI18n();
+      }
+
+      if (cachedI18nByKey.has(cacheKey)) {
+        return cachedI18nByKey.get(cacheKey)!;
+      }
+
+      const base = resolveWpBase();
+      if (base) {
+        try {
+          const params = new URLSearchParams();
+          if (lang) params.set('lang', lang);
+          if (path) params.set('path', path);
+          const qs = params.toString();
+          const url = `${base.baseUrl}/wp-json/forgewp/v1/i18n${qs ? `?${qs}` : ''}`;
+          const tags = lang ? ['i18n', `i18n:${lang}`] : ['i18n'];
+          const response = await fetchImpl(url, buildTaggedInit(tags));
+          const json = await response.json().catch(() => null);
+          throwIfLocaleNotFound(response, json, 'i18n');
+          if (response.ok && json) {
+            const normalized = normalizeI18nResource(json);
+            if (normalized) {
+              cachedI18nByKey.set(cacheKey, normalized);
+              return normalized;
+            }
+          }
+        } catch (err) {
+          if (err instanceof ForgeWpRuntimeError) {
+            throw err;
+          }
+          // Fall back to local i18n fixture if endpoint is unavailable
+        }
+      }
+
+      const fallback = buildFallbackI18n();
+      cachedI18nByKey.set(cacheKey, fallback);
+      return fallback;
     },
 
     async getSiteInfo() {
@@ -1505,6 +1726,10 @@ export {
   normalizeSiteSettings,
   normalizeFormResource,
   normalizeFormsCollection,
+  normalizeMenuItemsContract,
+  normalizeMenusCollection,
+  normalizeRoutesResource,
+  normalizeI18nResource,
   createForgeWpRuntime,
   configureForgeWpRuntime,
   getForgeWpRuntime,
@@ -1531,6 +1756,10 @@ export type {
   FormFieldContract,
   FormResource,
   FormsCollectionResource,
+  MenuItemContract,
+  MenusCollectionResource,
+  RouteRecordContract,
+  RoutesResource,
   I18nResource,
   RestSourceOptions,
   PrimableForgeWpSource,

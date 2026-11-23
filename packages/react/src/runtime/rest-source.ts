@@ -4,11 +4,15 @@ import {
   getResourceDefinition,
   normalizeFormResource,
   normalizeFormsCollection,
+  normalizeI18nResource,
+  normalizeMenusCollection,
+  normalizeRoutesResource,
   normalizeSiteSettings,
   type ForgeWpResourceMap,
   type ForgeWpResourceName,
   type ForgeWpResourceParams,
   type FormsCollectionResource,
+  type MenusCollectionResource,
 } from './registry.js';
 
 export interface RestSourceOptions {
@@ -78,6 +82,15 @@ function normalizeResourcePayload<K extends ForgeWpResourceName>(
     }
     return (normalizeFormsCollection(raw) ?? raw) as ForgeWpResourceMap[K];
   }
+  if (resource === 'menus') {
+    return (normalizeMenusCollection(raw, params?.slug) ?? raw) as ForgeWpResourceMap[K];
+  }
+  if (resource === 'routes') {
+    return (normalizeRoutesResource(raw) ?? raw) as ForgeWpResourceMap[K];
+  }
+  if (resource === 'i18n') {
+    return (normalizeI18nResource(raw) ?? raw) as ForgeWpResourceMap[K];
+  }
   return raw as ForgeWpResourceMap[K];
 }
 
@@ -105,6 +118,20 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
     });
   }
 
+  function mergeMenusIntoCollectionCache(
+    collection: MenusCollectionResource,
+  ): void {
+    const existing = cache.get('menus') as MenusCollectionResource | undefined;
+    cache.set('menus', {
+      ...(existing?.lang ? { lang: existing.lang } : {}),
+      ...(collection.lang ? { lang: collection.lang } : {}),
+      menus: {
+        ...(existing?.menus || {}),
+        ...(collection.menus || {}),
+      },
+    });
+  }
+
   function peek<K extends ForgeWpResourceName>(
     resource: K,
     params?: ForgeWpResourceParams,
@@ -124,6 +151,17 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
         } as ForgeWpResourceMap[K];
       }
     }
+    // Allow single-menu peek('menus', { slug }) to hit the collection cache
+    if (resource === 'menus' && params?.slug) {
+      const coll = cache.get('menus') as MenusCollectionResource | undefined;
+      const found = coll?.menus?.[params.slug];
+      if (found) {
+        return {
+          ...(coll?.lang ? { lang: coll.lang } : {}),
+          menus: { [params.slug]: found },
+        } as ForgeWpResourceMap[K];
+      }
+    }
     return undefined;
   }
 
@@ -136,6 +174,9 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
     cache.set(buildCacheKey(resource, params), normalized);
     if (resource === 'forms' && normalized && typeof normalized === 'object') {
       mergeFormsIntoCollectionCache(normalized as FormsCollectionResource);
+    }
+    if (resource === 'menus' && normalized && typeof normalized === 'object') {
+      mergeMenusIntoCollectionCache(normalized as MenusCollectionResource);
     }
   }
 
@@ -185,10 +226,14 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
       },
       ...(options.cache ? { cache: options.cache } : {}),
     };
-    const perResourceTags =
-      resource === 'forms' && params?.slug
-        ? [`form:${params.slug}`]
-        : [];
+    const perResourceTags: string[] = [];
+    if (resource === 'forms' && params?.slug) {
+      perResourceTags.push(`form:${params.slug}`);
+    } else if (resource === 'menus' && params?.slug) {
+      perResourceTags.push(`menu:${params.slug}`);
+    } else if (resource === 'i18n' && typeof params?.query?.lang === 'string' && params.query.lang) {
+      perResourceTags.push(`i18n:${params.query.lang}`);
+    }
     if (options.next || def.cacheTags.length > 0 || perResourceTags.length > 0) {
       const mergedTags = Array.from(
         new Set([
@@ -227,6 +272,9 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
     cache.set(key, normalized);
     if (resource === 'forms' && normalized && typeof normalized === 'object') {
       mergeFormsIntoCollectionCache(normalized as FormsCollectionResource);
+    }
+    if (resource === 'menus' && normalized && typeof normalized === 'object') {
+      mergeMenusIntoCollectionCache(normalized as MenusCollectionResource);
     }
     return normalized as ForgeWpResourceMap[K];
   }
