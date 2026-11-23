@@ -33,32 +33,33 @@ Live status and the task table: [phase-status-and-blog-urls.md](phase-status-and
 
 ---
 
-## 3. Task queue
+## 3. Task queue (updated 2026-11-23 after Gemini's R2/R3/R4/R5/R6 push and the founder's R7 decisions)
+
+### Done since the first handoff
+Route-id overwrite fix (`bf909e8`), R6 parity CI (`49c0904`, CI fixes `1d7ef51`, `aa238ad`), checkout payment fix + `/cart/remove-coupon` (`dad33fe`), R7 contract (§15, Q1–Q6 accepted), Gemini: R2 proposal (status §9), R3, R4/R5 drafts (contracts §13/§14), R6 helpers. Claude's reviews: status §9a/§9b, contracts §13/§14 "Claude review".
 
 ### Claude
 
 | Order | Task | Notes |
 |---|---|---|
-| 1 | **Fix route-ID overwrite on theme re-activation** (R1 report §3.1) | In `functions/routing.js`, `forgewp_auto_create_pages_and_menus()` re-tags each matched page with `forgewp_route_id` on every run ("self-heals on every request"). Fallback "Coming next" entries from menu links (`collectFallbackPageRoutes`) carry `template: page-placeholder.php`, so their route id is `placeholder`; when such an entry matches a real page by slug (hotelchecker24's English `contact`, post 17, route `kontakt-page`), the real id is overwritten with `placeholder`. Never overwrite a non-placeholder route id with `placeholder`, and do not re-template a page that already has a real ForgeWP template. Add a PHP-executing regression test; verify by re-activating hotelchecker24 on LocalWP and checking `/en/` `pageLinks`. |
-| 2 ✅ | **R6 — Phase D parity CI** (done: `scripts/parity/`, `.github/workflows/parity.yml`, fixture `projects/parity-fixture`; findings in status doc §8) | GitHub Actions job: boot WordPress + MariaDB + Mailpit (reuse `scripts/cloud-e2e/docker-compose.yml`), export a fixture project natively and activate it, run the same project decoupled (`next build && next start` against that WordPress), then fail on differences in: `resources.*` vs REST (deep-equal after `JSON.parse`), key DOM text per route, form submit, auth guard, locale. Gemini supplies the Next.js run step and DOM-compare helpers. Start from `projects/e2e-next` (Claude's test site, local only; promote a trimmed copy into the repo as the CI fixture). |
-| 3 | **R2 PHP side** — native comments list and post terms | After Gemini's marker proposal. Same pattern as `WpQueryLoop` / `the_content`: `markup-processor.js` turns the markers into PHP loops reading live WordPress data. |
-| 4 | **R4 / R5 PHP** — SEO resource (Yoast/Rank Math bridge, frontend-domain canonicals, hreflang, JSON-LD) and editables/repeaters resource | After Gemini's contract drafts are approved. Reuse `forgewp_seo_plugin_active()` (now Rank-Math-registration aware). |
-| 5 ✅ | **R7** WooCommerce contract draft (done: `resource-contracts.md` §15; checkout payment fix `dad33fe`). PHP build starts after Q1–Q6 are answered | Use R1 findings: same-origin Woo endpoints need `X-WP-Nonce`; WooCommerce Blocks Cart skeletons vs React cart badge on `forge-commerce`; decoupled checklist 1d not yet run. |
-| later | R8 `transformBackendPhp` hook, R9 hand-written plugin sources (Hospitality 2035) | Post-beta. |
+| 1 | **R2 PHP** (`markup-processor.js`) | Terms loop, comments loop (memoized `forgewp_native_comments()`, recursive closure with per-loop names + depth guard), count from the resource (C2), unquoted numeric tokens inside island props (C1). Remove the R2 entries from `scripts/parity/known-gaps.json` once CI is green. Starts when Gemini's markers land. |
+| 2 | **R7 PHP** (§15) | Money helpers, `commerce-settings`, `products`/`product` (REST + native), new cart routes + `X-ForgeWP-Cart-Token`, checkout on `POST /checkout`, customer/wishlist shapes; old paths as aliases until Gemini migrates. Parity CI: WooCommerce from its GitHub release (Q6). |
+| 3 | **R4 / R5 PHP** | After the founder approves §13/§14 with Claude's answers. |
+| later | R8 `transformBackendPhp`, R9 hand-written plugin sources | Post-beta. |
 
-### Gemini
+### Gemini (local, LocalWP)
 
 | Order | Task | Notes |
 |---|---|---|
-| 1 | **R2 marker proposal** | How `getComments()` results and `post.terms` are marked during native export so Claude can emit PHP (like `WpQueryLoop`). **Scope grew (parity CI):** the single route's `post.title` and the `postId` passed to islands are frozen too, and so are `getPosts()`/`getTerms()`/`getTerm()` outside `WpQueryLoop`. Write it in the status doc; agree with Claude before building. |
-| 2a | **Review R7 draft** (`resource-contracts.md` §15, Q1–Q6) | Your side: one cart stack, `formatMoney`, env vars, cart token. |
-| 2 | **R4 + R5 contract drafts** | SEO (`/forgewp/v1/seo?path=`) and editables/repeaters, in `resource-contracts.md`, for Claude's review and founder approval. |
-| 3 | **R3** | `getPosts()` list items gain `path`, `terms`, `protected` (additive). |
-| 3a | **P2: native `getSiteSettings()` keys** | Tokenize the `options` / `themeMods` declared in `wp.config` by default, not only those passed to `createWpServerClient()`. Parity CI gap `P2-native-site-settings-keys`; delete it from `scripts/parity/known-gaps.json` in the fix PR. |
-| 4 | R6 Next.js side | Claude shipped a first version of the decoupled build/run and DOM compare (`scripts/parity/run.sh`, `run-parity.mjs`). Review it and extend coverage (client navigation, islands after hydration, comment submit, logged-in auth). |
-| 0b | **Verify Claude's checkout fix on LocalWP** (`dad33fe`, WooCommerce) | Export `forge-commerce` from `main` after merge. With COD and BACS enabled: (1) `POST /checkout/process` with `payment_method: "stripe"` → `400 invalid_payment_method`, no order; (2) BACS → order `on-hold`, COD → `processing`, both with emails in Mailpit; (3) a flat-rate shipping method chosen in the cart appears on the order; (4) `GET /checkout/gateways` lists only enabled gateways; (5) `POST /cart/remove-coupon` works. Then look into the WooCommerce Blocks Cart skeleton (R1 §3) with browser console + network. |
-| 0 | **Verify Claude's Task 1 fix on LocalWP** | Re-export `hotelchecker24` from `claude/pensive-pasteur-tov58c`, re-activate it twice (switch to Twenty Twenty-Five and back), then check post 17 keeps `forgewp_route_id = kontakt-page` and `/en/` `pageLinks` points `kontakt-page` at the English contact page. |
-| note | Nonce forwarding | R1 confirmed same-origin `wishlist`, `customer/*` and `checkout/process` return 401 without `X-WP-Nonce`; client code must always forward `restNonce`. |
+| 0 | **LocalWP checks** of Claude's fixes | (a) Route id: re-export `hotelchecker24`, re-activate twice, post 17 keeps `forgewp_route_id = kontakt-page`, `/en/` `pageLinks` correct. (b) Checkout (`dad33fe`), COD + BACS enabled: `payment_method: "stripe"` → `400 invalid_payment_method`, no order; BACS → `on-hold`, COD → `processing`, emails in Mailpit; chosen flat-rate shipping on the order; `/checkout/gateways` lists only enabled gateways; `/cart/remove-coupon` works. (c) WooCommerce Blocks Cart skeleton on `forge-commerce` (R1 §3): console + network. |
+| 1 | **R2 build** per status §9 + Claude's §9a | Parts A–C, `__FORGEWP_THE_PATH__` / `__FORGEWP_TERM_PATH__` (C3), `getPost()` returns tokens in native export, doctor warning for lists rendered outside loop components (C4). Switch the parity fixture's `/blog/[slug]` and `/listing` to the new components in the same PR. |
+| 2 | **P2: native `getSiteSettings()` keys** | Tokenize `wp.config` `options` / `themeMods` by default. Remove `P2-native-site-settings-keys` from `known-gaps.json` in the PR. |
+| 3 | **Wire `next-parity-helpers.js` into `scripts/parity/run-parity.mjs`** (status §9b) | Keep the check list, `known-gaps.json`, report format; add the leaked-token check (`__FORGEWP_*__`, `<forgewp-*`, `<?php` in rendered HTML) as its own failing check. |
+| 4 | **R7 client** (§15.7) | One cart stack on §15.3 in `@forgewp/woocommerce`, `formatMoney`, runtime env vars (A6), cart token storage, nonce forwarding, checkout `needsRedirect` handling (do not clear the cart on redirect). |
+| 5 | R3 follow-ups (§9b) | `permalink` stays absolute in `getPosts()`; native token item uses `__FORGEWP_THE_PATH__`. |
+| 6 | R4/R5 client helpers | After approval. |
+| note | Nonce forwarding | Same-origin `wishlist`, `customer/*`, `checkout` need `X-WP-Nonce`; always forward `restNonce`. |
+| note | Tiny edit in your area by Claude | `test/functions/next-bugfixes-regression.test.js` now expects R3's `path`/`terms`/`protected` (it failed on `main` since `e0980b0`). |
 
 ---
 
