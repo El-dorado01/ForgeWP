@@ -237,13 +237,27 @@ echo json_encode(array(
       // and verify 1:1 markup parity with zero duplicate fields or content swaps!
       delete process.env.FORGEWP_NATIVE_EXPORT;
       globalThis.window = {
-        forgeWpHydration: { forms: { contact: { fields: en_fields } } },
+        forgeWpHydration: {
+          resources: {
+            forms: {
+              lang: 'en',
+              forms: { contact: { name: 'contact', mode: 'native', fieldLabels: {}, fields: en_fields } },
+            },
+          },
+        },
       };
       const hydratedEn = renderToStaticMarkup(React.createElement(SampleContactForm));
       expect(en_html).toBe(hydratedEn);
 
       globalThis.window = {
-        forgeWpHydration: { forms: { contact: { fields: de_fields } } },
+        forgeWpHydration: {
+          resources: {
+            forms: {
+              lang: 'de',
+              forms: { contact: { name: 'contact', mode: 'native', fieldLabels: {}, fields: de_fields } },
+            },
+          },
+        },
       };
       const hydratedDe = renderToStaticMarkup(React.createElement(SampleContactForm));
       expect(de_html).toBe(hydratedDe);

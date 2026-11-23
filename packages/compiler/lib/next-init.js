@@ -261,6 +261,10 @@ export function initNextProject(projectRoot, options = {}) {
     pkg.scripts.doctor = 'forgewp doctor';
     addedScripts.push('doctor');
   }
+  if (!pkg.scripts['wp:doctor']) {
+    pkg.scripts['wp:doctor'] = 'forgewp doctor';
+    addedScripts.push('wp:doctor');
+  }
   if (!pkg.scripts['dev:decoupled']) {
     pkg.scripts['dev:decoupled'] =
       `node -e "import('node:child_process').then(({spawn})=>spawn('next',['dev'],{stdio:'inherit',shell:true,env:{...process.env,FORGEWP_DEPLOYMENT_MODE:'decoupled'}}).on('exit',(c)=>process.exit(c??0)))"`;

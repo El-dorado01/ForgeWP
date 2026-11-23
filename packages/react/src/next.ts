@@ -196,6 +196,18 @@ export function withForgeWP<
     rules: turbopackRules,
   };
 
+  const existingEnv =
+    nextConfig.env && typeof nextConfig.env === 'object' ? nextConfig.env : {};
+  const serverWpUrl = (globalThis as any).process?.env?.FORGEWP_WP_URL;
+  const explicitPublicWpUrl =
+    existingEnv.NEXT_PUBLIC_FORGEWP_WP_URL ??
+    (globalThis as any).process?.env?.NEXT_PUBLIC_FORGEWP_WP_URL;
+  const shouldExposeWpUrlToClient =
+    !nativeExport &&
+    typeof serverWpUrl === 'string' &&
+    serverWpUrl.trim() !== '' &&
+    !(typeof explicitPublicWpUrl === 'string' && explicitPublicWpUrl.trim() !== '');
+
   const wrapped: ForgeWPNextLikeConfig = {
     ...nextConfig,
     ...(isDecoupled || nextConfig.output !== undefined
@@ -203,6 +215,14 @@ export function withForgeWP<
       : { output: 'export' }),
     ...(shouldSetUnoptimizedImages
       ? { images: { ...(nextConfig.images || {}), unoptimized: true } }
+      : {}),
+    ...(shouldExposeWpUrlToClient
+      ? {
+          env: {
+            ...existingEnv,
+            NEXT_PUBLIC_FORGEWP_WP_URL: serverWpUrl.trim(),
+          },
+        }
       : {}),
     transpilePackages,
     turbopack: turbopackConfig,

@@ -245,6 +245,8 @@ describe('Phase A Assignment 6: forms React pilot (contract, wpClient.getForm, W
     expect(okRes).toEqual({ ok: true, message: 'Submitted!' });
     expect(requests[0].url).toBe('https://edge.example.com/wp-json/forgewp/v1/forms/contact/submit');
     expect(requests[0].body.lang).toBe('de');
+    expect(typeof requests[0].body._forgewp_elapsed).toBe('string');
+    expect(typeof requests[0].body._forgewp_interacted).toBe('boolean');
 
     const errRes = await submitWpForm('contact', { email: 'bad' }, { lang: 'fr' });
     expect(errRes).toEqual({
@@ -253,6 +255,16 @@ describe('Phase A Assignment 6: forms React pilot (contract, wpClient.getForm, W
       errors: { email: 'Invalid email' },
     });
     expect(requests[1].body.lang).toBe('fr');
+
+    // Explicit options.submitUrl takes precedence over cached form submitUrl
+    await submitWpForm(
+      'contact',
+      { email: 'ada@example.com' },
+      { submitUrl: 'https://override.example.com/wp-json/forgewp/v1/forms/contact/submit' },
+    );
+    expect(requests[2].url).toBe(
+      'https://override.example.com/wp-json/forgewp/v1/forms/contact/submit',
+    );
   });
 
   it('<WpFormFields> and useWpFormFieldLabels render identical DOM from RSC initialForm and native hydration', () => {
@@ -320,5 +332,27 @@ describe('Phase A Assignment 6: forms React pilot (contract, wpClient.getForm, W
       React.createElement(TestForm, { initialForm: null }),
     );
     expect(nativeHtml).toBe(decoupledHtml);
+  });
+
+  it('withForgeWP() exposes FORGEWP_WP_URL via env.NEXT_PUBLIC_FORGEWP_WP_URL in decoupled mode only', async () => {
+    const { withForgeWP } = await import('../../../react/src/next.ts');
+    process.env.FORGEWP_WP_URL = 'https://cms.example.com';
+    delete process.env.NEXT_PUBLIC_FORGEWP_WP_URL;
+    delete process.env.FORGEWP_NATIVE_EXPORT;
+
+    const decoupledCfg = withForgeWP({}, { deploymentMode: 'decoupled' });
+    expect(decoupledCfg.env?.NEXT_PUBLIC_FORGEWP_WP_URL).toBe('https://cms.example.com');
+
+    // Explicit NEXT_PUBLIC_FORGEWP_WP_URL in nextConfig.env is preserved
+    const explicitCfg = withForgeWP(
+      { env: { NEXT_PUBLIC_FORGEWP_WP_URL: 'https://override.example.com' } },
+      { deploymentMode: 'decoupled' },
+    );
+    expect(explicitCfg.env?.NEXT_PUBLIC_FORGEWP_WP_URL).toBe('https://override.example.com');
+
+    // Native static export never bakes a local dev FORGEWP_WP_URL into client bundles
+    process.env.FORGEWP_NATIVE_EXPORT = '1';
+    const nativeCfg = withForgeWP({});
+    expect(nativeCfg.env?.NEXT_PUBLIC_FORGEWP_WP_URL).toBeUndefined();
   });
 });
