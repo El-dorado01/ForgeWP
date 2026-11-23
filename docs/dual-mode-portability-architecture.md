@@ -490,3 +490,24 @@ The key difference from §5: **foundations first, then fixes become mechanical.*
 2. Confirm breaking changes are acceptable pre-stable, with existing projects as the migration suite.
 3. Confirm Next.js as the sole decoupled target.
 4. Infra v1 scope: Native + Pure Decoupled with router day-one and Hybrid as v1.1 beta, or Hybrid at launch?
+
+---
+
+## 9. Locked Architectural Decisions (Consensus — Nov 2026)
+
+Following multi-agent review (Sections 1–7, Section 8, and final synthesis), the following decisions are **locked** as the engineering contract for ForgeWP and future ForgeWP Infra:
+
+| # | Decision Area | Locked Direction |
+|---|---|---|
+| **1** | **Engineering Order** | **Foundations first (Section 8 order)** with two pragmatic adjustments: (a) keep `ForgeWpRuntime` + resource registry **lean** (shared JSON contract + pluggable `nativeSource` / `restSource` / `fixtureSource`, piloted on `site-settings` and `forms` — no heavy custom codegen DSL upfront), and (b) pull a lightweight **Route Capability Manifest (`forgewp-manifest.json`) + `forgewp doctor --target native\|decoupled\|hybrid --json`** up into **Phase A** for immediate visibility and CI guardrails. |
+| **2** | **Breaking Changes (Pre-Stable)** | **Approved now while pre-stable.** Extract the **Companion WordPress Plugin**, move theme-scoped state (`nav_menu_locations`, `custom_logo`, Customizer settings) into plugin-owned options with activation migration, split escape hatches into `src/server/plugin/*.php` vs. `src/server/theme/*.php`, and graduate recurring patterns (`redirects`, SEO head/schema) to declarative primitives. Use `hospitality`, `hotelchecker24`, `forge-commerce`, and `forgewp-auth` as the migration test suite. |
+| **3** | **Decoupled Target Policy (Next.js vs. Vite React)** | **Next.js App Router is the first-class, full-parity Decoupled & Hybrid target** (SSR/ISR, dynamic SEO metadata, Draft Mode, server-side auth guards, Hybrid route delegation). **Vite React** remains the primary Native WP + islands adapter — we will **not** build/maintain a separate custom Vite SSR server runtime. However, because `ForgeWpRuntime` (`restSource`) and the Companion Plugin REST API are shared across `@forgewp/react`, static/CSR decoupled deployment for Vite React remains possible on the same REST contract, with SPA trade-offs (no SSR HTML/ISR/server auth) surfaced clearly by `forgewp doctor`. |
+| **4** | **Future Cloud / Infra Scope** | Build the **same-domain Edge Router with a route table from day one** (needed for first-party cookies, nonces, and trusted client IPs in Pure Decoupled anyway). Launch Infra v1 with **Native + Pure Decoupled** for preflight-green sites, and unlock **Hybrid mode** immediately after (v1.1 beta) using the exact same route manifest and edge router. |
+| **5** | **Category C Plugins & `<WpShortcode>`** | **Drop the iframe embed bridge (§3 Solution 2)** — Hybrid route delegation is the clean solution for Category C plugins. In Pure Decoupled preflight, `<WpShortcode>` / `mode: 'shortcode'` is a **hard error (`compatible: false`)** unless the route is delegated via `hybridRoutes`. Never silently degrade in production. |
+
+### Execution Phases (Locked)
+- **Phase A (Foundations + Visibility):** Lean `ForgeWpRuntime` + resource contract (piloted on `site-settings` & `forms`), fail-loud production behavior + lint rule banning direct `window.forgeWpHydration` reads, lightweight `forgewp-manifest.json` + `forgewp doctor --target`, and theme-mod → plugin-option migration.
+- **Phase B (Companion Plugin Split):** Separate plugin + theme emitters, `src/server/{plugin,theme}` folder split, declarative `redirects`, and migration verification across existing monorepo projects.
+- **Phase C (Port Remaining Resources):** Menus/routes, i18n, editables/repeaters, SEO (`/forgewp/v1/seo`), server-enforced auth guards, and WooCommerce onto `ForgeWpRuntime`.
+- **Phase D (Cross-Mode Parity CI):** Automated Native (LocalWP) vs. Decoupled (Next.js) payload + DOM + form/auth parity checks in CI.
+- **Phase E (ForgeWP Infra):** Same-domain edge router, revalidation webhooks, Draft Mode bridge, Hybrid v1.1 beta, and live plugin compatibility endpoint.
