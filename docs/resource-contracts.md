@@ -577,3 +577,199 @@ Registered in `@forgewp/react`'s lean resource registry with reserved paths so r
 | `posts` / `post` | `/posts`, `/posts/<type>/<slug>` | `public` | `["posts", "type:<type>", "post:<id>"]` | Approved (Phase C — §10, §12a) |
 | `terms` | `/terms/<taxonomy>` | `public` | `["terms", "taxonomy:<taxonomy>"]` | Approved (Phase C — §11) |
 | `comments` | `/comments` | `public` read / guarded write | `["comments", "comments:post:<id>"]` | Approved (Phase C — §12, §12a) |
+| `commerce-settings` | `/commerce/settings` | `public` | `["commerce"]` | Draft (R7 — §13) |
+| `products` / `product` | `/products`, `/products/<slug>` | `public` | `["products", "product:<id>"]` | Draft (R7 — §13) |
+| `cart` | `/cart` | `visitor` (never hydrated, never cached) | — | Draft (R7 — §13) |
+| `checkout` | `/checkout`, `/checkout/gateways` | `visitor` | — | Draft (R7 — §13) |
+| `customer` | `/customer/*` | `session` | — | Draft (R7 — §13) |
+| `wishlist` | `/wishlist` | `session` | — | Draft (R7 — §13) |
+
+---
+
+## 13. `commerce` — WooCommerce on the runtime (R7 — Status: **Draft by Claude, 2026-11-23**, for Gemini's review and founder approval)
+
+**Goal:** one set of commerce shapes that native themes and decoupled apps both use, safe on cached pages and across origins, so a store can switch modes without rewriting its cart, checkout or account UI. Beta scope is marked per section; everything else is post-beta.
+
+### 13.0 Where we are today (audit, 2026-11-23)
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| A1 | `POST /checkout/process` never ran the payment gateway: every order was forced to `processing`, `payment_method` defaulted to `cod`, unknown gateway ids were accepted, and `/checkout/gateways` listed **invented** Stripe/PayPal entries when none were enabled. A shopper could get a paid-looking order without paying. The chosen shipping method was also dropped. | **Critical** | **Fixed** in `dad33fe` (gateway `process_payment()`, `WC_Checkout::create_order()`, real gateways only). Live check on LocalWP pending (Gemini). |
+| A2 | `useWpCart` calls `POST /cart/remove-coupon`; the handler existed but the route was never registered (404). | Bug | **Fixed** in `dad33fe` |
+| A3 | `@forgewp/woocommerce` runs **two cart stacks**: `components.tsx` talks to WooCommerce's Store API (`/wc/store/v1`, `Nonce` header, nonce in `localStorage`), `hooks.ts` (`useWpCart`) talks to `forgewp/v1/cart` (`X-WP-Nonce`) and mirrors the cart in `localStorage`. Two sources of truth; likely related to R1's "WC Blocks cart skeletons while the React badge shows 1 item". | Design | This contract (§13.3, Q2) |
+| A4 | Money is mixed: cart items use floats (`price: 25.5`), totals use 2-decimal strings, `currency` is only the symbol. Floats round wrongly for 3-decimal and 0-decimal currencies (KWD, JPY), and clients cannot format without the store's separators/position. | Design | §13.1 |
+| A5 | Guest carts depend on the WooCommerce session cookie. Cross-origin decoupled apps cannot keep a guest cart (third-party cookies blocked, `SameSite`). | Design | §13.3 session transport |
+| A6 | The package reads its own env vars (`NEXT_PUBLIC_WP_API_URL`, `VITE_WP_API_URL`, `window.FORGEWP_API_URL`) instead of the runtime's (`FORGEWP_WP_URL` / `NEXT_PUBLIC_FORGEWP_WP_URL`). | DX | Gemini, with the hook migration |
+| A7 | Same-origin `wishlist`, `customer/*`, `checkout/process` need `X-WP-Nonce` (R1). | Rule | §13.3 transport table |
+
+### 13.1 Conventions for every commerce shape
+
+- **Money** is an **integer in minor units** (`2550` = 25.50 USD, `3` = 3 JPY), never a float. Every response that contains money carries one `currency` object:
+  ```json
+  "currency": { "code": "USD", "symbol": "$", "minorUnit": 2, "decimalSeparator": ".", "thousandSeparator": ",", "prefix": "$", "suffix": "" }
+  ```
+  The runtime ships `formatMoney(amount, currency)` matching `wc_price()`, so native and decoupled print the same string. (Same convention as WooCommerce's Store API, so implementations can reuse it.)
+- **Paths:** product/category objects carry `path` (relative, language prefix included) and `permalink` (absolute WordPress URL), like `posts` (§10).
+- **Images:** `{ "id": 41, "src": "https://…/blazer-800x800.jpg", "srcset": "…", "alt": "…", "width": 800, "height": 800 }`; `id` is `0` for placeholder or external images.
+- **Errors:** the unified envelope. Commerce codes: `wc_unavailable` (503), `product_not_found` (404), `invalid_quantity` (400), `out_of_stock` (409), `coupon_error` (400), `invalid_payment_method` (400), `invalid_billing_email` (400), `cart_empty` (400), `payment_failed` (402), `unauthorized` (401), `forbidden` (403).
+- **Caching:** `products`, `product`, `commerce-settings` are public and cacheable. Everything visitor- or user-specific (`cart`, `checkout`, `customer`, `wishlist`) sends `Cache-Control: private, no-store` and `Vary: Cookie, Authorization, X-ForgeWP-Cart-Token`, and is **never** put into native hydration (cached HTML would leak one visitor's cart to the next).
+
+### 13.2 `commerce-settings` and `products` (beta)
+
+`GET /commerce/settings` → `resources['commerce-settings']` on every native page:
+```json
+{
+  "currency": { "...": "§13.1" },
+  "pricesIncludeTax": false,
+  "taxDisplay": { "shop": "excl", "cart": "excl" },
+  "couponsEnabled": true,
+  "guestCheckout": true,
+  "accountCreation": { "atCheckout": true, "generatePassword": true },
+  "pages": { "shop": "/shop/", "cart": "/cart/", "checkout": "/checkout/", "account": "/my-account/", "terms": "/terms/" }
+}
+```
+
+`GET /products?page=1&perPage=12&category=<slug>&tag=<slug>&search=&orderby=date|price|popularity|rating|title|menu_order&order=desc|asc&onSale=&featured=&lang=` → `resources.products` on shop and product-category routes:
+```json
+{ "lang": "en", "page": 1, "perPage": 12, "total": 4, "totalPages": 1, "currency": { "...": "§13.1" }, "items": [ "ProductSummary…" ] }
+```
+**ProductSummary**
+```json
+{
+  "id": 28, "slug": "minimalist-wool-blazer", "type": "variable", "name": "Minimalist Wool Blazer",
+  "path": "/product/minimalist-wool-blazer/", "permalink": "https://shop.test/product/minimalist-wool-blazer/",
+  "shortDescription": "<p>…</p>",
+  "prices": { "price": 29700, "regularPrice": 34000, "salePrice": 29700, "onSale": true, "range": { "min": 29700, "max": 31900 } },
+  "images": [ "Image…" ],
+  "categories": [ { "id": 15, "slug": "outerwear", "name": "Outerwear", "path": "/product-category/outerwear/" } ],
+  "stock": { "status": "instock", "quantity": null, "backorders": "no" },
+  "purchasable": true, "featured": false,
+  "rating": { "average": 4.5, "count": 2 }
+}
+```
+`range` is `null` for simple products. `quantity` is `null` unless stock is managed.
+
+`GET /products/<slug>?lang=` → `resources.product` on single-product routes: ProductSummary plus
+```json
+{
+  "description": "<p>…</p>", "sku": "BLZ-01",
+  "attributes": [ { "name": "Size", "slug": "pa_size", "variation": true, "options": [ { "slug": "m", "name": "M" } ] } ],
+  "variations": [ { "id": 31, "attributes": { "pa_size": "m" }, "prices": { "price": 29700, "regularPrice": 34000, "salePrice": 29700, "onSale": true }, "stock": { "status": "instock", "quantity": 3, "backorders": "no" }, "image": null, "purchasable": true } ],
+  "related": [ 29, 30 ], "upsells": [], "crossSells": [],
+  "reviewsAllowed": true
+}
+```
+Parity: `resources.products` / `resources.product` / `resources['commerce-settings']` deep-equal their REST bodies (parity CI, once the CI WordPress has WooCommerce — Q6).
+
+### 13.3 `cart` (beta)
+
+**One cart, one source of truth.** Clients read and mutate the cart only through these routes. `localStorage` may hold an optimistic copy for first paint, never the truth (Q2).
+
+`GET /cart` →
+```json
+{
+  "items": [ {
+    "key": "a1b2c3", "productId": 28, "variationId": 31, "slug": "minimalist-wool-blazer", "path": "/product/minimalist-wool-blazer/",
+    "name": "Minimalist Wool Blazer", "quantity": 1, "quantityLimits": { "min": 1, "max": 3, "step": 1 },
+    "variation": [ { "attribute": "Size", "value": "M" } ],
+    "image": { "...": "Image" },
+    "prices": { "price": 29700, "regularPrice": 34000 },
+    "totals": { "subtotal": 29700, "subtotalTax": 0, "total": 29700, "totalTax": 0 },
+    "backordered": false
+  } ],
+  "itemCount": 1,
+  "coupons": [ { "code": "save10", "discount": 2970, "discountTax": 0 } ],
+  "fees": [],
+  "needsShipping": true,
+  "shippingPackages": [ { "id": 0, "destination": { "country": "DE", "postcode": "10115" }, "rates": [ { "id": "flat_rate:1", "label": "Flat rate", "cost": 500, "selected": true } ] } ],
+  "totals": { "subtotal": 29700, "discount": 2970, "shipping": 500, "fees": 0, "tax": 0, "total": 27230 },
+  "needsPayment": true,
+  "errors": [],
+  "currency": { "...": "§13.1" }
+}
+```
+`errors` lists cart problems WooCommerce reports (item went out of stock, coupon expired) as `{ "code", "message", "itemKey"? }`.
+
+**Mutations** (each returns the full cart above):
+| Route | Body |
+|---|---|
+| `POST /cart/items` | `{ "productId", "variationId"?, "variation"?: { "pa_size": "m" }, "quantity" }` |
+| `POST /cart/items/<key>` | `{ "quantity" }` (0 removes) |
+| `DELETE /cart/items/<key>` | — |
+| `DELETE /cart/items` | — (clear) |
+| `POST /cart/coupons` | `{ "code" }` |
+| `DELETE /cart/coupons/<code>` | — |
+| `POST /cart/shipping-rate` | `{ "packageId", "rateId" }` |
+| `POST /cart/customer` | `{ "billingAddress"?, "shippingAddress"? }` (address for tax/shipping estimates) |
+| `POST /cart/merge` | — (after login: merge the guest cart into the user's persistent cart; also done automatically on `/auth/login`) |
+
+Today's routes (`/cart/add`, `/cart/update`, `/cart/remove`, `/cart/clear`, `/cart/apply-coupon`, `/cart/remove-coupon`, `/cart/sync`, `/cart/shipping-rates`) stay as aliases until `@forgewp/woocommerce` moves to the new ones, then are removed before beta (breaking is fine pre-stable). `/cart/sync` (client pushes a whole cart) goes away: the server cart is the truth.
+
+**Session transport**
+| Deployment | Guest | Logged in |
+|---|---|---|
+| Native / same origin | WooCommerce session cookie; mutations send `X-WP-Nonce: restNonce` | Login cookie + `X-WP-Nonce` (R1: required) |
+| Decoupled, same site via rewrite of `/wp-json/*` | as native | as native |
+| Decoupled, cross origin | **`X-ForgeWP-Cart-Token`**: every cart response for a guest returns the header; the client stores it and sends it back; it maps to the WooCommerce session server-side (signed, expiring, like the Store API's `Cart-Token`) | `Authorization: Bearer <jwt>` (existing). Guest token sent alongside on the first request after login → merge |
+
+Cookie fallbacks stay behind `forgewp_cookie_auth_request_allowed()` (security review). A cart token never authenticates a user; it only selects a guest cart.
+
+### 13.4 `checkout` (beta: offline and redirect gateways)
+
+`GET /checkout/gateways` → `{ "gateways": [ { "id": "cod", "title": "Cash on delivery", "description": "…", "icon": "", "supports": [ "products" ], "flow": "offline" } ] }`. Only gateways WooCommerce offers for the current cart (A1). `flow` is `offline` (COD, BACS, cheque), `redirect` (off-site payment page) or `client` (needs a client SDK such as Stripe Elements: **post-beta**, listed but not selectable until supported).
+
+`POST /checkout`:
+```json
+{
+  "billingAddress": { "firstName": "Ada", "lastName": "L", "company": "", "address1": "1 Main", "address2": "", "city": "Berlin", "state": "", "postcode": "10115", "country": "DE", "email": "ada@example.test", "phone": "" },
+  "shippingAddress": { "...": "same keys without email; omitted = billing" },
+  "paymentMethod": "bacs",
+  "paymentData": [ { "key": "…", "value": "…" } ],
+  "customerNote": "",
+  "createAccount": false
+}
+```
+Response `200`:
+```json
+{ "orderId": 36, "orderKey": "wc_order_…", "orderNumber": "36", "status": "on-hold", "paymentMethod": "bacs", "total": 27230, "currency": { "...": "§13.1" }, "needsRedirect": false, "redirectUrl": "https://shop.test/checkout/order-received/36/?key=wc_order_…" }
+```
+Rules (implemented in `dad33fe` for today's `/checkout/process`): the gateway sets the status, never ForgeWP; `needsRedirect: true` means send the shopper to `redirectUrl` and **keep** the cart; `402 payment_failed` carries the gateway's message; free orders complete without a gateway. `paymentData` is forwarded to the gateway the way WooCommerce's own checkout posts it (needed for `client` gateways later). Address keys move to camelCase (today: snake_case `first_name`, accepted as aliases until the hooks migrate).
+
+`GET /checkout/order?id=<id>&key=<orderKey>` → the order-received view (same shape as §13.5 order detail) for guests holding the order key.
+
+### 13.5 `customer` (beta) and `wishlist` (beta), session only
+
+- `GET /customer/orders?page=&perPage=` → `{ "page", "perPage", "total", "totalPages", "currency", "items": [ { "id", "number", "date", "status", "statusLabel", "total", "itemCount", "path" } ] }`
+- `GET /customer/orders/<id>` → order detail: number, date, status, items (name, quantity, totals, image, `downloadable`), totals, addresses, payment method title, customer note, `actions` (`pay`, `cancel`, `view` URLs WooCommerce allows). 404 for orders that are not the user's.
+- `GET /customer/downloads` → `{ "items": [ { "productId", "name", "downloadName", "url", "remaining": null|int, "expires": null|date } ] }`
+- `GET/POST /customer/profile` (`firstName`, `lastName`, `displayName`, `email`) and `GET/POST /customer/address` (`billing`, `shipping`, keys as §13.4).
+- `GET /wishlist` → `{ "items": [ 28, 29 ] }`; `POST /wishlist/items { productId }`, `DELETE /wishlist/items/<productId>`. Guests keep a local wishlist and `POST /wishlist/merge { items }` after login.
+
+All `401` without a session; same-origin calls need `X-WP-Nonce` (A7).
+
+### 13.6 Native rendering (needs a decision, Q4)
+
+WooCommerce's own Cart, Checkout and My Account pages are block-based. On `forge-commerce` (R1) the Cart block rendered skeletons while the React header badge showed the right cart. Two options:
+- **(a) WooCommerce owns cart/checkout/account pages natively.** ForgeWP themes only style them and show the badge/mini-cart through `cart`. Decoupled apps render their own pages from §13.3–§13.5. Least work, most plugin compatibility (payment gateways ship block integrations).
+- **(b) ForgeWP React pages in both modes** through this contract. One UI everywhere, but every gateway needs ForgeWP support (`client` flow).
+
+**Claude's recommendation: (a) for beta**, (b) later per page. Either way, the skeleton bug needs a LocalWP investigation first (likely a script conflict with the React islands on those pages).
+
+### 13.7 Ownership and order
+
+| Step | Owner |
+|---|---|
+| Review this draft, answer Q1–Q6 | Gemini, then founder |
+| PHP: `commerce-settings`, `products`/`product` builders (REST + native), money/currency helpers, cart routes and token transport, checkout, customer, wishlist | Claude |
+| `@forgewp/woocommerce`: one cart stack on §13.3, `formatMoney`, runtime env vars (A6), cart token storage, nonce forwarding | Gemini |
+| LocalWP: checkout fix (A1) live, Cart block skeleton investigation, decoupled checklist 1d | Gemini (local) |
+| Parity CI with WooCommerce | Claude (Q6) |
+
+### 13.8 Open questions
+
+- **Q1 Money:** integer minor units + `currency` object (recommended), or decimal strings?
+- **Q2 One cart stack:** move `components.tsx` off the Store API onto §13.3, and demote `localStorage` to an optimistic cache? (Recommended.)
+- **Q3 Routes:** adopt the RESTful paths above now and remove today's paths before beta? (Recommended; aliases meanwhile.)
+- **Q4 Native cart/checkout/account pages:** (a) WooCommerce blocks or (b) ForgeWP React? (Recommended: (a) for beta.)
+- **Q5 Beta gateway scope:** `offline` + `redirect` only; `client` gateways (Stripe Elements, PayPal buttons) post-beta? (Recommended.)
+- **Q6 Parity CI with WooCommerce:** the workflow would download WooCommerce from its GitHub release (`woocommerce/woocommerce` → `woocommerce.zip`) into the CI WordPress. OK to add? (The cloud sandbox install was blocked by the permission classifier here, so this needs your approval.)
