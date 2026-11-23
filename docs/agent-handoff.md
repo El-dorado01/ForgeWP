@@ -43,7 +43,7 @@ Route-id overwrite fix (`bf909e8`), R6 parity CI (`49c0904`, CI fixes `1d7ef51`,
 | Order | Task | Notes |
 |---|---|---|
 | 1 | **R2 PHP** (`markup-processor.js`) | Terms loop, comments loop (memoized `forgewp_native_comments()`, recursive closure with per-loop names + depth guard), count from the resource (C2), unquoted numeric tokens inside island props (C1). Remove the R2 entries from `scripts/parity/known-gaps.json` once CI is green. Starts when Gemini's markers land. |
-| 2 | **R7 PHP** (§15) | Money helpers, `commerce-settings`, `products`/`product` (REST + native), new cart routes + `X-ForgeWP-Cart-Token`, checkout on `POST /checkout`, customer/wishlist shapes; old paths as aliases until Gemini migrates. Parity CI: WooCommerce from its GitHub release (Q6). |
+| 2 | **R7 PHP** (§15) | ✅ money, `commerce-settings`, `products`/`product` (REST + native), contract cart + `X-ForgeWP-Cart-Token`, `POST /checkout`, parity CI with WooCommerce 11.0.1 (see §15.7a). **Left:** `GET /checkout/order`, customer + wishlist shapes, then removing legacy shapes once Gemini's client is on the contract. |
 | 3 | **R4 / R5 PHP** | After the founder approves §13/§14 with Claude's answers. |
 | later | R8 `transformBackendPhp`, R9 hand-written plugin sources | Post-beta. |
 
@@ -55,7 +55,7 @@ Route-id overwrite fix (`bf909e8`), R6 parity CI (`49c0904`, CI fixes `1d7ef51`,
 | 1 | **R2 build** per status §9 + Claude's §9a | Parts A–C, `__FORGEWP_THE_PATH__` / `__FORGEWP_TERM_PATH__` (C3), `getPost()` returns tokens in native export, doctor warning for lists rendered outside loop components (C4). Switch the parity fixture's `/blog/[slug]` and `/listing` to the new components in the same PR. |
 | 2 | **P2: native `getSiteSettings()` keys** | Tokenize `wp.config` `options` / `themeMods` by default. Remove `P2-native-site-settings-keys` from `known-gaps.json` in the PR. |
 | 3 | **Wire `next-parity-helpers.js` into `scripts/parity/run-parity.mjs`** (status §9b) | Keep the check list, `known-gaps.json`, report format; add the leaked-token check (`__FORGEWP_*__`, `<forgewp-*`, `<?php` in rendered HTML) as its own failing check. |
-| 4 | **R7 client** (§15.7) | One cart stack on §15.3 in `@forgewp/woocommerce`, `formatMoney`, runtime env vars (A6), cart token storage, nonce forwarding, checkout `needsRedirect` handling (do not clear the cart on redirect). |
+| 4 | **R7 client** (§15.7) | PHP is live (§15.7a). One cart stack on §15.3 in `@forgewp/woocommerce` (send `?contract=2` on `GET /cart` and `GET /products` until the legacy shapes go), `formatMoney`, runtime env vars (A6), store and send `X-ForgeWP-Cart-Token` (read it from every cart response), nonce forwarding, checkout `needsRedirect` handling (do not clear the cart on redirect). |
 | 5 | R3 follow-ups (§9b) | `permalink` stays absolute in `getPosts()`; native token item uses `__FORGEWP_THE_PATH__`. |
 | 6 | R4/R5 client helpers | After approval. |
 | note | Nonce forwarding | Same-origin `wishlist`, `customer/*`, `checkout` need `X-WP-Nonce`; always forward `restNonce`. |

@@ -48,6 +48,19 @@ export const ROUTES = [
 ];
 export const GUARDED_ROUTES = ['/dashboard/', '/admin-area/'];
 
+/**
+ * WooCommerce routes (R7): native resources vs REST only (the fixture has no
+ * decoupled shop pages). Used when /commerce/settings answers 200, i.e. when
+ * WooCommerce is active (PARITY_WOOCOMMERCE=1 in scripts/parity/run.sh).
+ */
+export const COMMERCE_ROUTES = [
+  // WooCommerce archives carry products (not posts: WooCommerce swaps in a stand-in page there).
+  { path: '/shop/', dom: false, products: {}, post: { type: 'page', slug: 'shop' } },
+  { path: '/product-category/clothing/', dom: false, products: { category: 'clothing' }, term: { taxonomy: 'product_cat', slug: 'clothing' } },
+  { path: '/product/canvas-jacket/', dom: false, product: 'canvas-jacket', post: { type: 'product', slug: 'canvas-jacket' } },
+  { path: '/product/wool-scarf/', dom: false, product: 'wool-scarf', post: { type: 'product', slug: 'wool-scarf' } },
+];
+
 const failures = [];
 const passes = [];
 const known = [];
@@ -88,8 +101,11 @@ export function restUrlFor(name, route, lang = 'en') {
     case 'i18n': return `/i18n?${q({ lang, path: route.path })}`;
     case 'forms': return `/forms?${q({ lang })}`;
     case 'post': return route.post ? `/posts/${route.post.type}/${route.post.slug}?${q({ lang })}` : null;
-    case 'posts': return route.posts ? `/posts?${q({ type: route.posts.type, page: 1, perPage: 10, lang, taxonomy: route.posts.taxonomy, term: route.posts.term })}` : null;
+    case 'posts': return route.posts && !route.products ? `/posts?${q({ type: route.posts.type, page: 1, perPage: 10, lang, taxonomy: route.posts.taxonomy, term: route.posts.term })}` : null;
     case 'term': return route.term ? `/terms/${route.term.taxonomy}/${route.term.slug}?${q({ lang })}` : null;
+    case 'commerce-settings': return '/commerce/settings';
+    case 'products': return route.products ? `/products?${q({ contract: 2, category: route.products.category })}` : null;
+    case 'product': return route.product ? `/products/${route.product}` : null;
     default: return undefined;
   }
 }
@@ -117,7 +133,9 @@ async function getJson(url) {
 }
 
 async function checkResources(page) {
-  for (const route of ROUTES) {
+  const commerce = (await getJson(`${WP}/wp-json/forgewp/v1/commerce/settings`)).status === 200;
+  if (commerce) console.log('  WooCommerce active: also checking', COMMERCE_ROUTES.map((r) => r.path).join(', '));
+  for (const route of commerce ? [...ROUTES, ...COMMERCE_ROUTES] : ROUTES) {
     await page.goto(WP + route.path, { waitUntil: 'domcontentloaded' });
     const resources = await page.evaluate(() => window.forgeWpHydration?.resources ?? null);
     if (!resources) {
@@ -263,7 +281,67 @@ async function checkLocale(page) {
   }
 }
 
-const checks = { resources: checkResources, dom: checkDom, form: checkForm, auth: checkAuth, locale: checkLocale };
+/**
+ * R7 commerce flow over REST, as a cross-origin guest (no cookies, cart token
+ * only). Runs only when WooCommerce is active. Expects the store that
+ * run.sh sets up with PARITY_WOOCOMMERCE=1 (Linen Shirt: 3 in stock, Canvas
+ * Jacket: variable S/M, flat rate + free shipping in DE, coupon save10, BACS).
+ */
+async function checkCommerce() {
+  const settings = await getJson(`${WP}/wp-json/forgewp/v1/commerce/settings`);
+  if (settings.status !== 200) {
+    console.log('  WooCommerce not active: skipped');
+    return;
+  }
+  let token = '';
+  const call = async (method, route, body) => {
+    const headers = { 'Content-Type': 'application/json', Origin: NEXT };
+    if (token) headers['X-ForgeWP-Cart-Token'] = token;
+    const res = await fetch(`${WP}/wp-json/forgewp/v1${route}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    const next = res.headers.get('x-forgewp-cart-token');
+    if (next) token = next;
+    return { status: res.status, body: await res.json().catch(() => null), headers: res.headers };
+  };
+  const expect = (name, ok, detail) => (ok ? pass('commerce', name, 'ok') : fail('commerce', name, 'unexpected result', detail));
+  const shirt = (await call('GET', '/products/linen-shirt')).body;
+  const jacket = (await call('GET', '/products/canvas-jacket')).body;
+  if (!shirt?.id || !jacket?.variations?.length) {
+    fail('commerce', 'fixture', 'store fixture missing (linen-shirt, canvas-jacket)');
+    return;
+  }
+  const added = await call('POST', '/cart/items', { productId: shirt.id, quantity: 2 });
+  expect('add item', added.status === 200 && added.body.itemCount === 2 && Number.isInteger(added.body.totals.total) && token.startsWith('v1.'), { status: added.status, token: !!token });
+  expect('cart is private', added.headers.get('cache-control') === 'private, no-store', added.headers.get('cache-control'));
+  const variation = jacket.variations[0];
+  const v = await call('POST', '/cart/items', { productId: jacket.id, variationId: variation.id });
+  expect('add variation', v.status === 200 && v.body.itemCount === 3, v.body);
+  expect('variable needs options', (await call('POST', '/cart/items', { productId: jacket.id })).status === 400);
+  expect('stock limit', (await call('POST', '/cart/items', { productId: shirt.id, quantity: 9 })).status === 409);
+  const coupon = await call('POST', '/cart/coupons', { code: 'save10' });
+  expect('coupon', coupon.status === 200 && coupon.body.totals.discount > 0, coupon.body?.totals);
+  const saved = token;
+  token = '';
+  const fresh = await call('GET', '/cart?contract=2');
+  expect('no token: new empty cart', fresh.status === 200 && fresh.body.itemCount === 0, fresh.body?.itemCount);
+  token = saved;
+  const back = await call('GET', '/cart?contract=2');
+  expect('token: same cart', back.status === 200 && back.body.itemCount === 3, back.body?.itemCount);
+  token = 'v1.' + Buffer.from('1|9999999999|9999999999|forged').toString('base64url');
+  const forged = await call('GET', '/cart?contract=2');
+  expect('forged token selects no user cart', forged.status === 200 && forged.body.itemCount === 0, forged.body?.itemCount);
+  token = saved;
+  const badGateway = await call('POST', '/checkout', { billingAddress: { email: 'parity@example.test', country: 'DE' }, paymentMethod: 'stripe' });
+  expect('unknown gateway rejected', badGateway.status === 400 && badGateway.body?.code === 'invalid_payment_method', badGateway.body);
+  const order = await call('POST', '/checkout', {
+    billingAddress: { firstName: 'Parity', lastName: 'Bot', address1: '1 Main', city: 'Berlin', postcode: '10115', country: 'DE', email: 'parity@example.test' },
+    paymentMethod: 'bacs',
+  });
+  expect('checkout (bank transfer → on-hold)', order.status === 200 && order.body.status === 'on-hold' && order.body.needsRedirect === false && Number.isInteger(order.body.total), order.body);
+  const after = await call('GET', '/cart?contract=2');
+  expect('cart emptied after order', after.body?.itemCount === 0, after.body?.itemCount);
+}
+
+const checks = { resources: checkResources, dom: checkDom, form: checkForm, auth: checkAuth, locale: checkLocale, commerce: checkCommerce };
 const needsBrowser = { form: true, auth: true };
 
 const browser = await chromium.launch({ args: ['--no-sandbox'] });

@@ -16,12 +16,18 @@ export FORGEWP_E2E_DATA="${FORGEWP_E2E_DATA:-/home/user/e2e}"
 WP_URL="${PARITY_WP_URL:-http://localhost:8080}"
 NEXT_PORT="${PARITY_NEXT_PORT:-3100}"
 REPORT="${PARITY_REPORT:-$REPO/.forgewp/parity/report.json}"
+export WC_VERSION="${WC_VERSION:-11.0.1}"
 mkdir -p "$(dirname "$REPORT")"
 
 step() { echo; echo "── $*"; }
 
 step "WordPress sandbox"
 if [ "${PARITY_RESET:-0}" = "1" ]; then "$SANDBOX" reset; else "$SANDBOX" up; fi
+
+if [ "${PARITY_WOOCOMMERCE:-0}" = "1" ]; then
+  step "WooCommerce $WC_VERSION (GitHub release) + store fixture"
+  "$REPO/scripts/parity/woocommerce-fixture.sh"
+fi
 
 step "Native: export and activate parity-fixture"
 (cd "$FIXTURE" && pnpm forgewp export --no-zip)

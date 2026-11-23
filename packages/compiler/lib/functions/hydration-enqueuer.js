@@ -89,13 +89,13 @@ ${manifestPairs}
                     'site-settings' => function_exists('forgewp_site_settings_resource') ? forgewp_site_settings_resource() : null,
                     'auth-me' => function_exists('forgewp_auth_me_resource') ? forgewp_auth_me_resource() : null,
                     'post' => (function_exists('forgewp_post_resource_item') && is_singular() && get_queried_object() instanceof WP_Post && get_queried_object()->post_status === 'publish') ? forgewp_post_resource_item(get_queried_object(), true, forgewp_resource_lang(null)) : null,
-                    'posts' => (function_exists('forgewp_posts_from_query') && (is_home() || is_post_type_archive() || is_category() || is_tag() || is_tax())) ? forgewp_posts_from_query($GLOBALS['wp_query'], is_post_type_archive() ? (string) get_query_var('post_type') : 'post', forgewp_resource_lang(null)) : null,
+                    'posts' => (function_exists('forgewp_posts_from_query') && (is_home() || is_post_type_archive() || is_category() || is_tag() || is_tax()) && !(function_exists('is_woocommerce') && is_woocommerce())) ? forgewp_posts_from_query($GLOBALS['wp_query'], is_post_type_archive() ? (string) get_query_var('post_type') : 'post', forgewp_resource_lang(null)) : null,
                     'term' => (function_exists('forgewp_term_resource') && (is_category() || is_tag() || is_tax()) && get_queried_object() instanceof WP_Term) ? forgewp_term_resource(get_queried_object(), forgewp_resource_lang(null)) : null,
                     'menus' => function_exists('forgewp_menus_resource') ? forgewp_menus_resource(forgewp_resource_lang(null)) : null,
                     'routes' => function_exists('forgewp_routes_resource') ? forgewp_routes_resource(forgewp_resource_lang(null)) : null,
                     'i18n' => function_exists('forgewp_i18n_resource') ? forgewp_i18n_resource(forgewp_resource_lang(null), forgewp_resource_path(home_url(isset($_SERVER['REQUEST_URI']) ? (string) wp_parse_url(wp_unslash($_SERVER['REQUEST_URI']), PHP_URL_PATH) : '/'))) : null,${hasForms ? `
                     'forms' => function_exists('forgewp_forms_resource') ? forgewp_forms_resource($current_lang) : null,` : ''}
-                ),
+                ) + (function_exists('forgewp_commerce_native_resources') ? forgewp_commerce_native_resources() : array()),
             ), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) . ');',
             'before'
         );

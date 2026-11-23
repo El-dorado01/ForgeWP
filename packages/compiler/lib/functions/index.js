@@ -14,6 +14,7 @@ import { buildRedirectsPhp } from './redirects.js';
 import { buildPhaseCResourcesPhp } from './phase-c-resources.js';
 import { buildPostsRoutingPhp } from './posts-routing.js';
 import { buildContentResourcesPhp } from './content-resources.js';
+import { buildCommerceResourcesPhp } from './commerce-resources.js';
 import { buildAuthCookieSameSitePhp } from './auth-cookies.js';
 import { scanAppProviders } from '../hydration/scan-app-providers.js';
 import { collectCptRouteDiagnostics, buildCptRewriteRefreshPhp } from './cpt-routing.js';
@@ -1832,6 +1833,7 @@ if (!function_exists('forgewp_register_decoupled_rest_bridge')) {
   backendPhp += '\n\n' + buildRedirectsPhp(config.redirects);
   backendPhp += '\n\n' + buildAuthCookieSameSitePhp();
   backendPhp += '\n\n' + buildContentResourcesPhp(config.textDomain);
+  backendPhp += '\n\n' + buildCommerceResourcesPhp();
   backendPhp += '\n\n' + buildPhaseCResourcesPhp(config, themeRoot, Object.keys(menus || {}).filter((k) => !k.startsWith('_')), i18nKeys);
   backendPhp += '\n\n' + buildThemeStatePhp(resolveDeclaredThemeMods(config, themeRoot));
   backendPhp += '\n\n' + buildSiteSettingsResourcePhp(wpOptions, resolveDeclaredThemeMods(config, themeRoot));

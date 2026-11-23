@@ -48,6 +48,8 @@ jobs:
       - name: Native export + decoupled run + compare
         env:
           PARITY_RESET: '1'
+          # R7 / Q6: WooCommerce from its GitHub release + a small store, for the commerce checks.
+          PARITY_WOOCOMMERCE: '1'
           PARITY_REPORT: ${{ github.workspace }}/.forgewp/parity/report.json
         # The runner context is not available in job-level env, so the data dir is set here.
         run: FORGEWP_E2E_DATA="$RUNNER_TEMP/e2e" scripts/parity/run.sh

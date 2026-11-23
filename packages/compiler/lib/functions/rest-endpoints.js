@@ -2112,6 +2112,9 @@ function forgewp_format_cart_response() {
 }
 
 function forgewp_rest_get_cart( $request ) {
+    if ( function_exists( 'forgewp_commerce_contract_v2' ) && forgewp_commerce_contract_v2( $request ) ) {
+        return forgewp_commerce_cart_response();
+    }
     return rest_ensure_response( forgewp_format_cart_response() );
 }
 
@@ -2500,7 +2503,7 @@ function forgewp_rest_process_checkout( $request ) {
 
     $stock = WC()->cart->check_cart_item_stock();
     if ( is_wp_error( $stock ) ) {
-        return new WP_Error( 'out_of_stock', wp_strip_all_tags( $stock->get_error_message() ), array( 'status' => 409 ) );
+        return new WP_Error( 'out_of_stock', html_entity_decode( wp_strip_all_tags( $stock->get_error_message() ), ENT_QUOTES, 'UTF-8' ), array( 'status' => 409 ) );
     }
 
     // WooCommerce builds the order from the cart: line items, chosen shipping
@@ -2527,7 +2530,7 @@ function forgewp_rest_process_checkout( $request ) {
             if ( function_exists( 'wc_clear_notices' ) ) {
                 wc_clear_notices();
             }
-            $message = ! empty( $notices[0]['notice'] ) ? wp_strip_all_tags( $notices[0]['notice'] ) : 'Payment failed. Please try another payment method.';
+            $message = ! empty( $notices[0]['notice'] ) ? html_entity_decode( wp_strip_all_tags( $notices[0]['notice'] ), ENT_QUOTES, 'UTF-8' ) : 'Payment failed. Please try another payment method.';
             return new WP_Error( 'payment_failed', $message, array( 'status' => 402, 'orderId' => $order_id ) );
         }
         $redirect = ! empty( $result['redirect'] ) ? (string) $result['redirect'] : $order->get_checkout_order_received_url();
@@ -2822,6 +2825,9 @@ function forgewp_rest_sync_wishlist( $request ) {
 }
 
 function forgewp_rest_query_products( $request ) {
+    if ( function_exists( 'forgewp_commerce_contract_v2' ) && forgewp_commerce_contract_v2( $request ) ) {
+        return forgewp_commerce_rest_products( $request );
+    }
     $params = $request->get_params();
 
     $page     = max( 1, intval( ! empty( $params['page'] ) ? $params['page'] : 1 ) );

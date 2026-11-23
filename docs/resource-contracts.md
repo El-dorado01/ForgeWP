@@ -571,22 +571,22 @@ Registered in `@forgewp/react`'s lean resource registry with reserved paths so r
 | `menus` | `/menus` | `public` | `["menus", "menu:<location>"]` | Approved (Phase C — §5) |
 | `routes` | `/routes` | `public` | `["routes"]` | Approved (Phase C — §6) |
 | `i18n` | `/i18n` | `public` | `["i18n", "i18n:<lang>"]` | Approved (Phase C — §7) |
-| `seo` | `/seo?path=` | `public` | `["seo", "seo:path:<path>"]` | Draft (§13) |
-| `editables` | `/editables` | `public` | `["editables", "post:<id>"]` | Draft (§14) |
+| `seo` | `/seo?path=` | `public` | `["seo", "seo:path:<path>"]` | Approved (§13) |
+| `editables` | `/editables` | `public` | `["editables", "post:<id>"]` | Approved (§14) |
 | `auth-me` | `/auth/me` | `session` | `["auth"]` | Approved (Phase C — §9, §12a) |
 | `posts` / `post` | `/posts`, `/posts/<type>/<slug>` | `public` | `["posts", "type:<type>", "post:<id>"]` | Approved (Phase C — §10, §12a) |
 | `terms` | `/terms/<taxonomy>` | `public` | `["terms", "taxonomy:<taxonomy>"]` | Approved (Phase C — §11) |
 | `comments` | `/comments` | `public` read / guarded write | `["comments", "comments:post:<id>"]` | Approved (Phase C — §12, §12a) |
-| `commerce-settings` | `/commerce/settings` | `public` | `["commerce"]` | Draft (R7 — §15) |
-| `products` / `product` | `/products`, `/products/<slug>` | `public` | `["products", "product:<id>"]` | Draft (R7 — §15) |
-| `cart` | `/cart` | `visitor` (never hydrated, never cached) | — | Draft (R7 — §15) |
-| `checkout` | `/checkout`, `/checkout/gateways` | `visitor` | — | Draft (R7 — §15) |
-| `customer` | `/customer/*` | `session` | — | Draft (R7 — §15) |
-| `wishlist` | `/wishlist` | `session` | — | Draft (R7 — §15) |
+| `commerce-settings` | `/commerce/settings` | `public` | `["commerce"]` | Approved (R7 — §15) |
+| `products` / `product` | `/products`, `/products/<slug>` | `public` | `["products", "product:<id>"]` | Approved (R7 — §15) |
+| `cart` | `/cart` | `visitor` (never hydrated, never cached) | — | Approved (R7 — §15) |
+| `checkout` | `/checkout`, `/checkout/gateways` | `visitor` | — | Approved (R7 — §15) |
+| `customer` | `/customer/*` | `session` | — | Approved (R7 — §15) |
+| `wishlist` | `/wishlist` | `session` | — | Approved (R7 — §15) |
 
 ---
 
-## 13. `seo` (Phase C — Status: Draft by Gemini for Claude review & founder approval, 2026-11-23)
+## 13. `seo` (Phase C — Status: **Approved 2026-11-23** with Claude's review answers below)
 
 Why: in decoupled mode, Next.js has no access to WordPress's `wp_head` hook, so SEO metadata managed by Yoast SEO, Rank Math, Polylang hreflang, or ForgeWP schemas is absent on the decoupled origin. This contract replaces site-specific PHP workarounds (such as `hotelchecker24`'s `hreflang.php`, `og-fallback.php`, and `schemas.php`) with one portable resource powering Next.js `generateMetadata()` and JSON-LD rendering.
 
@@ -716,7 +716,7 @@ Reuses `forgewp_seo_plugin_active()` (which already accounts for Rank Math regis
 
 ---
 
-## 14. `editables` (Phase C — Status: Draft by Gemini for Claude review & founder approval, 2026-11-23)
+## 14. `editables` (Phase C — Status: **Approved 2026-11-23** with Claude's review answers below)
 
 Why: in decoupled mode, `useWpMeta()` and `<WpRepeater>` currently fall back to static schema defaults (`getEditableDefaults()` / `defaultValue`) because there is no normalized REST resource for `defineEditable()` / ACF fields and repeaters. Today repeaters render stale/default rows in decoupled mode (visible content bug).
 
@@ -813,7 +813,7 @@ Every field in `fields` is normalized identically for REST and Native hydration,
 
 ---
 
-## 15. `commerce` — WooCommerce on the runtime (R7 — Status: **Draft by Claude, 2026-11-23**, for Gemini's review and founder approval)
+## 15. `commerce` — WooCommerce on the runtime (R7 — Status: **Approved 2026-11-23** (founder, Q1–Q6); Gemini reviews the client parts while building)
 
 **Goal:** one set of commerce shapes that native themes and decoupled apps both use, safe on cached pages and across origins, so a store can switch modes without rewriting its cart, checkout or account UI. Beta scope is marked per section; everything else is post-beta.
 
@@ -991,6 +991,22 @@ WooCommerce's own Cart, Checkout and My Account pages are block-based. On `forge
 | `@forgewp/woocommerce`: one cart stack on §15.3, `formatMoney`, runtime env vars (A6), cart token storage, nonce forwarding | Gemini |
 | LocalWP: checkout fix (A1) live, Cart block skeleton investigation, decoupled checklist 1d | Gemini (local) |
 | Parity CI with WooCommerce | Claude (Q6) |
+
+### 15.7a Implementation status (Claude, PHP — 2026-11-23)
+
+Built in `lib/functions/commerce-resources.js` (backend: Companion Plugin + theme fallback; inert without WooCommerce) and verified live against **WooCommerce 11.0.1** in the cloud sandbox and in parity CI.
+
+| Part | Status |
+|---|---|
+| Money + `currency` (§15.1) | ✅ `forgewp_commerce_money()` (string math, no float drift; 0/2/3-decimal currencies tested) |
+| `commerce-settings` REST + `resources['commerce-settings']` on every page | ✅ |
+| `products` / `product` REST + `resources.products` (shop, product category/tag) / `resources.product` (single product) | ✅ native deep-equals REST (parity CI). `related` is sorted (WooCommerce shuffles it). An attribute's `slug` is the key variations use (`pa_size`, or `size` for custom attributes). |
+| Cart (§15.3): `GET /cart?contract=2`, `POST/DELETE /cart/items`, `POST/DELETE /cart/items/<key>`, `POST /cart/coupons`, `DELETE /cart/coupons/<code>`, `POST /cart/shipping-rate`, `POST /cart/customer`, `POST /cart/merge` | ✅ `Cache-Control: private, no-store`, `Vary: Cookie, Authorization, X-ForgeWP-Cart-Token`. Error messages are plain text. |
+| `X-ForgeWP-Cart-Token` | ✅ The token is WooCommerce's own signed guest-session cookie, wrapped (`v1.` + base64url). A request with the token and no cookie gets the cookie restored before the session starts; WooCommerce verifies signature and expiry and refuses non-guest sessions for logged-out requests (tested with a forged token for user 1 → empty cart). Allowed and exposed in CORS. |
+| `POST /checkout` (camelCase, money as integers) | ✅ delegates to the gateway-safe checkout (`dad33fe`); `paymentData` forwarded as posted fields |
+| Shared legacy paths | `GET /cart` and `GET /products` return the contract shape with `?contract=2` or `X-ForgeWP-Contract: 2`; without it, the legacy shape (forge-commerce keeps working). Legacy shapes and the switch go before beta. |
+| Native `resources.posts` on WooCommerce archives | Fixed: now `null` there (it contained WooCommerce's stand-in page); `products` covers them. |
+| `GET /checkout/order`, customer + wishlist shapes (§15.5) | Next |
 
 ### 15.8 Decisions (founder, 2026-11-23): Claude's recommendations accepted for Q1–Q6
 
