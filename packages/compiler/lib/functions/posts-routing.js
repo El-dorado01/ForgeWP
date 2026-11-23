@@ -77,12 +77,26 @@ if (!function_exists('forgewp_posts_routing_expected')) {
             global $wp_rewrite;
             if ($wp_rewrite instanceof WP_Rewrite) {
                 $wp_rewrite->set_permalink_structure($expected['structure']);
-                flush_rewrite_rules(false);
+                // Taxonomy permastructs (category, tag) captured the old front when
+                // they registered earlier in this request, so any rebuild in this
+                // request writes stale rules (/blog/category/... 404s). Rebuild on
+                // the next request instead, once everything registers with the new front.
+                update_option('forgewp_rewrite_refresh_pending', 'yes', true);
+                $GLOBALS['forgewp_posts_routing_changed_now'] = true;
             }
         }
         update_option('forgewp_posts_routing_done', 'yes');
     }
     add_action('after_switch_theme', 'forgewp_posts_routing_provision', 11);
+
+    function forgewp_posts_routing_refresh_rules() {
+        if (!empty($GLOBALS['forgewp_posts_routing_changed_now']) || get_option('forgewp_rewrite_refresh_pending') !== 'yes') {
+            return;
+        }
+        delete_option('forgewp_rewrite_refresh_pending');
+        flush_rewrite_rules(false);
+    }
+    add_action('init', 'forgewp_posts_routing_refresh_rules', 999);
 
     /** Existing sites keep their URLs; explain the mismatch instead of changing them. */
     add_action('admin_notices', function () {

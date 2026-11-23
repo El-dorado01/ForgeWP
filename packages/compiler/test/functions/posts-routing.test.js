@@ -34,6 +34,7 @@ function is_wp_error($v) { return false; }
 function update_post_meta($id, $k, $v) { global $meta; $meta[$id][$k] = $v; }
 function delete_post_meta($id, $k) { global $meta; unset($meta[$id][$k]); }
 function flush_rewrite_rules($h = true) {}
+function delete_option($k) { global $options; unset($options[$k]); }
 function __($s) { return $s; }
 ${buildPostsRoutingPhp({ archivePath: '/blog', singleBase: '/blog' }, 'demo')}
 do_action('after_switch_theme');
@@ -50,7 +51,7 @@ echo json_encode(array('options' => $options, 'meta' => $meta));
 describe('posts routing provisioning', () => {
   it('fresh site: makes /blog the Posts page and sets /blog/%postname%/', () => {
     const out = activate(
-      { permalink_structure: '/%postname%/', show_on_front: 'page', page_on_front: 4 },
+      { permalink_structure: '/%postname%/', show_on_front: 'page', page_on_front: 4, rewrite_rules: { stale: 1 } },
       { 1: { slug: 'hello-world', type: 'post' } },
     );
     expect(out.options.permalink_structure).toBe('/blog/%postname%/');
@@ -58,6 +59,8 @@ describe('posts routing provisioning', () => {
     expect(pageId).toBeGreaterThan(0);
     expect(out.meta[pageId].forgewp_route_id).toBe('posts-archive');
     expect(out.options.forgewp_posts_routing_done).toBe('yes');
+    // Rules are rebuilt on the next request so taxonomy archives pick up the new front.
+    expect(out.options.forgewp_rewrite_refresh_pending).toBe('yes');
   });
 
   it('existing site with real posts: keeps permalinks, still sets the Posts page', () => {
