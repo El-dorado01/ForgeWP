@@ -60,6 +60,8 @@ All Phase A items from §9 are shipped and verified live in the cloud sandbox (W
 
 Also approved the same day: PR #33 (B3) merged; Phase C contracts `menus`, `routes`, `i18n` with Claude's amendments.
 
+**Implemented 2026-11-23 (Claude)** — `lib/functions/posts-routing.js`, `home.php` emission in `generate-theme.js`, `with_front => false` defaults; tests `test/functions/posts-routing.test.js`. Verified live: a fresh site gets `/blog/` as the Posts page and `/blog/%postname%/` (all links match decoupled); an existing site with posts keeps `/%postname%/` and sees a wp-admin notice; CPT (`/listicle/…`) and taxonomy (`/country/…`) URLs are not prefixed. Gemini: `postsArchivePath` in the manifest + doctor check still open.
+
 ### The problem
 
 A Next.js project with `src/app/blog/page.tsx` (post list) and `src/app/blog/[slug]/page.tsx` (single post) gets different URLs in the two modes:

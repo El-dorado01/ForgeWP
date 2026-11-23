@@ -72,7 +72,7 @@ echo json_encode($counts);`);
     expect(result).toEqual([1, 1, 2, 2, 3, 4, 4]);
   });
   it('does not refresh for equivalent defaults or reordered post-type declarations', () => {
-    expect(buildCptRewriteRefreshPhp(base, ['project', 'review'])).toBe(buildCptRewriteRefreshPhp({ ...base, postTypes: { review: { rewrite: { withFront: true, slug: 'review' } }, project: { hasArchive: true } } }, ['review', 'project']));
+    expect(buildCptRewriteRefreshPhp(base, ['project', 'review'])).toBe(buildCptRewriteRefreshPhp({ ...base, postTypes: { review: { rewrite: { withFront: false, slug: 'review' } }, project: { hasArchive: true } } }, ['review', 'project']));
   });
   it('emits permalink reads rather than baking in a post slug', () => {
     const markup = generatePhpMarkupFromJsx('<a href={useWpPermalink()}>Details</a>', { attributes: {} }, {});

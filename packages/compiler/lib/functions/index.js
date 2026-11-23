@@ -12,6 +12,7 @@ import { buildSiteSettingsResourcePhp } from './site-settings-resource.js';
 import { buildThemeStatePhp } from './theme-state.js';
 import { buildRedirectsPhp } from './redirects.js';
 import { buildPhaseCResourcesPhp } from './phase-c-resources.js';
+import { buildPostsRoutingPhp } from './posts-routing.js';
 import { scanAppProviders } from '../hydration/scan-app-providers.js';
 import { collectCptRouteDiagnostics, buildCptRewriteRefreshPhp } from './cpt-routing.js';
 
@@ -430,8 +431,9 @@ ${postTypes
       ptConfig?.rewrite === false
         ? 'false'
         : ptConfig?.rewrite && typeof ptConfig.rewrite === 'object'
-          ? `array('slug' => '${rewriteSlug}', 'with_front' => ${ptConfig.rewrite.withFront === false ? 'false' : 'true'})`
-          : 'true';
+          ? `array('slug' => '${rewriteSlug}', 'with_front' => ${ptConfig.rewrite.withFront === true ? 'true' : 'false'})`
+          : // Content-type URLs follow the app folder, never the posts permalink front (/blog/...).
+            "array('with_front' => false)";
 
     const nativeTaxes = Array.from(postTypeNativeTaxonomies[pt] || []);
     const taxonomiesLine =
@@ -502,6 +504,7 @@ ${registeredTaxonomies
             'show_ui'           => ${taxConfig?.showUi === false ? 'false' : 'true'},
             'show_admin_column' => true,
             'query_var'         => true,
+            'rewrite'           => array('with_front' => false),
             'show_in_rest'      => ${taxConfig?.showInRest === false ? 'false' : 'true'},
         ));
     }`;
@@ -1832,6 +1835,8 @@ if (!function_exists('forgewp_register_decoupled_rest_bridge')) {
   if (settingsPagePhp) {
     backendPhp += '\n\n' + settingsPagePhp;
   }
+
+  themePhp += '\n\n' + buildPostsRoutingPhp(config._postsRouting, config.textDomain);
 
   // Append opt-in WooCommerce Products Data Seeder
   const seedProductsPhp = buildSeedProductsPhp(config, themeRoot);

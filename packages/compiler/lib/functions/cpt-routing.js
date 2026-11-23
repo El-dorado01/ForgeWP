@@ -23,7 +23,7 @@ export function effectiveCptRouting(config, postTypes) {
       hasArchive: entry.hasArchive !== false,
       rewrite: entry.rewrite === false ? false : {
         slug: entry.rewrite?.slug || postType,
-        withFront: entry.rewrite?.withFront !== false,
+        withFront: entry.rewrite?.withFront === true,
       },
     };
   });

@@ -44,6 +44,7 @@ import {
 import { collectFallbackPageRoutes } from './collect-static-routes.js';
 import { collectPageTemplateRoutes } from './collect-page-template-routes.js';
 import { buildFunctionsPhpParts } from './functions/index.js';
+import { discoverNextDynamicHierarchy } from './next-dynamic-routes.js';
 import { buildThemeCompanionLoaderPhp, writeCompanionPlugin } from './companion-plugin.js';
 import { loadMenusData } from './functions/load-menus.js';
 import {
@@ -233,6 +234,21 @@ export async function generateTheme({
         .map((file) => file.replace(/^template-|\.html$/g, ''))
         .filter((slug) => !adapterTemplateSlugs.has(slug))
     : [];
+  // Posts URLs follow the app (Next.js src/app/<base>/page.tsx + <base>/[slug]):
+  // the list path becomes the WordPress Posts page; see functions/posts-routing.js.
+  let postsRouting = null;
+  if (config.frameworkAdapter === 'nextjs') {
+    try {
+      const hierarchy = discoverNextDynamicHierarchy(themeRoot);
+      const archive = hierarchy.archiveRoutes.find((r) => r.postType === 'post');
+      const single = hierarchy.singleRoutes.find((r) => r.postType === 'post');
+      if (archive || single) {
+        postsRouting = { archivePath: archive ? archive.routePath : null, singleBase: single ? single.basePath : null };
+      }
+    } catch {
+      postsRouting = null;
+    }
+  }
   const pagesToAutoCreate = adapterPageRoutes.map((route) => ({
     title: route.title,
     slug: route.slug,
@@ -260,7 +276,11 @@ export async function generateTheme({
   const fallbackPages = collectFallbackPageRoutes({
     menus,
     routesSource,
-    existingSlugs: pagesToAutoCreate.map((p) => p.slug),
+    existingSlugs: [
+      ...pagesToAutoCreate.map((p) => p.slug),
+      // The posts list page is provisioned as the Posts page, never a placeholder.
+      ...(postsRouting?.archivePath ? [postsRouting.archivePath.replace(/^\/+|\/+$/g, '')] : []),
+    ],
   });
   for (const page of fallbackPages) {
     pagesToAutoCreate.push(page);
@@ -1995,7 +2015,7 @@ if (window.forgeWpBlocks) {
   let companionBackendPhp = '';
   try {
     const functionsParts = buildFunctionsPhpParts(
-      config,
+      postsRouting ? { ...config, _postsRouting: postsRouting } : config,
       assets,
       compiledBlocks,
       themeRoot,
@@ -2323,6 +2343,15 @@ get_footer();
 `;
       writeFileSync(path.join(outDir, `${name}.php`), phpContent, 'utf8');
     }
+  }
+
+  // WordPress renders the Posts page with home.php (not archive.php).
+  if (postsRouting?.archivePath && existsSync(path.join(outDir, 'archive.php'))) {
+    writeFileSync(
+      path.join(outDir, 'home.php'),
+      `<?php\n/**\n * Posts page (${postsRouting.archivePath}) — same markup as archive.php.\n *\n * @package ${config.textDomain}\n */\n\nrequire __DIR__ . '/archive.php';\n`,
+      'utf8',
+    );
   }
 
   const authManifest = {
