@@ -30,6 +30,7 @@ function resolve(origin, frontendOrigins = '') {
 const LOGGED_IN_COOKIE = 'wordpress_logged_in_x';
 ${frontendOrigins ? `define('FORGEWP_FRONTEND_ORIGIN', ${JSON.stringify(frontendOrigins)});` : ''}
 $_COOKIE[LOGGED_IN_COOKIE] = 'valid';
+${origin ? `$_SERVER['HTTP_ORIGIN'] = ${JSON.stringify(origin)};` : ''}
 $current = 0;
 class WP_REST_Request { public $h; function __construct($h) { $this->h = $h; } function get_header($k) { return $this->h[$k] ?? ''; } }
 function get_current_user_id() { global $current; return $current; }

@@ -102,5 +102,28 @@ if (!function_exists('forgewp_origin_of')) {
     }
 }
 
+if (!function_exists('forgewp_cookie_auth_request_allowed')) {
+    /**
+     * May this request be authenticated by the WordPress logged-in cookie
+     * WITHOUT a REST nonce? Only when it cannot be a cross-site request
+     * forged through a visitor's browser: an Origin of the site itself or of
+     * FORGEWP_FRONTEND_ORIGIN, or no Origin and no browser "cross-site" mark
+     * (server-to-server calls such as the Next.js server). Used by /auth/me
+     * and every store/account route that falls back to the cookie.
+     */
+    function forgewp_cookie_auth_request_allowed() {
+        $origin = isset($_SERVER['HTTP_ORIGIN']) ? (string) $_SERVER['HTTP_ORIGIN'] : '';
+        if ($origin !== '') {
+            $o = forgewp_origin_of($origin);
+            return $o !== '' && (
+                $o === forgewp_origin_of(home_url())
+                || $o === forgewp_origin_of(site_url())
+                || in_array($o, forgewp_frontend_origins(), true)
+            );
+        }
+        $fetch_site = isset($_SERVER['HTTP_SEC_FETCH_SITE']) ? strtolower((string) $_SERVER['HTTP_SEC_FETCH_SITE']) : '';
+        return $fetch_site !== 'cross-site';
+    }
+}
 `;
 }

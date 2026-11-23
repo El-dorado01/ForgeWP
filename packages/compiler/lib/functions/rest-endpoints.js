@@ -1045,12 +1045,7 @@ function forgewp_auth_resolve_session_user( $request ) {
     if ( get_current_user_id() ) {
         return get_current_user_id();
     }
-    $origin = $request instanceof WP_REST_Request ? (string) $request->get_header( 'origin' ) : '';
-    $origin_ok = $origin === ''
-        || forgewp_origin_of( $origin ) === forgewp_origin_of( home_url() )
-        || forgewp_origin_of( $origin ) === forgewp_origin_of( site_url() )
-        || in_array( forgewp_origin_of( $origin ), forgewp_frontend_origins(), true );
-    if ( $origin_ok && ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
+    if ( forgewp_cookie_auth_request_allowed() && ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
         $cookie_user_id = wp_validate_auth_cookie( $_COOKIE[ LOGGED_IN_COOKIE ], 'logged_in' );
         if ( $cookie_user_id ) {
             wp_set_current_user( $cookie_user_id );
@@ -1375,7 +1370,7 @@ function forgewp_rest_get_product_reviews( $request ) {
     $per_page = max( 1, min( 50, intval( $request->get_param( 'per_page' ) ?: 5 ) ) );
 
     $current_user_id = get_current_user_id();
-    if ( ! $current_user_id && ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
+    if ( ! $current_user_id && ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) && forgewp_cookie_auth_request_allowed() ) {
         $cookie_user_id = wp_validate_auth_cookie( $_COOKIE[ LOGGED_IN_COOKIE ], 'logged_in' );
         if ( $cookie_user_id ) {
             wp_set_current_user( $cookie_user_id );
@@ -1476,7 +1471,7 @@ function forgewp_rest_submit_product_review( $request ) {
 
     $current_user = wp_get_current_user();
     $user_id = $current_user ? $current_user->ID : 0;
-    if ( ! $user_id && ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
+    if ( ! $user_id && ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) && forgewp_cookie_auth_request_allowed() ) {
         $cookie_user_id = wp_validate_auth_cookie( $_COOKIE[ LOGGED_IN_COOKIE ], 'logged_in' );
         if ( $cookie_user_id ) {
             wp_set_current_user( $cookie_user_id );
@@ -1596,7 +1591,7 @@ function forgewp_rest_delete_product_review( $request ) {
 
     $current_user = wp_get_current_user();
     $user_id = $current_user ? $current_user->ID : 0;
-    if ( ! $user_id && ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
+    if ( ! $user_id && ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) && forgewp_cookie_auth_request_allowed() ) {
         $cookie_user_id = wp_validate_auth_cookie( $_COOKIE[ LOGGED_IN_COOKIE ], 'logged_in' );
         if ( $cookie_user_id ) {
             wp_set_current_user( $cookie_user_id );
@@ -1881,7 +1876,7 @@ function forgewp_ensure_wc_cart() {
     if ( ! function_exists( 'WC' ) ) {
         return false;
     }
-    if ( ! get_current_user_id() && ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
+    if ( ! get_current_user_id() && ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) && forgewp_cookie_auth_request_allowed() ) {
         $cookie_user_id = wp_validate_auth_cookie( $_COOKIE[ LOGGED_IN_COOKIE ], 'logged_in' );
         if ( $cookie_user_id ) {
             wp_set_current_user( $cookie_user_id );
