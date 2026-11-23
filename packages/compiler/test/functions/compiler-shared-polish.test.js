@@ -434,7 +434,7 @@ echo json_encode(array(
       const onceOut = runSeederInPhp(oncePhp, 'once');
       expect(onceOut.postCount).toBe(2);
       expect(onceOut.posts['10'].post_title).toBe('About Our Studio');
-      expect(onceOut.posts['10'].post_content).toBe('<p>Seeded studio story.</p>');
+      expect(onceOut.posts['10'].post_content).toBe('<!-- wp:paragraph -->\n<p>Seeded studio story.</p>\n<!-- /wp:paragraph -->');
       expect(onceOut.posts['10'].post_name).toBe('about-us');
       expect(onceOut.meta['10']._wp_page_template).toBe('page-about.php');
       expect(onceOut.meta['10'].forgewp_route_id).toBe('about-page');
@@ -450,7 +450,7 @@ echo json_encode(array(
       expect(upsertOut.posts['10'].post_name).toBe('about-us');
       expect(upsertOut.meta['10']._wp_page_template).toBe('page-about.php');
       expect(upsertOut.meta['10'].forgewp_route_id).toBe('about-page');
-      expect(upsertOut.posts['11'].post_content).toBe('<p>Default contact copy.</p>');
+      expect(upsertOut.posts['11'].post_content).toBe('<!-- wp:paragraph -->\n<p>Default contact copy.</p>\n<!-- /wp:paragraph -->');
       expect(upsertOut.meta['11']._wp_page_template).toBe('page-contact.php');
       expect(upsertOut.meta['11'].forgewp_route_id).toBe('contact-page');
     });

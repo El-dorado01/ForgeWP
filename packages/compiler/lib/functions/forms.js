@@ -207,6 +207,15 @@ export function validateFormsConfig(forms) {
       }
     }
 
+    if (
+      formConfig.minSubmitMs !== undefined &&
+      (!Number.isSafeInteger(formConfig.minSubmitMs) || formConfig.minSubmitMs < 0)
+    ) {
+      throw new Error(
+        `[ForgeWP Forms] forms.${name}.minSubmitMs must be a non-negative integer (milliseconds; 0 disables the time trap).`,
+      );
+    }
+
     if (formConfig.retentionDays !== undefined) {
       if (
         !Number.isSafeInteger(formConfig.retentionDays) ||
@@ -1587,6 +1596,9 @@ function buildFormHandlerPhp(name, formConfig, textDomain, locales) {
     ? seedByLocalePhpArray(rawSeed, locales)
     : seedFieldsPhpArray(rawSeed);
   const storeSubmissions = formConfig.storeSubmissions !== false;
+  const minSubmitMs = Number.isSafeInteger(formConfig.minSubmitMs) && formConfig.minSubmitMs >= 0
+    ? formConfig.minSubmitMs
+    : 3000;
 
   let mailToPhp;
   if (formConfig.mailTo === 'admin') {
@@ -1644,12 +1656,26 @@ if (!function_exists('forgewp_handle_form_${slug}')) {
         $params = $request->get_params();
 
         // Honeypot + time-trap: fail silently with an ok-shaped response so
-        // spam bots never learn their submission was rejected.
+        // spam bots never learn their submission was rejected. Discards are
+        // counted per form (option forgewp_forms_trapped_${slug}) and logged
+        // under WP_DEBUG so false positives on real visitors are detectable.
+        // The threshold comes from forms.${name}.minSubmitMs (0 disables) and
+        // the forgewp_forms_min_submit_ms filter.
+        $forgewp_trap = '';
         if (!empty($params['_forgewp_hp'])) {
-            return new WP_REST_Response(array('ok' => true, 'message' => __('Thank you.', '${textDomain}')), 200);
+            $forgewp_trap = 'honeypot';
+        } else {
+            $elapsed = isset($params['_forgewp_elapsed']) ? (int) $params['_forgewp_elapsed'] : 0;
+            $min_submit_ms = (int) apply_filters('forgewp_forms_min_submit_ms', ${minSubmitMs}, '${name}');
+            if ($min_submit_ms > 0 && $elapsed < $min_submit_ms) {
+                $forgewp_trap = 'time (' . $elapsed . 'ms < ' . $min_submit_ms . 'ms)';
+            }
         }
-        $elapsed = isset($params['_forgewp_elapsed']) ? (int) $params['_forgewp_elapsed'] : 0;
-        if ($elapsed < 3000) {
+        if ($forgewp_trap !== '') {
+            update_option('forgewp_forms_trapped_${slug}', (int) get_option('forgewp_forms_trapped_${slug}', 0) + 1, false);
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[ForgeWP Forms] ${name}: submission discarded by ' . $forgewp_trap . ' trap.');
+            }
             return new WP_REST_Response(array('ok' => true, 'message' => __('Thank you.', '${textDomain}')), 200);
         }
 

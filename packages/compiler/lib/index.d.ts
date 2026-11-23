@@ -168,6 +168,12 @@ export interface ForgeWPFormConfig {
   confirmation?: ForgeWPFormConfirmationConfig;
   /** Permanently delete stored submissions after this many days. No cleanup by default. */
   retentionDays?: number;
+  /**
+   * Spam time trap: submissions sent sooner than this many milliseconds after the
+   * form loaded are discarded with a success-shaped response. Default 3000; 0 disables.
+   * Discards are counted in the `forgewp_forms_trapped_<form>` option and logged under WP_DEBUG.
+   */
+  minSubmitMs?: number;
 }
 
 export interface WpOptionField {

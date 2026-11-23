@@ -113,6 +113,79 @@ export function loadMockData(themeRoot) {
   return {};
 }
 
+const BLOCK_TAGS = {
+  p: (html) => `<!-- wp:paragraph -->\n${html}\n<!-- /wp:paragraph -->`,
+  h1: (html) => heading(1, html), h2: (html) => heading(2, html), h3: (html) => heading(3, html),
+  h4: (html) => heading(4, html), h5: (html) => heading(5, html), h6: (html) => heading(6, html),
+  ul: (html) => list(false, html),
+  ol: (html) => list(true, html),
+  blockquote: (html) => `<!-- wp:quote -->\n${withClass(html, 'blockquote', 'wp-block-quote')}\n<!-- /wp:quote -->`,
+  hr: () => '<!-- wp:separator -->\n<hr class="wp-block-separator has-alpha-channel-opacity"/>\n<!-- /wp:separator -->',
+};
+function heading(level, html) {
+  const attrs = level === 2 ? '' : ` {"level":${level}}`;
+  return `<!-- wp:heading${attrs} -->\n${withClass(html, `h${level}`, 'wp-block-heading')}\n<!-- /wp:heading -->`;
+}
+function list(ordered, html) {
+  const tag = ordered ? 'ol' : 'ul';
+  const items = html.replace(/<li(\s[^>]*)?>([\s\S]*?)<\/li>/gi, (_m, a = '', inner) =>
+    `<!-- wp:list-item -->\n<li${a}>${inner}</li>\n<!-- /wp:list-item -->`);
+  return `<!-- wp:list${ordered ? ' {"ordered":true}' : ''} -->\n${withClass(items, tag, 'wp-block-list')}\n<!-- /wp:list -->`;
+}
+function withClass(html, tag, cls) {
+  return html.replace(new RegExp(`^<${tag}(\\s[^>]*)?>`, 'i'), (_m, attrs = '') => {
+    if (/\sclass\s*=/.test(attrs)) return `<${tag}${attrs.replace(/(\sclass\s*=\s*["'])/, `$1${cls} `)}>`;
+    return `<${tag} class="${cls}"${attrs}>`;
+  });
+}
+
+/**
+ * Converts seeded HTML into Gutenberg block markup so it opens as native blocks
+ * (paragraph, heading, list, quote, separator) instead of one Classic block.
+ * Top-level elements outside that set, and stray text, become core/html blocks.
+ * Content that already contains block markup, or cannot be split cleanly, is
+ * returned unchanged.
+ */
+export function htmlToBlockMarkup(input) {
+  const html = String(input || '').trim();
+  if (!html || html.includes('<!-- wp:')) return input || '';
+  const blocks = [];
+  let i = 0;
+  const pushHtml = (chunk) => {
+    const c = chunk.trim();
+    if (c) blocks.push(`<!-- wp:html -->\n${c}\n<!-- /wp:html -->`);
+  };
+  while (i < html.length) {
+    const lt = html.indexOf('<', i);
+    if (lt === -1) { pushHtml(html.slice(i)); break; }
+    if (lt > i) pushHtml(html.slice(i, lt));
+    const open = /^<([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>/.exec(html.slice(lt));
+    if (!open) return input; // comments, doctype or malformed markup: leave as-is
+    const tag = open[1].toLowerCase();
+    const selfClosing = open[2] === '/' || ['hr', 'br', 'img'].includes(tag);
+    let end;
+    if (selfClosing) {
+      end = lt + open[0].length;
+    } else {
+      // Find the matching close tag, counting nested same-name tags.
+      const re = new RegExp(`<(/?)${tag}\\b[^>]*>`, 'gi');
+      re.lastIndex = lt + open[0].length;
+      let depth = 1; let m;
+      while (depth > 0 && (m = re.exec(html))) depth += m[1] ? -1 : 1;
+      if (depth !== 0) return input;
+      end = re.lastIndex;
+    }
+    const element = html.slice(lt, end);
+    // Only attribute-free elements map to core blocks: attributes (class, id,
+    // style) would need block attributes to pass Gutenberg's validation.
+    const plainOpen = new RegExp(`^<${tag}\\s*/?>`, 'i').test(open[0]);
+    if (BLOCK_TAGS[tag] && plainOpen) blocks.push(BLOCK_TAGS[tag](element));
+    else pushHtml(element);
+    i = end;
+  }
+  return blocks.join('\n\n');
+}
+
 /**
  * Shared fixture normalization for generated PHP and the read-only CLI preview.
  */
@@ -132,7 +205,7 @@ export function normalizeMockSeedData(rawMockData, mockStrategy) {
     normalizedData[postType] = items.map((item, idx) => {
       const title = item.title || item.name || `Sample ${postType} ${idx + 1}`;
       const slug = item.slug || `sample-${postType}-${item.id || idx + 1}`;
-      const content = item.content || '';
+      const content = htmlToBlockMarkup(item.content || '');
       const excerpt = item.excerpt || item.description || '';
       const date = item.date || '';
       const featuredImage = item.featuredImage || (Array.isArray(item.images) ? item.images[0] : '');

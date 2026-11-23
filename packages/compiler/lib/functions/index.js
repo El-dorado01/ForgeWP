@@ -7,7 +7,7 @@ import { buildRestEndpointsPhp } from './rest-endpoints.js';
 import { buildSettingsPagePhp } from './settings-page.js';
 import { buildFormsPhp } from './forms.js';
 import { buildSeedProductsPhp } from './seed-products.js';
-import { buildSeedMockDataPhp, loadMockData } from './seed-mock-data.js';
+import { buildSeedMockDataPhp, htmlToBlockMarkup, loadMockData } from './seed-mock-data.js';
 import { scanAppProviders } from '../hydration/scan-app-providers.js';
 import { collectCptRouteDiagnostics, buildCptRewriteRefreshPhp } from './cpt-routing.js';
 
@@ -20,7 +20,7 @@ function resolveFrontPageSeed(themeRoot) {
     if (!home) return null;
     return {
       title: typeof home.title === 'string' ? home.title : 'Home',
-      content: typeof home.content === 'string' ? home.content : '',
+      content: typeof home.content === 'string' ? htmlToBlockMarkup(home.content) : '',
     };
   } catch {
     return null;

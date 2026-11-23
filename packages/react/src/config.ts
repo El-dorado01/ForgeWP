@@ -192,6 +192,8 @@ export interface WpFormConfig {
   confirmation?: WpFormConfirmationConfig;
   /** Permanently delete stored submissions after this many days. No cleanup by default. */
   retentionDays?: number;
+  /** Spam time trap in ms: faster submissions are discarded with a success-shaped response. Default 3000; 0 disables. */
+  minSubmitMs?: number;
 }
 
 /**
