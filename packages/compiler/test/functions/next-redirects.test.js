@@ -123,4 +123,86 @@ describe('Phase B3: Next.js declarative redirects in withForgeWP() and doctor wa
       rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  it('auto-reads redirects from wp.config.ts inside withForgeWP() without importing wp.config.ts in next.config.ts', async () => {
+    const tmp = mkdtempSync(path.join(os.tmpdir(), 'forgewp-b3-autoload-'));
+    try {
+      mkdirSync(path.join(tmp, 'src', 'app', 'about'), { recursive: true });
+      writeFileSync(
+        path.join(tmp, 'src', 'app', 'about', 'page.tsx'),
+        'export default function About() { return <main>About</main>; }\n',
+      );
+      writeFileSync(
+        path.join(tmp, 'wp.config.ts'),
+        `import { defineConfig } from '@forgewp/compiler/define-config';
+
+export default defineConfig({
+  configVersion: 1,
+  name: 'Auto Redirects',
+  slug: 'auto-redirects',
+  version: '0.1.0',
+  description: 'demo',
+  textDomain: 'auto-redirects',
+  frameworkAdapter: 'nextjs',
+  // Declarative redirects shared with Companion Plugin
+  redirects: [
+    { from: '/kontakt', to: '/contact/' }, // default 301
+    { from: '/ext', to: 'https://example.org/docs', status: 302 },
+    { from: '/about', to: '/company', ifNotFound: true },
+    { from: '/legacy', to: '/new-home', status: 308, ifNotFound: true },
+  ],
+});
+`,
+      );
+      process.chdir(tmp);
+
+      // No options.redirects passed — withForgeWP() reads wp.config.ts automatically!
+      const cfg = withForgeWP({}, { deploymentMode: 'decoupled' });
+      expect(typeof cfg.redirects).toBe('function');
+      const resolved = await cfg.redirects();
+      expect(resolved).toEqual([
+        { source: '/kontakt', destination: '/contact/', statusCode: 301 },
+        { source: '/ext', destination: 'https://example.org/docs', statusCode: 302 },
+        { source: '/legacy', destination: '/new-home', statusCode: 308 },
+      ]);
+    } finally {
+      process.chdir(prevCwd);
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('emits postsArchivePath in forgewp-manifest.json when a blog archive route exists and null otherwise', () => {
+    const tmp = mkdtempSync(path.join(os.tmpdir(), 'forgewp-blog-manifest-'));
+    try {
+      mkdirSync(path.join(tmp, 'src', 'app'), { recursive: true });
+      writeFileSync(
+        path.join(tmp, 'src', 'app', 'page.tsx'),
+        'export default function Home() { return <main>Home</main>; }\n',
+      );
+
+      // No blog route -> postsArchivePath: null
+      const withoutBlog = buildRouteCapabilityManifest(tmp, {
+        config: { frameworkAdapter: 'nextjs' },
+      });
+      expect(withoutBlog.postsArchivePath).toBeNull();
+
+      // Add /blog archive + /blog/[slug] single -> postsArchivePath: '/blog'
+      mkdirSync(path.join(tmp, 'src', 'app', 'blog', '[slug]'), { recursive: true });
+      writeFileSync(
+        path.join(tmp, 'src', 'app', 'blog', 'page.tsx'),
+        'export default function BlogArchive() { return <main>Blog</main>; }\n',
+      );
+      writeFileSync(
+        path.join(tmp, 'src', 'app', 'blog', '[slug]', 'page.tsx'),
+        'export async function generateStaticParams() { return [{ slug: "hello" }]; }\nexport default function Post() { return <main>Post</main>; }\n',
+      );
+
+      const withBlog = buildRouteCapabilityManifest(tmp, {
+        config: { frameworkAdapter: 'nextjs' },
+      });
+      expect(withBlog.postsArchivePath).toBe('/blog');
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 });

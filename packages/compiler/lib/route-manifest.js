@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import path from 'node:path';
 import { parse } from '@babel/parser';
 import { diagnoseNextNativeCompatibility } from './next-adapter.js';
+import { discoverNextDynamicHierarchy } from './next-dynamic-routes.js';
 
 export const VALID_DOCTOR_TARGETS = ['native', 'decoupled', 'hybrid'];
 
@@ -1012,6 +1013,17 @@ export function buildRouteCapabilityManifest(projectRoot, options = {}) {
         }))
     : [];
 
+  const dynamicHierarchy =
+    frameworkAdapter === 'nextjs'
+      ? discoverNextDynamicHierarchy(resolvedRoot, { postTypes: config.postTypes || {} })
+      : { singleRoutes: [], archiveRoutes: [], unsupportedDynamic: [] };
+  const postArchiveRoute = dynamicHierarchy.archiveRoutes.find(
+    (r) => r.postType === 'post',
+  );
+  const postsArchivePath = postArchiveRoute
+    ? normalizeRoutePath(postArchiveRoute.routePath)
+    : null;
+
   return {
     schemaVersion: 1,
     project: {
@@ -1019,6 +1031,7 @@ export function buildRouteCapabilityManifest(projectRoot, options = {}) {
       slug: config.slug || path.basename(resolvedRoot),
       frameworkAdapter,
     },
+    postsArchivePath,
     hybridRoutes,
     routes,
     global: {
