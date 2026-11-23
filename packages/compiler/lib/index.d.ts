@@ -176,6 +176,18 @@ export interface ForgeWPFormConfig {
   minSubmitMs?: number;
 }
 
+/** A declarative redirect (wp.config.ts `redirects`). Paths are relative to the site's home path. */
+export interface ForgeWPRedirect {
+  /** Site path to match, e.g. "/kontakt" (trailing slash ignored; no query). */
+  from: string;
+  /** Site path ("/contact/") or absolute http(s) URL. The request's query string is kept. */
+  to: string;
+  /** HTTP status. Default 301. */
+  status?: 301 | 302 | 307 | 308;
+  /** Only redirect when WordPress would otherwise return 404 (an existing page at `from` wins). */
+  ifNotFound?: boolean;
+}
+
 export interface WpOptionField {
   _type:
     | 'text'
@@ -285,6 +297,8 @@ export interface ForgeWPThemeConfig {
   postTypes?: Record<string, CustomPostTypeConfig>;
   taxonomies?: Record<string, CustomTaxonomyConfig>;
   options?: WpOptionsSchema;
+  /** Declarative redirects, served by the Companion backend (see ForgeWPRedirect). */
+  redirects?: ForgeWPRedirect[];
   themeMods?: Record<string, any>;
   seed?: ForgeWPSeedConfig;
   i18n?: ForgeWPI18nConfig;

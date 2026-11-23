@@ -6,6 +6,7 @@ import { themeMods } from './cms/theme-mods';
 export default defineConfig({
   name: 'Hotelchecker24',
   slug: 'hotelchecker24',
+  redirects: [{ from: '/kontakt', to: '/contact/', ifNotFound: true }],
   version: '1.0.0',
   description: 'Premium Hotel Directory & Listicle Theme',
   textDomain: 'hotelchecker24',

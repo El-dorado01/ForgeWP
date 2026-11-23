@@ -2044,27 +2044,45 @@ if (window.forgeWpBlocks) {
     }
   }
 
-  // Append custom PHP server escape hatch files from src/server/*.php
-  const serverDir = path.join(themeRoot, 'src', 'server');
-  if (existsSync(serverDir)) {
-    const phpFiles = readdirSync(serverDir)
-      .filter((file) => file.endsWith('.php'))
-      .sort();
-    if (phpFiles.length > 0) {
-      let serverPhpContent =
-        '\n\n/**\n * ── PHP Server Escape Hatch (src/server/) ──\n */';
-      for (const file of phpFiles) {
-        const filePath = path.join(serverDir, file);
-        let content = readFileSync(filePath, 'utf8');
-        // Clean leading and trailing php tags safely
-        content = content
-          .replace(/^<\?php\s*/i, '')
-          .replace(/^<\?\s*/i, '')
-          .replace(/\s*\?>\s*$/i, '');
-        serverPhpContent += `\n\n/**\n * Source: src/server/${file}\n */\n${content.trim()}`;
-      }
-      functionsPhpContent += serverPhpContent + '\n';
+  // PHP escape hatch (src/server):
+  //   src/server/plugin/*.php -> Companion backend (survives theme switches; decoupled-safe)
+  //   src/server/theme/*.php  -> theme functions.php (presentation hooks: wp_head, the_content, ...)
+  //   src/server/*.php        -> legacy flat layout, treated as theme (deprecated)
+  const readServerPhp = (dir, relLabel) => {
+    if (!existsSync(dir)) return { php: '', files: [] };
+    const files = readdirSync(dir).filter((file) => file.endsWith('.php')).sort();
+    let php = '';
+    for (const file of files) {
+      const content = readFileSync(path.join(dir, file), 'utf8')
+        .replace(/^<\?php\s*/i, '')
+        .replace(/^<\?\s*/i, '')
+        .replace(/\s*\?>\s*$/i, '');
+      php += `\n\n/**\n * Source: ${relLabel}/${file}\n */\n${content.trim()}`;
     }
+    return { php, files };
+  };
+  const serverDir = path.join(themeRoot, 'src', 'server');
+  const serverPlugin = readServerPhp(path.join(serverDir, 'plugin'), 'src/server/plugin');
+  const serverTheme = readServerPhp(path.join(serverDir, 'theme'), 'src/server/theme');
+  const serverLegacy = readServerPhp(serverDir, 'src/server');
+  if (serverLegacy.files.length > 0) {
+    console.warn(
+      `[ForgeWP] src/server/*.php is deprecated: move each file into src/server/plugin/ ` +
+        `(content types, REST routes, data hooks — kept when the site runs decoupled) or ` +
+        `src/server/theme/ (wp_head, the_content and other rendering hooks). ` +
+        `Treating as theme code: ${serverLegacy.files.join(', ')}.`,
+    );
+  }
+  if (serverPlugin.php) {
+    companionBackendPhp +=
+      '\n\n/**\n * ── PHP Server Escape Hatch, backend (src/server/plugin/) ──\n */' + serverPlugin.php + '\n';
+  }
+  if (serverTheme.php || serverLegacy.php) {
+    functionsPhpContent +=
+      '\n\n/**\n * ── PHP Server Escape Hatch, theme (src/server/theme/, src/server/) ──\n */' +
+      serverTheme.php +
+      serverLegacy.php +
+      '\n';
   }
 
   writeFileSync(

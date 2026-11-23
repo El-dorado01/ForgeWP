@@ -6,6 +6,7 @@ import { themeMods } from './cms/theme-mods';
 export default defineConfig({
   name: 'Hospitality 2035',
   slug: 'hospitality',
+  redirects: [{ from: '/studie', to: '/studie/hospitality-2035/' }],
   version: '0.1.0',
   description:
     'Hospitality 2035 – Wie sich die wirtschaftliche Logik der Hotellerie verändert (DICON)',
