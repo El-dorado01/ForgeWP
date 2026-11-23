@@ -64,7 +64,7 @@ if (!defined('${constant}')) {
         }
         echo '<div class="notice notice-warning"><p>' . esc_html(sprintf(
             /* translators: 1: plugin version, 2: theme version */
-            __('The %1$s companion plugin (version %2$s) does not match this theme (version %3$s). Update the plugin from the same ForgeWP export as the theme.', ${phpString(config.textDomain || 'forgewp')}),
+            __('The %1$s companion plugin (version %2$s) does not match this theme (version %3$s). Install the theme and the plugin from the same ForgeWP export.', ${phpString(config.textDomain || 'forgewp')}),
             ${phpString(headerValue(config.name))},
             ${constant}_VERSION,
             ${phpString(version)}
