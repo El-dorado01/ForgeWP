@@ -1,7 +1,7 @@
 import React, { useContext } from "react";
 import { WpPostContext } from "../context";
 import type { WpAttachment, StaticImageData } from "../types";
-import { getNativeThemeUri } from "../runtime/index.js";
+import { resolveWpAsset } from "../hooks.js";
 
 export type { StaticImageData };
 
@@ -229,26 +229,8 @@ export function WpImage({
   }
 
   // Auto-resolve local relative asset paths to WordPress theme URI on client
-  if (
-    resolvedSrc &&
-    typeof resolvedSrc === "string" &&
-    typeof window !== "undefined" &&
-    !resolvedSrc.startsWith("http://") &&
-    !resolvedSrc.startsWith("https://") &&
-    !resolvedSrc.startsWith("//") &&
-    !resolvedSrc.startsWith("data:") &&
-    !resolvedSrc.startsWith("blob:")
-  ) {
-    const themeUri =
-      getNativeThemeUri() ||
-      (window as any).forgeWpThemeUri ||
-      (window as any).forgewpData?.themeUri;
-    if (themeUri) {
-      resolvedSrc =
-        themeUri.replace(/\/+$/, "") +
-        "/" +
-        resolvedSrc.replace(/^(\/|\.\/)+/, "");
-    }
+  if (resolvedSrc && typeof resolvedSrc === "string") {
+    resolvedSrc = resolveWpAsset(resolvedSrc);
   }
 
   const mergedStyle: React.CSSProperties = {
