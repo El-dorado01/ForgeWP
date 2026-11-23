@@ -197,17 +197,197 @@ WordPress stores theme mods per theme (`theme_mods_{stylesheet}`), and `nav_menu
 
 ---
 
-## 3. Upcoming Phase C Resource Contracts (Reserved Names)
+## 5. `menus` (Phase C — Status: Draft — Awaiting Founder & Claude Approval)
+
+- **Resource Name:** `menus` (collection) / `menus:<location>` (single menu location)
+- **REST Routes:**
+  - `GET /wp-json/forgewp/v1/menus` (all registered menu locations, keyed by location slug)
+  - `GET /wp-json/forgewp/v1/menus/<location>` (single menu location — aligns with existing `/forgewp/v1/menus/<location>` endpoint)
+- **Auth:** `public`
+- **Query Params:**
+  - `lang` (optional, string, e.g. `en`, `de`): when Polylang/WPML is active, resolves the localized menu assigned to `<location>` for that language.
+- **Cache Tags:** `["menus", "menu:<location>"]`
+- **Hydration Key:** `window.forgeWpHydration.resources.menus` (collection shape below)
+
+### Single Menu Response JSON (`GET /wp-json/forgewp/v1/menus/primary?lang=en` — `200 OK`)
+
+```json
+{
+  "location": "primary",
+  "lang": "en",
+  "items": [
+    {
+      "id": 42,
+      "title": "About",
+      "url": "https://example.com/about/",
+      "path": "/about/",
+      "target": "",
+      "classes": ["menu-item"],
+      "description": "",
+      "attrTitle": "",
+      "children": [
+        {
+          "id": 43,
+          "title": "Team",
+          "url": "https://example.com/about/team/",
+          "path": "/about/team/",
+          "target": "",
+          "classes": [],
+          "description": "",
+          "attrTitle": "",
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Collection Response JSON (`GET /wp-json/forgewp/v1/menus?lang=en` — `200 OK`)
+
+```json
+{
+  "lang": "en",
+  "menus": {
+    "primary": [
+      {
+        "id": 42,
+        "title": "About",
+        "url": "https://example.com/about/",
+        "path": "/about/",
+        "target": "",
+        "classes": [],
+        "children": []
+      }
+    ],
+    "footer": []
+  }
+}
+```
+
+### Field Guarantees
+- `menus`: `Record<string, WpMenuItem[]>` — reads location assignments from `forgewp_theme_state` (via `get_nav_menu_locations()`, surviving theme swaps per §4.2).
+- `path`: site-relative path derived from `url` (stripping `homeUrl` origin + subdirectory base path); for external URLs (`https://other.com`), `path` equals `url`.
+- `children`: always an array (`[]` for leaf items).
+- Unknown or unassigned `<location>` on `GET /menus/<location>` returns `200 OK` with `{ "location": "<location>", "lang": "<lang>", "items": [] }` (never 500; avoids breaking optional footer/sidebar slots).
+
+### Legacy Cleanup Plan
+- Once PHP emits `resources.menus` and `nativeSource` reads `resources.menus` only, remove top-level `window.forgeWpHydration.menus` in one coordinated PR (same pattern as §4.4).
+
+---
+
+## 6. `routes` (Phase C — Status: Draft — Awaiting Founder & Claude Approval)
+
+- **Resource Name:** `routes`
+- **REST Route:** `GET /wp-json/forgewp/v1/routes` (extends existing endpoint)
+- **Auth:** `public` (published pages only — never exposes `draft`, `pending`, `private`, or password-protected pages)
+- **Query Params:**
+  - `lang` (optional, string): when multilingual plugins or local i18n are active, resolves permalinks for that locale.
+- **Cache Tags:** `["routes"]`
+- **Hydration Key:** `window.forgeWpHydration.resources.routes`
+
+### Response JSON (`GET /wp-json/forgewp/v1/routes` — `200 OK`)
+
+```json
+{
+  "homeUrl": "https://example.com",
+  "basePath": "",
+  "lang": "en",
+  "routes": [
+    {
+      "routeId": "front-page",
+      "id": 10,
+      "slug": "home",
+      "title": "Home",
+      "path": "/",
+      "permalink": "https://example.com/"
+    },
+    {
+      "routeId": "about",
+      "id": 11,
+      "slug": "our-story",
+      "title": "About",
+      "path": "/our-story/",
+      "permalink": "https://example.com/our-story/"
+    }
+  ],
+  "pageLinks": {
+    "front-page": "/",
+    "about": "/our-story/"
+  }
+}
+```
+
+### Field Guarantees
+- `homeUrl`: canonical WordPress `home_url()` without trailing slash.
+- `basePath`: subdirectory install prefix without trailing slash (e.g. `""` or `"/wp"`).
+- `routes`: array of published pages that carry `forgewp_route_id` (or are mapped ForgeWP routes), surviving wp-admin slug renames (`routeId: "about"` → `slug: "our-story"`).
+- `pageLinks`: `Record<string, string>` convenience lookup map (`routeId` → `path`) matching `useWpPageLink(routeId)` so client hooks resolve links in O(1) without scanning `routes[]`.
+
+### Legacy Cleanup Plan
+- Once PHP emits `resources.routes` (with `pageLinks`) and `nativeSource` reads `resources.routes` only, remove top-level `window.forgeWpHydration.pageLinks` in one coordinated PR.
+
+---
+
+## 7. `i18n` (Phase C — Status: Draft — Awaiting Founder & Claude Approval)
+
+- **Resource Name:** `i18n`
+- **REST Route:** `GET /wp-json/forgewp/v1/i18n`
+- **Auth:** `public`
+- **Query Params:**
+  - `lang` (optional, string, e.g. `en`, `de`): requested locale. If omitted, resolves via active site/plugin default locale.
+  - `path` (optional, string, e.g. `/about`): current route path so `urls` can return localized switcher URLs for that page when available.
+- **Cache Tags:** `["i18n", "i18n:<lang>"]`
+- **Hydration Key:** `window.forgeWpHydration.resources.i18n`
+
+### Response JSON (`GET /wp-json/forgewp/v1/i18n?lang=de` — `200 OK`)
+
+```json
+{
+  "currentLanguage": "de",
+  "defaultLocale": "en",
+  "locales": ["en", "de"],
+  "translations": {
+    "nav.home": "Startseite",
+    "nav.contact": "Kontakt"
+  },
+  "urls": {
+    "en": "/about/",
+    "de": "/de/about/"
+  },
+  "homeUrls": {
+    "en": "/",
+    "de": "/de/"
+  }
+}
+```
+
+### Field Guarantees
+- `currentLanguage`: active normalized locale code (never empty when i18n is configured; never defaults to hardcoded `'de'`).
+- `defaultLocale`: configured default locale from `wp.config.i18n.defaultLocale` (or WordPress site locale prefix when i18n is not explicitly configured).
+- `locales`: non-empty `string[]` of supported locales.
+- `translations`: `Record<string, string>` — active locale's translation dictionary (merged defaults + any wp-admin overrides).
+- `urls` / `homeUrls`: `Record<string, string>` — locale-keyed language-switcher URLs (empty objects `{}` if single-language).
+
+### Error Cases
+- `404 FORGEWP_LOCALE_NOT_FOUND` — explicit `?lang=<unknown>` is not in the site's configured `locales`.
+
+### Legacy Cleanup Plan
+- Once PHP emits `resources.i18n` and `nativeSource` reads `resources.i18n` only, remove legacy `window.forgeWpTranslations` / `window.forgeWpLocale` globals in one coordinated PR.
+
+---
+
+## 8. Remaining Phase C Resource Contracts (Reserved Names)
 
 Registered in `@forgewp/react`'s lean resource registry with reserved paths so runtime wiring stays uniform:
 
-| Resource Name | REST Path | Auth | Cache Tags |
-|---|---|---|---|
-| `site-settings` | `/site-settings` | `public` | `["site-settings", "options"]` |
-| `forms` | `/forms` | `public` | `["forms"]` |
-| `menus` | `/menus` | `public` | `["menus"]` |
-| `routes` | `/routes` | `public` | `["routes"]` |
-| `i18n` | `/i18n` | `public` | `["i18n"]` |
-| `seo` | `/seo` | `public` | `["seo"]` |
-| `editables` | `/editables` | `public` | `["editables"]` |
-| `auth-me` | `/auth/me` | `session` | `["auth"]` |
+| Resource Name | REST Path | Auth | Cache Tags | Status |
+|---|---|---|---|---|
+| `site-settings` | `/site-settings` | `public` | `["site-settings", "options"]` | Approved (Phase A) |
+| `forms` | `/forms` | `public` | `["forms", "form:<name>"]` | Approved (Phase A) |
+| `menus` | `/menus` | `public` | `["menus", "menu:<location>"]` | Draft (Phase C — §5) |
+| `routes` | `/routes` | `public` | `["routes"]` | Draft (Phase C — §6) |
+| `i18n` | `/i18n` | `public` | `["i18n", "i18n:<lang>"]` | Draft (Phase C — §7) |
+| `seo` | `/seo` | `public` | `["seo"]` | Reserved (Phase C) |
+| `editables` | `/editables` | `public` | `["editables"]` | Reserved (Phase C) |
+| `auth-me` | `/auth/me` | `session` | `["auth"]` | Reserved (Phase C) |
