@@ -197,7 +197,7 @@ WordPress stores theme mods per theme (`theme_mods_{stylesheet}`), and `nav_menu
 
 ---
 
-## 5. `menus` (Phase C — Status: Draft — Awaiting Founder & Claude Approval)
+## 5. `menus` (Phase C — Status: Approved 2026-11-23, with Claude's amendments below)
 
 - **Resource Name:** `menus` (collection) / `menus:<location>` (single menu location)
 - **REST Routes:**
@@ -276,7 +276,7 @@ WordPress stores theme mods per theme (`theme_mods_{stylesheet}`), and `nav_menu
 
 ---
 
-## 6. `routes` (Phase C — Status: Draft — Awaiting Founder & Claude Approval)
+## 6. `routes` (Phase C — Status: Approved 2026-11-23, with Claude's amendments below)
 
 - **Resource Name:** `routes`
 - **REST Route:** `GET /wp-json/forgewp/v1/routes` (extends existing endpoint)
@@ -329,7 +329,7 @@ WordPress stores theme mods per theme (`theme_mods_{stylesheet}`), and `nav_menu
 
 ---
 
-## 7. `i18n` (Phase C — Status: Draft — Awaiting Founder & Claude Approval)
+## 7. `i18n` (Phase C — Status: Approved 2026-11-23, with Claude's amendments below)
 
 - **Resource Name:** `i18n`
 - **REST Route:** `GET /wp-json/forgewp/v1/i18n`
@@ -377,7 +377,7 @@ WordPress stores theme mods per theme (`theme_mods_{stylesheet}`), and `nav_menu
 
 ---
 
-### Claude review of §5–§7 (2026-11-23) — approve with three amendments
+### Claude review of §5–§7 (2026-11-23) — approved by founder with these three amendments
 
 Compatibility checked against the live endpoints: `/menus/<location>` today returns `{ location, items }` with `id, title, url, path, target, classes, children`, and `/routes` returns `{ homeUrl, basePath, routes }`; the drafts only add fields (`lang`, `description`, `attrTitle`, `pageLinks`), so existing decoupled consumers keep working. Amendments, all driven by the plugin-only (decoupled) deployment that Phase B enables:
 
@@ -397,9 +397,9 @@ Registered in `@forgewp/react`'s lean resource registry with reserved paths so r
 |---|---|---|---|---|
 | `site-settings` | `/site-settings` | `public` | `["site-settings", "options"]` | Approved (Phase A) |
 | `forms` | `/forms` | `public` | `["forms", "form:<name>"]` | Approved (Phase A) |
-| `menus` | `/menus` | `public` | `["menus", "menu:<location>"]` | Draft (Phase C — §5) |
-| `routes` | `/routes` | `public` | `["routes"]` | Draft (Phase C — §6) |
-| `i18n` | `/i18n` | `public` | `["i18n", "i18n:<lang>"]` | Draft (Phase C — §7) |
+| `menus` | `/menus` | `public` | `["menus", "menu:<location>"]` | Approved (Phase C — §5) |
+| `routes` | `/routes` | `public` | `["routes"]` | Approved (Phase C — §6) |
+| `i18n` | `/i18n` | `public` | `["i18n", "i18n:<lang>"]` | Approved (Phase C — §7) |
 | `seo` | `/seo` | `public` | `["seo"]` | Reserved (Phase C) |
 | `editables` | `/editables` | `public` | `["editables"]` | Reserved (Phase C) |
 | `auth-me` | `/auth/me` | `session` | `["auth"]` | Reserved (Phase C) |

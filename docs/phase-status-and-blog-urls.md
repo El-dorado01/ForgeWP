@@ -45,7 +45,7 @@ All Phase A items from §9 are shipped and verified live in the cloud sandbox (W
 |---|---|---|---|---|
 | B1 | Re-verify the other monorepo projects after the split: `forge-commerce`, `forgewp-auth` (live in the sandbox), `hospitality` (export + live without Events Manager) | **Claude** | Yes | WooCommerce and Events Manager cannot be downloaded in the cloud sandbox (wordpress.org is blocked); their plugin-dependent paths need a founder LocalWP pass. |
 | B2 | Plugin lifecycle in WordPress: deactivate the plugin → theme falls back to its embedded backend with no data loss; update the plugin while the theme is active; version-mismatch notice | **Claude** | Yes | |
-| B3 | Next.js side of redirects: `withForgeWP()` maps `config.redirects` to `next.config` `redirects()` so the decoupled origin serves the same redirects | **Gemini** | Yes | `packages/react/src/next.ts`. Rule shape: `{ from, to, status?, ifNotFound? }` (see `ForgeWPRedirect` in `packages/compiler/lib/index.d.ts`). `ifNotFound` has no direct Next.js equivalent; suggested: emit it as a normal redirect only when no app route matches `from`, otherwise skip it and let doctor warn. |
+| B3 ✅ merged (#33); follow-up: `withForgeWP()` should read `redirects` from `wp.config.*` itself, because importing `wp.config.ts` into `next.config.ts` crashes Next's config loader | Next.js side of redirects: `withForgeWP()` maps `config.redirects` to `next.config` `redirects()` so the decoupled origin serves the same redirects | **Gemini** | Yes | `packages/react/src/next.ts`. Rule shape: `{ from, to, status?, ifNotFound? }` (see `ForgeWPRedirect` in `packages/compiler/lib/index.d.ts`). `ifNotFound` has no direct Next.js equivalent; suggested: emit it as a normal redirect only when no app route matches `from`, otherwise skip it and let doctor warn. |
 | B4 | Documentation in `forgewp-docs`: Companion Plugin (when to install it), `src/server/plugin` vs `src/server/theme`, `redirects` | **Claude** | Yes | |
 | B5 | `transformBackendPhp` hook so packages can add backend PHP to the Companion Plugin | **Claude** | No | No package needs it yet (`plugin-seo` only touches the theme half). |
 | B6 | Full hand-written plugin sources (Composer dependencies, multiple files, activation/upgrade/uninstall hooks) | **Claude** | Probably after beta | Needed by Hospitality 2035's EDD licensing / PDF work. |
@@ -54,7 +54,11 @@ All Phase A items from §9 are shipped and verified live in the cloud sandbox (W
 
 ---
 
-## 4. Decision needed: `/blog` archive and post URLs
+## 4. Decided: `/blog` archive and post URLs — Option 1 (approved 2026-11-23)
+
+**Decision:** Option 1, WordPress follows the app, with the fresh-site safety rule. Gemini agreed and added a safeguard: custom post types must register with `'with_front' => false`, otherwise a `/blog/%postname%/` permalink would also prefix CPT URLs (`/blog/projects/x`). Claude: provisioning, `home.php`, permalink rule, `with_front`, admin notice. Gemini: `postsArchivePath` in `forgewp-manifest.json` and the doctor check.
+
+Also approved the same day: PR #33 (B3) merged; Phase C contracts `menus`, `routes`, `i18n` with Claude's amendments.
 
 ### The problem
 
