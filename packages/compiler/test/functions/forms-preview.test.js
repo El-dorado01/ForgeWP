@@ -95,7 +95,14 @@ describe('native form field preview injection', () => {
     config({ contact: { clientFields: { enabled: true, seed: [field('Local seed')] } } });
     const instance = await plugin();
     const win = execute(instance.load('\0virtual:forgewp-runtime'));
-    win.forgeWpHydration = { forms: { contact: { fields: [field('Saved WordPress value')] } } };
+    win.forgeWpHydration = {
+      resources: {
+        forms: {
+          lang: 'en',
+          forms: { contact: { name: 'contact', mode: 'native', fieldLabels: {}, fields: [field('Saved WordPress value')] } },
+        },
+      },
+    };
     const html = render(win, [field('Fallback')]);
     expect(html).toContain('Saved WordPress value');
     expect(html).not.toContain('Local seed');
