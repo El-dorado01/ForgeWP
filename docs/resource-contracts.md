@@ -385,7 +385,7 @@ Compatibility checked against the live endpoints: `/menus/<location>` today retu
 2. **`/menus` collection keys come from the project, not only the active theme.** Menu locations are registered by the active theme, which under another theme is none. The collection includes every location declared in `cms/menus` plus registered locations plus locations assigned in `forgewp_theme_state`; each key is present (`[]` when unassigned).
 3. **One rule for an unknown `?lang=`:** `404 FORGEWP_LOCALE_NOT_FOUND` on `menus`, `routes` and `i18n` alike when i18n is configured and the code is not in `locales`; ignored on single-language sites.
 
-Minor, optional: menu items could carry `"external": true` for off-site URLs (where `path` equals `url`), so consumers need not compare origins.
+Minor, optional — **adopted in the PHP (2026-11-23):** every menu item carries `"external": boolean`; for off-site URLs `path` equals `url`. Note for consumers: `routes.homeUrl` now has no trailing slash, as §6 specifies (the pre-contract endpoint returned one).
 
 ---
 

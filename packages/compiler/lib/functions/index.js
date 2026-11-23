@@ -11,6 +11,7 @@ import { buildSeedMockDataPhp, htmlToBlockMarkup, loadMockData } from './seed-mo
 import { buildSiteSettingsResourcePhp } from './site-settings-resource.js';
 import { buildThemeStatePhp } from './theme-state.js';
 import { buildRedirectsPhp } from './redirects.js';
+import { buildPhaseCResourcesPhp } from './phase-c-resources.js';
 import { scanAppProviders } from '../hydration/scan-app-providers.js';
 import { collectCptRouteDiagnostics, buildCptRewriteRefreshPhp } from './cpt-routing.js';
 
@@ -1799,122 +1800,6 @@ if (!function_exists('forgewp_register_decoupled_rest_bridge')) {
             ));
         }
 
-        register_rest_route('forgewp/v1', '/routes', array(
-            'methods'             => 'GET',
-            'permission_callback' => '__return_true',
-            'callback'            => function () {
-                $home_url = home_url('/');
-                $parsed_home = wp_parse_url($home_url);
-                $base_path = isset($parsed_home['path']) ? rtrim($parsed_home['path'], '/') : '';
-                $pages = get_posts(array(
-                    'post_type'      => 'page',
-                    'post_status'    => 'publish',
-                    'posts_per_page' => 200,
-                    'meta_key'       => 'forgewp_route_id',
-                    'orderby'        => 'menu_order title',
-                    'order'          => 'ASC',
-                ));
-                $routes = array();
-                foreach ($pages as $page) {
-                    if (!empty($page->post_password)) {
-                        continue;
-                    }
-                    $route_id = (string) get_post_meta($page->ID, 'forgewp_route_id', true);
-                    if ($route_id === '') {
-                        continue;
-                    }
-                    $permalink = get_permalink($page->ID);
-                    $parsed_link = wp_parse_url($permalink);
-                    $raw_path = isset($parsed_link['path']) ? $parsed_link['path'] : '/';
-                    if ($base_path !== '' && ($raw_path === $base_path || strpos($raw_path, $base_path . '/') === 0)) {
-                        $rel_path = substr($raw_path, strlen($base_path));
-                        $rel_path = $rel_path === '' ? '/' : $rel_path;
-                    } else {
-                        $rel_path = $raw_path;
-                    }
-                    $routes[] = array(
-                        'routeId'   => $route_id,
-                        'id'        => (int) $page->ID,
-                        'slug'      => (string) $page->post_name,
-                        'title'     => html_entity_decode(wp_strip_all_tags(get_the_title($page->ID)), ENT_QUOTES, 'UTF-8'),
-                        'path'      => $rel_path,
-                        'permalink' => $permalink,
-                    );
-                }
-                return rest_ensure_response(array(
-                    'homeUrl'  => $home_url,
-                    'basePath' => $base_path,
-                    'routes'   => $routes,
-                ));
-            },
-        ));
-
-        register_rest_route('forgewp/v1', '/menus/(?P<location>[a-zA-Z0-9_-]+)', array(
-            'methods'             => 'GET',
-            'permission_callback' => '__return_true',
-            'callback'            => function ($request) {
-                $location = sanitize_key((string) $request['location']);
-                $lang = function_exists('pll_current_language') ? pll_current_language() : (defined('ICL_LANGUAGE_CODE') ? ICL_LANGUAGE_CODE : '');
-                $menu_id = function_exists('forgewp_get_menu_id_for_lang')
-                    ? forgewp_get_menu_id_for_lang($location, $lang)
-                    : null;
-                if (!$menu_id) {
-                    $locations = get_nav_menu_locations();
-                    if (isset($locations[$location])) {
-                        $menu_id = (int) $locations[$location];
-                    }
-                }
-                $raw_items = $menu_id ? wp_get_nav_menu_items($menu_id) : array();
-                if (!is_array($raw_items)) {
-                    $raw_items = array();
-                }
-
-                $home_url = home_url('/');
-                $parsed_home = wp_parse_url($home_url);
-                $base_path = isset($parsed_home['path']) ? rtrim($parsed_home['path'], '/') : '';
-
-                $by_id = array();
-                foreach ($raw_items as $item) {
-                    $item_url = (string) $item->url;
-                    $parsed_item = wp_parse_url($item_url);
-                    $raw_path = isset($parsed_item['path']) ? $parsed_item['path'] : '/';
-                    if ($base_path !== '' && ($raw_path === $base_path || strpos($raw_path, $base_path . '/') === 0)) {
-                        $rel_path = substr($raw_path, strlen($base_path));
-                        $rel_path = $rel_path === '' ? '/' : $rel_path;
-                    } else {
-                        $rel_path = $raw_path;
-                    }
-                    $by_id[(int) $item->ID] = array(
-                        'id'       => (int) $item->ID,
-                        'parentId' => (int) $item->menu_item_parent,
-                        'title'    => html_entity_decode(wp_strip_all_tags((string) $item->title), ENT_QUOTES, 'UTF-8'),
-                        'url'      => $item_url,
-                        'path'     => $rel_path,
-                        'target'   => !empty($item->target) ? (string) $item->target : '',
-                        'classes'  => is_array($item->classes) ? array_values(array_filter($item->classes)) : array(),
-                        'children' => array(),
-                    );
-                }
-
-                $tree = array();
-                foreach ($by_id as $id => &$node) {
-                    $parent_id = $node['parentId'];
-                    unset($node['parentId']);
-                    if ($parent_id > 0 && isset($by_id[$parent_id])) {
-                        $by_id[$parent_id]['children'][] = &$node;
-                    } else {
-                        $tree[] = &$node;
-                    }
-                }
-                unset($node);
-
-                return rest_ensure_response(array(
-                    'location' => $location,
-                    'items'    => $tree,
-                ));
-            },
-        ));
-
         register_rest_route('forgewp/v1', '/site-info', array(
             'methods'             => 'GET',
             'permission_callback' => '__return_true',
@@ -1939,6 +1824,7 @@ if (!function_exists('forgewp_register_decoupled_rest_bridge')) {
 
   // Append auto-generated Theme Options admin settings page
   backendPhp += '\n\n' + buildRedirectsPhp(config.redirects);
+  backendPhp += '\n\n' + buildPhaseCResourcesPhp(config, themeRoot, Object.keys(menus || {}).filter((k) => !k.startsWith('_')), i18nKeys);
   backendPhp += '\n\n' + buildThemeStatePhp(resolveDeclaredThemeMods(config, themeRoot));
   backendPhp += '\n\n' + buildSiteSettingsResourcePhp(wpOptions, resolveDeclaredThemeMods(config, themeRoot));
 

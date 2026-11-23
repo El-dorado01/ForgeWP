@@ -1,3 +1,4 @@
+import { buildPhaseCResourcesPhp } from '../../lib/functions/phase-c-resources.js';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
@@ -365,6 +366,9 @@ function get_permalink($id) { return $id === 1 ? 'https://example.com/blog/our-s
 function get_the_title($id) { return $id === 1 ? 'Our Story' : 'Locked'; }
 function wp_strip_all_tags($s) { return strip_tags($s); }
 function rest_ensure_response($data) { return $data; }
+function add_action() {}
+function get_locale() { return 'en_US'; }
+function sanitize_key($k) { return preg_replace('/[^a-z0-9_-]/', '', strtolower($k)); }
 function parse_blocks($content) {
   if (strpos($content, 'Public') !== false) return array(
     array('blockName' => null, 'attrs' => array(), 'innerHTML' => "   \\n ", 'innerBlocks' => array()),
@@ -375,18 +379,18 @@ function parse_blocks($content) {
 
 ${serializeFn}
 ${registerFn}
+${buildPhaseCResourcesPhp({}, '', [], [])}
 forgewp_register_decoupled_rest_bridge();
 
 $blocks_cb = $fields['page:forgewp_blocks']['get_callback'];
 $route_id_cb = $fields['page:forgewp_route_id']['get_callback'];
-$routes_cb = $routes['forgewp/v1/routes']['callback'];
 
 $out = array(
   'routeId' => $route_id_cb(array('id' => 1)),
   'publicBlocks' => $blocks_cb(array('id' => 1)),
   'draftAnon' => $blocks_cb(array('id' => 2)),
   'passwordAnon' => $blocks_cb(array('id' => 3)),
-  'routes' => $routes_cb(),
+  'routes' => forgewp_routes_resource('en'),
 );
 $can_read = true;
 $out['draftAuth'] = $blocks_cb(array('id' => 2));
@@ -409,9 +413,12 @@ echo json_encode($out);
       expect(result.draftAnon).toEqual([]);
       expect(result.passwordAnon).toEqual([]);
       expect(result.draftAuth).toHaveLength(1);
+      // routes contract (docs/resource-contracts.md §6): homeUrl without trailing slash, plus lang + pageLinks.
       expect(result.routes).toEqual({
-        homeUrl: 'https://example.com/blog/',
+        homeUrl: 'https://example.com/blog',
         basePath: '/blog',
+        lang: 'en',
+        pageLinks: { about: '/our-story/' },
         routes: [
           {
             routeId: 'about',

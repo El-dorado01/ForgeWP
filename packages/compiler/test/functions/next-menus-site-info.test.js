@@ -1,3 +1,4 @@
+import { buildPhaseCResourcesPhp } from '../../lib/functions/phase-c-resources.js';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
@@ -266,13 +267,18 @@ function get_bloginfo($k) {
   return '';
 }
 function rest_ensure_response($data) { return $data; }
+function add_action() {}
+function get_registered_nav_menus() { return array('primary' => 'Primary'); }
+function get_locale() { return 'en_US'; }
 
 ${bridgeBody}
+${buildPhaseCResourcesPhp({}, '', ['primary', 'footer'], [])}
 
 forgewp_register_decoupled_rest_bridge();
-$menu_res = $registered_routes['forgewp/v1/menus/(?P<location>[a-zA-Z0-9_-]+)']['callback'](array('location' => 'primary'));
+$menu_res = forgewp_menu_resource('primary', 'en');
+$menus_res = forgewp_menus_resource('en');
 $site_res = $registered_routes['forgewp/v1/site-info']['callback']();
-echo json_encode(array('menu' => $menu_res, 'site' => $site_res));
+echo json_encode(array('menu' => $menu_res, 'menus' => $menus_res, 'site' => $site_res));
 `,
       );
 
@@ -281,6 +287,10 @@ echo json_encode(array('menu' => $menu_res, 'site' => $site_res));
       const parsed = JSON.parse(exec.stdout);
 
       expect(parsed.menu.location).toBe('primary');
+      expect(parsed.menu.lang).toBe('en');
+      // Collection keys: declared (cms/menus) ∪ registered ∪ assigned (contract §5, amendment 2).
+      expect(Object.keys(parsed.menus.menus).sort()).toEqual(['footer', 'primary']);
+      expect(parsed.menus.menus.footer).toEqual([]);
       expect(parsed.menu.items).toHaveLength(1);
       expect(parsed.menu.items[0].title).toBe('Services');
       expect(parsed.menu.items[0].path).toBe('/services/');
