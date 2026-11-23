@@ -1,8 +1,15 @@
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { diagnoseNextNativeCompatibility } from '../../lib/next-adapter.js';
 import {
   createWpServerClient,
+  WpPostTerms,
+  WpTermsLoop,
+  WpComments,
   createForgeWpRuntime,
   configureForgeWpRuntime,
   resetForgeWpRuntime,
@@ -612,7 +619,7 @@ describe('G4: posts, terms, and comments contracts (§10–§12, §12a)', () => 
       slug: 'first-post',
       postType: 'post',
       author: 'Ada',
-      permalink: '/blog/first-post/',
+      permalink: 'https://wp.example.test/blog/first-post/',
       path: '/blog/first-post/',
       protected: false,
       source: 'wordpress',
@@ -681,5 +688,157 @@ describe('G4: posts, terms, and comments contracts (§10–§12, §12a)', () => 
       content: '',
       terms: {},
     });
+  });
+
+  it('R2 + P2 + C4: emits native tokens/loops for getPost, getComments, WpPostTerms, WpTermsLoop, WpComments, getSiteSettings, and doctor warnings', async () => {
+    process.env.FORGEWP_NATIVE_EXPORT = '1';
+    process.env.FORGEWP_DECLARED_OPTIONS_JSON = JSON.stringify({ contact_phone: '+49 30 1234' });
+    process.env.FORGEWP_DECLARED_THEME_MODS_JSON = JSON.stringify({ footer_text: 'Copyright' });
+    try {
+      const nativeClient = createWpServerClient({ fixtures: { post: [] } });
+
+      const nativePost = await nativeClient.getPost('post', 'any-slug');
+      expect(nativePost).toMatchObject({
+        id: '__FORGEWP_THE_ID__',
+        title: '__FORGEWP_THE_TITLE__',
+        content: '__FORGEWP_THE_CONTENT__',
+        permalink: '__FORGEWP_THE_PERMALINK__',
+        path: '__FORGEWP_THE_PATH__',
+      });
+
+      const nativeLive = await nativeClient.getLivePost('post', 'any-slug');
+      expect(nativeLive?.id).toBe('__FORGEWP_THE_ID__');
+      expect(nativeLive?.path).toBe('__FORGEWP_THE_PATH__');
+
+      const nativeComments = await nativeClient.getComments(99, { page: 2, perPage: 25 });
+      expect(nativeComments).toEqual({
+        post: 0,
+        open: true,
+        page: 2,
+        perPage: 25,
+        total: '__FORGEWP_COMMENTS_COUNT__',
+        items: [],
+      });
+
+      // P2: declared env defaults + Proxy fallback for arbitrary accessed option/themeMod keys
+      const nativeSettings = await nativeClient.getSiteSettings();
+      expect(nativeSettings.options.contact_phone).toBe('__FORGEWP_OPTION_contact_phone_DEFAULT_%2B49%2030%201234__');
+      expect(nativeSettings.options.unpassed_key).toBe('__FORGEWP_OPTION_unpassed_key_DEFAULT___');
+      expect(nativeSettings.themeMods.footer_text).toBe('__FORGEWP_THEME_MOD_footer_text_DEFAULT_Copyright__');
+      expect(nativeSettings.themeMods.accent_color).toBe('__FORGEWP_THEME_MOD_accent_color_DEFAULT___');
+
+      // Native loop components emit sibling markers
+      const termsHtml = renderToStaticMarkup(
+        React.createElement(WpPostTerms, {
+          taxonomy: '*',
+          empty: React.createElement('span', null, 'None'),
+          renderItem: (t) => React.createElement('a', { href: t.path }, t.name),
+        }),
+      );
+      expect(termsHtml).toContain('<forgewp-terms-loop-start taxonomy="*"></forgewp-terms-loop-start>');
+      expect(termsHtml).toContain('<a href="__FORGEWP_TERM_PATH__">__FORGEWP_TERM_NAME__</a>');
+      expect(termsHtml).toContain('<forgewp-terms-loop-empty></forgewp-terms-loop-empty><span>None</span>');
+      expect(termsHtml).toContain('<forgewp-terms-loop-end></forgewp-terms-loop-end>');
+
+      const taxLoopHtml = renderToStaticMarkup(
+        React.createElement(WpTermsLoop, {
+          taxonomy: 'category',
+          hideEmpty: false,
+          renderItem: (t) => React.createElement('span', null, `${t.name}(${t.count})@${t.path}`),
+        }),
+      );
+      expect(taxLoopHtml).toContain('source="taxonomy"');
+      expect(taxLoopHtml).toContain('taxonomy="category"');
+      expect(taxLoopHtml).toContain('hideempty="0"');
+      expect(taxLoopHtml).toContain('__FORGEWP_TERM_NAME__(__FORGEWP_TERM_COUNT__)@__FORGEWP_TERM_PATH__');
+
+      const commentsHtml = renderToStaticMarkup(
+        React.createElement(WpComments, {
+          comments: nativeComments,
+          empty: React.createElement('p', null, 'No comments'),
+          closed: React.createElement('p', null, 'Closed'),
+          renderItem: (c, { renderChildren }) =>
+            React.createElement(
+              'article',
+              null,
+              React.createElement('b', null, c.author.name),
+              React.createElement('div', { className: 'replies' }, renderChildren()),
+            ),
+        }),
+      );
+      expect(commentsHtml).toContain('<forgewp-comments-loop-start page="2" perpage="25"></forgewp-comments-loop-start>');
+      expect(commentsHtml).toContain('<b>__FORGEWP_COMMENT_AUTHOR_NAME__</b>');
+      expect(commentsHtml).toContain('<div class="replies"><forgewp-comment-children></forgewp-comment-children></div>');
+      expect(commentsHtml).toContain('<forgewp-comments-loop-empty></forgewp-comments-loop-empty><p>No comments</p>');
+      expect(commentsHtml).toContain('<forgewp-comments-closed-start></forgewp-comments-closed-start><p>Closed</p>');
+    } finally {
+      delete process.env.FORGEWP_NATIVE_EXPORT;
+      delete process.env.FORGEWP_DECLARED_OPTIONS_JSON;
+      delete process.env.FORGEWP_DECLARED_THEME_MODS_JSON;
+    }
+
+    // Decoupled mode rendering for WpPostTerms, WpTermsLoop, WpComments (threaded + empty + closed)
+    const decoupledCommentsHtml = renderToStaticMarkup(
+      React.createElement(WpComments, {
+        comments: {
+          post: 1,
+          open: false,
+          page: 1,
+          perPage: 50,
+          total: 2,
+          items: [
+            {
+              id: 10,
+              parentId: 0,
+              author: { name: 'Ada' },
+              date: '2026-11-23',
+              content: '<p>Top</p>',
+              children: [
+                {
+                  id: 11,
+                  parentId: 10,
+                  author: { name: 'Grace' },
+                  date: '2026-11-23',
+                  content: '<p>Reply</p>',
+                  children: [],
+                },
+              ],
+            },
+          ],
+        },
+        closed: React.createElement('p', null, 'Closed'),
+        renderItem: (c, { renderChildren, depth }) =>
+          React.createElement(
+            'div',
+            { key: c.id, 'data-depth': depth },
+            c.author.name,
+            renderChildren(),
+          ),
+      }),
+    );
+    expect(decoupledCommentsHtml).toContain('<div data-depth="0">Ada<div data-depth="1">Grace</div></div><p>Closed</p>');
+
+    // C4: diagnoseNextNativeCompatibility warns when list calls are outside loop components
+    const tmp = mkdtempSync(path.join(os.tmpdir(), 'forgewp-c4-doctor-'));
+    try {
+      mkdirSync(path.join(tmp, 'src', 'app', 'frozen'), { recursive: true });
+      mkdirSync(path.join(tmp, 'src', 'app', 'looped'), { recursive: true });
+      writeFileSync(
+        path.join(tmp, 'src', 'app', 'frozen', 'page.tsx'),
+        `export default async function Page() { const posts = await wpClient.getPosts('post'); return <ul>{posts.map(p => <li key={p.id}>{p.title}</li>)}</ul>; }`,
+        'utf8',
+      );
+      writeFileSync(
+        path.join(tmp, 'src', 'app', 'looped', 'page.tsx'),
+        `import { WpQueryLoop } from '@forgewp/react';\nexport default async function Page() { const posts = await wpClient.getPosts('post'); return <WpQueryLoop posts={posts} renderItem={(p) => <li key={p.id}>{p.title}</li>} />; }`,
+        'utf8',
+      );
+      const report = diagnoseNextNativeCompatibility(tmp);
+      const c4Warnings = report.warnings.filter((d) => d.code === 'NEXT_NATIVE_FROZEN_LIST');
+      expect(c4Warnings).toHaveLength(1);
+      expect(c4Warnings[0].file.replace(/\\/g, '/')).toContain('frozen/page.tsx');
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });

@@ -264,6 +264,32 @@ export function diagnoseNextNativeCompatibility(themeRoot) {
             'Keep revalidate for decoupled Next.js caching only; use ForgeWP Gutenberg blocks or live WordPress bindings for native updates.',
         });
       }
+
+      if (/^page\.(ts|tsx|js|jsx)$/i.test(path.basename(file.rel))) {
+        const codeWithoutStaticParams = code.replace(
+          /export\s+(?:async\s+)?function\s+generateStaticParams[\s\S]*?\n\}/g,
+          '',
+        );
+        const listMethodMatch = codeWithoutStaticParams.match(
+          /\.(getPosts|getPostsList|getTerms|getTerm|getComments)\s*\(/,
+        );
+        const usesLoopComponent =
+          /\b(?:WpQueryLoop|WpServerLoop|WpPostTerms|WpServerPostTerms|WpTermsLoop|WpServerTermsLoop|WpComments|WpServerComments)\b/.test(
+            codeWithoutStaticParams,
+          );
+        if (listMethodMatch && !usesLoopComponent) {
+          diagnostics.push({
+            code: 'NEXT_NATIVE_FROZEN_LIST',
+            severity: 'warning',
+            file: file.rel,
+            feature: `List data (${listMethodMatch[1]}()) rendered outside a loop component`,
+            affectedMode: 'native',
+            message: `"${file.rel}" calls .${listMethodMatch[1]}() without a ForgeWP loop component; in native WordPress export its output freezes to fixture data at export time.`,
+            suggestion:
+              'Render lists with <WpQueryLoop>, <WpPostTerms>, <WpTermsLoop>, or <WpComments> so native export compiles them to live WordPress PHP loops.',
+          });
+        }
+      }
     }
   }
 
@@ -341,6 +367,37 @@ export async function buildAssets(themeRoot, options = {}) {
     rmSync(outDir, { recursive: true, force: true });
   }
 
+  let declaredOptionsJson = '';
+  let declaredThemeModsJson = '';
+  try {
+    const cfg = await loadConfig(resolvedRoot);
+    if (cfg?.options && typeof cfg.options === 'object') {
+      const pubOpts = {};
+      for (const [k, v] of Object.entries(cfg.options)) {
+        if (v && typeof v === 'object' && '_type' in v) {
+          if (v.private === true) continue;
+          pubOpts[k] = v.default ?? '';
+        } else {
+          pubOpts[k] = v ?? '';
+        }
+      }
+      declaredOptionsJson = JSON.stringify(pubOpts);
+    }
+    if (cfg?.themeMods && typeof cfg.themeMods === 'object') {
+      const pubMods = {};
+      for (const [k, v] of Object.entries(cfg.themeMods)) {
+        if (v && typeof v === 'object' && '_type' in v) {
+          pubMods[k] = v.default ?? '';
+        } else {
+          pubMods[k] = v ?? '';
+        }
+      }
+      declaredThemeModsJson = JSON.stringify(pubMods);
+    }
+  } catch {
+    // Config loading is best-effort; native getSiteSettings() Proxy still tokenizes accessed keys
+  }
+
   const pm = options.packageManager || 'pnpm';
   const result = await spawnAsync(pm, ['run', 'build'], {
     cwd: resolvedRoot,
@@ -349,6 +406,8 @@ export async function buildAssets(themeRoot, options = {}) {
       FORGEWP_NATIVE_EXPORT: '1',
       FORGEWP_DEPLOYMENT_MODE: 'native',
       NEXT_TELEMETRY_DISABLED: '1',
+      ...(declaredOptionsJson ? { FORGEWP_DECLARED_OPTIONS_JSON: declaredOptionsJson } : {}),
+      ...(declaredThemeModsJson ? { FORGEWP_DECLARED_THEME_MODS_JSON: declaredThemeModsJson } : {}),
     },
     encoding: 'utf8',
     shell: process.platform === 'win32',

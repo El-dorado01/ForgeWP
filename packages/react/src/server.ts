@@ -30,6 +30,7 @@ import {
   normalizeTermResource,
   normalizeTermsListResource,
   type AuthMeResource,
+  type CommentResource,
   type CommentsListResource,
   type FormResource,
   type FormsCollectionResource,
@@ -1043,6 +1044,26 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
     async getPost(postType, slug, postOptions = {}) {
       const cleanType = String(postType || 'post').trim() || 'post';
       const cleanSlug = String(slug || '').replace(/^\/+|\/+$/g, '');
+      if (isNativeWordPressExport()) {
+        return {
+          id: '__FORGEWP_THE_ID__' as unknown as number,
+          type: cleanType,
+          slug: cleanSlug,
+          title: '__FORGEWP_THE_TITLE__',
+          excerpt: '__FORGEWP_THE_EXCERPT__',
+          content: '__FORGEWP_THE_CONTENT__',
+          date: '__FORGEWP_THE_DATE__',
+          modified: '__FORGEWP_THE_MODIFIED_DATE__',
+          permalink: '__FORGEWP_THE_PERMALINK__',
+          path: '__FORGEWP_THE_PATH__',
+          author: { id: 0, name: '__FORGEWP_THE_AUTHOR__' },
+          featuredImage: { url: '__FORGEWP_THE_POST_THUMBNAIL_URL__', alt: '' },
+          terms: {},
+          fields: {},
+          blocks: [],
+          protected: false,
+        };
+      }
       if (!cleanSlug) return null;
       const lang =
         typeof postOptions.lang === 'string' && postOptions.lang.trim()
@@ -1154,7 +1175,10 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
                   content: item.content ?? '',
                   date: item.date,
                   author: item.author?.name || '',
-                  permalink: resolvedPath,
+                  permalink:
+                    opts.basePath !== undefined
+                      ? resolvedPath
+                      : item.permalink || resolvedPath,
                   path: resolvedPath,
                   featuredImage: item.featuredImage?.url || '',
                   terms: item.terms || {},
@@ -1227,7 +1251,7 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       const cleanType = String(postType || 'post').trim() || 'post';
       if (isNativeWordPressExport()) {
         return {
-          id: 0,
+          id: '__FORGEWP_THE_ID__' as unknown as number,
           slug: String(slug || ''),
           postType: cleanType,
           title: '__FORGEWP_THE_TITLE__',
@@ -1236,7 +1260,7 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
           date: '__FORGEWP_THE_DATE__',
           author: '__FORGEWP_THE_AUTHOR__',
           permalink: '__FORGEWP_THE_PERMALINK__',
-          path: '__FORGEWP_THE_PERMALINK__',
+          path: '__FORGEWP_THE_PATH__',
           featuredImage: '__FORGEWP_THE_POST_THUMBNAIL_URL__',
           terms: {},
           blocks: [],
@@ -1268,7 +1292,10 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
             content: single.content ?? '',
             date: single.date,
             author: single.author?.name || '',
-            permalink: resolvedPath,
+            permalink:
+              opts.basePath !== undefined
+                ? resolvedPath
+                : single.permalink || resolvedPath,
             path: resolvedPath,
             featuredImage: single.featuredImage?.url || '',
             terms: single.terms || {},
@@ -1406,6 +1433,17 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         typeof commentOptions.perPage === 'number' && commentOptions.perPage > 0
           ? Math.min(Math.floor(commentOptions.perPage), 100)
           : 50;
+
+      if (isNativeWordPressExport()) {
+        return {
+          post: 0,
+          open: true,
+          page,
+          perPage,
+          total: '__FORGEWP_COMMENTS_COUNT__' as unknown as number,
+          items: [],
+        };
+      }
 
       const wpBase = resolveWpBase();
       if (wpBase && !isNativeWordPressExport()) {
@@ -1751,21 +1789,71 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
 
     async getSiteSettings() {
       if (isNativeWordPressExport()) {
+        const parseEnvMap = (envName: string): Record<string, unknown> => {
+          const raw = readEnv(envName);
+          if (!raw) return {};
+          try {
+            const parsed = JSON.parse(raw);
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+              ? (parsed as Record<string, unknown>)
+              : {};
+          } catch {
+            return {};
+          }
+        };
+        const mergedOptions = {
+          ...parseEnvMap('FORGEWP_DECLARED_OPTIONS_JSON'),
+          ...siteOptions,
+        };
+        const mergedMods = {
+          ...parseEnvMap('FORGEWP_DECLARED_THEME_MODS_JSON'),
+          ...themeMods,
+        };
         const tokenOptions: Record<string, string> = {};
-        for (const [k, v] of Object.entries(siteOptions)) {
+        for (const [k, v] of Object.entries(mergedOptions)) {
           const safeKey = sanitizeTokenKey(k);
           tokenOptions[safeKey] = `__FORGEWP_OPTION_${safeKey}_DEFAULT_${encodeURIComponent(String(v ?? ''))}__`;
         }
         const tokenMods: Record<string, string> = {};
-        for (const [k, v] of Object.entries(themeMods)) {
+        for (const [k, v] of Object.entries(mergedMods)) {
           const safeKey = sanitizeTokenKey(k);
           tokenMods[safeKey] = `__FORGEWP_THEME_MOD_${safeKey}_DEFAULT_${encodeURIComponent(String(v ?? ''))}__`;
         }
+        const createTokenProxy = (
+          base: Record<string, string>,
+          tokenPrefix: '__FORGEWP_OPTION_' | '__FORGEWP_THEME_MOD_',
+        ): Record<string, string> =>
+          new Proxy(base, {
+            get(target, prop, receiver) {
+              if (typeof prop !== 'string') {
+                return Reflect.get(target, prop, receiver);
+              }
+              if (Object.prototype.hasOwnProperty.call(target, prop)) {
+                return target[prop];
+              }
+              if (
+                prop === 'then' ||
+                prop === 'toJSON' ||
+                prop === 'valueOf' ||
+                prop === 'toString' ||
+                prop === 'constructor' ||
+                prop === 'prototype' ||
+                prop === 'hasOwnProperty' ||
+                prop.startsWith('__')
+              ) {
+                return Reflect.get(target, prop, receiver);
+              }
+              if (/^[a-zA-Z0-9_-]+$/.test(prop)) {
+                return `${tokenPrefix}${prop}_DEFAULT___`;
+              }
+              return undefined;
+            },
+          });
         const nativeSite = await this.getSiteInfo();
         const { mode: _mode, ...siteMeta } = nativeSite;
         return {
-          options: tokenOptions,
-          themeMods: tokenMods,
+          options: createTokenProxy(tokenOptions, '__FORGEWP_OPTION_'),
+          themeMods: createTokenProxy(tokenMods, '__FORGEWP_THEME_MOD_'),
           site: siteMeta,
         };
       }
@@ -2077,7 +2165,7 @@ export interface WpServerLoopProps {
 }
 
 const NATIVE_LOOP_TOKEN_POST: WpServerPostRecord = {
-  id: 0,
+  id: '__FORGEWP_THE_ID__' as unknown as number,
   slug: '__forgewp-loop-item__',
   postType: 'post',
   title: '__FORGEWP_THE_TITLE__',
@@ -2086,7 +2174,7 @@ const NATIVE_LOOP_TOKEN_POST: WpServerPostRecord = {
   date: '__FORGEWP_THE_DATE__',
   author: '__FORGEWP_THE_AUTHOR__',
   permalink: '__FORGEWP_THE_PERMALINK__',
-  path: '__FORGEWP_THE_PERMALINK__',
+  path: '__FORGEWP_THE_PATH__',
   featuredImage: '__FORGEWP_THE_POST_THUMBNAIL_URL__',
   terms: {},
   blocks: [],
@@ -2737,17 +2825,325 @@ export function getWpEditable<T extends Record<string, any>>(
   return out as { [K in keyof T]: any };
 }
 
+export interface WpServerPostTermsProps {
+  /** Taxonomy slug (e.g. `'category'`, `'post_tag'`), or `'*'` for all public taxonomies. */
+  taxonomy?: string;
+  /** Terms array rendered in local dev & decoupled mode. */
+  terms?: PostTermRefContract[];
+  /** Optional fallback rendered when the post has no matching terms. */
+  empty?: React.ReactNode;
+  /** Render function for each term item. */
+  renderItem?: (term: PostTermRefContract, index: number) => React.ReactNode;
+  /** Optional function children (same signature as `renderItem`) or fallback. */
+  children?:
+    | React.ReactNode
+    | ((term: PostTermRefContract, index: number) => React.ReactNode);
+}
+
+const NATIVE_POST_TERM_TOKEN: PostTermRefContract = {
+  id: '__FORGEWP_TERM_ID__' as unknown as number,
+  slug: '__FORGEWP_TERM_SLUG__',
+  name: '__FORGEWP_TERM_NAME__',
+  path: '__FORGEWP_TERM_PATH__',
+};
+
+function sanitizeTaxonomyAttr(taxonomy?: string): string {
+  const clean = String(taxonomy || 'category').trim();
+  if (clean === '*') return '*';
+  return /^[a-zA-Z0-9_-]+$/.test(clean) ? clean : 'category';
+}
+
+/**
+ * Pure-TypeScript, Server-Component-safe post taxonomy terms loop (R2).
+ * Emits `<forgewp-terms-loop-start>` / `<forgewp-terms-loop-end>` markers during
+ * `FORGEWP_NATIVE_EXPORT=1` so `markup-processor.js` compiles to live `get_the_terms()`.
+ */
+export function WpServerPostTerms({
+  taxonomy = 'category',
+  terms = [],
+  empty,
+  renderItem,
+  children,
+}: WpServerPostTermsProps): React.ReactElement {
+  const render =
+    renderItem ??
+    (typeof children === 'function'
+      ? (children as (term: PostTermRefContract, index: number) => React.ReactNode)
+      : () => children ?? null);
+
+  if (isNativeWordPressExport()) {
+    return React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('forgewp-terms-loop-start', {
+        taxonomy: sanitizeTaxonomyAttr(taxonomy),
+      }),
+      render(NATIVE_POST_TERM_TOKEN, 0),
+      empty !== undefined && empty !== null
+        ? React.createElement(
+            React.Fragment,
+            null,
+            React.createElement('forgewp-terms-loop-empty'),
+            empty,
+          )
+        : null,
+      React.createElement('forgewp-terms-loop-end'),
+    );
+  }
+
+  const list = Array.isArray(terms) ? terms : [];
+  if (list.length === 0) {
+    return React.createElement(React.Fragment, null, empty ?? null);
+  }
+  return React.createElement(
+    React.Fragment,
+    null,
+    ...list.map((term, idx) => render(term, idx)),
+  );
+}
+
+export interface WpServerTermsLoopProps {
+  /** Public taxonomy slug (default: `'category'`). */
+  taxonomy?: string;
+  /** Whether to hide empty terms in native WordPress `get_terms()` (default: `true`). */
+  hideEmpty?: boolean;
+  /** Terms array or `TermsListResource` rendered in local dev & decoupled mode. */
+  terms?: TermResource[] | TermsListResource | null;
+  /** Optional fallback rendered when no terms exist. */
+  empty?: React.ReactNode;
+  /** Render function for each term item. */
+  renderItem?: (term: TermResource, index: number) => React.ReactNode;
+  /** Optional function children (same signature as `renderItem`) or fallback. */
+  children?:
+    | React.ReactNode
+    | ((term: TermResource, index: number) => React.ReactNode);
+}
+
+const NATIVE_TAXONOMY_TERM_TOKEN: TermResource = {
+  id: '__FORGEWP_TERM_ID__' as unknown as number,
+  slug: '__FORGEWP_TERM_SLUG__',
+  name: '__FORGEWP_TERM_NAME__',
+  description: '__FORGEWP_TERM_DESCRIPTION__',
+  count: '__FORGEWP_TERM_COUNT__' as unknown as number,
+  parent: 0,
+  path: '__FORGEWP_TERM_PATH__',
+  permalink: '__FORGEWP_TERM_URL__',
+};
+
+/**
+ * Pure-TypeScript, Server-Component-safe taxonomy archive terms loop (R2 / C4).
+ * Emits `<forgewp-terms-loop-start source="taxonomy" ...>` markers during
+ * `FORGEWP_NATIVE_EXPORT=1` so `markup-processor.js` compiles to live `get_terms()`.
+ */
+export function WpServerTermsLoop({
+  taxonomy = 'category',
+  hideEmpty = true,
+  terms = [],
+  empty,
+  renderItem,
+  children,
+}: WpServerTermsLoopProps): React.ReactElement {
+  const render =
+    renderItem ??
+    (typeof children === 'function'
+      ? (children as (term: TermResource, index: number) => React.ReactNode)
+      : () => children ?? null);
+
+  if (isNativeWordPressExport()) {
+    return React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('forgewp-terms-loop-start', {
+        source: 'taxonomy',
+        taxonomy: sanitizeTaxonomyAttr(taxonomy),
+        hideempty: hideEmpty ? '1' : '0',
+      }),
+      render(NATIVE_TAXONOMY_TERM_TOKEN, 0),
+      empty !== undefined && empty !== null
+        ? React.createElement(
+            React.Fragment,
+            null,
+            React.createElement('forgewp-terms-loop-empty'),
+            empty,
+          )
+        : null,
+      React.createElement('forgewp-terms-loop-end'),
+    );
+  }
+
+  const list = Array.isArray(terms)
+    ? terms
+    : terms && Array.isArray(terms.items)
+      ? terms.items
+      : [];
+  if (list.length === 0) {
+    return React.createElement(React.Fragment, null, empty ?? null);
+  }
+  return React.createElement(
+    React.Fragment,
+    null,
+    ...list.map((term, idx) => render(term, idx)),
+  );
+}
+
+export interface WpCommentRenderHelpers {
+  renderChildren: () => React.ReactNode;
+  depth: number;
+}
+
+export interface WpServerCommentsProps {
+  /** `CommentsListResource` from `wpClient.getComments()` or `CommentResource[]`. */
+  comments?: CommentsListResource | CommentResource[] | null;
+  /** Page number used in native export (default: `comments?.page ?? 1`). */
+  page?: number;
+  /** Per-page limit used in native export (default: `comments?.perPage ?? 50`). */
+  perPage?: number;
+  /** Optional fallback rendered when there are zero approved comments. */
+  empty?: React.ReactNode;
+  /** Optional UI rendered when comments are closed on the post. */
+  closed?: React.ReactNode;
+  /** Render function for each comment (and threaded replies via `helpers.renderChildren()`). */
+  renderItem?: (
+    comment: CommentResource,
+    helpers: WpCommentRenderHelpers,
+  ) => React.ReactNode;
+  /** Optional function children (same signature as `renderItem`) or fallback. */
+  children?:
+    | React.ReactNode
+    | ((comment: CommentResource, helpers: WpCommentRenderHelpers) => React.ReactNode);
+}
+
+const NATIVE_COMMENT_TOKEN: CommentResource = {
+  id: '__FORGEWP_COMMENT_ID__' as unknown as number,
+  parentId: '__FORGEWP_COMMENT_PARENT_ID__' as unknown as number,
+  author: {
+    name: '__FORGEWP_COMMENT_AUTHOR_NAME__',
+    avatarUrl: '__FORGEWP_COMMENT_AUTHOR_AVATAR__',
+    url: '__FORGEWP_COMMENT_AUTHOR_URL__',
+  },
+  date: '__FORGEWP_COMMENT_DATE__',
+  content: '__FORGEWP_COMMENT_CONTENT__',
+  children: [],
+};
+
+/**
+ * Pure-TypeScript, Server-Component-safe WordPress comments list loop (R2).
+ * Emits `<forgewp-comments-loop-start>` / `<forgewp-comment-children>` /
+ * `<forgewp-comments-loop-end>` markers during `FORGEWP_NATIVE_EXPORT=1`.
+ */
+export function WpServerComments({
+  comments,
+  page,
+  perPage,
+  empty,
+  closed,
+  renderItem,
+  children,
+}: WpServerCommentsProps): React.ReactElement {
+  const render =
+    renderItem ??
+    (typeof children === 'function'
+      ? (children as (
+          comment: CommentResource,
+          helpers: WpCommentRenderHelpers,
+        ) => React.ReactNode)
+      : () => children ?? null);
+
+  if (isNativeWordPressExport()) {
+    const resolvedPage =
+      typeof page === 'number' && page > 0
+        ? Math.floor(page)
+        : !Array.isArray(comments) && typeof comments?.page === 'number' && comments.page > 0
+          ? Math.floor(comments.page)
+          : 1;
+    const resolvedPerPage =
+      typeof perPage === 'number' && perPage > 0
+        ? Math.min(Math.floor(perPage), 100)
+        : !Array.isArray(comments) && typeof comments?.perPage === 'number' && comments.perPage > 0
+          ? Math.min(Math.floor(comments.perPage), 100)
+          : 50;
+
+    return React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('forgewp-comments-loop-start', {
+        page: String(resolvedPage),
+        perpage: String(resolvedPerPage),
+      }),
+      render(NATIVE_COMMENT_TOKEN, {
+        renderChildren: () => React.createElement('forgewp-comment-children'),
+        depth: 0,
+      }),
+      empty !== undefined && empty !== null
+        ? React.createElement(
+            React.Fragment,
+            null,
+            React.createElement('forgewp-comments-loop-empty'),
+            empty,
+          )
+        : null,
+      React.createElement('forgewp-comments-loop-end'),
+      closed !== undefined && closed !== null
+        ? React.createElement(
+            React.Fragment,
+            null,
+            React.createElement('forgewp-comments-closed-start'),
+            closed,
+            React.createElement('forgewp-comments-closed-end'),
+          )
+        : null,
+    );
+  }
+
+  const items = Array.isArray(comments)
+    ? comments
+    : comments && Array.isArray(comments.items)
+      ? comments.items
+      : [];
+  const isOpen = Array.isArray(comments) ? true : comments?.open !== false;
+
+  const renderList = (list: CommentResource[], depth: number): React.ReactNode[] =>
+    list.map((comment) =>
+      render(comment, {
+        depth,
+        renderChildren: () =>
+          Array.isArray(comment.children) && comment.children.length > 0
+            ? React.createElement(
+                React.Fragment,
+                null,
+                ...renderList(comment.children, depth + 1),
+              )
+            : null,
+      }),
+    );
+
+  return React.createElement(
+    React.Fragment,
+    null,
+    items.length > 0
+      ? React.createElement(React.Fragment, null, ...renderList(items, 0))
+      : (empty ?? null),
+    !isOpen ? (closed ?? null) : null,
+  );
+}
+
 // Unified component aliases so Next.js Server Components can import the exact same
 // component names from `@forgewp/react` (resolved via the `"react-server"` export condition)
 // as Vite React apps. `WpServer*` names remain exported for backwards compatibility.
 export const WpQueryLoop = WpServerLoop;
 export const WpMenu = WpServerMenu;
+export const WpPostTerms = WpServerPostTerms;
+export const WpTermsLoop = WpServerTermsLoop;
+export const WpComments = WpServerComments;
 export const WpRequireAuth = WpServerRequireAuth;
 export const WpAuthGate = WpServerAuthGate;
 
 export type {
   WpServerLoopProps as WpQueryLoopProps,
   WpServerMenuProps as WpMenuProps,
+  WpServerPostTermsProps as WpPostTermsProps,
+  WpServerTermsLoopProps as WpTermsLoopProps,
+  WpServerCommentsProps as WpCommentsProps,
   WpServerRequireAuthProps as WpRequireAuthProps,
   WpServerAuthGateProps as WpAuthGateProps,
 };
