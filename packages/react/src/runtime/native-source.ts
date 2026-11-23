@@ -6,6 +6,7 @@ import type {
   I18nResource,
 } from './registry.js';
 import {
+  normalizeAuthMeResource,
   normalizeFormResource,
   normalizeFormsCollection,
   normalizeI18nResource,
@@ -142,6 +143,9 @@ export function createNativeSource(): ForgeWpSource {
         return (normalizeI18nResource(canonical) ?? undefined) as
           | ForgeWpResourceMap[K]
           | undefined;
+      }
+      if (resource === 'auth-me') {
+        return normalizeAuthMeResource(canonical) as ForgeWpResourceMap[K];
       }
       return canonical as ForgeWpResourceMap[K];
     }

@@ -14,6 +14,9 @@
 import React from 'react';
 import {
   ForgeWpRuntimeError,
+  isAuthMeAllowed,
+  isProductionRuntime,
+  normalizeAuthMeResource,
   normalizeFormResource,
   normalizeFormsCollection,
   normalizeI18nResource,
@@ -21,6 +24,7 @@ import {
   normalizeMenusCollection,
   normalizeRoutesResource,
   normalizeSiteSettings,
+  type AuthMeResource,
   type FormResource,
   type FormsCollectionResource,
   type I18nResource,
@@ -85,11 +89,26 @@ export interface WpServerSiteInfo {
   mode: 'fixture' | 'decoupled' | 'native';
 }
 
+export interface WpServerAuthMeOptions {
+  /** Incoming request headers (e.g. from Next.js `headers()`). */
+  headers?: Headers | Record<string, string | null | undefined>;
+  /** Explicit incoming `Cookie` header string. */
+  cookie?: string | null;
+  /** Explicit incoming `Authorization` header string. */
+  authorization?: string | null;
+  /** Override JWT HttpOnly cookie name (default: `'forgewp_auth_token'`). */
+  authCookieName?: string;
+}
+
 export interface WpServerClientOptions {
   fixtures?: Record<string, Array<Record<string, any>>>;
   menus?: Record<string, Array<Record<string, any>>>;
   forms?: Record<string, any>;
   i18n?: Partial<I18nResource>;
+  /** Optional local dev fixture for `getAuthMe()` when no `wpUrl` is configured. */
+  authMe?: AuthMeResource;
+  /** Cookie name carrying a cross-origin JWT token (default: `'forgewp_auth_token'`). */
+  authCookieName?: string;
   siteInfo?: Partial<Omit<WpServerSiteInfo, 'mode'>>;
   siteOptions?: Record<string, any>;
   themeMods?: Record<string, any>;
@@ -151,6 +170,7 @@ export interface WpServerClient {
   ): Promise<WpServerMenuItem[]>;
   getMenus(options?: { lang?: string }): Promise<MenusCollectionResource>;
   getI18n(options?: { lang?: string; path?: string }): Promise<I18nResource>;
+  getAuthMe(options?: WpServerAuthMeOptions): Promise<AuthMeResource>;
   getSiteInfo(): Promise<WpServerSiteInfo>;
   getSiteSettings(): Promise<SiteSettingsResource>;
   getForm(name: string, options?: { lang?: string }): Promise<FormResource | null>;
@@ -256,6 +276,221 @@ function sanitizeTokenKey(key: string): string {
     );
   }
   return clean;
+}
+
+export const DEFAULT_AUTH_COOKIE_NAME = 'forgewp_auth_token';
+
+/**
+ * Thrown by server auth guards when redirecting an unauthenticated visitor
+ * outside a Next.js App Router request context (where `next/navigation`
+ * `redirect()` is unavailable).
+ */
+export class ForgeWpAuthRedirectError extends Error {
+  readonly code = 'FORGEWP_AUTH_REDIRECT';
+  readonly redirectTo: string;
+  readonly status = 307;
+
+  constructor(redirectTo: string) {
+    super(`FORGEWP_AUTH_REDIRECT: Redirecting unauthenticated request to "${redirectTo}".`);
+    this.name = 'ForgeWpAuthRedirectError';
+    this.redirectTo = redirectTo;
+  }
+}
+
+/**
+ * Filters a raw HTTP `Cookie` header down to only WordPress session cookies
+ * (`wordpress_logged_in_*` and `wordpress_sec_*`), per `docs/resource-contracts.md` §9.
+ */
+export function filterForwardedWordPressCookies(
+  cookieHeader?: string | null,
+): string {
+  if (!cookieHeader || typeof cookieHeader !== 'string') return '';
+  const kept: string[] = [];
+  for (const part of cookieHeader.split(';')) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx <= 0) continue;
+    const name = trimmed.slice(0, eqIdx).trim();
+    if (
+      name.startsWith('wordpress_logged_in_') ||
+      name.startsWith('wordpress_sec_')
+    ) {
+      kept.push(trimmed);
+    }
+  }
+  return kept.join('; ');
+}
+
+function extractNamedCookie(
+  cookieHeader: string | null | undefined,
+  cookieName: string,
+): string | null {
+  if (!cookieHeader || !cookieName) return null;
+  for (const part of cookieHeader.split(';')) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx <= 0) continue;
+    const name = trimmed.slice(0, eqIdx).trim();
+    if (name === cookieName) {
+      const val = trimmed.slice(eqIdx + 1).trim();
+      if (!val) return null;
+      try {
+        return decodeURIComponent(val);
+      } catch {
+        return val;
+      }
+    }
+  }
+  return null;
+}
+
+function readHeaderValue(
+  headers: Headers | Record<string, string | null | undefined> | null | undefined,
+  name: string,
+): string | null {
+  if (!headers) return null;
+  if (typeof (headers as Headers).get === 'function') {
+    return (headers as Headers).get(name);
+  }
+  const lower = name.toLowerCase();
+  for (const [k, v] of Object.entries(headers as Record<string, string | null | undefined>)) {
+    if (k.toLowerCase() === lower && typeof v === 'string' && v.length > 0) {
+      return v;
+    }
+  }
+  return null;
+}
+
+async function readNextRequestHeaders(): Promise<Headers | null> {
+  try {
+    const spec = 'next/headers';
+    const mod = await import(/* @vite-ignore */ spec);
+    if (mod && typeof mod.headers === 'function') {
+      const h = await mod.headers();
+      if (h && typeof h.get === 'function') return h as Headers;
+    }
+  } catch {
+    // Outside Next.js App Router request context
+  }
+  return null;
+}
+
+/**
+ * Builds the exact outbound headers forwarded to `GET /wp-json/forgewp/v1/auth/me`:
+ * - Only `wordpress_logged_in_*` and `wordpress_sec_*` cookies
+ * - Incoming `Authorization` header, OR `Authorization: Bearer <token>` extracted
+ *   from the configured JWT HttpOnly cookie (`forgewp_auth_token` by default).
+ */
+export function buildForwardedAuthHeaders(
+  options: WpServerAuthMeOptions = {},
+): Record<string, string> {
+  const cookieHeader =
+    options.cookie !== undefined
+      ? options.cookie
+      : readHeaderValue(options.headers, 'cookie');
+  const authHeader =
+    options.authorization !== undefined
+      ? options.authorization
+      : readHeaderValue(options.headers, 'authorization');
+  const authCookieName =
+    options.authCookieName ||
+    readEnv('FORGEWP_AUTH_COOKIE') ||
+    DEFAULT_AUTH_COOKIE_NAME;
+
+  const out: Record<string, string> = {
+    Accept: 'application/json',
+  };
+
+  const wpCookies = filterForwardedWordPressCookies(cookieHeader);
+  if (wpCookies) {
+    out.Cookie = wpCookies;
+  }
+
+  const trimmedAuth = typeof authHeader === 'string' ? authHeader.trim() : '';
+  if (trimmedAuth) {
+    out.Authorization = trimmedAuth;
+  } else {
+    const jwtCookie = extractNamedCookie(cookieHeader, authCookieName);
+    if (jwtCookie) {
+      out.Authorization = jwtCookie.toLowerCase().startsWith('bearer ')
+        ? jwtCookie
+        : `Bearer ${jwtCookie}`;
+    }
+  }
+
+  return out;
+}
+
+async function performNextRedirect(target: string): Promise<never> {
+  let redirectFn: ((url: string) => never) | null = null;
+  try {
+    const spec = 'next/navigation';
+    const mod = await import(/* @vite-ignore */ spec);
+    if (mod && typeof mod.redirect === 'function') {
+      redirectFn = mod.redirect;
+    }
+  } catch {
+    // Outside Next.js runtime
+  }
+  if (redirectFn) {
+    // Call outside try/catch so Next.js's NEXT_REDIRECT control-flow error propagates
+    return redirectFn(target);
+  }
+  throw new ForgeWpAuthRedirectError(target);
+}
+
+async function fetchDecoupledAuthMe(params: {
+  wpUrl?: string;
+  fetchImpl?: typeof globalThis.fetch;
+  authCookieName?: string;
+  requestOptions?: WpServerAuthMeOptions;
+}): Promise<AuthMeResource> {
+  const base = normalizeBaseUrl(
+    params.wpUrl !== undefined ? params.wpUrl : readEnv('FORGEWP_WP_URL'),
+  );
+  if (!base) {
+    // Fail closed when WordPress URL is unavailable
+    return { authenticated: false, user: null };
+  }
+
+  const fetchImpl = params.fetchImpl || globalThis.fetch;
+  if (typeof fetchImpl !== 'function') {
+    return { authenticated: false, user: null };
+  }
+
+  const reqOpts: WpServerAuthMeOptions = { ...(params.requestOptions || {}) };
+  if (
+    reqOpts.headers === undefined &&
+    reqOpts.cookie === undefined &&
+    reqOpts.authorization === undefined
+  ) {
+    const nextHeaders = await readNextRequestHeaders();
+    if (nextHeaders) {
+      reqOpts.headers = nextHeaders;
+    }
+  }
+  if (params.authCookieName && !reqOpts.authCookieName) {
+    reqOpts.authCookieName = params.authCookieName;
+  }
+
+  const headers = buildForwardedAuthHeaders(reqOpts);
+  try {
+    const response = await fetchImpl(`${base.baseUrl}/wp-json/forgewp/v1/auth/me`, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      return { authenticated: false, user: null };
+    }
+    const json = await response.json().catch(() => null);
+    return normalizeAuthMeResource(json);
+  } catch {
+    // Fail closed on network failure or timeout
+    return { authenticated: false, user: null };
+  }
 }
 
 function fromFixture(entry: Record<string, any>, slug: string): WpServerPageRecord {
@@ -890,6 +1125,28 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       return fallback;
     },
 
+    async getAuthMe(authOptions = {}) {
+      if (isNativeWordPressExport()) {
+        return { authenticated: false, user: null };
+      }
+
+      const base = resolveWpBase();
+      if (base) {
+        return fetchDecoupledAuthMe({
+          wpUrl: base.baseUrl,
+          fetchImpl,
+          authCookieName: authOptions.authCookieName || options.authCookieName,
+          requestOptions: authOptions,
+        });
+      }
+
+      if (isProductionRuntime()) {
+        return { authenticated: false, user: null };
+      }
+
+      return normalizeAuthMeResource(options.authMe);
+    },
+
     async getSiteInfo() {
       const localInfo = options.siteInfo || {};
       const fallbackName = String(
@@ -1500,25 +1757,102 @@ export function Hydrate({
 export interface WpServerRequireAuthProps {
   /** Optional WordPress role or capability required (e.g. `'manage_options'` or `'editor'`). */
   allowed?: string | string[];
-  /** Redirect path for unauthorized visitors (default: `'/login'`). */
+  /** Redirect path for unauthenticated visitors (default: `'/login'`). */
   redirect?: string;
+  /** Optional redirect path when authenticated but `allowed` is not satisfied. */
+  forbiddenRedirect?: string;
+  /** Optional custom 403 UI rendered when authenticated but `allowed` is not satisfied. */
+  forbiddenFallback?: React.ReactNode;
+  /** Optional custom handler invoked when unauthenticated (overrides Next.js `redirect()`). */
+  onUnauthenticated?: (redirectTo: string) => never | React.ReactElement;
+  /** Optional custom handler invoked when authenticated but `allowed` is not met. */
+  onForbidden?: (auth: AuthMeResource) => never | React.ReactElement;
+  /** Optional pre-resolved `AuthMeResource` (skips fetching `/auth/me`). */
+  auth?: AuthMeResource;
+  /** Optional `WpServerClient` instance used to call `getAuthMe()`. */
+  client?: WpServerClient;
+  /** Optional explicit WordPress base URL override (defaults to `FORGEWP_WP_URL`). */
+  wpUrl?: string;
+  /** Optional JWT HttpOnly cookie name override (default: `'forgewp_auth_token'`). */
+  authCookieName?: string;
+  /** Optional incoming request headers (defaults to Next.js `headers()` when available). */
+  headers?: Headers | Record<string, string | null | undefined>;
+  /** Optional custom `fetch` implementation (useful in tests). */
+  fetch?: typeof globalThis.fetch;
   children?: React.ReactNode;
 }
 
+function renderDefaultForbiddenElement(): React.ReactElement {
+  return React.createElement(
+    'section',
+    {
+      role: 'alert',
+      'data-forgewp-auth-status': '403',
+    },
+    React.createElement('h1', null, '403 Forbidden'),
+    React.createElement('p', null, 'You do not have permission to view this page.'),
+  );
+}
+
+function evaluateRequireAuth(
+  auth: AuthMeResource,
+  opts: {
+    allowed?: string | string[];
+    redirect: string;
+    forbiddenRedirect?: string;
+    forbiddenFallback?: React.ReactNode;
+    onUnauthenticated?: (redirectTo: string) => never | React.ReactElement;
+    onForbidden?: (auth: AuthMeResource) => never | React.ReactElement;
+    children?: React.ReactNode;
+  },
+): React.ReactElement | Promise<React.ReactElement> {
+  if (!auth.authenticated || !auth.user) {
+    if (opts.onUnauthenticated) {
+      return opts.onUnauthenticated(opts.redirect);
+    }
+    return performNextRedirect(opts.redirect);
+  }
+  if (!isAuthMeAllowed(auth, opts.allowed)) {
+    if (opts.onForbidden) {
+      return opts.onForbidden(auth);
+    }
+    if (opts.forbiddenRedirect) {
+      return performNextRedirect(opts.forbiddenRedirect);
+    }
+    return opts.forbiddenFallback !== undefined
+      ? React.createElement(React.Fragment, null, opts.forbiddenFallback)
+      : renderDefaultForbiddenElement();
+  }
+  return React.createElement(React.Fragment, null, opts.children ?? null);
+}
+
 /**
- * Pure-TypeScript, Server-Component-safe route protection boundary for Next.js App Router.
+ * Pure-TypeScript, Server-Component-safe route protection boundary for Next.js App Router
+ * (`docs/resource-contracts.md` §9).
  *
  * - Native WordPress export (`FORGEWP_NATIVE_EXPORT=1`): emits `<forgewp-require-auth ... />`
- *   which `generate-theme.js` compiles to server-side PHP `is_user_logged_in()` /
- *   `current_user_can()` redirect guards and records in `auth-manifest.json`.
- * - Local dev & decoupled mode: renders `children` directly (pair with Next.js middleware
- *   or session checks in decoupled mode).
+ *   compiled to server-side PHP `is_user_logged_in()` / `current_user_can()` redirect guards.
+ * - Decoupled / production mode: calls `GET /wp-json/forgewp/v1/auth/me` per request
+ *   (`cache: 'no-store'`) forwarding only WordPress session cookies / Bearer JWT, failing
+ *   closed on any error. Redirects unauthenticated visitors and blocks forbidden roles with 403.
+ * - Plain local dev (no `FORGEWP_WP_URL` and `NODE_ENV !== 'production'`): renders children
+ *   synchronously unless an explicit `auth` prop is supplied.
  */
 export function WpServerRequireAuth({
   allowed,
   redirect = '/login',
+  forbiddenRedirect,
+  forbiddenFallback,
+  onUnauthenticated,
+  onForbidden,
+  auth,
+  client,
+  wpUrl,
+  authCookieName,
+  headers,
+  fetch: fetchImpl,
   children,
-}: WpServerRequireAuthProps): React.ReactElement {
+}: WpServerRequireAuthProps): React.ReactElement | Promise<React.ReactElement> {
   if (isNativeWordPressExport()) {
     const allowedAttr = Array.isArray(allowed)
       ? allowed.join(',')
@@ -1533,7 +1867,45 @@ export function WpServerRequireAuth({
       children ?? null,
     );
   }
-  return React.createElement(React.Fragment, null, children ?? null);
+
+  if (auth !== undefined) {
+    return evaluateRequireAuth(normalizeAuthMeResource(auth), {
+      allowed,
+      redirect,
+      forbiddenRedirect,
+      forbiddenFallback,
+      onUnauthenticated,
+      onForbidden,
+      children,
+    });
+  }
+
+  const hasDecoupledBackend = Boolean(
+    client || wpUrl || fetchImpl || readEnv('FORGEWP_WP_URL') || isProductionRuntime(),
+  );
+  if (!hasDecoupledBackend) {
+    return React.createElement(React.Fragment, null, children ?? null);
+  }
+
+  return (async () => {
+    const resolvedAuth = client
+      ? await client.getAuthMe({ headers, authCookieName })
+      : await fetchDecoupledAuthMe({
+          wpUrl,
+          fetchImpl,
+          authCookieName,
+          requestOptions: { headers, authCookieName },
+        });
+    return evaluateRequireAuth(resolvedAuth, {
+      allowed,
+      redirect,
+      forbiddenRedirect,
+      forbiddenFallback,
+      onUnauthenticated,
+      onForbidden,
+      children,
+    });
+  })();
 }
 
 export interface WpServerAuthGateProps {
@@ -1541,21 +1913,43 @@ export interface WpServerAuthGateProps {
   allowed?: string | string[];
   /** Optional fallback content rendered for unauthorized visitors. */
   fallback?: React.ReactNode;
+  /** Optional pre-resolved `AuthMeResource` (skips fetching `/auth/me`). */
+  auth?: AuthMeResource;
+  /** Optional `WpServerClient` instance used to call `getAuthMe()`. */
+  client?: WpServerClient;
+  /** Optional explicit WordPress base URL override (defaults to `FORGEWP_WP_URL`). */
+  wpUrl?: string;
+  /** Optional JWT HttpOnly cookie name override (default: `'forgewp_auth_token'`). */
+  authCookieName?: string;
+  /** Optional incoming request headers (defaults to Next.js `headers()` when available). */
+  headers?: Headers | Record<string, string | null | undefined>;
+  /** Optional custom `fetch` implementation (useful in tests). */
+  fetch?: typeof globalThis.fetch;
   children?: React.ReactNode;
 }
 
 /**
- * Pure-TypeScript, Server-Component-safe inline authentication / capability gate for Next.js.
+ * Pure-TypeScript, Server-Component-safe inline authentication / capability gate for Next.js
+ * (`docs/resource-contracts.md` §9).
  *
  * - Native WordPress export (`FORGEWP_NATIVE_EXPORT=1`): emits ForgeWP auth/capability gate
  *   markers compiled to server-side PHP `if ( is_user_logged_in() )` / `current_user_can()`.
- * - Local dev & decoupled mode: renders `children` directly.
+ * - Decoupled / production mode: calls `GET /wp-json/forgewp/v1/auth/me` per request
+ *   (`cache: 'no-store'`) and fails closed (renders `fallback` on unauthenticated or error).
+ * - Plain local dev (no `FORGEWP_WP_URL` and `NODE_ENV !== 'production'`): renders children
+ *   synchronously unless an explicit `auth` prop is supplied.
  */
 export function WpServerAuthGate({
   allowed,
   fallback,
+  auth,
+  client,
+  wpUrl,
+  authCookieName,
+  headers,
+  fetch: fetchImpl,
   children,
-}: WpServerAuthGateProps): React.ReactElement {
+}: WpServerAuthGateProps): React.ReactElement | Promise<React.ReactElement> {
   if (isNativeWordPressExport()) {
     const allowedAttr = Array.isArray(allowed)
       ? allowed.join(',')
@@ -1595,7 +1989,116 @@ export function WpServerAuthGate({
       React.createElement('forgewp-auth-gate-end'),
     );
   }
-  return React.createElement(React.Fragment, null, children ?? null);
+
+  if (auth !== undefined) {
+    const ok = isAuthMeAllowed(normalizeAuthMeResource(auth), allowed);
+    return React.createElement(React.Fragment, null, ok ? (children ?? null) : (fallback ?? null));
+  }
+
+  const hasDecoupledBackend = Boolean(
+    client || wpUrl || fetchImpl || readEnv('FORGEWP_WP_URL') || isProductionRuntime(),
+  );
+  if (!hasDecoupledBackend) {
+    return React.createElement(React.Fragment, null, children ?? null);
+  }
+
+  return (async () => {
+    const resolvedAuth = client
+      ? await client.getAuthMe({ headers, authCookieName })
+      : await fetchDecoupledAuthMe({
+          wpUrl,
+          fetchImpl,
+          authCookieName,
+          requestOptions: { headers, authCookieName },
+        });
+    const ok = isAuthMeAllowed(resolvedAuth, allowed);
+    return React.createElement(React.Fragment, null, ok ? (children ?? null) : (fallback ?? null));
+  })();
+}
+
+export interface ProtectedPageConfigLike {
+  protected?: boolean | string | string[];
+  allowed?: string | string[];
+  loginRedirect?: string;
+  redirect?: string;
+  forbiddenRedirect?: string;
+}
+
+export interface GuardProtectedPageOptions extends WpServerAuthMeOptions {
+  client?: WpServerClient;
+  wpUrl?: string;
+  fetch?: typeof globalThis.fetch;
+  onUnauthenticated?: (redirectTo: string) => never | void;
+  onForbidden?: (auth: AuthMeResource) => never | void;
+}
+
+export interface GuardProtectedPageResult {
+  allowed: boolean;
+  status: 200 | 403;
+  auth: AuthMeResource | null;
+}
+
+/**
+ * Enforces `pageConfig.protected` on Next.js App Router pages in decoupled mode
+ * with the same fail-closed semantics as `WpRequireAuth` (`docs/resource-contracts.md` §9).
+ */
+export async function guardProtectedPage(
+  pageConfig: ProtectedPageConfigLike | null | undefined,
+  options: GuardProtectedPageOptions = {},
+): Promise<GuardProtectedPageResult> {
+  if (!pageConfig || !pageConfig.protected) {
+    return { allowed: true, status: 200, auth: null };
+  }
+  if (isNativeWordPressExport()) {
+    return { allowed: true, status: 200, auth: null };
+  }
+
+  const requiredAllowed =
+    typeof pageConfig.protected === 'string' || Array.isArray(pageConfig.protected)
+      ? pageConfig.protected
+      : pageConfig.allowed;
+  const redirectTo = pageConfig.loginRedirect || pageConfig.redirect || '/login';
+
+  const hasDecoupledBackend = Boolean(
+    options.client ||
+      options.wpUrl ||
+      options.fetch ||
+      readEnv('FORGEWP_WP_URL') ||
+      isProductionRuntime(),
+  );
+  if (!hasDecoupledBackend) {
+    return { allowed: true, status: 200, auth: null };
+  }
+
+  const auth = options.client
+    ? await options.client.getAuthMe(options)
+    : await fetchDecoupledAuthMe({
+        wpUrl: options.wpUrl,
+        fetchImpl: options.fetch,
+        authCookieName: options.authCookieName,
+        requestOptions: options,
+      });
+
+  if (!auth.authenticated || !auth.user) {
+    if (options.onUnauthenticated) {
+      options.onUnauthenticated(redirectTo);
+      return { allowed: false, status: 403, auth };
+    }
+    return performNextRedirect(redirectTo);
+  }
+
+  if (!isAuthMeAllowed(auth, requiredAllowed)) {
+    if (options.onForbidden) {
+      options.onForbidden(auth);
+      return { allowed: false, status: 403, auth };
+    }
+    if (pageConfig.forbiddenRedirect) {
+      return performNextRedirect(pageConfig.forbiddenRedirect);
+    }
+    return { allowed: false, status: 403, auth };
+  }
+
+  return { allowed: true, status: 200, auth };
 }
 
 /**
@@ -1730,6 +2233,8 @@ export {
   normalizeMenusCollection,
   normalizeRoutesResource,
   normalizeI18nResource,
+  normalizeAuthMeResource,
+  isAuthMeAllowed,
   createForgeWpRuntime,
   configureForgeWpRuntime,
   getForgeWpRuntime,
@@ -1761,6 +2266,8 @@ export type {
   RouteRecordContract,
   RoutesResource,
   I18nResource,
+  AuthMeUserContract,
+  AuthMeResource,
   RestSourceOptions,
   PrimableForgeWpSource,
   FixtureSourceOptions,

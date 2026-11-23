@@ -234,10 +234,16 @@ export {
   getWpEditable,
   WpRequireAuth,
   WpAuthGate,
+  guardProtectedPage,
+  ForgeWpAuthRedirectError,
+  DEFAULT_AUTH_COOKIE_NAME,
+  filterForwardedWordPressCookies,
+  buildForwardedAuthHeaders,
 } from './server';
 export type {
   WpServerClient,
   WpServerClientOptions,
+  WpServerAuthMeOptions,
   WpServerPageRecord,
   WpServerPostRecord,
   WpServerRouteRecord,
@@ -247,6 +253,9 @@ export type {
   WpServerAuth,
   WpRequireAuthProps,
   WpAuthGateProps,
+  ProtectedPageConfigLike,
+  GuardProtectedPageOptions,
+  GuardProtectedPageResult,
 } from './server';
 
 export {
@@ -261,6 +270,8 @@ export {
   normalizeMenusCollection,
   normalizeRoutesResource,
   normalizeI18nResource,
+  normalizeAuthMeResource,
+  isAuthMeAllowed,
   createForgeWpRuntime,
   configureForgeWpRuntime,
   getForgeWpRuntime,
@@ -292,6 +303,8 @@ export type {
   RouteRecordContract,
   RoutesResource,
   I18nResource,
+  AuthMeUserContract,
+  AuthMeResource,
   RestSourceOptions,
   PrimableForgeWpSource,
   FixtureSourceOptions,
