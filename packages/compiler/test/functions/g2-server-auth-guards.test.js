@@ -299,25 +299,33 @@ export default function Account() { return <main>Account</main>; }
 `,
       );
 
-      // 1. Neither same-domain nor JWT configured -> AUTH_CROSS_ORIGIN_SESSION_UNCONFIGURED warning
+      // 1. Neither auth backend nor session transport configured -> both warnings fire
       const manifestUnconfigured = buildRouteCapabilityManifest(tmpDir, {
         frameworkAdapter: 'nextjs',
       });
       expect(manifestUnconfigured.routes['/dashboard'].uses).toContain('auth');
       expect(manifestUnconfigured.routes['/account'].uses).toContain('auth');
       const diagUnconfigured = evaluateTargetCompatibility(manifestUnconfigured, 'decoupled');
+      const backendWarn = diagUnconfigured.warnings.find(
+        (w) => w.code === 'AUTH_BACKEND_MISSING',
+      );
+      expect(backendWarn).toBeDefined();
+      expect(backendWarn.routes).toEqual(['/account', '/dashboard']);
       const authWarn = diagUnconfigured.warnings.find(
         (w) => w.code === 'AUTH_CROSS_ORIGIN_SESSION_UNCONFIGURED',
       );
       expect(authWarn).toBeDefined();
       expect(authWarn.routes).toEqual(['/account', '/dashboard']);
 
-      // 2. JWT backend configured -> warning clears
+      // 2. JWT backend configured -> both AUTH_BACKEND_MISSING and cross-origin warnings clear
       const manifestJwt = buildRouteCapabilityManifest(tmpDir, {
         frameworkAdapter: 'nextjs',
         config: { auth: { backend: 'jwt' } },
       });
       const diagJwt = evaluateTargetCompatibility(manifestJwt, 'decoupled');
+      expect(
+        diagJwt.warnings.find((w) => w.code === 'AUTH_BACKEND_MISSING'),
+      ).toBeUndefined();
       expect(
         diagJwt.warnings.find((w) => w.code === 'AUTH_CROSS_ORIGIN_SESSION_UNCONFIGURED'),
       ).toBeUndefined();
