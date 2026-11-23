@@ -172,3 +172,172 @@ Phase A is done; Phase B beta-critical work is done; Phase C core resources (`si
 **Order:** Gemini starts with R4 + R5 contract drafts and R2 marker proposal, then R3. Claude starts R6 (parity CI) and R2's PHP side as soon as Gemini's marker shape is agreed, then the R4/R5 PHP once their contracts are approved. Founder: run R1 with the local agent any time; it is independent.
 
 **Handoff (2026-11-23):** Claude continues in the cloud session; plugin-dependent checks go to the founder's local agent. Start with `docs/agent-handoff.md`.
+
+---
+
+## 8. R2 Marker Proposal: Native Export for `getComments()` and `post.terms` (Gemini, 2026-11-23 — for Claude review)
+
+**Goal:** Close the G4 native parity gap (§6) without executing proposal code yet. Today Server Components run once at export against fixtures: `getLivePost()` emits `__FORGEWP_THE_*__` scalar tokens and `<WpQueryLoop>` / `<WpServerLoop>` emits `<forgewp-loop-start>` / `<forgewp-loop-end>`, while `post.terms` and `getComments()` have no native export tokens or loop markers and therefore freeze at export time.
+
+### Part A — Scalar Tokens Emitted by `server.ts` (`FORGEWP_NATIVE_EXPORT=1`)
+
+1. **`wpClient.getComments(postId, options)`:**
+   During `isNativeWordPressExport()`, returns:
+   ```ts
+   {
+     post: 0,
+     open: true,
+     page,
+     perPage,
+     total: '__FORGEWP_COMMENTS_COUNT__' as unknown as number,
+     items: [],
+   }
+   ```
+   - `markup-processor.js` replaces `__FORGEWP_COMMENTS_COUNT__` with:
+     ```php
+     <?php echo (int) get_comments_number(); ?>
+     ```
+     This immediately fixes `"Comments (0)"` headings in exported templates.
+2. **Optional post ID token `__FORGEWP_THE_ID__`:**
+   - `markup-processor.js` replaces `__FORGEWP_THE_ID__` with `<?php echo (int) get_the_ID(); ?>` for server-side post ID attributes.
+   - Note: hydrated client islands (such as `<CommentForm>`) should prefer reading live `resources.post.id` via `useWpPost()` so client submissions target the real WordPress post ID even if props were omitted.
+3. **Plain taxonomy list token (already present):**
+   - `__FORGEWP_TAXONOMY_LIST_<taxonomy>__` (`markup-processor.js:89`) remains available for plain comma-separated term lists.
+
+### Part B — `<WpPostTerms>` (alias `<WpServerPostTerms>`) for Live `post.terms` Loops
+
+- **App API:**
+  ```tsx
+  <WpPostTerms
+    taxonomy="category"
+    terms={post.terms?.category}
+    empty={<span>Uncategorized</span>}
+    renderItem={(term) => (
+      <a key={term.id} href={term.path}>{term.name}</a>
+    )}
+  />
+  ```
+  Supports a single taxonomy slug (e.g. `"category"`, `"post_tag"`, `"country"`) or `"*"` for all public taxonomies on the post type, plus function `children` as an alias for `renderItem`.
+- **Decoupled / fixture mode:** Maps `terms` through `renderItem` (or renders `empty` when empty).
+- **Native export (`FORGEWP_NATIVE_EXPORT=1`) sibling markers:**
+  ```html
+  <forgewp-terms-loop-start taxonomy="category" />
+  <a href="__FORGEWP_TERM_URL__">__FORGEWP_TERM_NAME__</a>
+  <forgewp-terms-loop-empty /><span>Uncategorized</span>
+  <forgewp-terms-loop-end />
+  ```
+  Emitted around a single `renderItem` call with:
+  ```ts
+  {
+    id: '__FORGEWP_TERM_ID__' as unknown as number,
+    slug: '__FORGEWP_TERM_SLUG__',
+    name: '__FORGEWP_TERM_NAME__',
+    path: '__FORGEWP_TERM_URL__',
+    permalink: '__FORGEWP_TERM_URL__',
+  }
+  ```
+  (`<forgewp-terms-loop-empty />` is omitted when no `empty` prop is passed.)
+- **Proposed PHP output in `markup-processor.js` (Claude):**
+  - Validate `taxonomy` against `/^(?:\*|[a-zA-Z0-9_-]+)$/`.
+  - For a named taxonomy:
+    ```php
+    <?php
+    $__fwp_terms = get_the_terms( get_the_ID(), 'category' );
+    if ( is_array( $__fwp_terms ) && ! empty( $__fwp_terms ) ) :
+        foreach ( $__fwp_terms as $__fwp_term ) :
+            $__fwp_term_link = get_term_link( $__fwp_term );
+            $__fwp_term_url = is_wp_error( $__fwp_term_link ) ? '' : (string) $__fwp_term_link;
+    ?>
+    ```
+    (When `taxonomy="*"`, collect `get_the_terms( get_the_ID(), $tax )` across public `get_object_taxonomies( get_post_type(), 'objects' )`.)
+  - Inside the loop:
+    - `__FORGEWP_TERM_NAME__` → `<?php echo esc_html( html_entity_decode( wp_strip_all_tags( $__fwp_term->name ), ENT_QUOTES, 'UTF-8' ) ); ?>`
+    - `__FORGEWP_TERM_SLUG__` → `<?php echo esc_attr( $__fwp_term->slug ); ?>`
+    - `__FORGEWP_TERM_URL__` → `<?php echo esc_url( $__fwp_term_url ); ?>`
+    - `__FORGEWP_TERM_ID__` → `<?php echo (int) $__fwp_term->term_id; ?>`
+  - Empty / end markers:
+    - `<forgewp-terms-loop-empty />` → `<?php endforeach; else : ?>`
+    - `<forgewp-terms-loop-end />` → `<?php endif; ?>` (or `<?php endforeach; endif; ?>` when no `<forgewp-terms-loop-empty />` was emitted).
+
+### Part C — `<WpComments>` (alias `<WpServerComments>`) for Live `getComments()` Loops
+
+- **App API:**
+  ```tsx
+  <WpComments
+    comments={comments}
+    empty={<p>No comments yet.</p>}
+    closed={<p>Comments are closed.</p>}
+    renderItem={(comment, { renderChildren }) => (
+      <article key={comment.id}>
+        <img src={comment.author.avatarUrl} alt={comment.author.name} />
+        <strong>{comment.author.name}</strong>
+        <time dateTime={comment.date}>{comment.date}</time>
+        <div dangerouslySetInnerHTML={{ __html: comment.content }} />
+        <div className="replies">{renderChildren()}</div>
+      </article>
+    )}
+  />
+  ```
+- **Decoupled / fixture mode:** Renders `comments.items` recursively (`renderChildren()` calls `renderItem` for each child in `comment.children`), `empty` when `items.length === 0`, and `closed` when `!comments.open`.
+- **Native export (`FORGEWP_NATIVE_EXPORT=1`) sibling markers:**
+  ```html
+  <forgewp-comments-loop-start page="1" perpage="50" />
+  <article>
+    <img src="__FORGEWP_COMMENT_AUTHOR_AVATAR__" alt="__FORGEWP_COMMENT_AUTHOR_NAME__" />
+    <strong>__FORGEWP_COMMENT_AUTHOR_NAME__</strong>
+    <time datetime="__FORGEWP_COMMENT_DATE__">__FORGEWP_COMMENT_DATE__</time>
+    <div>__FORGEWP_COMMENT_CONTENT__</div>
+    <div class="replies"><forgewp-comment-children /></div>
+  </article>
+  <forgewp-comments-loop-empty /><p>No comments yet.</p>
+  <forgewp-comments-loop-end />
+  <forgewp-comments-closed-start /><p>Comments are closed.</p><forgewp-comments-closed-end />
+  ```
+  Token `CommentResource` passed to `renderItem`:
+  - `id`: `'__FORGEWP_COMMENT_ID__'`
+  - `parentId`: `'__FORGEWP_COMMENT_PARENT_ID__'`
+  - `author`: `{ name: '__FORGEWP_COMMENT_AUTHOR_NAME__', avatarUrl: '__FORGEWP_COMMENT_AUTHOR_AVATAR__', url: '__FORGEWP_COMMENT_AUTHOR_URL__' }`
+  - `date`: `'__FORGEWP_COMMENT_DATE__'`
+  - `content`: `'__FORGEWP_COMMENT_CONTENT__'`
+  - `children`: `[]`
+- **Proposed PHP output in `markup-processor.js` (Claude):**
+  - Reuse `forgewp_comments_resource( get_post(), $page, $per_page )` (from `content-resources.js`, guarded by `function_exists('forgewp_comments_resource')`) so approval status, sorting, threading, avatar URLs, `comment_text` filtering, and commenter email/IP omission match REST byte-for-byte.
+  - Compile `<forgewp-comments-loop-start ... />` through `<forgewp-comments-loop-end />` into a recursive closure:
+    ```php
+    <?php
+    $__fwp_comments_res = function_exists( 'forgewp_comments_resource' )
+        ? forgewp_comments_resource( get_post(), 1, 50 )
+        : array( 'items' => array(), 'open' => comments_open() );
+    if ( ! empty( $__fwp_comments_res['items'] ) ) :
+        $__fwp_render_comment = function ( $__fwp_comment ) use ( &$__fwp_render_comment ) {
+    ?>
+      <!-- inner item markup, where <forgewp-comment-children /> becomes: -->
+      <?php if ( ! empty( $__fwp_comment['children'] ) ) { foreach ( $__fwp_comment['children'] as $__fwp_child ) { $__fwp_render_comment( $__fwp_child ); } } ?>
+    <?php
+        };
+        foreach ( $__fwp_comments_res['items'] as $__fwp_comment_item ) {
+            $__fwp_render_comment( $__fwp_comment_item );
+        }
+    else :
+    ?>
+      <!-- empty fallback if <forgewp-comments-loop-empty /> was emitted -->
+    <?php endif; ?>
+    ```
+  - Inside the closure, replace comment scalar tokens:
+    - `__FORGEWP_COMMENT_ID__` → `<?php echo (int) $__fwp_comment['id']; ?>`
+    - `__FORGEWP_COMMENT_PARENT_ID__` → `<?php echo (int) $__fwp_comment['parentId']; ?>`
+    - `__FORGEWP_COMMENT_AUTHOR_NAME__` → `<?php echo esc_html( $__fwp_comment['author']['name'] ); ?>`
+    - `__FORGEWP_COMMENT_AUTHOR_AVATAR__` → `<?php echo esc_url( $__fwp_comment['author']['avatarUrl'] ); ?>`
+    - `__FORGEWP_COMMENT_AUTHOR_URL__` → `<?php echo esc_url( $__fwp_comment['author']['url'] ); ?>`
+    - `__FORGEWP_COMMENT_DATE__` → `<?php echo esc_html( $__fwp_comment['date'] ); ?>`
+    - `__FORGEWP_COMMENT_CONTENT__` → `<?php echo wp_kses_post( $__fwp_comment['content'] ); ?>`
+  - Closed markers:
+    - `<forgewp-comments-closed-start />` → `<?php if ( ! comments_open() ) : ?>`
+    - `<forgewp-comments-closed-end />` → `<?php endif; ?>`
+
+### Open Questions for Claude
+
+1. **Reuse `forgewp_comments_resource()` in native PHP templates?** It guarantees identical threading, `comment_text` rendering, and zero PII leakage between Native and REST, provided `content-resources.js` is always loaded on frontend requests. Confirm?
+2. **Recursive closure for `<forgewp-comment-children />`:** Any concern with PHP closure variable scoping inside theme template partials, or do you prefer a named helper / flat v1?
+3. **`wpClient.getPost()` during `FORGEWP_NATIVE_EXPORT=1`:** Should `getPost()` also return scalar `__FORGEWP_THE_*__` tokens in native export (like `getLivePost()`), or keep `getPost()` fixture-backed and keep `getLivePost()` as the explicit live-token entry point?
+
