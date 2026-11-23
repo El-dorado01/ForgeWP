@@ -110,3 +110,19 @@ Work split: Claude — provisioning, `home.php`, permalink rule, admin notice. G
 2. **Gemini:** B3, then Phase C React side (`menus`, `routes`, `i18n` sources and hooks).
 3. **Claude:** B2 and B1, then B4; then Phase C PHP (`/menus` collection, `/routes` + `pageLinks`, `/i18n` with the dictionary in the Companion backend, `resources.*` hydration); then the `/blog` work if Option 1 is chosen.
 4. **Both:** remove the remaining legacy globals (`menus`, `pageLinks`, `forgeWpTranslations`) in one coordinated PR at the end of Phase C.
+
+---
+
+## 6. Next tasks for Gemini (prepared by Claude, 2026-11-23)
+
+State of `main`: Phase C `menus` / `routes` / `i18n` done on both sides; legacy `forgeWpHydration.menus`, `.pageLinks` and `window.forgeWpTranslations` removed (Claude, verified live on e2e-next and hotelchecker24: no page errors, nav/islands/translations render). `/blog` Option 1 shipped.
+
+| # | Task | Why / evidence | Beta-critical |
+|---|---|---|---|
+| G1 | **Review the four new contract drafts** in `docs/resource-contracts.md` §9–§12 (`auth-me`, `posts`, `terms`, `comments`) and reply with amendments or approval, as Claude did for §5–§7. | Founder approval needed before either side builds. | — |
+| G2 | **Server-side auth guards (after §9 approval):** `WpServerRequireAuth`, `WpServerAuthGate`, `pageConfig.protected` call `/auth/me` per request with the visitor's WordPress cookies / bearer token, redirect or 403 per §9, and fail closed. Doctor warning for protected routes without same-domain routing or JWT. | Today they render children for everyone in decoupled mode (`packages/react/src/server.ts`), so protected pages are public. | **Yes** |
+| G3 | **Fix doubled theme URLs in image/asset resolution.** hotelchecker24 passes `themeUri + '/Logo/…svg'` (already absolute) and the native page requests `…/themes/hotelchecker24http:/localhost:8080/wp-content/themes/hotelchecker24/Logo/…svg` (404). An absolute `http(s)://` URL must pass through unchanged, and `//` must not be collapsed inside `http://`. | Pre-existing; reproduced live before and after the cleanup. Logged in the improvement brief. | Yes (visible broken logo) |
+| G4 | **`posts` / `terms` / `comments` runtime and hooks** (after §10–§12 approval), replacing the `wp/v2` + `_embed` reshaping in `server.ts`. | Contract-based parity for archives, singles, CPTs. | No (can continue in beta) |
+
+Claude in parallel: PHP for §9 (`authenticated`, `private, no-store`, `resources['auth-me']`), then §10–§12 endpoints and native resources after approval.
+

@@ -389,6 +389,166 @@ Minor, optional — **adopted in the PHP (2026-11-23):** every menu item carries
 
 ---
 
+## 9. `auth-me` (Phase C — Status: Draft by Claude 2026-11-23 — Awaiting Founder & Gemini Approval) — **beta-critical**
+
+Why first: in decoupled mode `WpServerRequireAuth`, `WpServerAuthGate` and `pageConfig.protected` currently render their children for everyone (`packages/react/src/server.ts`), so protected pages are public. This contract gives server-side guards one reliable answer.
+
+- **Resource Name:** `auth-me`
+- **REST Route:** `GET /wp-json/forgewp/v1/auth/me` (existing endpoint; response extended, existing `user` key kept)
+- **Auth:** `session` — the visitor's WordPress session: logged-in cookie (same-domain / Hybrid / BFF proxy) or `Authorization: Bearer <jwt>` (cross-origin, when the JWT backend is enabled). No nonce needed for this read.
+- **Caching:** `Cache-Control: private, no-store` and `Vary: Cookie, Authorization`. Never cached at an edge or shared cache; the Next.js server must call it per request (`cache: 'no-store'`).
+- **Native key:** `forgeWpHydration.resources['auth-me']` (same shape; already rendered per request by PHP).
+
+### Response (`200 OK`, logged in)
+
+```json
+{
+  "authenticated": true,
+  "user": {
+    "id": 7,
+    "username": "ada",
+    "displayName": "Ada Lovelace",
+    "firstName": "Ada",
+    "lastName": "Lovelace",
+    "email": "ada@example.com",
+    "avatarUrl": "https://example.com/avatar/7.png",
+    "roles": ["subscriber"],
+    "capabilities": ["read"],
+    "emailVerified": true
+  }
+}
+```
+
+Logged out: `200 OK` with `{ "authenticated": false, "user": null }` (never 401, so guards can tell "logged out" from "auth broken").
+
+### Guard semantics (Gemini, `server.ts`) — must match native PHP guards
+- `WpServerRequireAuth({ allowed?, redirect })`: not authenticated → `redirect(redirect)`; authenticated but `allowed` (role or capability, any-of) not met → Next.js `forbidden()` / 403 page; otherwise render children.
+- `WpServerAuthGate({ allowed?, fallback })`: render children only when authenticated and allowed, else `fallback`.
+- `pageConfig.protected`: same as `WpServerRequireAuth` for the whole route.
+- **Fail closed:** WordPress unreachable, timeout or non-200 → treat as not authenticated; never render protected children on error.
+- The Next.js server forwards only the visitor's WordPress cookies (`wordpress_logged_in_*`, `wordpress_sec_*`) and `Authorization` header to `/auth/me`; it does not forward other cookies.
+
+### Session transport by deployment
+| Deployment | How the Next.js server sees the session |
+|---|---|
+| Same domain (Hybrid / ForgeWP edge router / Next rewrite of `/wp-json/*` and `/wp-login.php`) | WordPress cookies are first-party; forward them. Recommended. |
+| Cross-origin self-hosted (`app.example.com` + `wp.example.com`) | Cookies set by WordPress are not visible to the app domain. Use the JWT backend (token stored by the app as an HttpOnly cookie on its own domain) or a BFF proxy route. `forgewp doctor --target decoupled` warns when a project has protected routes and neither same-domain routing nor JWT is configured. |
+
+### Field guarantees
+- `user` keeps today's payload for compatibility (it also includes `billing`, `shipping`, `meta` for WooCommerce/account screens); guards rely only on `authenticated`, `roles`, `capabilities`.
+- `capabilities`: capabilities the user actually has (true), as a list.
+
+### Claude (PHP) work
+Add `authenticated`; `private, no-store` + `Vary` headers; same shape in `resources['auth-me']`; parity test.
+
+---
+
+## 10. `posts` (Phase C — Status: Draft by Claude 2026-11-23 — Awaiting Founder & Gemini Approval)
+
+Why: decoupled pages today read `wp/v2/*` with `_embed` and reshape it in `server.ts`, while native templates use PHP template tags. One normalized, privacy-safe shape removes that drift and covers custom post types.
+
+- **Resource Name:** `posts` (list) / `post` (single)
+- **REST Routes:**
+  - `GET /wp-json/forgewp/v1/posts?type=post&page=1&perPage=10&lang=&taxonomy=<tax>&term=<slug>&search=&orderby=date|title|menu_order&order=desc|asc`
+  - `GET /wp-json/forgewp/v1/posts/<type>/<slug>?lang=`
+- **Auth:** public — `publish` status only, public post types that ForgeWP registered or core `post`/`page`. Drafts and previews are out of scope here (Draft Mode is a separate Phase E item).
+- **Cache tags:** `posts`, `type:<type>`, `post:<id>`
+- **Native keys:** `resources.post` on singular views (current queried post), `resources.posts` on archive views (current main query page).
+
+### Single response (`200 OK`)
+
+```json
+{
+  "id": 42,
+  "type": "post",
+  "slug": "first-post",
+  "lang": "en",
+  "title": "First post",
+  "excerpt": "<p>Short summary…</p>",
+  "content": "<p>Full HTML body…</p>",
+  "date": "2026-11-01T09:00:00+00:00",
+  "modified": "2026-11-02T10:00:00+00:00",
+  "permalink": "https://example.com/blog/first-post/",
+  "path": "/blog/first-post/",
+  "author": { "id": 1, "name": "Ada" },
+  "featuredImage": { "url": "https://example.com/uploads/a.jpg", "alt": "", "width": 1200, "height": 630, "srcset": "…" },
+  "terms": { "category": [{ "id": 3, "slug": "news", "name": "News", "path": "/category/news/" }] },
+  "fields": { "read_time": "5" },
+  "protected": false
+}
+```
+
+### List response (`200 OK`)
+
+```json
+{ "type": "post", "lang": "en", "page": 1, "perPage": 10, "total": 23, "totalPages": 3, "items": [ /* single shape without "content" and "fields" */ ] }
+```
+
+### Field guarantees
+- `content` / `excerpt` are rendered HTML (`the_content` / `the_excerpt` filters), matching native output.
+- Password-protected posts: `protected: true`, `content: ""`, `excerpt: ""`.
+- `fields`: only meta keys ForgeWP registered for that type (editable schemas / `register_post_meta` with `show_in_rest`), never arbitrary meta.
+- `featuredImage`: `null` when absent.
+- `path`: site-relative (subdirectory base stripped), consistent with `routes`.
+- `perPage` max 100.
+
+### Errors
+- `404 FORGEWP_POST_NOT_FOUND` — unknown slug or not published.
+- `400 FORGEWP_POST_TYPE_NOT_PUBLIC` — unknown or non-public `type`.
+- `?lang=` per amendment 3.
+
+### Open question
+Existing `/forgewp/v1/query-<id>` routes (from `useWpQuery`) stay as they are for now; should they be re-expressed on top of `posts` later?
+
+---
+
+## 11. `terms` (Phase C — Status: Draft by Claude 2026-11-23 — Awaiting Founder & Gemini Approval)
+
+- **REST Routes:** `GET /wp-json/forgewp/v1/terms/<taxonomy>?lang=&hideEmpty=true&parent=` and `GET /wp-json/forgewp/v1/terms/<taxonomy>/<slug>?lang=`
+- **Auth:** public, public taxonomies only.
+- **Cache tags:** `terms`, `taxonomy:<taxonomy>`
+- **Native key:** `resources.term` on taxonomy archive views.
+
+```json
+{ "taxonomy": "category", "lang": "en", "items": [
+  { "id": 3, "slug": "news", "name": "News", "description": "", "count": 12, "parent": 0, "path": "/category/news/", "permalink": "https://example.com/category/news/" }
+] }
+```
+
+Single: the item object plus `"taxonomy"` and `"lang"`. Errors: `404 FORGEWP_TERM_NOT_FOUND`, `400 FORGEWP_TAXONOMY_NOT_PUBLIC`. Posts in a term: `posts?taxonomy=category&term=news`.
+
+---
+
+## 12. `comments` (Phase C — Status: Draft by Claude 2026-11-23 — Awaiting Founder & Gemini Approval)
+
+- **REST Routes:**
+  - `GET /wp-json/forgewp/v1/comments?post=<id>&page=1&perPage=50`
+  - `POST /wp-json/forgewp/v1/comments`
+- **Auth:** public read of approved comments; posting follows the post's and site's discussion settings.
+- **Cache tags:** `comments`, `comments:post:<id>`
+
+### Read response
+
+```json
+{ "post": 42, "open": true, "page": 1, "perPage": 50, "total": 3, "items": [
+  { "id": 9, "parentId": 0, "author": { "name": "Grace", "avatarUrl": "https://…", "url": "" }, "date": "2026-11-03T08:00:00+00:00", "content": "<p>Great post</p>", "children": [] }
+] }
+```
+
+Never exposes commenter email or IP. `content` is rendered and sanitized (`comment_text`). Threaded per the site's thread depth; `items` are top-level, replies in `children`.
+
+### Create request / response
+
+Request: `{ "post": 42, "parent": 0, "content": "…", "authorName": "…", "authorEmail": "…", "authorUrl": "" }` (name/email ignored for logged-in users; required when the site requires them).
+
+Response `201`: `{ "ok": true, "status": "approved" | "hold", "comment": <item> | null }` — `hold` when moderation applies, so the UI can say "awaiting moderation".
+
+Protections, shared with forms (contract §4.3): origin allowlist, trusted-proxy client IP rate limit, honeypot + time trap, nonce when logged in, WordPress core `wp_allow_comment()` flood/duplicate checks and comment moderation keys.
+
+Errors: `403 FORGEWP_COMMENTS_CLOSED`, `400 FORGEWP_VALIDATION_FAILED` (with `errors` map), `404 FORGEWP_POST_NOT_FOUND`, `409 FORGEWP_COMMENT_DUPLICATE`, `429 FORGEWP_RATE_LIMITED`.
+
+---
+
 ## 8. Remaining Phase C Resource Contracts (Reserved Names)
 
 Registered in `@forgewp/react`'s lean resource registry with reserved paths so runtime wiring stays uniform:
@@ -402,4 +562,7 @@ Registered in `@forgewp/react`'s lean resource registry with reserved paths so r
 | `i18n` | `/i18n` | `public` | `["i18n", "i18n:<lang>"]` | Approved (Phase C — §7) |
 | `seo` | `/seo` | `public` | `["seo"]` | Reserved (Phase C) |
 | `editables` | `/editables` | `public` | `["editables"]` | Reserved (Phase C) |
-| `auth-me` | `/auth/me` | `session` | `["auth"]` | Reserved (Phase C) |
+| `auth-me` | `/auth/me` | `session` | `["auth"]` | Draft (Phase C — §9) |
+| `posts` / `post` | `/posts`, `/posts/<type>/<slug>` | `public` | `["posts", "type:<type>", "post:<id>"]` | Draft (Phase C — §10) |
+| `terms` | `/terms/<taxonomy>` | `public` | `["terms", "taxonomy:<taxonomy>"]` | Draft (Phase C — §11) |
+| `comments` | `/comments` | `public` read / guarded write | `["comments", "comments:post:<id>"]` | Draft (Phase C — §12) |
