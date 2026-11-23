@@ -17,20 +17,30 @@ import {
   isAuthMeAllowed,
   isProductionRuntime,
   normalizeAuthMeResource,
+  normalizeCommentsListResource,
   normalizeFormResource,
   normalizeFormsCollection,
   normalizeI18nResource,
   normalizeMenuItemsContract,
   normalizeMenusCollection,
+  normalizePostResource,
+  normalizePostsListResource,
   normalizeRoutesResource,
   normalizeSiteSettings,
+  normalizeTermResource,
+  normalizeTermsListResource,
   type AuthMeResource,
+  type CommentsListResource,
   type FormResource,
   type FormsCollectionResource,
   type I18nResource,
   type MenusCollectionResource,
+  type PostResource,
+  type PostsListResource,
   type RoutesResource,
   type SiteSettingsResource,
+  type TermResource,
+  type TermsListResource,
 } from './runtime/index.js';
 
 export interface WpServerBlockNode {
@@ -102,10 +112,35 @@ export interface WpServerAuthMeOptions {
   timeoutMs?: number;
 }
 
+export interface WpServerPostsQueryOptions {
+  type?: string;
+  page?: number;
+  perPage?: number;
+  lang?: string;
+  taxonomy?: string;
+  term?: string;
+  search?: string;
+  orderby?: 'date' | 'title' | 'menu_order';
+  order?: 'desc' | 'asc';
+}
+
+export interface WpServerTermsQueryOptions {
+  lang?: string;
+  hideEmpty?: boolean;
+  parent?: number;
+}
+
+export interface WpServerCommentsQueryOptions {
+  page?: number;
+  perPage?: number;
+}
+
 export interface WpServerClientOptions {
   fixtures?: Record<string, Array<Record<string, any>>>;
   menus?: Record<string, Array<Record<string, any>>>;
   forms?: Record<string, any>;
+  terms?: Record<string, Array<Record<string, any>>>;
+  comments?: Record<number | string, Array<Record<string, any>>>;
   i18n?: Partial<I18nResource>;
   /** Optional local dev fixture for `getAuthMe()` when no `wpUrl` is configured. */
   authMe?: AuthMeResource;
@@ -149,13 +184,32 @@ export interface WpServerClient {
   ): Promise<WpServerPageRecord | null>;
   getPosts(
     postType?: string,
-    options?: { basePath?: string; perPage?: number },
+    options?: { basePath?: string; perPage?: number; page?: number; lang?: string; taxonomy?: string; term?: string; search?: string; orderby?: 'date' | 'title' | 'menu_order'; order?: 'desc' | 'asc' },
   ): Promise<WpServerPostRecord[]>;
+  getPostsList(options?: WpServerPostsQueryOptions): Promise<PostsListResource>;
+  getPost(
+    type: string,
+    slug: string,
+    options?: { lang?: string },
+  ): Promise<PostResource | null>;
   getLivePost(
     postType: string,
     slug: string,
-    options?: { basePath?: string },
+    options?: { basePath?: string; lang?: string },
   ): Promise<WpServerPostRecord | null>;
+  getTerms(
+    taxonomy: string,
+    options?: WpServerTermsQueryOptions,
+  ): Promise<TermsListResource>;
+  getTerm(
+    taxonomy: string,
+    slug: string,
+    options?: { lang?: string },
+  ): Promise<TermResource | null>;
+  getComments(
+    postId: number,
+    options?: WpServerCommentsQueryOptions,
+  ): Promise<CommentsListResource>;
   getStaticParams(
     postType?: string,
     paramName?: string,
@@ -441,6 +495,37 @@ async function performNextRedirect(target: string): Promise<never> {
     return redirectFn(target);
   }
   throw new ForgeWpAuthRedirectError(target);
+}
+
+/**
+ * Attempts to invoke Next.js's `forbidden()` for a real HTTP 403 status when
+ * `experimental.authInterrupts` is enabled in `next.config.*`. If Next.js is
+ * absent or `authInterrupts` is disabled, returns `false` so callers can fall
+ * back to the built-in 403 UI (HTTP 200) without crashing.
+ */
+async function tryNextForbidden(): Promise<boolean> {
+  let forbiddenFn: (() => never) | null = null;
+  try {
+    const spec = 'next/navigation';
+    const mod = await import(/* @vite-ignore */ spec);
+    if (mod && typeof mod.forbidden === 'function') {
+      forbiddenFn = mod.forbidden;
+    }
+  } catch {
+    return false;
+  }
+  if (!forbiddenFn) return false;
+  try {
+    forbiddenFn();
+    return true;
+  } catch (err: any) {
+    const digest = typeof err?.digest === 'string' ? err.digest : '';
+    if (digest.includes('403') || digest === 'NEXT_FORBIDDEN') {
+      throw err;
+    }
+    // `forbidden()` threw because experimental.authInterrupts is not enabled
+    return false;
+  }
 }
 
 async function fetchDecoupledAuthMe(params: {
@@ -840,6 +925,183 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       return appendQueryAndFragment(match ? match.path : fallbackPath, opts);
     },
 
+    async getPostsList(queryOptions = {}) {
+      const cleanType = String(queryOptions.type || 'post').trim() || 'post';
+      const page =
+        typeof queryOptions.page === 'number' && queryOptions.page > 0
+          ? Math.floor(queryOptions.page)
+          : 1;
+      const perPage =
+        typeof queryOptions.perPage === 'number' && queryOptions.perPage > 0
+          ? Math.min(Math.floor(queryOptions.perPage), 100)
+          : 10;
+      const lang =
+        typeof queryOptions.lang === 'string' && queryOptions.lang.trim()
+          ? queryOptions.lang.trim()
+          : undefined;
+
+      const wpBase = resolveWpBase();
+      if (wpBase && !isNativeWordPressExport()) {
+        const params = new URLSearchParams();
+        params.set('type', cleanType);
+        params.set('page', String(page));
+        params.set('perPage', String(perPage));
+        if (lang) params.set('lang', lang);
+        if (queryOptions.taxonomy) params.set('taxonomy', queryOptions.taxonomy);
+        if (queryOptions.term) params.set('term', queryOptions.term);
+        if (queryOptions.search) params.set('search', queryOptions.search);
+        if (queryOptions.orderby) params.set('orderby', queryOptions.orderby);
+        if (queryOptions.order) params.set('order', queryOptions.order);
+
+        const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/posts?${params.toString()}`;
+        try {
+          const response = await fetchImpl(
+            url,
+            buildTaggedInit(['posts', `type:${cleanType}`]),
+          );
+          const json = await response.json().catch(() => null);
+          throwIfLocaleNotFound(response, json, `posts:${cleanType}`);
+          if (
+            !response.ok &&
+            json &&
+            typeof json === 'object' &&
+            json.code === 'FORGEWP_POST_TYPE_NOT_PUBLIC'
+          ) {
+            throw new ForgeWpRuntimeError(
+              'FORGEWP_RESOURCE_FETCH_FAILED',
+              `[FORGEWP_POST_TYPE_NOT_PUBLIC] ${json.message || `Post type "${cleanType}" is not public.`}`,
+              { resource: `posts:${cleanType}`, status: response.status },
+            );
+          }
+          if (response.ok && json) {
+            const normalized = normalizePostsListResource(json, cleanType);
+            if (normalized) return normalized;
+          }
+        } catch (err) {
+          if (err instanceof ForgeWpRuntimeError) {
+            throw err;
+          }
+          // Fall back to local fixtures if REST endpoint is unavailable
+        }
+      }
+
+      const rawList = Array.isArray((fixtures as any)?.[cleanType])
+        ? (fixtures as any)[cleanType]
+        : [];
+      const defaultBase = cleanType === 'post' ? '/blog' : `/${cleanType}s`;
+      let filtered = rawList.map((item: any, idx: number) => {
+        const slug = String(item.slug || `item-${idx + 1}`);
+        return normalizePostResource(
+          {
+            ...item,
+            id: item.id ?? idx + 1,
+            type: cleanType,
+            slug,
+            path: item.path || `${defaultBase}/${slug}`,
+            permalink: item.permalink || `${defaultBase}/${slug}`,
+          },
+          { isListItem: true, fallbackType: cleanType },
+        );
+      }).filter(Boolean) as PostResource[];
+
+      if (queryOptions.search) {
+        const q = queryOptions.search.toLowerCase();
+        filtered = filtered.filter(
+          (p) =>
+            p.title.toLowerCase().includes(q) ||
+            p.excerpt.toLowerCase().includes(q),
+        );
+      }
+      if (queryOptions.taxonomy && queryOptions.term) {
+        const tax = queryOptions.taxonomy;
+        const termSlug = queryOptions.term;
+        filtered = filtered.filter((p) =>
+          (p.terms?.[tax] || []).some((t) => t.slug === termSlug),
+        );
+      }
+
+      const total = filtered.length;
+      const totalPages = total > 0 ? Math.ceil(total / perPage) : 0;
+      const start = (page - 1) * perPage;
+      const items = filtered.slice(start, start + perPage);
+
+      return {
+        type: cleanType,
+        ...(lang ? { lang } : {}),
+        page,
+        perPage,
+        total,
+        totalPages,
+        items,
+      };
+    },
+
+    async getPost(postType, slug, postOptions = {}) {
+      const cleanType = String(postType || 'post').trim() || 'post';
+      const cleanSlug = String(slug || '').replace(/^\/+|\/+$/g, '');
+      if (!cleanSlug) return null;
+      const lang =
+        typeof postOptions.lang === 'string' && postOptions.lang.trim()
+          ? postOptions.lang.trim()
+          : undefined;
+
+      const wpBase = resolveWpBase();
+      if (wpBase && !isNativeWordPressExport()) {
+        const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+        const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/posts/${encodeURIComponent(cleanType)}/${encodeURIComponent(cleanSlug)}${qs}`;
+        try {
+          const response = await fetchImpl(
+            url,
+            buildTaggedInit(['posts', `type:${cleanType}`]),
+          );
+          const json = await response.json().catch(() => null);
+          throwIfLocaleNotFound(response, json, `post:${cleanType}:${cleanSlug}`);
+          if (
+            !response.ok &&
+            json &&
+            typeof json === 'object' &&
+            json.code === 'FORGEWP_POST_TYPE_NOT_PUBLIC'
+          ) {
+            throw new ForgeWpRuntimeError(
+              'FORGEWP_RESOURCE_FETCH_FAILED',
+              `[FORGEWP_POST_TYPE_NOT_PUBLIC] ${json.message || `Post type "${cleanType}" is not public.`}`,
+              { resource: `post:${cleanType}:${cleanSlug}`, status: response.status },
+            );
+          }
+          if (response.status === 404) {
+            return null;
+          }
+          if (response.ok && json) {
+            return normalizePostResource(json, { fallbackType: cleanType });
+          }
+        } catch (err) {
+          if (err instanceof ForgeWpRuntimeError) {
+            throw err;
+          }
+          // Fall back to local fixtures if REST endpoint is unavailable
+        }
+      }
+
+      const rawList = Array.isArray((fixtures as any)?.[cleanType])
+        ? (fixtures as any)[cleanType]
+        : [];
+      const found = rawList.find(
+        (item: any) => String(item?.slug || '').replace(/^\/+|\/+$/g, '') === cleanSlug,
+      );
+      if (!found) return null;
+      const defaultBase = cleanType === 'post' ? '/blog' : `/${cleanType}s`;
+      return normalizePostResource(
+        {
+          ...found,
+          type: cleanType,
+          slug: cleanSlug,
+          path: found.path || `${defaultBase}/${cleanSlug}`,
+          permalink: found.permalink || `${defaultBase}/${cleanSlug}`,
+        },
+        { fallbackType: cleanType },
+      );
+    },
+
     async getPosts(postType = 'post', opts = {}) {
       const cleanType = String(postType || 'post').trim() || 'post';
       const defaultBase =
@@ -851,43 +1113,52 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
 
       const wpBase = resolveWpBase();
       if (wpBase && !isNativeWordPressExport()) {
-        const restBase =
-          cleanType === 'post' ? 'posts' : cleanType === 'page' ? 'pages' : cleanType;
         const perPage = opts.perPage ?? 20;
+        const page = opts.page ?? 1;
+        const params = new URLSearchParams();
+        params.set('type', cleanType);
+        params.set('page', String(page));
+        params.set('perPage', String(perPage));
+        if (opts.lang) params.set('lang', opts.lang);
+        if (opts.taxonomy) params.set('taxonomy', opts.taxonomy);
+        if (opts.term) params.set('term', opts.term);
+        if (opts.search) params.set('search', opts.search);
+        if (opts.orderby) params.set('orderby', opts.orderby);
+        if (opts.order) params.set('order', opts.order);
+
         try {
-          const raw = await wpFetchJson(
-            wpBase,
-            `/wp-json/wp/v2/${encodeURIComponent(restBase)}?per_page=${perPage}&_embed=1`,
+          const response = await fetchImpl(
+            `${wpBase.baseUrl}/wp-json/forgewp/v1/posts?${params.toString()}`,
+            buildTaggedInit(['posts', `type:${cleanType}`]),
           );
-          if (Array.isArray(raw)) {
-            return raw.map((item: any) => {
-              const slug = String(item.slug || item.id || '');
-              const renderedTitle =
-                typeof item.title === 'object' ? item.title?.rendered : item.title;
-              const renderedContent =
-                typeof item.content === 'object' ? item.content?.rendered : item.content;
-              const renderedExcerpt =
-                typeof item.excerpt === 'object' ? item.excerpt?.rendered : item.excerpt;
-              const mediaUrl =
-                item._embedded?.['wp:featuredmedia']?.[0]?.source_url || '';
-              const authorName = item._embedded?.author?.[0]?.name || '';
-              return {
-                id: Number(item.id || 0),
-                slug,
-                postType: cleanType,
-                title: stripTags(String(renderedTitle || '')),
-                excerpt: stripTags(String(renderedExcerpt || '')),
-                content: String(renderedContent || ''),
-                date: String(item.date || ''),
-                author: String(authorName || ''),
-                permalink: `${defaultBase}/${slug}`,
-                featuredImage: String(mediaUrl || ''),
-                blocks: Array.isArray(item.forgewp_blocks) ? item.forgewp_blocks : [],
+          const json = await response.json().catch(() => null);
+          throwIfLocaleNotFound(response, json, `posts:${cleanType}`);
+          if (response.ok && json) {
+            const normalized = normalizePostsListResource(json, cleanType);
+            if (normalized) {
+              return normalized.items.map((item) => ({
+                id: item.id,
+                slug: item.slug,
+                postType: item.type,
+                title: item.title,
+                excerpt: stripTags(item.excerpt),
+                content: item.content ?? '',
+                date: item.date,
+                author: item.author?.name || '',
+                permalink:
+                  opts.basePath !== undefined
+                    ? `${defaultBase}/${item.slug}`
+                    : item.path || `${defaultBase}/${item.slug}`,
+                featuredImage: item.featuredImage?.url || '',
+                blocks: Array.isArray(item.blocks) ? item.blocks : [],
                 source: 'wordpress' as const,
-              };
-            });
+              }));
+            }
           }
-        } catch {
+        } catch (err) {
+          if (err instanceof ForgeWpRuntimeError) {
+            throw err;
+          }
           // Fall back to local fixtures if REST endpoint is unavailable
         }
       }
@@ -909,7 +1180,11 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
           excerpt: String(item.excerpt || ''),
           content: String(item.content || ''),
           date: String(item.date || ''),
-          author: String(item.author || ''),
+          author: String(
+            typeof item.author === 'object' && item.author !== null
+              ? item.author.name || ''
+              : item.author || '',
+          ),
           permalink: `${defaultBase}/${slug}`,
           featuredImage: String(img),
           blocks: Array.isArray(item.blocks) ? item.blocks : [],
@@ -936,9 +1211,227 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
           source: 'native' as const,
         };
       }
+
+      const defaultBase =
+        opts.basePath !== undefined
+          ? opts.basePath.replace(/\/+$/, '')
+          : cleanType === 'post'
+            ? '/blog'
+            : `/${cleanType}s`;
+      const wpBase = resolveWpBase();
+      if (wpBase) {
+        const single = await this.getPost(cleanType, slug, { lang: opts.lang });
+        if (single) {
+          return {
+            id: single.id,
+            slug: single.slug,
+            postType: single.type,
+            title: single.title,
+            excerpt: stripTags(single.excerpt),
+            content: single.content ?? '',
+            date: single.date,
+            author: single.author?.name || '',
+            permalink:
+              opts.basePath !== undefined
+                ? `${defaultBase}/${single.slug}`
+                : single.path || `${defaultBase}/${single.slug}`,
+            featuredImage: single.featuredImage?.url || '',
+            blocks: Array.isArray(single.blocks) ? single.blocks : [],
+            source: 'wordpress' as const,
+          };
+        }
+        return null;
+      }
+
       const posts = await this.getPosts(cleanType, opts);
       const target = String(slug || '').replace(/^\/+|\/+$/g, '');
       return posts.find((p) => p.slug === target) ?? null;
+    },
+
+    async getTerms(taxonomy, termOptions = {}) {
+      const cleanTax = String(taxonomy || 'category').trim() || 'category';
+      const lang =
+        typeof termOptions.lang === 'string' && termOptions.lang.trim()
+          ? termOptions.lang.trim()
+          : undefined;
+
+      const wpBase = resolveWpBase();
+      if (wpBase && !isNativeWordPressExport()) {
+        const params = new URLSearchParams();
+        if (lang) params.set('lang', lang);
+        if (termOptions.hideEmpty !== undefined) {
+          params.set('hideEmpty', termOptions.hideEmpty ? 'true' : 'false');
+        }
+        if (termOptions.parent !== undefined) {
+          params.set('parent', String(termOptions.parent));
+        }
+        const qs = params.toString();
+        const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/terms/${encodeURIComponent(cleanTax)}${qs ? `?${qs}` : ''}`;
+        try {
+          const response = await fetchImpl(
+            url,
+            buildTaggedInit(['terms', `taxonomy:${cleanTax}`]),
+          );
+          const json = await response.json().catch(() => null);
+          throwIfLocaleNotFound(response, json, `terms:${cleanTax}`);
+          if (
+            !response.ok &&
+            json &&
+            typeof json === 'object' &&
+            json.code === 'FORGEWP_TAXONOMY_NOT_PUBLIC'
+          ) {
+            throw new ForgeWpRuntimeError(
+              'FORGEWP_RESOURCE_FETCH_FAILED',
+              `[FORGEWP_TAXONOMY_NOT_PUBLIC] ${json.message || `Taxonomy "${cleanTax}" is not public.`}`,
+              { resource: `terms:${cleanTax}`, status: response.status },
+            );
+          }
+          if (response.ok && json) {
+            const normalized = normalizeTermsListResource(json, cleanTax);
+            if (normalized) return normalized;
+          }
+        } catch (err) {
+          if (err instanceof ForgeWpRuntimeError) {
+            throw err;
+          }
+          // Fall back to local fixtures if REST endpoint is unavailable
+        }
+      }
+
+      const rawTerms = Array.isArray(options.terms?.[cleanTax])
+        ? options.terms[cleanTax]
+        : [];
+      return (
+        normalizeTermsListResource(
+          { taxonomy: cleanTax, ...(lang ? { lang } : {}), items: rawTerms },
+          cleanTax,
+        ) || { taxonomy: cleanTax, ...(lang ? { lang } : {}), items: [] }
+      );
+    },
+
+    async getTerm(taxonomy, slug, termOptions = {}) {
+      const cleanTax = String(taxonomy || 'category').trim() || 'category';
+      const cleanSlug = String(slug || '').replace(/^\/+|\/+$/g, '');
+      if (!cleanSlug) return null;
+      const lang =
+        typeof termOptions.lang === 'string' && termOptions.lang.trim()
+          ? termOptions.lang.trim()
+          : undefined;
+
+      const wpBase = resolveWpBase();
+      if (wpBase && !isNativeWordPressExport()) {
+        const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+        const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/terms/${encodeURIComponent(cleanTax)}/${encodeURIComponent(cleanSlug)}${qs}`;
+        try {
+          const response = await fetchImpl(
+            url,
+            buildTaggedInit(['terms', `taxonomy:${cleanTax}`]),
+          );
+          const json = await response.json().catch(() => null);
+          throwIfLocaleNotFound(response, json, `term:${cleanTax}:${cleanSlug}`);
+          if (
+            !response.ok &&
+            json &&
+            typeof json === 'object' &&
+            json.code === 'FORGEWP_TAXONOMY_NOT_PUBLIC'
+          ) {
+            throw new ForgeWpRuntimeError(
+              'FORGEWP_RESOURCE_FETCH_FAILED',
+              `[FORGEWP_TAXONOMY_NOT_PUBLIC] ${json.message || `Taxonomy "${cleanTax}" is not public.`}`,
+              { resource: `term:${cleanTax}:${cleanSlug}`, status: response.status },
+            );
+          }
+          if (response.status === 404) {
+            return null;
+          }
+          if (response.ok && json) {
+            return normalizeTermResource(json, cleanTax);
+          }
+        } catch (err) {
+          if (err instanceof ForgeWpRuntimeError) {
+            throw err;
+          }
+          // Fall back to local fixtures if REST endpoint is unavailable
+        }
+      }
+
+      const list = await this.getTerms(cleanTax, { lang });
+      return list.items.find((t) => t.slug === cleanSlug) ?? null;
+    },
+
+    async getComments(postId, commentOptions = {}) {
+      const cleanPostId = Number(postId || 0);
+      const page =
+        typeof commentOptions.page === 'number' && commentOptions.page > 0
+          ? Math.floor(commentOptions.page)
+          : 1;
+      const perPage =
+        typeof commentOptions.perPage === 'number' && commentOptions.perPage > 0
+          ? Math.min(Math.floor(commentOptions.perPage), 100)
+          : 50;
+
+      const wpBase = resolveWpBase();
+      if (wpBase && !isNativeWordPressExport()) {
+        const params = new URLSearchParams({
+          post: String(cleanPostId),
+          page: String(page),
+          perPage: String(perPage),
+        });
+        const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/comments?${params.toString()}`;
+        try {
+          const response = await fetchImpl(
+            url,
+            buildTaggedInit(['comments', `comments:post:${cleanPostId}`]),
+          );
+          const json = await response.json().catch(() => null);
+          if (
+            !response.ok &&
+            json &&
+            typeof json === 'object' &&
+            json.code === 'FORGEWP_POST_NOT_FOUND'
+          ) {
+            throw new ForgeWpRuntimeError(
+              'FORGEWP_RESOURCE_FETCH_FAILED',
+              `[FORGEWP_POST_NOT_FOUND] ${json.message || `Post ${cleanPostId} not found.`}`,
+              { resource: `comments:${cleanPostId}`, status: response.status },
+            );
+          }
+          if (response.ok && json) {
+            const normalized = normalizeCommentsListResource(json, cleanPostId);
+            if (normalized) return normalized;
+          }
+        } catch (err) {
+          if (err instanceof ForgeWpRuntimeError) {
+            throw err;
+          }
+          // Fall back to local fixtures if REST endpoint is unavailable
+        }
+      }
+
+      const rawComments =
+        (options.comments &&
+          (options.comments[cleanPostId] || options.comments[String(cleanPostId)])) ||
+        [];
+      return (
+        normalizeCommentsListResource(
+          {
+            post: cleanPostId,
+            open: true,
+            page,
+            perPage,
+            total: Array.isArray(rawComments) ? rawComments.length : 0,
+            items: Array.isArray(rawComments) ? rawComments : [],
+          },
+          cleanPostId,
+        ) || {
+          post: cleanPostId,
+          open: true,
+          page,
+          perPage,
+          total: 0,
+          items: [],
+        }
+      );
     },
 
     async getStaticParams(postType = 'post', paramName = 'slug') {
@@ -1837,9 +2330,10 @@ function evaluateRequireAuth(
     if (opts.forbiddenRedirect) {
       return performNextRedirect(opts.forbiddenRedirect);
     }
-    return opts.forbiddenFallback !== undefined
-      ? React.createElement(React.Fragment, null, opts.forbiddenFallback)
-      : renderDefaultForbiddenElement();
+    if (opts.forbiddenFallback !== undefined) {
+      return React.createElement(React.Fragment, null, opts.forbiddenFallback);
+    }
+    return tryNextForbidden().then(() => renderDefaultForbiddenElement());
   }
   return React.createElement(React.Fragment, null, opts.children ?? null);
 }
@@ -2253,6 +2747,12 @@ export {
   normalizeI18nResource,
   normalizeAuthMeResource,
   isAuthMeAllowed,
+  normalizePostResource,
+  normalizePostsListResource,
+  normalizeTermResource,
+  normalizeTermsListResource,
+  normalizeCommentResource,
+  normalizeCommentsListResource,
   createForgeWpRuntime,
   configureForgeWpRuntime,
   getForgeWpRuntime,
@@ -2286,6 +2786,17 @@ export type {
   I18nResource,
   AuthMeUserContract,
   AuthMeResource,
+  PostAuthorContract,
+  PostImageContract,
+  PostTermRefContract,
+  PostBlockContract,
+  PostResource,
+  PostsListResource,
+  TermResource,
+  TermsListResource,
+  CommentAuthorContract,
+  CommentResource,
+  CommentsListResource,
   RestSourceOptions,
   PrimableForgeWpSource,
   FixtureSourceOptions,

@@ -334,6 +334,12 @@ export {
   normalizeI18nResource,
   normalizeAuthMeResource,
   isAuthMeAllowed,
+  normalizePostResource,
+  normalizePostsListResource,
+  normalizeTermResource,
+  normalizeTermsListResource,
+  normalizeCommentResource,
+  normalizeCommentsListResource,
 } from './registry.js';
 export type {
   ForgeWpResourceAuth,
@@ -353,6 +359,17 @@ export type {
   I18nResource,
   AuthMeUserContract,
   AuthMeResource,
+  PostAuthorContract,
+  PostImageContract,
+  PostTermRefContract,
+  PostBlockContract,
+  PostResource,
+  PostsListResource,
+  TermResource,
+  TermsListResource,
+  CommentAuthorContract,
+  CommentResource,
+  CommentsListResource,
 } from './registry.js';
 export {
   createNativeSource,
@@ -365,6 +382,9 @@ export {
   getNativeMenu,
   getNativeForm,
   getNativeTranslations,
+  getNativePost,
+  getNativePosts,
+  getNativeTerm,
 } from './native-source.js';
 export type { ForgeWpSource } from './native-source.js';
 export {

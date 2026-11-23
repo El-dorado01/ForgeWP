@@ -3,12 +3,17 @@ import type { ForgeWpSource } from './native-source.js';
 import {
   getResourceDefinition,
   normalizeAuthMeResource,
+  normalizeCommentsListResource,
   normalizeFormResource,
   normalizeFormsCollection,
   normalizeI18nResource,
   normalizeMenusCollection,
+  normalizePostResource,
+  normalizePostsListResource,
   normalizeRoutesResource,
   normalizeSiteSettings,
+  normalizeTermResource,
+  normalizeTermsListResource,
   type ForgeWpResourceMap,
   type ForgeWpResourceName,
   type ForgeWpResourceParams,
@@ -94,6 +99,30 @@ function normalizeResourcePayload<K extends ForgeWpResourceName>(
   }
   if (resource === 'auth-me') {
     return normalizeAuthMeResource(raw) as ForgeWpResourceMap[K];
+  }
+  if (resource === 'post') {
+    const fallbackType = params?.slug ? params.slug.split('/')[0] : 'post';
+    return (normalizePostResource(raw, { fallbackType }) ?? raw) as ForgeWpResourceMap[K];
+  }
+  if (resource === 'posts') {
+    const fallbackType =
+      typeof params?.query?.type === 'string' && params.query.type
+        ? params.query.type
+        : 'post';
+    return (normalizePostsListResource(raw, fallbackType) ?? raw) as ForgeWpResourceMap[K];
+  }
+  if (resource === 'term') {
+    const fallbackTaxonomy = params?.slug ? params.slug.split('/')[0] : undefined;
+    return (normalizeTermResource(raw, fallbackTaxonomy) ?? raw) as ForgeWpResourceMap[K];
+  }
+  if (resource === 'terms') {
+    const fallbackTaxonomy = params?.slug ? params.slug.split('/')[0] : 'category';
+    return (normalizeTermsListResource(raw, fallbackTaxonomy) ?? raw) as ForgeWpResourceMap[K];
+  }
+  if (resource === 'comments') {
+    const fallbackPostId =
+      params?.query?.post !== undefined ? Number(params.query.post) : 0;
+    return (normalizeCommentsListResource(raw, fallbackPostId) ?? raw) as ForgeWpResourceMap[K];
   }
   return raw as ForgeWpResourceMap[K];
 }
@@ -212,7 +241,11 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
 
     const def = getResourceDefinition(resource);
     const slugSegment = params?.slug
-      ? `/${encodeURIComponent(params.slug)}`
+      ? `/${params.slug
+          .split('/')
+          .filter(Boolean)
+          .map((seg) => encodeURIComponent(seg))
+          .join('/')}`
       : '';
     const search = new URLSearchParams();
     if (params?.query) {
@@ -242,6 +275,17 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
       perResourceTags.push(`menu:${params.slug}`);
     } else if (resource === 'i18n' && typeof params?.query?.lang === 'string' && params.query.lang) {
       perResourceTags.push(`i18n:${params.query.lang}`);
+    } else if (resource === 'posts') {
+      const postType = typeof params?.query?.type === 'string' && params.query.type ? params.query.type : 'post';
+      perResourceTags.push(`type:${postType}`);
+    } else if (resource === 'post' && params?.slug) {
+      const postType = params.slug.split('/')[0];
+      if (postType) perResourceTags.push(`type:${postType}`);
+    } else if ((resource === 'terms' || resource === 'term') && params?.slug) {
+      const tax = params.slug.split('/')[0];
+      if (tax) perResourceTags.push(`taxonomy:${tax}`);
+    } else if (resource === 'comments' && params?.query?.post !== undefined) {
+      perResourceTags.push(`comments:post:${String(params.query.post)}`);
     }
     if (!isSessionScoped && (options.next || def.cacheTags.length > 0 || perResourceTags.length > 0)) {
       const mergedTags = Array.from(
