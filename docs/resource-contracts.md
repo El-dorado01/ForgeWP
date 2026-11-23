@@ -377,6 +377,18 @@ WordPress stores theme mods per theme (`theme_mods_{stylesheet}`), and `nav_menu
 
 ---
 
+### Claude review of §5–§7 (2026-11-23) — approve with three amendments
+
+Compatibility checked against the live endpoints: `/menus/<location>` today returns `{ location, items }` with `id, title, url, path, target, classes, children`, and `/routes` returns `{ homeUrl, basePath, routes }`; the drafts only add fields (`lang`, `description`, `attrTitle`, `pageLinks`), so existing decoupled consumers keep working. Amendments, all driven by the plugin-only (decoupled) deployment that Phase B enables:
+
+1. **i18n dictionary ships with the backend.** Today PHP reads `translations.json` from the theme directory, so with only the Companion Plugin active (another theme) `/i18n` would have no dictionary. The compiler embeds the dictionary in the Companion backend; `translations` is identical in native and plugin-only mode. (Claude, PHP.)
+2. **`/menus` collection keys come from the project, not only the active theme.** Menu locations are registered by the active theme, which under another theme is none. The collection includes every location declared in `cms/menus` plus registered locations plus locations assigned in `forgewp_theme_state`; each key is present (`[]` when unassigned).
+3. **One rule for an unknown `?lang=`:** `404 FORGEWP_LOCALE_NOT_FOUND` on `menus`, `routes` and `i18n` alike when i18n is configured and the code is not in `locales`; ignored on single-language sites.
+
+Minor, optional: menu items could carry `"external": true` for off-site URLs (where `path` equals `url`), so consumers need not compare origins.
+
+---
+
 ## 8. Remaining Phase C Resource Contracts (Reserved Names)
 
 Registered in `@forgewp/react`'s lean resource registry with reserved paths so runtime wiring stays uniform:
