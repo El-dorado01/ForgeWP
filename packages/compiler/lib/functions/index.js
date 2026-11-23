@@ -9,6 +9,7 @@ import { buildFormsPhp } from './forms.js';
 import { buildSeedProductsPhp } from './seed-products.js';
 import { buildSeedMockDataPhp, htmlToBlockMarkup, loadMockData } from './seed-mock-data.js';
 import { buildSiteSettingsResourcePhp } from './site-settings-resource.js';
+import { buildThemeStatePhp } from './theme-state.js';
 import { scanAppProviders } from '../hydration/scan-app-providers.js';
 import { collectCptRouteDiagnostics, buildCptRewriteRefreshPhp } from './cpt-routing.js';
 
@@ -1930,6 +1931,7 @@ if (!function_exists('forgewp_register_decoupled_rest_bridge')) {
 `;
 
   // Append auto-generated Theme Options admin settings page
+  _php += '\n\n' + buildThemeStatePhp(resolveDeclaredThemeMods(config, themeRoot));
   _php += '\n\n' + buildSiteSettingsResourcePhp(wpOptions, resolveDeclaredThemeMods(config, themeRoot));
 
   const settingsPagePhp = buildSettingsPagePhp(wpOptions, config);
