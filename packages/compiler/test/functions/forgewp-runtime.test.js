@@ -175,7 +175,7 @@ describe('Phase A: ForgeWpRuntime, fail-loud production, and site-settings pilot
       '<div>+44 20 1234|Canonical Footer</div>',
     );
 
-    // 2. Legacy native hydration (`siteSettings.theme_mods`)
+    // 2. Legacy native hydration (`siteSettings.theme_mods`) is no longer read (resources.* only)
     vi.stubGlobal('window', {
       forgeWpHydration: {
         siteSettings: {
@@ -185,7 +185,7 @@ describe('Phase A: ForgeWpRuntime, fail-loud production, and site-settings pilot
       },
     });
     expect(renderToStaticMarkup(React.createElement(SettingsProbe))).toBe(
-      '<div>+1 555-9999|Legacy Footer</div>',
+      '<div>fallback-phone|fallback-footer</div>',
     );
 
     // 3. Decoupled REST source (fetched & cached)

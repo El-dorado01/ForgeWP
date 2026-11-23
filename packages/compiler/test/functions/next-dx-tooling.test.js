@@ -84,6 +84,7 @@ describe('Next.js DX tooling: forgewp init, adapter-aware doctor/repair/clean, a
       expect(pkg.scripts.dev).toBe('next dev');
       expect(pkg.scripts.export).toBe('forgewp export');
       expect(pkg.scripts.doctor).toBe('forgewp doctor');
+      expect(pkg.scripts['wp:doctor']).toBe('forgewp doctor');
       expect(pkg.scripts['dev:decoupled']).toContain('FORGEWP_DEPLOYMENT_MODE');
       expect(pkg.scripts['dev:decoupled']).toContain('decoupled');
       expect(pkg.scripts['dev:decoupled']).not.toContain('--webpack');
