@@ -188,6 +188,11 @@ export interface WpOptionField {
   label?: string;
   default?: string;
   postType?: string;
+  /**
+   * Keep this option server-side only: omitted from the `site-settings` REST
+   * resource and native hydration (docs/resource-contracts.md §4.1).
+   */
+  private?: boolean;
 }
 
 export type WpOptionsSchema = Record<string, WpOptionField>;

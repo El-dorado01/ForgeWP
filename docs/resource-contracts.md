@@ -190,6 +190,8 @@ WordPress stores theme mods per theme (`theme_mods_{stylesheet}`), and `nav_menu
 `forgeWpHydration.siteSettings` and `.forms` are removed **before the Dec 31 beta**. Order: Claude emits `resources.*` alongside the legacy keys → Gemini's runtime reads `resources.*` first (already the case in `native-source.ts`) → one PR deletes the legacy keys, signed off in both agents' handoff notes.
 
 ### 4.5 Parity checks (verified in the cloud sandbox before a resource is marked done)
+"Identical" means deep-equal after `JSON.parse`: WordPress REST escapes `/` and non-ASCII characters (`\/`, `\u00a9`) while the inline hydration script does not, so raw bytes differ for the same data.
+
 - `resources['site-settings']` on `/` deep-equals the `GET /site-settings` body.
 - `resources.forms.forms.contact` deep-equals `GET /forms/contact?lang=<same>`, and a decoupled submit from an origin listed in `FORGEWP_FRONTEND_ORIGIN` stores a submission and sends mail.
 

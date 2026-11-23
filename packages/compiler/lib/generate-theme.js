@@ -1949,6 +1949,7 @@ if (window.forgeWpBlocks) {
         defaultValue: field.default || '',
         postType:
           field._type === 'postPicker' ? field.postType || 'post' : null,
+        private: field.private === true,
       });
     }
   }

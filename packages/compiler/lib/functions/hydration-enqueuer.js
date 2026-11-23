@@ -163,6 +163,9 @@ ${page_links_php}
                 'manifest' => array(
 ${manifestPairs}
                 ),${providersPhp}
+                'resources' => array(
+                    'site-settings' => function_exists('forgewp_site_settings_resource') ? forgewp_site_settings_resource() : null,
+                ),
                 'siteSettings' => array(
                     'options' => array(
 ${optionsPairs}

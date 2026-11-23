@@ -8,8 +8,23 @@ import { buildSettingsPagePhp } from './settings-page.js';
 import { buildFormsPhp } from './forms.js';
 import { buildSeedProductsPhp } from './seed-products.js';
 import { buildSeedMockDataPhp, htmlToBlockMarkup, loadMockData } from './seed-mock-data.js';
+import { buildSiteSettingsResourcePhp } from './site-settings-resource.js';
 import { scanAppProviders } from '../hydration/scan-app-providers.js';
 import { collectCptRouteDiagnostics, buildCptRewriteRefreshPhp } from './cpt-routing.js';
+
+/** Declared theme mods: config.themeMods, else cms/site-settings.json theme_mods. */
+function resolveDeclaredThemeMods(config, themeRoot) {
+  if (config && config.themeMods && typeof config.themeMods === 'object') return config.themeMods;
+  if (!themeRoot) return {};
+  const p = path.join(themeRoot, 'cms', 'site-settings.json');
+  if (!existsSync(p)) return {};
+  try {
+    const json = JSON.parse(readFileSync(p, 'utf8'));
+    return json && typeof json.theme_mods === 'object' && json.theme_mods ? json.theme_mods : {};
+  } catch {
+    return {};
+  }
+}
 
 /** The cms/mock-data `home` page (if any) seeds the auto-provisioned static front page. */
 function resolveFrontPageSeed(themeRoot) {
@@ -1055,6 +1070,7 @@ ${fieldsPhpLines.join('\n')}
     }
 
     optionsPairs = wpOptions
+      .filter((opt) => opt.private !== true)
       .map((opt) => {
         const defaultVal = opt.defaultValue || '';
         const phpDefault = `'${defaultVal.replace(/'/g, "\\'")}'`;
@@ -1914,6 +1930,8 @@ if (!function_exists('forgewp_register_decoupled_rest_bridge')) {
 `;
 
   // Append auto-generated Theme Options admin settings page
+  _php += '\n\n' + buildSiteSettingsResourcePhp(wpOptions, resolveDeclaredThemeMods(config, themeRoot));
+
   const settingsPagePhp = buildSettingsPagePhp(wpOptions, config);
   if (settingsPagePhp) {
     _php += '\n\n' + settingsPagePhp;
