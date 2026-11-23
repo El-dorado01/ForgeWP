@@ -1068,7 +1068,37 @@ export function buildRouteCapabilityManifest(projectRoot, options = {}) {
       // Ignore unreadable config file
     }
   }
+  let hasAuthPackageDep = false;
+  const pkgJsonPath = path.join(resolvedRoot, 'package.json');
+  if (existsSync(pkgJsonPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf8'));
+      hasAuthPackageDep = Boolean(
+        pkg?.dependencies?.['@forgewp/auth'] || pkg?.devDependencies?.['@forgewp/auth'],
+      );
+    } catch {
+      // Ignore invalid package.json
+    }
+  }
+  const hasCmsAuthFiles = [
+    'cms/roles.ts',
+    'cms/roles.js',
+    'cms/roles.mjs',
+    'cms/roles.json',
+    'cms/users.ts',
+    'cms/users.js',
+    'cms/users.mjs',
+    'cms/users.json',
+  ].some((relFile) => existsSync(path.join(resolvedRoot, relFile)));
+
   const authTransport = {
+    hasAuthBackend: Boolean(
+      (config.auth && (config.auth === true || (typeof config.auth === 'object' && Object.keys(config.auth).length > 0))) ||
+        (config.roles && typeof config.roles === 'object' && Object.keys(config.roles).length > 0) ||
+        (Array.isArray(config.users) && config.users.length > 0) ||
+        hasAuthPackageDep ||
+        hasCmsAuthFiles,
+    ),
     sameDomain: Boolean(
       config.deploymentMode === 'hybrid' ||
         config.auth?.transport === 'same-domain' ||
@@ -1309,13 +1339,28 @@ export function evaluateTargetCompatibility(manifest, target) {
       }
     }
 
-    // 9. Protected routes in decoupled mode require same-domain routing or JWT session transport (§9)
+    // 9. Protected routes in decoupled mode require ForgeWP auth backend + session transport (§9)
     if (target === 'decoupled') {
       const protectedRoutes = routesEntries
         .filter(([, route]) => !route.hybrid && (route.uses || []).includes('auth'))
         .map(([routePath]) => routePath)
         .sort();
-      const authTransport = manifest.global?.authTransport || { sameDomain: false, jwt: false };
+      const authTransport = manifest.global?.authTransport || {
+        hasAuthBackend: false,
+        sameDomain: false,
+        jwt: false,
+      };
+      if (protectedRoutes.length > 0 && !authTransport.hasAuthBackend) {
+        warnings.push({
+          code: 'AUTH_BACKEND_MISSING',
+          severity: 'warning',
+          routes: protectedRoutes,
+          affectedMode: target,
+          message: `Protected route(s) (${protectedRoutes.join(', ')}) call /wp-json/forgewp/v1/auth/me in decoupled mode, but ForgeWP's auth backend is not enabled in this project. /auth/me will return 404 and fail-closed guards will redirect every visitor to login.`,
+          suggestion:
+            'Install @forgewp/auth or configure auth / roles / users in wp.config.ts (or cms/roles.ts) and re-export the Companion Plugin.',
+        });
+      }
       if (protectedRoutes.length > 0 && !authTransport.sameDomain && !authTransport.jwt) {
         warnings.push({
           code: 'AUTH_CROSS_ORIGIN_SESSION_UNCONFIGURED',

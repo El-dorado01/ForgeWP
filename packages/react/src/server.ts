@@ -443,6 +443,37 @@ async function performNextRedirect(target: string): Promise<never> {
   throw new ForgeWpAuthRedirectError(target);
 }
 
+/**
+ * Attempts to invoke Next.js's `forbidden()` for a real HTTP 403 status when
+ * `experimental.authInterrupts` is enabled in `next.config.*`. If Next.js is
+ * absent or `authInterrupts` is disabled, returns `false` so callers can fall
+ * back to the built-in 403 UI (HTTP 200) without crashing.
+ */
+async function tryNextForbidden(): Promise<boolean> {
+  let forbiddenFn: (() => never) | null = null;
+  try {
+    const spec = 'next/navigation';
+    const mod = await import(/* @vite-ignore */ spec);
+    if (mod && typeof mod.forbidden === 'function') {
+      forbiddenFn = mod.forbidden;
+    }
+  } catch {
+    return false;
+  }
+  if (!forbiddenFn) return false;
+  try {
+    forbiddenFn();
+    return true;
+  } catch (err: any) {
+    const digest = typeof err?.digest === 'string' ? err.digest : '';
+    if (digest.includes('403') || digest === 'NEXT_FORBIDDEN') {
+      throw err;
+    }
+    // `forbidden()` threw because experimental.authInterrupts is not enabled
+    return false;
+  }
+}
+
 async function fetchDecoupledAuthMe(params: {
   wpUrl?: string;
   fetchImpl?: typeof globalThis.fetch;
@@ -1837,9 +1868,10 @@ function evaluateRequireAuth(
     if (opts.forbiddenRedirect) {
       return performNextRedirect(opts.forbiddenRedirect);
     }
-    return opts.forbiddenFallback !== undefined
-      ? React.createElement(React.Fragment, null, opts.forbiddenFallback)
-      : renderDefaultForbiddenElement();
+    if (opts.forbiddenFallback !== undefined) {
+      return React.createElement(React.Fragment, null, opts.forbiddenFallback);
+    }
+    return tryNextForbidden().then(() => renderDefaultForbiddenElement());
   }
   return React.createElement(React.Fragment, null, opts.children ?? null);
 }
