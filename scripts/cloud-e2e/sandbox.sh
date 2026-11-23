@@ -12,7 +12,8 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 export FORGEWP_E2E_DATA="${FORGEWP_E2E_DATA:-/home/user/e2e}"
-DC=(sudo -E docker compose -p forgewp-e2e -f "$HERE/docker-compose.yml")
+# Pass the data dir explicitly: some sudo configurations (GitHub runners) ignore -E.
+DC=(sudo env "FORGEWP_E2E_DATA=$FORGEWP_E2E_DATA" docker compose -p forgewp-e2e -f "$HERE/docker-compose.yml")
 # Filter compose's container chatter but keep WP-CLI's exit status (grep exits 1
 # when nothing is left, which made `core is-installed` look false and re-ran the
 # installer, resetting permalinks).

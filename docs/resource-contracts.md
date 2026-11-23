@@ -571,38 +571,265 @@ Registered in `@forgewp/react`'s lean resource registry with reserved paths so r
 | `menus` | `/menus` | `public` | `["menus", "menu:<location>"]` | Approved (Phase C — §5) |
 | `routes` | `/routes` | `public` | `["routes"]` | Approved (Phase C — §6) |
 | `i18n` | `/i18n` | `public` | `["i18n", "i18n:<lang>"]` | Approved (Phase C — §7) |
-| `seo` | `/seo` | `public` | `["seo"]` | Reserved (Phase C) |
-| `editables` | `/editables` | `public` | `["editables"]` | Reserved (Phase C) |
+| `seo` | `/seo?path=` | `public` | `["seo", "seo:path:<path>"]` | Draft (§13) |
+| `editables` | `/editables` | `public` | `["editables", "post:<id>"]` | Draft (§14) |
 | `auth-me` | `/auth/me` | `session` | `["auth"]` | Approved (Phase C — §9, §12a) |
 | `posts` / `post` | `/posts`, `/posts/<type>/<slug>` | `public` | `["posts", "type:<type>", "post:<id>"]` | Approved (Phase C — §10, §12a) |
 | `terms` | `/terms/<taxonomy>` | `public` | `["terms", "taxonomy:<taxonomy>"]` | Approved (Phase C — §11) |
 | `comments` | `/comments` | `public` read / guarded write | `["comments", "comments:post:<id>"]` | Approved (Phase C — §12, §12a) |
-| `commerce-settings` | `/commerce/settings` | `public` | `["commerce"]` | Draft (R7 — §13) |
-| `products` / `product` | `/products`, `/products/<slug>` | `public` | `["products", "product:<id>"]` | Draft (R7 — §13) |
-| `cart` | `/cart` | `visitor` (never hydrated, never cached) | — | Draft (R7 — §13) |
-| `checkout` | `/checkout`, `/checkout/gateways` | `visitor` | — | Draft (R7 — §13) |
-| `customer` | `/customer/*` | `session` | — | Draft (R7 — §13) |
-| `wishlist` | `/wishlist` | `session` | — | Draft (R7 — §13) |
+| `commerce-settings` | `/commerce/settings` | `public` | `["commerce"]` | Draft (R7 — §15) |
+| `products` / `product` | `/products`, `/products/<slug>` | `public` | `["products", "product:<id>"]` | Draft (R7 — §15) |
+| `cart` | `/cart` | `visitor` (never hydrated, never cached) | — | Draft (R7 — §15) |
+| `checkout` | `/checkout`, `/checkout/gateways` | `visitor` | — | Draft (R7 — §15) |
+| `customer` | `/customer/*` | `session` | — | Draft (R7 — §15) |
+| `wishlist` | `/wishlist` | `session` | — | Draft (R7 — §15) |
 
 ---
 
-## 13. `commerce` — WooCommerce on the runtime (R7 — Status: **Draft by Claude, 2026-11-23**, for Gemini's review and founder approval)
+## 13. `seo` (Phase C — Status: Draft by Gemini for Claude review & founder approval, 2026-11-23)
+
+Why: in decoupled mode, Next.js has no access to WordPress's `wp_head` hook, so SEO metadata managed by Yoast SEO, Rank Math, Polylang hreflang, or ForgeWP schemas is absent on the decoupled origin. This contract replaces site-specific PHP workarounds (such as `hotelchecker24`'s `hreflang.php`, `og-fallback.php`, and `schemas.php`) with one portable resource powering Next.js `generateMetadata()` and JSON-LD rendering.
+
+- **Resource Name:** `seo`
+- **REST Route:** `GET /wp-json/forgewp/v1/seo?path=<path>&lang=<lang>`
+- **Auth:** `public` — only resolves published public posts/pages, public CPT singles, public CPT archives, public taxonomy archives, the front page, or the posts page. Never exposes `draft`, `pending`, `private`, `trash`, or password-protected content (`content` / private meta never leak; password-protected posts return `404` or minimal robots `noindex` without private fields — **question below**).
+- **Query Params:**
+  - `path` (required, string): site-relative URL path (e.g. `/`, `/en/contact/`, `/blog/first-post/`). Query strings are ignored for route resolution; full external `http(s)://` URLs are rejected (`400 FORGEWP_INVALID_PATH`).
+  - `lang` (optional, string): explicit locale override; validated per Amendment 3 (`404 FORGEWP_LOCALE_NOT_FOUND` on unknown locale when i18n is configured).
+- **Cache Tags:** `["seo", "seo:path:<normalized-path>"]` (plus `"post:<id>"` or `"term:<id>"` when resolved to a post or term).
+- **HTTP Caching:** `Cache-Control: public, max-age=60, stale-while-revalidate=300` (overridable by host/edge).
+- **Native Hydration Key:** `window.forgeWpHydration.resources.seo` (same JSON shape for parity CI and client inspection; in Native mode, WordPress `wp_head` remains authoritative for `<head>` HTML).
+
+### Frontend-Domain Canonical & Alternate Rewriting (`FORGEWP_FRONTEND_ORIGIN`)
+- WordPress runs on the backend origin (e.g. `https://wp.example.com`), while the decoupled site is served on the frontend origin (first origin in `FORGEWP_FRONTEND_ORIGIN`, e.g. `https://example.com`, per §4.3).
+- When `FORGEWP_FRONTEND_ORIGIN` is configured, PHP rewrites URLs whose origin matches `forgewp_raw_home_url()` to the frontend origin in:
+  - `canonical` and `alternates.canonical`
+  - `alternates.languages[*]` (all hreflang URLs including `x-default`)
+  - `openGraph.url`
+  - Page-URL properties inside `jsonLd` (`@id`, `url`, `item` on `BreadcrumbList` / `ItemList` / `WebPage`)
+- Media/upload URLs (`openGraph.images[].url`, `twitter.images[]`, JSON-LD `image` / `logo`) remain on the WordPress/CDN media origin and are **not** rewritten to the frontend origin.
+- When `FORGEWP_FRONTEND_ORIGIN` is not configured, canonicals keep WordPress's `homeUrl` origin.
+
+### SEO Plugin Bridge Priority
+Reuses `forgewp_seo_plugin_active()` (which already accounts for Rank Math registration via `RankMath\Helper::is_invalid_registration()`):
+1. **Yoast SEO** (`defined('WPSEO_VERSION')` and `YoastSEO()->meta`): reads Yoast title, meta description, canonical, robots, Open Graph, Twitter, and `wpseo_schema_graph` JSON-LD for the resolved WP query/object.
+2. **Rank Math SEO** (`RankMath` active and registered): reads Rank Math title, description, canonical, robots, Open Graph, Twitter, and `rank_math/json_ld` schema for the resolved object.
+3. **Extensibility filters:** `apply_filters('forgewp_seo_resource', $payload, $context)` and `apply_filters('forgewp_seo_json_ld', $schemas, $context)` allow AIOSEO / SEOPress adapters or project-specific CPT schemas (e.g. `Hotel`, `ItemList`, `FAQPage`) to participate cleanly.
+4. **Core WordPress + ForgeWP fallback (`provider: "core"`):**
+   - `title`: `wp_get_document_title()` / `<WpHead>` title fallback.
+   - `description`: singular excerpt (`wp_strip_all_tags(get_the_excerpt())`) or `get_bloginfo('description')`.
+   - `openGraph.images`: featured image (`full`) or `site.logoUrl` / fallback logo (filling missing `description` / `og:image` even when an active SEO plugin leaves them blank, matching `og-fallback.php`).
+- **Hreflang (`alternates.languages`):** When Polylang/WPML is active, includes reciprocal localized URLs for every published translation plus `"x-default"` pointing to the default-language translation (falling back to the current page URL or default-language home URL, matching `hreflang.php`), rewritten to the frontend origin when `FORGEWP_FRONTEND_ORIGIN` is set. Empty `{}` on single-language sites.
+
+### Response JSON (`GET /wp-json/forgewp/v1/seo?path=/en/contact/` — `200 OK`)
+
+```json
+{
+  "path": "/en/contact/",
+  "lang": "en",
+  "provider": "yoast",
+  "objectType": "post",
+  "objectId": 17,
+  "title": "Contact — Hotelchecker24",
+  "description": "Get in touch with the Hotelchecker24 editorial team.",
+  "canonical": "https://example.com/en/contact/",
+  "robots": {
+    "index": true,
+    "follow": true,
+    "maxSnippet": -1,
+    "maxImagePreview": "large",
+    "maxVideoPreview": -1
+  },
+  "openGraph": {
+    "title": "Contact — Hotelchecker24",
+    "description": "Get in touch with the Hotelchecker24 editorial team.",
+    "type": "article",
+    "url": "https://example.com/en/contact/",
+    "siteName": "Hotelchecker24",
+    "locale": "en_US",
+    "images": [
+      {
+        "url": "https://wp.example.com/wp-content/uploads/contact-og.jpg",
+        "width": 1200,
+        "height": 630,
+        "alt": "Hotelchecker24 Contact"
+      }
+    ]
+  },
+  "twitter": {
+    "card": "summary_large_image",
+    "title": "Contact — Hotelchecker24",
+    "description": "Get in touch with the Hotelchecker24 editorial team.",
+    "site": "@hotelchecker24",
+    "creator": "",
+    "images": ["https://wp.example.com/wp-content/uploads/contact-og.jpg"]
+  },
+  "alternates": {
+    "canonical": "https://example.com/en/contact/",
+    "languages": {
+      "de": "https://example.com/kontakt/",
+      "en": "https://example.com/en/contact/",
+      "x-default": "https://example.com/kontakt/"
+    }
+  },
+  "jsonLd": [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "@id": "https://example.com/en/contact/",
+      "url": "https://example.com/en/contact/",
+      "name": "Contact — Hotelchecker24"
+    }
+  ]
+}
+```
+
+### Field Guarantees
+- `provider`: `"yoast" | "rankmath" | "aioseo" | "seopress" | "core"`.
+- `objectType`: `"front-page" | "posts-page" | "post" | "term" | "post-type-archive"`.
+- `objectId`: `number | null` (`null` for CPT archives).
+- `title`, `description`, `canonical`: strings (entity-decoded plain text; empty string `""` when unset).
+- `robots`: always present with boolean `index` and `follow` (plus optional numeric/string `maxSnippet`, `maxImagePreview`, `maxVideoPreview`).
+- `openGraph.images` / `twitter.images` / `jsonLd`: always arrays (`[]` when empty).
+- `alternates.languages`: always an object (`{}` when no alternate languages exist).
+
+### Error Cases
+- `400 FORGEWP_INVALID_PATH` — missing `path`, non-relative `http(s)://` URL, or invalid path syntax.
+- `404 FORGEWP_SEO_NOT_FOUND` — `path` does not resolve to any published public WordPress route (404).
+- `404 FORGEWP_LOCALE_NOT_FOUND` — explicit `?lang=<unknown>` per Amendment 3.
+
+### Next.js Consumer (`@forgewp/react/server`)
+- `wpClient.getSeo(path, { lang? })`: fetches `GET /wp-json/forgewp/v1/seo?path=...` in decoupled mode (with `['seo', 'seo:path:<path>']` cache tags) and returns `SeoResource | null` (returning `null` on `404`, throwing `ForgeWpRuntimeError` on `FORGEWP_LOCALE_NOT_FOUND` or `FORGEWP_INVALID_PATH`).
+- `toNextMetadata(seo, fallback?)`: pure helper converting `SeoResource` into a Next.js `Metadata` object (`title`, `description`, `robots`, `openGraph`, `twitter`, `alternates`).
+- `<WpJsonLd schemas={seo?.jsonLd} />`: server-safe `<script type="application/ld+json">` emitter escaping `<` as `\u003c` so embedded JSON-LD cannot break out of `<script>` tags.
+
+### Questions for Claude (R4)
+1. **Path resolution in REST context:** Are you comfortable simulating the main `WP_Query` / `WP::parse_request()` for `?path=` (so Yoast's `YoastSEO()->meta->for_url()` / Rank Math's context resolvers work identically on pages, CPT singles, CPT archives, and Polylang-prefixed paths like `/en/contact/`), or do you prefer resolving the post/term/archive explicitly and passing it to Yoast/Rank Math APIs?
+2. **Password-protected posts:** Should `GET /seo?path=<protected-post>` return `200 OK` with title + `robots: { index: false, follow: false }` and empty `description`/`jsonLd` (so search engines see `noindex` without leaking content), or `404 FORGEWP_SEO_NOT_FOUND`?
+
+### Claude review (2026-11-23) — **agree, with these answers**
+1. **Path resolution:** resolve explicitly, not by simulating the main request. `?path=` → (a) front page / posts page, (b) `forgewp_resolve_path_object()` over pages, posts, public CPT singles and archives, public taxonomy terms (Polylang prefix stripped with `forgewp_raw_home_url()`), (c) 404. Then: **Yoast** via `YoastSEO()->meta->for_post( $id )` / `for_term( $id )` / `for_post_type_archive( $type )` / `for_home_page()` / `for_posts_page()`; **Rank Math** has no per-object API, so for it only we set up `$wp_query` / `$post` for the resolved object (`query_posts()` style, restored after) and read its `rank_math/head` output through its filters. Explicit resolution is also what enforces "published and public only" before any plugin runs.
+2. **Password-protected posts: `200`** with `title`, `canonical`, `alternates` and the plugin's own `robots` (do not force `noindex`; WordPress core does not, and it is the site owner's SEO call). `description`, `openGraph.description`, `twitter.description` are `""` and `jsonLd` is `[]`, because plugins derive them from the protected content.
+3. **Native `resources.seo`:** build it from the same Yoast/Rank Math presentation `wp_head` already computed (memoized), so native pages do not run the SEO plugin twice.
+4. **Follow-up (post-beta):** sitemaps and `robots.txt` on the frontend domain (Yoast/Rank Math sitemap URLs point at the WordPress origin).
+
+
+---
+
+## 14. `editables` (Phase C — Status: Draft by Gemini for Claude review & founder approval, 2026-11-23)
+
+Why: in decoupled mode, `useWpMeta()` and `<WpRepeater>` currently fall back to static schema defaults (`getEditableDefaults()` / `defaultValue`) because there is no normalized REST resource for `defineEditable()` / ACF fields and repeaters. Today repeaters render stale/default rows in decoupled mode (visible content bug).
+
+- **Resource Name:** `editables`
+- **REST Route:** `GET /wp-json/forgewp/v1/editables`
+- **Auth:** `public` — only serves **published, public** posts/pages and **only** field keys declared in the project's `cms/editables/*.ts` schemas (compiled into a static PHP schema manifest inside the Companion backend, same pattern as `forms` and `i18n`). Arbitrary `wp_postmeta`, `_`-prefixed WordPress internal keys, and fields marked `private: true` are never exposed.
+- **Query Params:**
+  - Target selector (at least one required):
+    - `path` (string, e.g. `/` or `/en/about/`): resolves published post/page by site-relative path (including Polylang translations).
+    - `routeId` (string, e.g. `about`, `front-page`): resolves via `forgewp_resolve_route_page_id()` (respecting `lang`).
+    - `post` (integer): explicit published public post ID.
+  - `lang` (optional, string): locale parameter per Amendment 3 (`404 FORGEWP_LOCALE_NOT_FOUND` on unknown locale when i18n is configured).
+  - `schema` (optional, string): explicit schema name when targeting a specific `cms/editables/<schema>.ts` manifest entry; otherwise inferred from the resolved post's route/template/postType.
+  - `keys` (optional, comma-separated string): optional subset of declared schema keys to return.
+- **Cache Tags:** `["editables", "post:<id>"]` (plus `"route:<routeId>"` when present).
+- **HTTP Caching:** `Cache-Control: public, max-age=60, stale-while-revalidate=300`.
+- **Native Hydration Key:** `window.forgeWpHydration.resources.editables` (populated on singular views with the identical JSON shape for the current queried post).
+
+### Field Normalization Guarantees (by `defineEditable()` field type)
+Every field in `fields` is normalized identically for REST and Native hydration, reusing `forgewp_get_meta_value()` / `forgewp_get_repeater_field()` rules and falling back to the schema `default` when WordPress meta is empty (`null`, `false`, `""`, or `[]`):
+
+| Field Type | Normalized JSON Type | Resolution & Fallback Rules |
+|---|---|---|
+| `text`, `color`, `url`, `select`, `icon` | `string` | Trimmed/raw scalar value from ACF `get_field()` or `get_post_meta()`; falls back to schema `default` (or `""`). |
+| `richText` | `string` (HTML) | Non-empty string passed through `wpautop()` (matching `forgewp_get_meta_value(..., true)`); empty falls back to schema `default` (or `""`). |
+| `number` | `number` | Numeric cast (`int`/`float`); empty/non-numeric falls back to schema `default` (or `0`). |
+| `boolean` | `boolean` | `'1'`, `1`, `true`, `'true'` → `true`; `'0'`, `0`, `false`, `'false'` → `false`; unset (`""` / `null`) falls back to schema `default` (or `false`). |
+| `image` | `EditableImageContract \| null` | Resolves ACF image array (`url`, `alt`, `width`, `height`, `srcset`), attachment ID (`wp_get_attachment_image_src()`), or URL string into `{ id?, url, alt, width?, height?, srcset? }`; empty/missing returns schema `default` image object (if URL string, `{ url, alt: "" }`) or `null`. |
+| `repeater` | `Array<Record<string, unknown>>` | Reads rows via `forgewp_get_repeater_field()` order: (1) ACF `get_field()`, (2) ACF flat indexed meta `{key}_{i}_{subkey}`, (3) `{key}_json_fallback`, (4) raw JSON in `{key}`. Each subfield is recursively normalized by its declared schema subfield type. When 0 rows exist in WordPress, falls back to schema `default` rows (or `[]`). |
+
+### Password-Protected Posts
+- Matches §10 (`posts`): a password-protected published post returns `200 OK` with `"protected": true` and `"fields": {}` (no meta or repeater rows leaked).
+
+### Response JSON (`GET /wp-json/forgewp/v1/editables?path=/about/` — `200 OK`)
+
+```json
+{
+  "postId": 15,
+  "postType": "page",
+  "routeId": "about",
+  "path": "/about/",
+  "lang": "en",
+  "schema": "about",
+  "protected": false,
+  "fields": {
+    "hero_title": "About Our Studio",
+    "hero_intro": "<p>We build dual-mode WordPress sites with React.</p>\n",
+    "show_team": true,
+    "founded_year": 2021,
+    "hero_image": {
+      "id": 88,
+      "url": "https://wp.example.com/wp-content/uploads/studio.jpg",
+      "alt": "Studio team",
+      "width": 1600,
+      "height": 900
+    },
+    "team_members": [
+      {
+        "name": "Ada Lovelace",
+        "role": "Engineering Lead",
+        "avatar": {
+          "id": 91,
+          "url": "https://wp.example.com/wp-content/uploads/ada.jpg",
+          "alt": "Ada"
+        }
+      }
+    ]
+  }
+}
+```
+
+### Error Cases
+- `400 FORGEWP_EDITABLES_TARGET_REQUIRED` — none of `path`, `routeId`, or `post` was provided.
+- `404 FORGEWP_POST_NOT_FOUND` — target does not resolve to a published public post/page.
+- `404 FORGEWP_LOCALE_NOT_FOUND` — explicit `?lang=<unknown>` per Amendment 3.
+
+### React / Next.js Consumer (`@forgewp/react`)
+- `wpClient.getEditables(target)`: fetches `/wp-json/forgewp/v1/editables` in decoupled mode (tagged `['editables', ...]`) or reads local mock `meta` / `fixtures` in fixture mode.
+- `getWpEditable(schema, sourceOrClient)` / `wpClient.getEditable(schema, target)`: resolves typed editable fields including `repeater` arrays (`Array<Record<string, ...>>`) in decoupled mode instead of falling back to defaults.
+- `useWpMeta()` and `<WpRepeater>` read from `ForgeWpRuntime` (`resources.editables` in native hydration or `restSource` in decoupled mode), preserving full parity between Native PHP `forgewp_get_repeater_field()` and Decoupled React rendering.
+
+### Questions for Claude (R5)
+1. **Schema manifest & matching:** Today `cms/editables/*.ts` schemas are imported by pages/blocks (`buildPageEditable`, `defineEditable`) and compiled for `register_post_meta()` / ACF registration. Does the compiler already collect a unified field-type map per template/post-type that we can emit into the Companion backend, or should `schema` name be derived from the editable filename + `cms/editables` export?
+2. **Repeater `image` subfield shape:** In `forgewp_get_repeater_field()` (`packages/compiler/lib/functions/index.js:1339`), image subfields are flattened to a URL string (`$sub_val = $sub_val['url']`) for `<WpImage>` / `forgewp_resolve_image_source()`. In JSON, do you prefer normalized image objects `{ id?, url, alt, ... }` for `image` fields (with React helpers accepting both `{ url }` and `string`), or URL strings for `image` subfields?
+3. **Unknown `schema` param:** If `?schema=nonexistent` is passed explicitly, should it return `404 FORGEWP_EDITABLE_SCHEMA_NOT_FOUND` or `200` with `fields: {}`? (Draft assumes `404` when an explicit unknown `schema` is requested, and `200` with `fields: {}` when a valid post simply has no editable schema attached.)
+
+
+---
+### Claude review (2026-11-23) — **agree, with these answers**
+1. **Schema manifest:** the compiler already has it: `scanForEditableSchemas()` (`lib/hydration/editable-schemas.js`) returns template/page slug → parsed schema. Claude emits it into the backend as `forgewp_editable_schemas()`; a post's schema is its route id (`forgewp_route_id`), so `schema` normally needs no parameter.
+2. **Image fields: objects everywhere** in JSON (`{ id, url, alt, width, height, srcset? }`), including repeater subfields. The URL-string flattening in `forgewp_get_repeater_field()` stays for PHP templates only; the resource builder normalizes separately. React helpers accept both an object and a string.
+3. **Unknown explicit `schema`: `404 FORGEWP_EDITABLE_SCHEMA_NOT_FOUND`** — agreed, and `200` with `fields: {}` when the post simply has none.
+4. **Added:** `richText` goes through `wp_kses_post()` after `wpautop()` (meta is written by editors, but the REST body is public HTML). A page can compose several section schemas (`buildPageEditable`); `fields` is the merged map, as the native template sees it. Drafts/previews are out of scope here (public only); preview stays on the existing draft-auth path.
+
+---
+
+## 15. `commerce` — WooCommerce on the runtime (R7 — Status: **Draft by Claude, 2026-11-23**, for Gemini's review and founder approval)
 
 **Goal:** one set of commerce shapes that native themes and decoupled apps both use, safe on cached pages and across origins, so a store can switch modes without rewriting its cart, checkout or account UI. Beta scope is marked per section; everything else is post-beta.
 
-### 13.0 Where we are today (audit, 2026-11-23)
+### 15.0 Where we are today (audit, 2026-11-23)
 
 | # | Finding | Severity | Status |
 |---|---|---|---|
 | A1 | `POST /checkout/process` never ran the payment gateway: every order was forced to `processing`, `payment_method` defaulted to `cod`, unknown gateway ids were accepted, and `/checkout/gateways` listed **invented** Stripe/PayPal entries when none were enabled. A shopper could get a paid-looking order without paying. The chosen shipping method was also dropped. | **Critical** | **Fixed** in `dad33fe` (gateway `process_payment()`, `WC_Checkout::create_order()`, real gateways only). Live check on LocalWP pending (Gemini). |
 | A2 | `useWpCart` calls `POST /cart/remove-coupon`; the handler existed but the route was never registered (404). | Bug | **Fixed** in `dad33fe` |
-| A3 | `@forgewp/woocommerce` runs **two cart stacks**: `components.tsx` talks to WooCommerce's Store API (`/wc/store/v1`, `Nonce` header, nonce in `localStorage`), `hooks.ts` (`useWpCart`) talks to `forgewp/v1/cart` (`X-WP-Nonce`) and mirrors the cart in `localStorage`. Two sources of truth; likely related to R1's "WC Blocks cart skeletons while the React badge shows 1 item". | Design | This contract (§13.3, Q2) |
-| A4 | Money is mixed: cart items use floats (`price: 25.5`), totals use 2-decimal strings, `currency` is only the symbol. Floats round wrongly for 3-decimal and 0-decimal currencies (KWD, JPY), and clients cannot format without the store's separators/position. | Design | §13.1 |
-| A5 | Guest carts depend on the WooCommerce session cookie. Cross-origin decoupled apps cannot keep a guest cart (third-party cookies blocked, `SameSite`). | Design | §13.3 session transport |
+| A3 | `@forgewp/woocommerce` runs **two cart stacks**: `components.tsx` talks to WooCommerce's Store API (`/wc/store/v1`, `Nonce` header, nonce in `localStorage`), `hooks.ts` (`useWpCart`) talks to `forgewp/v1/cart` (`X-WP-Nonce`) and mirrors the cart in `localStorage`. Two sources of truth; likely related to R1's "WC Blocks cart skeletons while the React badge shows 1 item". | Design | This contract (§15.3, Q2) |
+| A4 | Money is mixed: cart items use floats (`price: 25.5`), totals use 2-decimal strings, `currency` is only the symbol. Floats round wrongly for 3-decimal and 0-decimal currencies (KWD, JPY), and clients cannot format without the store's separators/position. | Design | §15.1 |
+| A5 | Guest carts depend on the WooCommerce session cookie. Cross-origin decoupled apps cannot keep a guest cart (third-party cookies blocked, `SameSite`). | Design | §15.3 session transport |
 | A6 | The package reads its own env vars (`NEXT_PUBLIC_WP_API_URL`, `VITE_WP_API_URL`, `window.FORGEWP_API_URL`) instead of the runtime's (`FORGEWP_WP_URL` / `NEXT_PUBLIC_FORGEWP_WP_URL`). | DX | Gemini, with the hook migration |
-| A7 | Same-origin `wishlist`, `customer/*`, `checkout/process` need `X-WP-Nonce` (R1). | Rule | §13.3 transport table |
+| A7 | Same-origin `wishlist`, `customer/*`, `checkout/process` need `X-WP-Nonce` (R1). | Rule | §15.3 transport table |
 
-### 13.1 Conventions for every commerce shape
+### 15.1 Conventions for every commerce shape
 
 - **Money** is an **integer in minor units** (`2550` = 25.50 USD, `3` = 3 JPY), never a float. Every response that contains money carries one `currency` object:
   ```json
@@ -614,12 +841,12 @@ Registered in `@forgewp/react`'s lean resource registry with reserved paths so r
 - **Errors:** the unified envelope. Commerce codes: `wc_unavailable` (503), `product_not_found` (404), `invalid_quantity` (400), `out_of_stock` (409), `coupon_error` (400), `invalid_payment_method` (400), `invalid_billing_email` (400), `cart_empty` (400), `payment_failed` (402), `unauthorized` (401), `forbidden` (403).
 - **Caching:** `products`, `product`, `commerce-settings` are public and cacheable. Everything visitor- or user-specific (`cart`, `checkout`, `customer`, `wishlist`) sends `Cache-Control: private, no-store` and `Vary: Cookie, Authorization, X-ForgeWP-Cart-Token`, and is **never** put into native hydration (cached HTML would leak one visitor's cart to the next).
 
-### 13.2 `commerce-settings` and `products` (beta)
+### 15.2 `commerce-settings` and `products` (beta)
 
 `GET /commerce/settings` → `resources['commerce-settings']` on every native page:
 ```json
 {
-  "currency": { "...": "§13.1" },
+  "currency": { "...": "§15.1" },
   "pricesIncludeTax": false,
   "taxDisplay": { "shop": "excl", "cart": "excl" },
   "couponsEnabled": true,
@@ -631,7 +858,7 @@ Registered in `@forgewp/react`'s lean resource registry with reserved paths so r
 
 `GET /products?page=1&perPage=12&category=<slug>&tag=<slug>&search=&orderby=date|price|popularity|rating|title|menu_order&order=desc|asc&onSale=&featured=&lang=` → `resources.products` on shop and product-category routes:
 ```json
-{ "lang": "en", "page": 1, "perPage": 12, "total": 4, "totalPages": 1, "currency": { "...": "§13.1" }, "items": [ "ProductSummary…" ] }
+{ "lang": "en", "page": 1, "perPage": 12, "total": 4, "totalPages": 1, "currency": { "...": "§15.1" }, "items": [ "ProductSummary…" ] }
 ```
 **ProductSummary**
 ```json
@@ -661,7 +888,7 @@ Registered in `@forgewp/react`'s lean resource registry with reserved paths so r
 ```
 Parity: `resources.products` / `resources.product` / `resources['commerce-settings']` deep-equal their REST bodies (parity CI, once the CI WordPress has WooCommerce — Q6).
 
-### 13.3 `cart` (beta)
+### 15.3 `cart` (beta)
 
 **One cart, one source of truth.** Clients read and mutate the cart only through these routes. `localStorage` may hold an optimistic copy for first paint, never the truth (Q2).
 
@@ -685,7 +912,7 @@ Parity: `resources.products` / `resources.product` / `resources['commerce-settin
   "totals": { "subtotal": 29700, "discount": 2970, "shipping": 500, "fees": 0, "tax": 0, "total": 27230 },
   "needsPayment": true,
   "errors": [],
-  "currency": { "...": "§13.1" }
+  "currency": { "...": "§15.1" }
 }
 ```
 `errors` lists cart problems WooCommerce reports (item went out of stock, coupon expired) as `{ "code", "message", "itemKey"? }`.
@@ -714,7 +941,7 @@ Today's routes (`/cart/add`, `/cart/update`, `/cart/remove`, `/cart/clear`, `/ca
 
 Cookie fallbacks stay behind `forgewp_cookie_auth_request_allowed()` (security review). A cart token never authenticates a user; it only selects a guest cart.
 
-### 13.4 `checkout` (beta: offline and redirect gateways)
+### 15.4 `checkout` (beta: offline and redirect gateways)
 
 `GET /checkout/gateways` → `{ "gateways": [ { "id": "cod", "title": "Cash on delivery", "description": "…", "icon": "", "supports": [ "products" ], "flow": "offline" } ] }`. Only gateways WooCommerce offers for the current cart (A1). `flow` is `offline` (COD, BACS, cheque), `redirect` (off-site payment page) or `client` (needs a client SDK such as Stripe Elements: **post-beta**, listed but not selectable until supported).
 
@@ -731,44 +958,49 @@ Cookie fallbacks stay behind `forgewp_cookie_auth_request_allowed()` (security r
 ```
 Response `200`:
 ```json
-{ "orderId": 36, "orderKey": "wc_order_…", "orderNumber": "36", "status": "on-hold", "paymentMethod": "bacs", "total": 27230, "currency": { "...": "§13.1" }, "needsRedirect": false, "redirectUrl": "https://shop.test/checkout/order-received/36/?key=wc_order_…" }
+{ "orderId": 36, "orderKey": "wc_order_…", "orderNumber": "36", "status": "on-hold", "paymentMethod": "bacs", "total": 27230, "currency": { "...": "§15.1" }, "needsRedirect": false, "redirectUrl": "https://shop.test/checkout/order-received/36/?key=wc_order_…" }
 ```
 Rules (implemented in `dad33fe` for today's `/checkout/process`): the gateway sets the status, never ForgeWP; `needsRedirect: true` means send the shopper to `redirectUrl` and **keep** the cart; `402 payment_failed` carries the gateway's message; free orders complete without a gateway. `paymentData` is forwarded to the gateway the way WooCommerce's own checkout posts it (needed for `client` gateways later). Address keys move to camelCase (today: snake_case `first_name`, accepted as aliases until the hooks migrate).
 
-`GET /checkout/order?id=<id>&key=<orderKey>` → the order-received view (same shape as §13.5 order detail) for guests holding the order key.
+`GET /checkout/order?id=<id>&key=<orderKey>` → the order-received view (same shape as §15.5 order detail) for guests holding the order key.
 
-### 13.5 `customer` (beta) and `wishlist` (beta), session only
+### 15.5 `customer` (beta) and `wishlist` (beta), session only
 
 - `GET /customer/orders?page=&perPage=` → `{ "page", "perPage", "total", "totalPages", "currency", "items": [ { "id", "number", "date", "status", "statusLabel", "total", "itemCount", "path" } ] }`
 - `GET /customer/orders/<id>` → order detail: number, date, status, items (name, quantity, totals, image, `downloadable`), totals, addresses, payment method title, customer note, `actions` (`pay`, `cancel`, `view` URLs WooCommerce allows). 404 for orders that are not the user's.
 - `GET /customer/downloads` → `{ "items": [ { "productId", "name", "downloadName", "url", "remaining": null|int, "expires": null|date } ] }`
-- `GET/POST /customer/profile` (`firstName`, `lastName`, `displayName`, `email`) and `GET/POST /customer/address` (`billing`, `shipping`, keys as §13.4).
+- `GET/POST /customer/profile` (`firstName`, `lastName`, `displayName`, `email`) and `GET/POST /customer/address` (`billing`, `shipping`, keys as §15.4).
 - `GET /wishlist` → `{ "items": [ 28, 29 ] }`; `POST /wishlist/items { productId }`, `DELETE /wishlist/items/<productId>`. Guests keep a local wishlist and `POST /wishlist/merge { items }` after login.
 
 All `401` without a session; same-origin calls need `X-WP-Nonce` (A7).
 
-### 13.6 Native rendering (needs a decision, Q4)
+### 15.6 Native rendering (needs a decision, Q4)
 
 WooCommerce's own Cart, Checkout and My Account pages are block-based. On `forge-commerce` (R1) the Cart block rendered skeletons while the React header badge showed the right cart. Two options:
-- **(a) WooCommerce owns cart/checkout/account pages natively.** ForgeWP themes only style them and show the badge/mini-cart through `cart`. Decoupled apps render their own pages from §13.3–§13.5. Least work, most plugin compatibility (payment gateways ship block integrations).
+- **(a) WooCommerce owns cart/checkout/account pages natively.** ForgeWP themes only style them and show the badge/mini-cart through `cart`. Decoupled apps render their own pages from §15.3–§15.5. Least work, most plugin compatibility (payment gateways ship block integrations).
 - **(b) ForgeWP React pages in both modes** through this contract. One UI everywhere, but every gateway needs ForgeWP support (`client` flow).
 
 **Claude's recommendation: (a) for beta**, (b) later per page. Either way, the skeleton bug needs a LocalWP investigation first (likely a script conflict with the React islands on those pages).
 
-### 13.7 Ownership and order
+### 15.7 Ownership and order
 
 | Step | Owner |
 |---|---|
 | Review this draft, answer Q1–Q6 | Gemini, then founder |
 | PHP: `commerce-settings`, `products`/`product` builders (REST + native), money/currency helpers, cart routes and token transport, checkout, customer, wishlist | Claude |
-| `@forgewp/woocommerce`: one cart stack on §13.3, `formatMoney`, runtime env vars (A6), cart token storage, nonce forwarding | Gemini |
+| `@forgewp/woocommerce`: one cart stack on §15.3, `formatMoney`, runtime env vars (A6), cart token storage, nonce forwarding | Gemini |
 | LocalWP: checkout fix (A1) live, Cart block skeleton investigation, decoupled checklist 1d | Gemini (local) |
 | Parity CI with WooCommerce | Claude (Q6) |
 
-### 13.8 Open questions
+### 15.8 Decisions (founder, 2026-11-23): Claude's recommendations accepted for Q1–Q6
+
+Q1 integer minor units + `currency`; Q2 one cart stack on §15.3; Q3 RESTful paths now, old paths removed before beta; Q4 (a) WooCommerce blocks own native cart/checkout/account pages for beta; Q5 `offline` + `redirect` gateways for beta; Q6 parity CI downloads WooCommerce from its GitHub release. **Status: approved shapes, pending Gemini's review of the client-side parts (§15.7).**
+
+Original questions:
+
 
 - **Q1 Money:** integer minor units + `currency` object (recommended), or decimal strings?
-- **Q2 One cart stack:** move `components.tsx` off the Store API onto §13.3, and demote `localStorage` to an optimistic cache? (Recommended.)
+- **Q2 One cart stack:** move `components.tsx` off the Store API onto §15.3, and demote `localStorage` to an optimistic cache? (Recommended.)
 - **Q3 Routes:** adopt the RESTful paths above now and remove today's paths before beta? (Recommended; aliases meanwhile.)
 - **Q4 Native cart/checkout/account pages:** (a) WooCommerce blocks or (b) ForgeWP React? (Recommended: (a) for beta.)
 - **Q5 Beta gateway scope:** `offline` + `redirect` only; `client` gateways (Stripe Elements, PayPal buttons) post-beta? (Recommended.)

@@ -43,7 +43,7 @@ Live status and the task table: [phase-status-and-blog-urls.md](phase-status-and
 | 2 ✅ | **R6 — Phase D parity CI** (done: `scripts/parity/`, `.github/workflows/parity.yml`, fixture `projects/parity-fixture`; findings in status doc §8) | GitHub Actions job: boot WordPress + MariaDB + Mailpit (reuse `scripts/cloud-e2e/docker-compose.yml`), export a fixture project natively and activate it, run the same project decoupled (`next build && next start` against that WordPress), then fail on differences in: `resources.*` vs REST (deep-equal after `JSON.parse`), key DOM text per route, form submit, auth guard, locale. Gemini supplies the Next.js run step and DOM-compare helpers. Start from `projects/e2e-next` (Claude's test site, local only; promote a trimmed copy into the repo as the CI fixture). |
 | 3 | **R2 PHP side** — native comments list and post terms | After Gemini's marker proposal. Same pattern as `WpQueryLoop` / `the_content`: `markup-processor.js` turns the markers into PHP loops reading live WordPress data. |
 | 4 | **R4 / R5 PHP** — SEO resource (Yoast/Rank Math bridge, frontend-domain canonicals, hreflang, JSON-LD) and editables/repeaters resource | After Gemini's contract drafts are approved. Reuse `forgewp_seo_plugin_active()` (now Rank-Math-registration aware). |
-| 5 ✅ | **R7** WooCommerce contract draft (done: `resource-contracts.md` §13; checkout payment fix `dad33fe`). PHP build starts after Q1–Q6 are answered | Use R1 findings: same-origin Woo endpoints need `X-WP-Nonce`; WooCommerce Blocks Cart skeletons vs React cart badge on `forge-commerce`; decoupled checklist 1d not yet run. |
+| 5 ✅ | **R7** WooCommerce contract draft (done: `resource-contracts.md` §15; checkout payment fix `dad33fe`). PHP build starts after Q1–Q6 are answered | Use R1 findings: same-origin Woo endpoints need `X-WP-Nonce`; WooCommerce Blocks Cart skeletons vs React cart badge on `forge-commerce`; decoupled checklist 1d not yet run. |
 | later | R8 `transformBackendPhp` hook, R9 hand-written plugin sources (Hospitality 2035) | Post-beta. |
 
 ### Gemini
@@ -51,7 +51,7 @@ Live status and the task table: [phase-status-and-blog-urls.md](phase-status-and
 | Order | Task | Notes |
 |---|---|---|
 | 1 | **R2 marker proposal** | How `getComments()` results and `post.terms` are marked during native export so Claude can emit PHP (like `WpQueryLoop`). **Scope grew (parity CI):** the single route's `post.title` and the `postId` passed to islands are frozen too, and so are `getPosts()`/`getTerms()`/`getTerm()` outside `WpQueryLoop`. Write it in the status doc; agree with Claude before building. |
-| 2a | **Review R7 draft** (`resource-contracts.md` §13, Q1–Q6) | Your side: one cart stack, `formatMoney`, env vars, cart token. |
+| 2a | **Review R7 draft** (`resource-contracts.md` §15, Q1–Q6) | Your side: one cart stack, `formatMoney`, env vars, cart token. |
 | 2 | **R4 + R5 contract drafts** | SEO (`/forgewp/v1/seo?path=`) and editables/repeaters, in `resource-contracts.md`, for Claude's review and founder approval. |
 | 3 | **R3** | `getPosts()` list items gain `path`, `terms`, `protected` (additive). |
 | 3a | **P2: native `getSiteSettings()` keys** | Tokenize the `options` / `themeMods` declared in `wp.config` by default, not only those passed to `createWpServerClient()`. Parity CI gap `P2-native-site-settings-keys`; delete it from `scripts/parity/known-gaps.json` in the fix PR. |

@@ -534,4 +534,152 @@ describe('G4: posts, terms, and comments contracts (§10–§12, §12a)', () => 
     expect(urls[0]).toBe('https://wp.example.test/wp-json/forgewp/v1/posts/post/hello');
     expect(urls[1]).toBe('https://wp.example.test/wp-json/forgewp/v1/terms/category/news');
   });
+
+  it('R3: getPosts() and getLivePost() expose additive path, terms, and protected fields across decoupled and fixture modes', async () => {
+    const decoupledClient = createWpServerClient({
+      wpUrl: 'https://wp.example.test',
+      fetch: async (url) => {
+        const u = String(url);
+        if (u.includes('/posts/post/first-post')) {
+          return makeJsonResponse({
+            id: 42,
+            type: 'post',
+            slug: 'first-post',
+            title: 'First Post',
+            excerpt: '<p>Summary</p>',
+            content: '<p>Body</p>',
+            date: '2026-11-01T09:00:00+00:00',
+            modified: '2026-11-02T10:00:00+00:00',
+            permalink: 'https://wp.example.test/blog/first-post/',
+            path: '/blog/first-post/',
+            author: { id: 1, name: 'Ada' },
+            featuredImage: null,
+            terms: {
+              category: [{ id: 3, slug: 'news', name: 'News &amp; Press', path: '/category/news/' }],
+            },
+            blocks: [],
+            protected: false,
+          });
+        }
+        return makeJsonResponse({
+          type: 'post',
+          page: 1,
+          perPage: 20,
+          total: 2,
+          totalPages: 1,
+          items: [
+            {
+              id: 42,
+              type: 'post',
+              slug: 'first-post',
+              title: 'First Post',
+              excerpt: '<p>Summary</p>',
+              date: '2026-11-01T09:00:00+00:00',
+              modified: '2026-11-02T10:00:00+00:00',
+              permalink: 'https://wp.example.test/blog/first-post/',
+              path: '/blog/first-post/',
+              author: { id: 1, name: 'Ada' },
+              featuredImage: null,
+              terms: {
+                category: [{ id: 3, slug: 'news', name: 'News &amp; Press', path: '/category/news/' }],
+              },
+              protected: false,
+            },
+            {
+              id: 43,
+              type: 'post',
+              slug: 'locked-post',
+              title: 'Locked Post',
+              excerpt: '<p>Hidden</p>',
+              date: '2026-11-02T09:00:00+00:00',
+              modified: '2026-11-02T09:00:00+00:00',
+              permalink: 'https://wp.example.test/blog/locked-post/',
+              path: '/blog/locked-post/',
+              author: { id: 1, name: 'Ada' },
+              featuredImage: null,
+              terms: {},
+              protected: true,
+            },
+          ],
+        });
+      },
+    });
+
+    const decoupledList = await decoupledClient.getPosts('post');
+    expect(decoupledList).toHaveLength(2);
+    expect(decoupledList[0]).toMatchObject({
+      id: 42,
+      slug: 'first-post',
+      postType: 'post',
+      author: 'Ada',
+      permalink: '/blog/first-post/',
+      path: '/blog/first-post/',
+      protected: false,
+      source: 'wordpress',
+      terms: {
+        category: [{ id: 3, slug: 'news', name: 'News & Press', path: '/category/news/' }],
+      },
+    });
+    expect(decoupledList[1].protected).toBe(true);
+    expect(decoupledList[1].excerpt).toBe('');
+
+    const customBaseList = await decoupledClient.getPosts('post', { basePath: '/journal' });
+    expect(customBaseList[0].permalink).toBe('/journal/first-post');
+    expect(customBaseList[0].path).toBe('/journal/first-post');
+
+    const liveSingle = await decoupledClient.getLivePost('post', 'first-post');
+    expect(liveSingle).toMatchObject({
+      path: '/blog/first-post/',
+      protected: false,
+      terms: {
+        category: [{ id: 3, slug: 'news', name: 'News & Press', path: '/category/news/' }],
+      },
+    });
+
+    const fixtureClient = createWpServerClient({
+      fixtures: {
+        post: [
+          {
+            id: 7,
+            slug: 'fixture-open',
+            title: 'Fixture Open',
+            excerpt: 'Hello world',
+            content: '<p>Body</p>',
+            path: '/articles/fixture-open/',
+            terms: {
+              category: [{ id: 2, slug: 'guides', name: 'Guides', path: '/category/guides/' }],
+            },
+            protected: false,
+          },
+          {
+            id: 8,
+            slug: 'fixture-secret',
+            title: 'Fixture Secret',
+            excerpt: 'Should be stripped',
+            content: '<p>Secret body</p>',
+            protected: true,
+          },
+        ],
+      },
+    });
+
+    const fixtureList = await fixtureClient.getPosts('post');
+    expect(fixtureList[0]).toMatchObject({
+      permalink: '/blog/fixture-open',
+      path: '/articles/fixture-open/',
+      protected: false,
+      source: 'fixture',
+      terms: {
+        category: [{ id: 2, slug: 'guides', name: 'Guides', path: '/category/guides/' }],
+      },
+    });
+    expect(fixtureList[1]).toMatchObject({
+      permalink: '/blog/fixture-secret',
+      path: '/blog/fixture-secret',
+      protected: true,
+      excerpt: '',
+      content: '',
+      terms: {},
+    });
+  });
 });
