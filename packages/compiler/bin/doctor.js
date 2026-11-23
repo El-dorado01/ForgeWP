@@ -10,22 +10,100 @@ import { diagnoseNextNativeCompatibility } from "../lib/next-adapter.js";
 import { findWpConfigPath } from "../lib/project-language.js";
 import { scanForHydrationIslands, runStaticLintChecks } from "../lib/hydration/index.js";
 import { analyzeHydrationIslands, printDiagnosticsReport } from "../lib/diagnostics.js";
+import {
+  VALID_DOCTOR_TARGETS,
+  buildRouteCapabilityManifest,
+  evaluateTargetCompatibility,
+  writeRouteCapabilityManifest,
+} from "../lib/route-manifest.js";
 import { createUi, formatDuration } from "../lib/terminal-ui.js";
 
 const ui = createUi();
 const { c } = ui;
 const startedAt = Date.now();
 
+function parseDoctorArgs(argv) {
+  let target = null;
+  let json = false;
+  let writeManifest = false;
+  let manifestOutPath = null;
+  let help = false;
+  let argError = null;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--json") {
+      json = true;
+    } else if (arg === "-h" || arg === "--help") {
+      help = true;
+    } else if (arg === "--target") {
+      const next = argv[i + 1];
+      if (!next || next.startsWith("-")) {
+        argError = `Missing value for --target. Expected one of: ${VALID_DOCTOR_TARGETS.join(", ")}.`;
+      } else {
+        target = next.toLowerCase();
+        i++;
+      }
+    } else if (arg.startsWith("--target=")) {
+      target = arg.slice("--target=".length).toLowerCase();
+    } else if (arg === "--write-manifest" || arg === "--manifest") {
+      writeManifest = true;
+      const next = argv[i + 1];
+      if (next && !next.startsWith("-")) {
+        manifestOutPath = next;
+        i++;
+      }
+    } else if (arg.startsWith("--write-manifest=")) {
+      writeManifest = true;
+      manifestOutPath = arg.slice("--write-manifest=".length) || null;
+    } else if (arg.startsWith("--manifest=")) {
+      writeManifest = true;
+      manifestOutPath = arg.slice("--manifest=".length) || null;
+    }
+  }
+
+  if (!argError && target !== null && !VALID_DOCTOR_TARGETS.includes(target)) {
+    argError = `Invalid --target "${target}". Expected one of: ${VALID_DOCTOR_TARGETS.join(", ")}.`;
+  }
+
+  return { target, json, writeManifest, manifestOutPath, help, argError };
+}
+
+const cliOptions = parseDoctorArgs(process.argv.slice(2));
+
+if (cliOptions.help) {
+  console.log(`Usage: forgewp doctor [options]
+
+Options:
+  --target <native|decoupled|hybrid>  Validate route & feature compatibility for a deployment target
+  --json                              Output machine-readable JSON report to stdout
+  --write-manifest [path]             Emit Route Capability Manifest (default: .forgewp/forgewp-manifest.json)
+  -h, --help                          Show this help message
+`);
+  process.exit(0);
+}
+
+if (cliOptions.argError) {
+  if (cliOptions.json) {
+    process.stdout.write(`${JSON.stringify({ ok: false, error: cliOptions.argError }, null, 2)}\n`);
+  } else {
+    console.error(`\n${ui.error(cliOptions.argError)}\n`);
+  }
+  process.exit(1);
+}
 
 const projectRoot = process.cwd();
 let failuresFound = 0;
 let warningsFound = 0;
+const checkResults = [];
 
-// Load configuration and framework adapter
+// Load configuration and framework adapter (silence stray stdout logs in --json mode)
 let frameworkAdapter = "react";
 let adapter = null;
 let loadedConfig = null;
 let configLoadError = null;
+const origConsoleLog = console.log;
+if (cliOptions.json) console.log = () => {};
 try {
   const config = await loadConfig(projectRoot);
   loadedConfig = config;
@@ -34,9 +112,13 @@ try {
   adapter = adapterModule.default || adapterModule;
 } catch (err) {
   configLoadError = err;
+} finally {
+  console.log = origConsoleLog;
 }
 
-console.log(ui.header('doctor', loadedConfig ? `${loadedConfig.name} · ${frameworkAdapter}` : undefined));
+if (!cliOptions.json) {
+  console.log(ui.header('doctor', loadedConfig ? `${loadedConfig.name} · ${frameworkAdapter}` : undefined));
+}
 let checksRun = 0;
 
 /**
@@ -64,12 +146,19 @@ function runCheck(name, fn) {
     console.log = originalLog;
   }
   checksRun++;
+  checkResults.push({
+    name,
+    status,
+    note,
+  });
 
-  const print = status === "ok" ? ui.done : status === "warn" ? ui.warn : ui.error;
-  console.log(print(name));
-  const detailLines = captured.join("\n").split("\n").filter((line) => line.trim() !== "");
-  for (const line of detailLines) console.log(`    ${line.replace(/^\s{0,4}/, "")}`);
-  if (note) console.log(ui.detail(note));
+  if (!cliOptions.json) {
+    const print = status === "ok" ? ui.done : status === "warn" ? ui.warn : ui.error;
+    console.log(print(name));
+    const detailLines = captured.join("\n").split("\n").filter((line) => line.trim() !== "");
+    for (const line of detailLines) console.log(`    ${line.replace(/^\s{0,4}/, "")}`);
+    if (note) console.log(ui.detail(note));
+  }
 }
 
 // 1. Node Version Check
@@ -305,8 +394,111 @@ runCheck("Static Code Lint & SEO Best Practices", () => {
   return `Detected ${errors} error(s) and ${warnings} warning(s) in template source files. Run "pnpm forgewp analyze" to review detailed remedies inside the visual report.`;
 });
 
+// 8. Route Capability Manifest & Target Compatibility (--target native|decoupled|hybrid)
+const routeManifest = buildRouteCapabilityManifest(projectRoot, {
+  config: loadedConfig || undefined,
+});
+
+let writtenManifestPath = null;
+if (cliOptions.writeManifest) {
+  runCheck("Route Capability Manifest", () => {
+    writtenManifestPath = writeRouteCapabilityManifest(
+      projectRoot,
+      routeManifest,
+      cliOptions.manifestOutPath || undefined,
+    );
+    const relOut = path.relative(projectRoot, writtenManifestPath).replace(/\\/g, "/");
+    console.log(`Wrote ${relOut} (${Object.keys(routeManifest.routes).length} routes)`);
+    return null;
+  });
+}
+
+let targetCompatibility = null;
+if (cliOptions.target) {
+  targetCompatibility = evaluateTargetCompatibility(routeManifest, cliOptions.target);
+  runCheck(`Target Compatibility (${cliOptions.target})`, () => {
+    const s = targetCompatibility.summary;
+    console.log(
+      `Routes: ${s.totalRoutes} total · ${s.portableRoutes} portable · ${s.nativePinnedRoutes} native-pinned · ${s.decoupledPinnedRoutes} decoupled-pinned · ${s.hybridDelegatedRoutes} hybrid`,
+    );
+
+    if (targetCompatibility.errors.length > 0) {
+      console.log("");
+      for (const err of targetCompatibility.errors) {
+        const loc = err.route || err.file || err.form || "project";
+        console.log(`${c.red(ui.symbols.error)} ${c.bold(loc)}  ${err.message} ${c.dim(`[${err.code}]`)}`);
+        if (err.suggestion) {
+          console.log(`  ${c.dim(`${ui.symbols.arrow} ${err.suggestion}`)}`);
+        }
+      }
+      if (targetCompatibility.suggestedHybridRoutes.length > 0) {
+        console.log("");
+        console.log(
+          `${c.dim("Suggested hybridRoutes:")} ${JSON.stringify(targetCompatibility.suggestedHybridRoutes)}`,
+        );
+      }
+      throw new Error(
+        `Project is NOT compatible with --target ${cliOptions.target} (${targetCompatibility.errors.length} blocking error${targetCompatibility.errors.length === 1 ? "" : "s"}).`,
+      );
+    }
+
+    if (targetCompatibility.warnings.length > 0) {
+      console.log("");
+      for (const w of targetCompatibility.warnings) {
+        const loc = w.route || w.file || w.feature || "project";
+        console.log(`${c.yellow(ui.symbols.warn)} ${c.bold(loc)}  ${w.message} ${c.dim(`[${w.code}]`)}`);
+        if (w.suggestion) {
+          console.log(`  ${c.dim(`${ui.symbols.arrow} ${w.suggestion}`)}`);
+        }
+      }
+      return `Compatible with --target ${cliOptions.target}, with ${targetCompatibility.warnings.length} warning${targetCompatibility.warnings.length === 1 ? "" : "s"}.`;
+    }
+
+    return null;
+  });
+}
+
+const durationMs = Date.now() - startedAt;
+
+if (cliOptions.json) {
+  const targetsSummary = cliOptions.target
+    ? { [cliOptions.target]: targetCompatibility }
+    : {
+        native: evaluateTargetCompatibility(routeManifest, "native"),
+        decoupled: evaluateTargetCompatibility(routeManifest, "decoupled"),
+        hybrid: evaluateTargetCompatibility(routeManifest, "hybrid"),
+      };
+  const compatible = targetCompatibility ? targetCompatibility.compatible : failuresFound === 0;
+  const ok = failuresFound === 0 && compatible;
+  const payload = {
+    ok,
+    compatible,
+    target: cliOptions.target,
+    project: {
+      name: loadedConfig?.name || routeManifest.project.name,
+      slug: loadedConfig?.slug || routeManifest.project.slug,
+      frameworkAdapter: loadedConfig?.frameworkAdapter || routeManifest.project.frameworkAdapter,
+    },
+    ...(writtenManifestPath
+      ? { manifestPath: path.relative(projectRoot, writtenManifestPath).replace(/\\/g, "/") }
+      : {}),
+    checks: checkResults,
+    ...(targetCompatibility ? { targetCompatibility } : {}),
+    targets: targetsSummary,
+    manifest: routeManifest,
+    summary: {
+      checksRun,
+      failures: failuresFound,
+      warnings: warningsFound,
+      durationMs,
+    },
+  };
+  process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+  process.exit(ok ? 0 : 1);
+}
+
 // Final Diagnostic
-const summaryMeta = `${checksRun} checks · ${formatDuration(Date.now() - startedAt)}`;
+const summaryMeta = `${checksRun} checks · ${formatDuration(durationMs)}`;
 console.log("");
 if (failuresFound === 0) {
   if (warningsFound > 0) {
