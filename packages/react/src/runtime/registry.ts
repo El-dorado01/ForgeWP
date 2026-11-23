@@ -135,6 +135,120 @@ export interface AuthMeResource {
   user: AuthMeUserContract | null;
 }
 
+/**
+ * Canonical `post` / `posts` contracts (docs/resource-contracts.md §10, §12a).
+ */
+export interface PostAuthorContract {
+  id: number;
+  name: string;
+}
+
+export interface PostImageContract {
+  url: string;
+  alt: string;
+  width?: number;
+  height?: number;
+  srcset?: string;
+}
+
+export interface PostTermRefContract {
+  id: number;
+  slug: string;
+  name: string;
+  path: string;
+}
+
+export interface PostBlockContract {
+  blockName: string | null;
+  attrs?: Record<string, unknown>;
+  innerHTML?: string;
+  innerBlocks?: PostBlockContract[];
+}
+
+export interface PostResource {
+  id: number;
+  type: string;
+  slug: string;
+  lang?: string;
+  /** Entity-decoded plain text (no HTML entities, §12a). */
+  title: string;
+  /** Rendered HTML (`the_excerpt` filters). */
+  excerpt: string;
+  /** Rendered HTML (`the_content` filters; omitted on list items). */
+  content?: string;
+  date: string;
+  modified: string;
+  permalink: string;
+  path: string;
+  author: PostAuthorContract | null;
+  featuredImage: PostImageContract | null;
+  terms: Record<string, PostTermRefContract[]>;
+  /** Only ForgeWP-registered public meta keys (omitted on list items). */
+  fields?: Record<string, unknown>;
+  /** Gutenberg blocks for `<BlockArea>` parity (present on single posts, §12a). */
+  blocks?: PostBlockContract[];
+  protected: boolean;
+}
+
+export interface PostsListResource {
+  type: string;
+  lang?: string;
+  page: number;
+  perPage: number;
+  total: number;
+  totalPages: number;
+  items: PostResource[];
+}
+
+/**
+ * Canonical `terms` / `term` contracts (docs/resource-contracts.md §11).
+ */
+export interface TermResource {
+  id: number;
+  taxonomy?: string;
+  lang?: string;
+  slug: string;
+  name: string;
+  description: string;
+  count: number;
+  parent: number;
+  path: string;
+  permalink: string;
+}
+
+export interface TermsListResource {
+  taxonomy: string;
+  lang?: string;
+  items: TermResource[];
+}
+
+/**
+ * Canonical `comments` contracts (docs/resource-contracts.md §12, §12a).
+ */
+export interface CommentAuthorContract {
+  name: string;
+  avatarUrl?: string;
+  url?: string;
+}
+
+export interface CommentResource {
+  id: number;
+  parentId: number;
+  author: CommentAuthorContract;
+  date: string;
+  content: string;
+  children: CommentResource[];
+}
+
+export interface CommentsListResource {
+  post: number;
+  open: boolean;
+  page: number;
+  perPage: number;
+  total: number;
+  items: CommentResource[];
+}
+
 export interface ForgeWpResourceMap {
   'site-settings': SiteSettingsResource;
   forms: FormsCollectionResource;
@@ -144,12 +258,17 @@ export interface ForgeWpResourceMap {
   seo: Record<string, any>;
   editables: Record<string, any>;
   'auth-me': AuthMeResource;
+  post: PostResource;
+  posts: PostsListResource;
+  term: TermResource;
+  terms: TermsListResource;
+  comments: CommentsListResource;
 }
 
 export type ForgeWpResourceName = keyof ForgeWpResourceMap;
 
 export interface ForgeWpResourceParams {
-  /** Optional single-item path segment (e.g. form slug, menu location). */
+  /** Optional single-item path segment (e.g. form slug, menu location, `post/slug`, `category/news`). */
   slug?: string;
   /** Optional query string parameters (e.g. `{ lang: 'en' }`). */
   query?: Record<string, string | number | boolean | undefined>;
@@ -214,6 +333,36 @@ export const FORGEWP_RESOURCES: {
     restPath: '/auth/me',
     cacheTags: ['auth'],
     auth: 'session',
+  }),
+  post: defineResource({
+    name: 'post',
+    restPath: '/posts',
+    cacheTags: ['posts'],
+    auth: 'public',
+  }),
+  posts: defineResource({
+    name: 'posts',
+    restPath: '/posts',
+    cacheTags: ['posts'],
+    auth: 'public',
+  }),
+  term: defineResource({
+    name: 'term',
+    restPath: '/terms',
+    cacheTags: ['terms'],
+    auth: 'public',
+  }),
+  terms: defineResource({
+    name: 'terms',
+    restPath: '/terms',
+    cacheTags: ['terms'],
+    auth: 'public',
+  }),
+  comments: defineResource({
+    name: 'comments',
+    restPath: '/comments',
+    cacheTags: ['comments'],
+    auth: 'public',
   }),
 });
 
@@ -648,4 +797,301 @@ export function isAuthMeAllowed(
   const roleSet = new Set(auth.user.roles || []);
   const capSet = new Set(auth.user.capabilities || []);
   return required.some((entry) => roleSet.has(entry) || capSet.has(entry));
+}
+
+function decodePlainTextEntities(value: string): string {
+  return String(value || '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;|&apos;/g, "'")
+    .replace(/&rsquo;/g, '\u2019')
+    .replace(/&lsquo;/g, '\u2018')
+    .replace(/&rdquo;/g, '\u201D')
+    .replace(/&ldquo;/g, '\u201C')
+    .replace(/&ndash;/g, '\u2013')
+    .replace(/&mdash;/g, '\u2014')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+}
+
+/**
+ * Normalizes a single post or list item into `PostResource` (`docs/resource-contracts.md` §10, §12a).
+ */
+export function normalizePostResource(
+  raw: any,
+  opts: { isListItem?: boolean; fallbackType?: string } = {},
+): PostResource | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const slug = String(raw.slug || '').trim();
+  const id = typeof raw.id === 'number' ? raw.id : Number(raw.id || 0);
+  if (!slug && !id) return null;
+
+  const isProtected = raw.protected === true;
+  const rawTitle =
+    typeof raw.title === 'object' && raw.title !== null
+      ? raw.title.rendered ?? raw.title.raw ?? ''
+      : raw.title ?? '';
+  const rawExcerpt =
+    typeof raw.excerpt === 'object' && raw.excerpt !== null
+      ? raw.excerpt.rendered ?? ''
+      : raw.excerpt ?? '';
+  const rawContent =
+    typeof raw.content === 'object' && raw.content !== null
+      ? raw.content.rendered ?? ''
+      : raw.content;
+
+  let author: PostAuthorContract | null = null;
+  if (raw.author && typeof raw.author === 'object') {
+    author = {
+      id: typeof raw.author.id === 'number' ? raw.author.id : Number(raw.author.id || 0),
+      name: String(raw.author.name || ''),
+    };
+  } else if (typeof raw.author === 'string' && raw.author.trim()) {
+    author = { id: 0, name: raw.author.trim() };
+  }
+
+  let featuredImage: PostImageContract | null = null;
+  if (raw.featuredImage && typeof raw.featuredImage === 'object' && raw.featuredImage.url) {
+    featuredImage = {
+      url: String(raw.featuredImage.url),
+      alt: String(raw.featuredImage.alt || ''),
+      ...(typeof raw.featuredImage.width === 'number' ? { width: raw.featuredImage.width } : {}),
+      ...(typeof raw.featuredImage.height === 'number' ? { height: raw.featuredImage.height } : {}),
+      ...(typeof raw.featuredImage.srcset === 'string' && raw.featuredImage.srcset
+        ? { srcset: raw.featuredImage.srcset }
+        : {}),
+    };
+  } else if (typeof raw.featuredImage === 'string' && raw.featuredImage.trim()) {
+    featuredImage = { url: raw.featuredImage.trim(), alt: '' };
+  }
+
+  const terms: Record<string, PostTermRefContract[]> = {};
+  if (raw.terms && typeof raw.terms === 'object' && !Array.isArray(raw.terms)) {
+    for (const [tax, list] of Object.entries(raw.terms)) {
+      if (!Array.isArray(list)) continue;
+      terms[tax] = list
+        .filter((t) => t && typeof t === 'object')
+        .map((t: any) => ({
+          id: typeof t.id === 'number' ? t.id : Number(t.id || 0),
+          slug: String(t.slug || ''),
+          name: decodePlainTextEntities(String(t.name || '')),
+          path: String(t.path || `/${tax}/${t.slug || ''}/`),
+        }));
+    }
+  }
+
+  const permalink = String(raw.permalink || raw.path || '/');
+  const resolvedPath =
+    typeof raw.path === 'string' && raw.path.trim()
+      ? raw.path.trim()
+      : permalink.startsWith('/')
+        ? permalink
+        : `/${slug || id}`;
+
+  const out: PostResource = {
+    id,
+    type: String(raw.type || raw.postType || opts.fallbackType || 'post'),
+    slug,
+    ...(typeof raw.lang === 'string' && raw.lang.trim() ? { lang: raw.lang.trim() } : {}),
+    title: decodePlainTextEntities(String(rawTitle)),
+    excerpt: isProtected ? '' : String(rawExcerpt || ''),
+    date: String(raw.date || ''),
+    modified: String(raw.modified || raw.date || ''),
+    permalink,
+    path: resolvedPath,
+    author,
+    featuredImage,
+    terms,
+    protected: isProtected,
+  };
+
+  if (!opts.isListItem) {
+    out.content = isProtected ? '' : String(rawContent ?? '');
+    if (raw.fields && typeof raw.fields === 'object' && !Array.isArray(raw.fields)) {
+      out.fields = { ...raw.fields };
+    } else if (raw.customFields && typeof raw.customFields === 'object' && !Array.isArray(raw.customFields)) {
+      out.fields = { ...raw.customFields };
+    } else {
+      out.fields = {};
+    }
+    out.blocks = Array.isArray(raw.blocks)
+      ? raw.blocks
+      : Array.isArray(raw.forgewp_blocks)
+        ? raw.forgewp_blocks
+        : [];
+  }
+
+  return out;
+}
+
+/**
+ * Normalizes `GET /wp-json/forgewp/v1/posts` or `resources.posts` into `PostsListResource`.
+ */
+export function normalizePostsListResource(
+  raw: any,
+  fallbackType = 'post',
+): PostsListResource | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const rawItems = Array.isArray(raw.items) ? raw.items : Array.isArray(raw) ? raw : null;
+  if (!rawItems) return null;
+
+  const type = String(raw.type || fallbackType || 'post');
+  const items: PostResource[] = [];
+  for (const entry of rawItems) {
+    const normalized = normalizePostResource(entry, { isListItem: true, fallbackType: type });
+    if (normalized) items.push(normalized);
+  }
+
+  const page = typeof raw.page === 'number' && raw.page > 0 ? raw.page : 1;
+  const perPage =
+    typeof raw.perPage === 'number' && raw.perPage > 0
+      ? Math.min(raw.perPage, 100)
+      : Math.max(items.length, 10);
+  const total = typeof raw.total === 'number' && raw.total >= 0 ? raw.total : items.length;
+  const totalPages =
+    typeof raw.totalPages === 'number' && raw.totalPages >= 0
+      ? raw.totalPages
+      : total > 0
+        ? Math.ceil(total / perPage)
+        : 0;
+
+  return {
+    type,
+    ...(typeof raw.lang === 'string' && raw.lang.trim() ? { lang: raw.lang.trim() } : {}),
+    page,
+    perPage,
+    total,
+    totalPages,
+    items,
+  };
+}
+
+/**
+ * Normalizes a single taxonomy term into `TermResource` (`docs/resource-contracts.md` §11).
+ */
+export function normalizeTermResource(
+  raw: any,
+  fallbackTaxonomy?: string,
+): TermResource | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const slug = String(raw.slug || '').trim();
+  const name = decodePlainTextEntities(String(raw.name || ''));
+  if (!slug && !name) return null;
+  const taxonomy =
+    typeof raw.taxonomy === 'string' && raw.taxonomy.trim()
+      ? raw.taxonomy.trim()
+      : fallbackTaxonomy;
+  const pathVal =
+    typeof raw.path === 'string' && raw.path.trim()
+      ? raw.path.trim()
+      : taxonomy
+        ? `/${taxonomy}/${slug}/`
+        : `/${slug}/`;
+
+  return {
+    id: typeof raw.id === 'number' ? raw.id : Number(raw.id || 0),
+    ...(taxonomy ? { taxonomy } : {}),
+    ...(typeof raw.lang === 'string' && raw.lang.trim() ? { lang: raw.lang.trim() } : {}),
+    slug,
+    name,
+    description: String(raw.description || ''),
+    count: typeof raw.count === 'number' ? raw.count : Number(raw.count || 0),
+    parent: typeof raw.parent === 'number' ? raw.parent : Number(raw.parent || 0),
+    path: pathVal,
+    permalink: String(raw.permalink || pathVal),
+  };
+}
+
+/**
+ * Normalizes `GET /wp-json/forgewp/v1/terms/<taxonomy>` into `TermsListResource`.
+ */
+export function normalizeTermsListResource(
+  raw: any,
+  fallbackTaxonomy = 'category',
+): TermsListResource | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const rawItems = Array.isArray(raw.items) ? raw.items : Array.isArray(raw) ? raw : null;
+  if (!rawItems) return null;
+  const taxonomy = String(raw.taxonomy || fallbackTaxonomy || 'category');
+  const items: TermResource[] = [];
+  for (const entry of rawItems) {
+    const normalized = normalizeTermResource(entry, taxonomy);
+    if (normalized) items.push(normalized);
+  }
+  return {
+    taxonomy,
+    ...(typeof raw.lang === 'string' && raw.lang.trim() ? { lang: raw.lang.trim() } : {}),
+    items,
+  };
+}
+
+/**
+ * Normalizes a single comment (and its threaded `children`) into `CommentResource` (§12).
+ */
+export function normalizeCommentResource(raw: any): CommentResource | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = typeof raw.id === 'number' ? raw.id : Number(raw.id || 0);
+  const rawAuthor = raw.author && typeof raw.author === 'object' ? raw.author : {};
+  const author: CommentAuthorContract = {
+    name: decodePlainTextEntities(
+      String(rawAuthor.name || raw.authorName || raw.author_name || 'Anonymous'),
+    ),
+    ...(typeof rawAuthor.avatarUrl === 'string' && rawAuthor.avatarUrl
+      ? { avatarUrl: rawAuthor.avatarUrl }
+      : {}),
+    ...(typeof rawAuthor.url === 'string' ? { url: rawAuthor.url } : { url: '' }),
+  };
+
+  const children: CommentResource[] = [];
+  if (Array.isArray(raw.children)) {
+    for (const child of raw.children) {
+      const normalized = normalizeCommentResource(child);
+      if (normalized) children.push(normalized);
+    }
+  }
+
+  return {
+    id,
+    parentId: typeof raw.parentId === 'number' ? raw.parentId : Number(raw.parentId ?? raw.parent ?? 0),
+    author,
+    date: String(raw.date || ''),
+    content: String(raw.content || ''),
+    children,
+  };
+}
+
+/**
+ * Normalizes `GET /wp-json/forgewp/v1/comments?post=<id>` into `CommentsListResource`.
+ */
+export function normalizeCommentsListResource(
+  raw: any,
+  fallbackPostId = 0,
+): CommentsListResource | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const rawItems = Array.isArray(raw.items) ? raw.items : Array.isArray(raw) ? raw : null;
+  if (!rawItems) return null;
+
+  const items: CommentResource[] = [];
+  for (const entry of rawItems) {
+    const normalized = normalizeCommentResource(entry);
+    if (normalized) items.push(normalized);
+  }
+
+  const page = typeof raw.page === 'number' && raw.page > 0 ? raw.page : 1;
+  const perPage = typeof raw.perPage === 'number' && raw.perPage > 0 ? raw.perPage : 50;
+  const total = typeof raw.total === 'number' && raw.total >= 0 ? raw.total : items.length;
+
+  return {
+    post: typeof raw.post === 'number' ? raw.post : Number(raw.post || fallbackPostId || 0),
+    open: raw.open !== false,
+    page,
+    perPage,
+    total,
+    items,
+  };
 }

@@ -18,15 +18,24 @@ import {
   getNativeForm,
   getNativeMenu,
   getNativePageLink,
+  getNativePost,
+  getNativePosts,
   getNativeRestNonce,
   getNativeRestUrl,
+  getNativeTerm,
   getNativeThemeUri,
   getNativeTranslations,
   hasNativeHydration,
   isProductionRuntime,
+  normalizeCommentResource,
   resolveConfiguredRestBaseUrl,
+  type CommentResource,
+  type CommentsListResource,
   type I18nResource,
+  type PostResource,
+  type PostsListResource,
   type SiteSettingsResource,
+  type TermResource,
 } from './runtime/index.js';
 
 function isForgeWpCompileTime(): boolean {
@@ -486,6 +495,140 @@ export async function submitWpForm(
       return { ok: false, message: json?.message, errors };
     }
     return { ok: true, message: json?.message };
+  } catch {
+    return { ok: false, message: 'network' };
+  }
+}
+
+/**
+ * Shared client-side anti-spam telemetry (`_forgewp_elapsed`, `_forgewp_interacted`,
+ * and empty honeypot `_forgewp_hp`) used by both `submitWpForm()` and `submitWpComment()`
+ * (`docs/resource-contracts.md` §4.3, §12, §12a).
+ */
+export function getForgeWpAntiSpamFields(honeypot = ''): {
+  _forgewp_elapsed: string;
+  _forgewp_interacted: boolean;
+  _forgewp_hp: string;
+} {
+  return {
+    _forgewp_elapsed: String(
+      forgeWpFormsLoadedAt ? Math.max(0, Date.now() - forgeWpFormsLoadedAt) : 0,
+    ),
+    _forgewp_interacted: forgeWpFormsInteracted,
+    _forgewp_hp: honeypot,
+  };
+}
+
+export interface SubmitWpCommentInput {
+  post: number;
+  parent?: number;
+  content: string;
+  authorName?: string;
+  authorEmail?: string;
+  authorUrl?: string;
+  /** Optional honeypot field value (defaults to `''`). */
+  _forgewp_hp?: string;
+}
+
+export interface SubmitWpCommentOptions {
+  /** Optional explicit REST submit URL override. */
+  submitUrl?: string;
+  /** Optional custom `fetch` implementation (useful in tests). */
+  fetch?: typeof globalThis.fetch;
+}
+
+export interface WpCommentResult {
+  ok: boolean;
+  status?: 'approved' | 'hold';
+  comment?: CommentResource | null;
+  code?: string;
+  message?: string;
+  errors?: Record<string, string>;
+}
+
+/**
+ * Submits a comment to `POST /wp-json/forgewp/v1/comments` (`docs/resource-contracts.md` §12, §12a),
+ * sharing the page-load dwell and interaction tracker (`_forgewp_elapsed`, `_forgewp_interacted`,
+ * `_forgewp_hp`) with `submitWpForm()`.
+ */
+export async function submitWpComment(
+  input: SubmitWpCommentInput,
+  options: SubmitWpCommentOptions = {},
+): Promise<WpCommentResult> {
+  const endpoint = resolveFormsRestEndpoint();
+  const resolvedUrl =
+    options.submitUrl || (endpoint ? `${endpoint.restUrl}/comments` : null);
+
+  if (!resolvedUrl) {
+    if (isProductionRuntime()) {
+      throw new ForgeWpRuntimeError(
+        'FORGEWP_RUNTIME_UNCONFIGURED',
+        `Cannot submit ForgeWP comment for post ${input.post} in production: no WordPress REST endpoint is configured.`,
+        { resource: `comments:${input.post}` },
+      );
+    }
+    return {
+      ok: true,
+      status: 'approved',
+      comment: normalizeCommentResource({
+        id: Date.now(),
+        parentId: input.parent ?? 0,
+        author: {
+          name: input.authorName || 'Dev Visitor',
+          url: input.authorUrl || '',
+        },
+        date: new Date().toISOString(),
+        content: `<p>${input.content}</p>`,
+        children: [],
+      }),
+    };
+  }
+
+  const fetchImpl = options.fetch || globalThis.fetch;
+  const restNonce = endpoint?.restNonce ?? getNativeRestNonce();
+  const antiSpam = getForgeWpAntiSpamFields(input._forgewp_hp ?? '');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  if (restNonce) {
+    headers['X-WP-Nonce'] = restNonce;
+  }
+
+  try {
+    const response = await fetchImpl(resolvedUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        post: input.post,
+        parent: input.parent ?? 0,
+        content: input.content,
+        ...(input.authorName !== undefined ? { authorName: input.authorName } : {}),
+        ...(input.authorEmail !== undefined ? { authorEmail: input.authorEmail } : {}),
+        ...(input.authorUrl !== undefined ? { authorUrl: input.authorUrl } : {}),
+        ...antiSpam,
+      }),
+    });
+    const json = await response.json().catch(() => ({}) as any);
+    if (!response.ok) {
+      const errors =
+        (json?.errors && typeof json.errors === 'object' ? json.errors : undefined) ||
+        (json?.data?.errors && typeof json.data.errors === 'object'
+          ? json.data.errors
+          : undefined);
+      return {
+        ok: false,
+        code: typeof json?.code === 'string' ? json.code : undefined,
+        message: typeof json?.message === 'string' ? json.message : undefined,
+        errors,
+      };
+    }
+    return {
+      ok: true,
+      status: json?.status === 'hold' ? 'hold' : 'approved',
+      comment: json?.comment ? normalizeCommentResource(json.comment) : null,
+      message: typeof json?.message === 'string' ? json.message : undefined,
+    };
   } catch {
     return { ok: false, message: 'network' };
   }
@@ -2173,28 +2316,381 @@ export function useWpTaxonomyList(taxonomy: string, defaultValue = ''): string {
   return defaultValue || `[taxonomy: ${taxonomy}]`;
 }
 
-export function useWpTerms(taxonomy: string): {
+export interface UseWpTermsOptions {
+  lang?: string;
+  hideEmpty?: boolean;
+  parent?: number;
+  initialTerms?: TermResource[];
+}
+
+function toWpTerm(t: any): WpTerm {
+  return {
+    id: t.id ?? 0,
+    name: t.name ?? '',
+    slug: t.slug ?? '',
+    description: t.description ?? '',
+    count: t.count ?? 0,
+    meta: t.meta ?? {},
+  };
+}
+
+function readSyncTerms(taxonomy: string, options: UseWpTermsOptions): WpTerm[] | null {
+  if (Array.isArray(options.initialTerms)) {
+    return options.initialTerms.map(toWpTerm);
+  }
+  try {
+    const runtime = getForgeWpRuntime();
+    const query: Record<string, string | number | boolean | undefined> = {};
+    if (options.lang) query.lang = options.lang;
+    if (options.hideEmpty !== undefined) query.hideEmpty = options.hideEmpty;
+    if (options.parent !== undefined) query.parent = options.parent;
+    const scoped = runtime.peek('terms', {
+      slug: taxonomy,
+      ...(Object.keys(query).length > 0 ? { query } : {}),
+    });
+    if (scoped?.items) return scoped.items.map(toWpTerm);
+    const generic = runtime.peek('terms', { slug: taxonomy });
+    if (generic?.items) return generic.items.map(toWpTerm);
+  } catch {
+    // Unconfigured runtime falls through
+  }
+  const nativeTerm = getNativeTerm();
+  if (nativeTerm && (!nativeTerm.taxonomy || nativeTerm.taxonomy === taxonomy)) {
+    return [toWpTerm(nativeTerm)];
+  }
+  if (typeof window !== 'undefined' && (window as any)._forgeWpMockPosts) {
+    const raw = (window as any)._forgeWpMockPosts[`_taxonomy_${taxonomy}`];
+    if (Array.isArray(raw)) {
+      return raw.map(toWpTerm);
+    }
+  }
+  return null;
+}
+
+export function useWpTerms(
+  taxonomy: string,
+  options: UseWpTermsOptions = {},
+): {
   terms: WpTerm[];
   loading: boolean;
   error: string | null;
 } {
-  const terms = useMemo<WpTerm[]>(() => {
-    if (typeof window !== 'undefined' && (window as any)._forgeWpMockPosts) {
-      const raw =
-        (window as any)._forgeWpMockPosts[`_taxonomy_${taxonomy}`] || [];
-      return raw.map((t: any) => ({
-        id: t.id ?? 0,
-        name: t.name ?? '',
-        slug: t.slug ?? '',
-        description: t.description ?? '',
-        count: t.count ?? 0,
-        meta: t.meta ?? {},
-      }));
-    }
-    return [];
-  }, [taxonomy]);
+  const { lang, hideEmpty, parent, initialTerms } = options;
+  const syncTerms = readSyncTerms(taxonomy, { lang, hideEmpty, parent, initialTerms });
+  const [asyncTerms, setAsyncTerms] = useState<WpTerm[] | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  return { terms, loading: false, error: null };
+  useEffect(() => {
+    if (syncTerms !== null) return;
+    if (typeof window === 'undefined' || (window as any)._forgeWpCompileTime) return;
+
+    let runtime;
+    try {
+      runtime = getForgeWpRuntime();
+    } catch {
+      return;
+    }
+    if (runtime.mode !== 'decoupled') return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    const query: Record<string, string | number | boolean | undefined> = {};
+    if (lang) query.lang = lang;
+    if (hideEmpty !== undefined) query.hideEmpty = hideEmpty;
+    if (parent !== undefined) query.parent = parent;
+    runtime
+      .get('terms', {
+        slug: taxonomy,
+        ...(Object.keys(query).length > 0 ? { query } : {}),
+      })
+      .then((res) => {
+        if (cancelled) return;
+        setAsyncTerms(res?.items ? res.items.map(toWpTerm) : []);
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setError(err?.message || 'Failed to fetch terms');
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [taxonomy, lang, hideEmpty, parent, syncTerms !== null]);
+
+  const terms = useMemo<WpTerm[]>(
+    () => syncTerms ?? asyncTerms ?? [],
+    [syncTerms, asyncTerms],
+  );
+
+  return { terms, loading: syncTerms !== null ? false : loading, error };
+}
+
+export interface UseWpPostOptions {
+  lang?: string;
+  initialPost?: PostResource | null;
+}
+
+export function useWpPost(
+  type: string,
+  slug: string,
+  options: UseWpPostOptions = {},
+): {
+  post: PostResource | null;
+  loading: boolean;
+  error: string | null;
+} {
+  const { lang, initialPost } = options;
+  const syncPost = (() => {
+    if (initialPost !== undefined) return initialPost;
+    const native = getNativePost();
+    if (native && native.type === type && native.slug === slug) {
+      return native;
+    }
+    try {
+      const runtime = getForgeWpRuntime();
+      const keySlug = `${type}/${slug}`;
+      return (
+        (lang ? runtime.peek('post', { slug: keySlug, query: { lang } }) : undefined) ??
+        runtime.peek('post', { slug: keySlug }) ??
+        null
+      );
+    } catch {
+      return null;
+    }
+  })();
+
+  const [asyncPost, setAsyncPost] = useState<PostResource | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (syncPost !== null) return;
+    if (typeof window === 'undefined' || (window as any)._forgeWpCompileTime) return;
+    let runtime;
+    try {
+      runtime = getForgeWpRuntime();
+    } catch {
+      return;
+    }
+    if (runtime.mode !== 'decoupled') return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    runtime
+      .get('post', {
+        slug: `${type}/${slug}`,
+        ...(lang ? { query: { lang } } : {}),
+      })
+      .then((res) => {
+        if (cancelled) return;
+        setAsyncPost(res ?? null);
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setError(err?.message || 'Failed to fetch post');
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [type, slug, lang, syncPost !== null]);
+
+  return {
+    post: syncPost ?? asyncPost,
+    loading: syncPost !== null ? false : loading,
+    error,
+  };
+}
+
+export interface UseWpPostsOptions {
+  type?: string;
+  page?: number;
+  perPage?: number;
+  lang?: string;
+  taxonomy?: string;
+  term?: string;
+  search?: string;
+  orderby?: 'date' | 'title' | 'menu_order';
+  order?: 'desc' | 'asc';
+  initialData?: PostsListResource;
+}
+
+export function useWpPosts(options: UseWpPostsOptions = {}): {
+  data: PostsListResource | null;
+  items: PostResource[];
+  loading: boolean;
+  error: string | null;
+} {
+  const {
+    type = 'post',
+    page = 1,
+    perPage = 10,
+    lang,
+    taxonomy,
+    term,
+    search,
+    orderby,
+    order,
+    initialData,
+  } = options;
+
+  const query = useMemo(() => {
+    const q: Record<string, string | number | boolean | undefined> = {
+      type,
+      page,
+      perPage,
+    };
+    if (lang) q.lang = lang;
+    if (taxonomy) q.taxonomy = taxonomy;
+    if (term) q.term = term;
+    if (search) q.search = search;
+    if (orderby) q.orderby = orderby;
+    if (order) q.order = order;
+    return q;
+  }, [type, page, perPage, lang, taxonomy, term, search, orderby, order]);
+
+  const syncData = (() => {
+    if (initialData) return initialData;
+    const native = getNativePosts();
+    if (native && native.type === type && native.page === page) {
+      return native;
+    }
+    try {
+      const runtime = getForgeWpRuntime();
+      return runtime.peek('posts', { query }) ?? runtime.peek('posts') ?? null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const [asyncData, setAsyncData] = useState<PostsListResource | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (syncData !== null) return;
+    if (typeof window === 'undefined' || (window as any)._forgeWpCompileTime) return;
+    let runtime;
+    try {
+      runtime = getForgeWpRuntime();
+    } catch {
+      return;
+    }
+    if (runtime.mode !== 'decoupled') return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    runtime
+      .get('posts', { query })
+      .then((res) => {
+        if (cancelled) return;
+        setAsyncData(res ?? null);
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setError(err?.message || 'Failed to fetch posts');
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [query, syncData !== null]);
+
+  const data = syncData ?? asyncData;
+  return {
+    data,
+    items: data?.items ?? [],
+    loading: syncData !== null ? false : loading,
+    error,
+  };
+}
+
+export interface UseWpCommentsOptions {
+  page?: number;
+  perPage?: number;
+  initialData?: CommentsListResource;
+}
+
+export function useWpComments(
+  postId: number,
+  options: UseWpCommentsOptions = {},
+): {
+  data: CommentsListResource | null;
+  items: CommentResource[];
+  open: boolean;
+  loading: boolean;
+  error: string | null;
+} {
+  const { page = 1, perPage = 50, initialData } = options;
+  const query = useMemo(
+    () => ({ post: postId, page, perPage }),
+    [postId, page, perPage],
+  );
+
+  const syncData = (() => {
+    if (initialData) return initialData;
+    try {
+      const runtime = getForgeWpRuntime();
+      return runtime.peek('comments', { query }) ?? null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const [asyncData, setAsyncData] = useState<CommentsListResource | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (syncData !== null || !postId) return;
+    if (typeof window === 'undefined' || (window as any)._forgeWpCompileTime) return;
+    let runtime;
+    try {
+      runtime = getForgeWpRuntime();
+    } catch {
+      return;
+    }
+    if (runtime.mode !== 'decoupled') return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    runtime
+      .get('comments', { query })
+      .then((res) => {
+        if (cancelled) return;
+        setAsyncData(res ?? null);
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setError(err?.message || 'Failed to fetch comments');
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [postId, query, syncData !== null]);
+
+  const data = syncData ?? asyncData;
+  return {
+    data,
+    items: data?.items ?? [],
+    open: data?.open ?? true,
+    loading: syncData !== null ? false : loading,
+    error,
+  };
 }
 
 export interface UseWpI18nOptions {

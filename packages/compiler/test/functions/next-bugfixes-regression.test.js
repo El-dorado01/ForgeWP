@@ -236,27 +236,37 @@ echo json_encode(array('header' => $header_out, 'front' => $front_out, 'landing'
       const requests = [];
       const mockFetch = async (url) => {
         requests.push(String(url));
-        if (String(url).includes('/wp-json/wp/v2/posts')) {
+        if (String(url).includes('/wp-json/forgewp/v1/posts') && String(url).includes('type=post')) {
           return {
             ok: true,
             status: 200,
-            json: async () => [
-              {
-                id: 77,
-                slug: 'live-release',
-                date: '2026-11-22T10:00:00',
-                title: { rendered: 'Live <em>Release</em>' },
-                excerpt: { rendered: '<p>Short summary</p>' },
-                content: { rendered: '<p>Full body</p>' },
-                _embedded: {
-                  'wp:featuredmedia': [{ source_url: 'https://cms.example.com/hero.jpg' }],
-                  author: [{ name: 'Ada Lovelace' }],
+            json: async () => ({
+              type: 'post',
+              page: 1,
+              perPage: 5,
+              total: 1,
+              totalPages: 1,
+              items: [
+                {
+                  id: 77,
+                  type: 'post',
+                  slug: 'live-release',
+                  date: '2026-11-22T10:00:00',
+                  modified: '2026-11-22T10:00:00',
+                  title: 'Live Release',
+                  excerpt: '<p>Short summary</p>',
+                  permalink: 'https://cms.example.com/wp/blog/live-release/',
+                  path: '/blog/live-release',
+                  author: { id: 1, name: 'Ada Lovelace' },
+                  featuredImage: { url: 'https://cms.example.com/hero.jpg', alt: '' },
+                  terms: {},
+                  protected: false,
                 },
-              },
-            ],
+              ],
+            }),
           };
         }
-        if (String(url).includes('/wp-json/wp/v2/project')) {
+        if (String(url).includes('/wp-json/forgewp/v1/posts') && String(url).includes('type=project')) {
           return { ok: false, status: 500, json: async () => ({ message: 'Server error' }) };
         }
         if (String(url).includes('/wp-json/forgewp/v1/site-info')) {
@@ -291,7 +301,7 @@ echo json_encode(array('header' => $header_out, 'front' => $front_out, 'landing'
           postType: 'post',
           title: 'Live Release',
           excerpt: 'Short summary',
-          content: '<p>Full body</p>',
+          content: '',
           date: '2026-11-22T10:00:00',
           author: 'Ada Lovelace',
           permalink: '/blog/live-release',
@@ -300,7 +310,7 @@ echo json_encode(array('header' => $header_out, 'front' => $front_out, 'landing'
           source: 'wordpress',
         },
       ]);
-      expect(requests[0]).toContain('/wp-json/wp/v2/posts?per_page=5&_embed=1');
+      expect(requests[0]).toContain('/wp-json/forgewp/v1/posts?type=post&page=1&perPage=5');
 
       // Non-OK REST response must NOT throw TypeError; must fall back cleanly to fixtures.
       const fallbackProjects = await client.getPosts('project');
