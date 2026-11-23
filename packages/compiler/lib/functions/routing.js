@@ -2,6 +2,19 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { buildPhpIconSvgMapLiteral } from '../icon-registry.js';
 
+/**
+ * Activation default for footer_text: the project's declared themeMods value
+ * when there is one (so native matches decoupled fixtures), otherwise the
+ * generic "© <year> <site name>. All rights reserved."
+ */
+function declaredFooterTextPhp(config) {
+  const declared = config?.themeMods?.footer_text;
+  if (typeof declared === 'string' && declared.trim() !== '') {
+    return `base64_decode('${Buffer.from(declared, 'utf8').toString('base64')}')`;
+  }
+  return `'© ' . date('Y') . ' ' . get_bloginfo('name') . '. ' . __('All rights reserved.', '${config?.textDomain ?? 'forgewp'}')`;
+}
+
 export function buildRoutingPhp(
   config,
   pagesPhpArray,
@@ -514,7 +527,7 @@ add_action('customize_register', 'forgewp_register_theme_customizer_settings');
  */
 function forgewp_set_default_footer_text(): void {
     if (!get_theme_mod('footer_text')) {
-        set_theme_mod('footer_text', '© ' . date('Y') . ' ' . get_bloginfo('name') . '. ' . __('All rights reserved.', '${config.textDomain}'));
+        set_theme_mod('footer_text', ${declaredFooterTextPhp(config)});
     }
 }
 add_action('after_switch_theme', 'forgewp_set_default_footer_text');

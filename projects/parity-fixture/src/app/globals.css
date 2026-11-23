@@ -1,0 +1,5 @@
+/* Minimal styles: the parity fixture compares content, not design. */
+body { font-family: system-ui, sans-serif; margin: 0; }
+.fwp-header, .fwp-content, .fwp-footer { max-width: 720px; margin: 0 auto; padding: 16px; }
+.fwp-nav ul { display: flex; gap: 12px; list-style: none; padding: 0; }
+.fwp-form { display: grid; gap: 8px; }

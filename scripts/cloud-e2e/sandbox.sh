@@ -13,7 +13,10 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 export FORGEWP_E2E_DATA="${FORGEWP_E2E_DATA:-/home/user/e2e}"
 DC=(sudo -E docker compose -p forgewp-e2e -f "$HERE/docker-compose.yml")
-wpcli() { "${DC[@]}" --profile cli run --rm -T cli wp "$@" 2>&1 | grep -v '^ Container '; }
+# Filter compose's container chatter but keep WP-CLI's exit status (grep exits 1
+# when nothing is left, which made `core is-installed` look false and re-ran the
+# installer, resetting permalinks).
+wpcli() { "${DC[@]}" --profile cli run --rm -T cli wp "$@" 2>&1 | { grep -v '^ Container ' || true; }; }
 
 ensure_docker() {
   docker info >/dev/null 2>&1 && return

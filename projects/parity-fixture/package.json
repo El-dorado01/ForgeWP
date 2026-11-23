@@ -1,0 +1,31 @@
+{
+  "name": "@forgewp/parity-fixture",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  },
+  "scripts": {
+    "build": "next build",
+    "start": "next start",
+    "export": "forgewp export",
+    "doctor": "forgewp doctor",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@forgewp/react": "workspace:*",
+    "next": "^16.1.7",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@forgewp/compiler": "workspace:*",
+    "@types/node": "^22.19.19",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.5",
+    "typescript": "^5.8.3",
+    "playwright": "1.63.0"
+  },
+  "description": "Phase D parity fixture (R6): exported natively and run decoupled against the same WordPress; see scripts/parity."
+}

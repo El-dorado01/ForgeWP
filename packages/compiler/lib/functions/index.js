@@ -1166,7 +1166,7 @@ ${fieldsPhpLines.join('\n')}
   );
 
   const routingPhp = buildRoutingPhp(
-    config,
+    { ...config, themeMods: resolveDeclaredThemeMods(config, themeRoot) },
     pagesPhpArray,
     schemaDefaultsPhp,
     menuItemsPhpArray,

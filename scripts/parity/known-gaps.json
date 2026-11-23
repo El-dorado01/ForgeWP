@@ -1,0 +1,28 @@
+{
+  "$comment": "Triaged native/decoupled differences. Each entry silences matching differences; an entry that matches nothing fails the run. Remove an entry in the same PR that fixes it. See docs/phase-status-and-blog-urls.md §8.",
+  "gaps": [
+    {
+      "id": "P2-native-site-settings-keys",
+      "owner": "Gemini (server.ts)",
+      "title": "Native getSiteSettings() only tokenizes options/themeMods passed to createWpServerClient(); the starter passes none, so native renders blanks where decoupled shows WordPress values",
+      "check": "dom",
+      "match": "\\$\\.parity\\.(contact-phone|footer-text)\\["
+    },
+    {
+      "id": "R2-native-single-frozen",
+      "owner": "Gemini (markers in server.ts) + Claude (PHP)",
+      "title": "Native dynamic single route freezes post title, terms, comments and the comment form's postId at export; only the body (the_content) is live",
+      "check": "dom",
+      "routes": ["/blog/first-parity-post/", "/blog/second-parity-post/"],
+      "match": "\\$\\.parity\\.(title|terms|comment-count|comment)\\["
+    },
+    {
+      "id": "R2-native-getposts-frozen",
+      "owner": "Gemini (markers in server.ts) + Claude (PHP)",
+      "title": "Native getPosts()/getTerms()/getTerm() outside WpQueryLoop are frozen at export (mock data, mock order)",
+      "check": "dom",
+      "routes": ["/listing/"],
+      "match": "\\$\\.parity\\.(posts|term-list|term)\\["
+    }
+  ]
+}

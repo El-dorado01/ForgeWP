@@ -160,15 +160,46 @@ Phase A is done; Phase B beta-critical work is done; Phase C core resources (`si
 | # | Task | Owner | Beta? | Notes |
 |---|---|---|---|---|
 | R1 ✅ | **LocalWP plugin pass** (WooCommerce, Events Manager, Polylang, MailPoet, Yoast/Rank Math, CSRF checks) | Local agent (founder's machine) | Yes | Done 2026-11-23 ([localwp-verification-report.md](localwp-verification-report.md)): verified all plugin paths against WP 7.1.5 + fixed 5 discovered issues in `b864db9` (`1d` decoupled skipped; follow-up notes logged). |
-| R2 | **G4 native parity:** comments list and post terms must render live from WordPress in the exported theme | Gemini (compile tokens/markers in `server.ts`) + Claude (PHP template output in `markup-processor.js`) | Yes | Same pattern as `WpQueryLoop` / `the_content`. Gemini proposes the marker shape first; Claude emits the PHP. |
+| R2 | **G4 native parity:** comments list and post terms must render live from WordPress in the exported theme. **Wider than first thought (R6 found it, §8):** the dynamic single route also freezes the post **title** and the comment form's **`postId`** (mock id, so native comments go to a non-existent post), and `getPosts()`/`getTerms()`/`getTerm()` outside `WpQueryLoop` are frozen too | Gemini (compile tokens/markers in `server.ts`) + Claude (PHP template output in `markup-processor.js`) | Yes | Same pattern as `WpQueryLoop` / `the_content`. Gemini proposes the marker shape first; Claude emits the PHP. |
 | R3 | **G4 polish:** `getPosts()` items gain `path`, `terms`, `protected` (additive) | Gemini | Nice to have | |
 | R4 | **SEO resource** (`/forgewp/v1/seo?path=`): title, description, canonical on the frontend domain, Open Graph, JSON-LD, hreflang; Yoast / Rank Math bridge; Next.js `generateMetadata()` helper | Contract draft: **Gemini**. PHP + plugin bridges: **Claude**. React/Next helper: **Gemini** | Yes | Without it, decoupled pages have no SEO plugin metadata. Replaces hotelchecker24's `hreflang.php`, `og-fallback.php`, `schemas.php` escape hatches. |
 | R5 | **Editables / repeaters resource**: normalized editable, ACF and repeater fields over REST + native | Contract draft: **Gemini**. PHP: **Claude**. `getWpEditable()` on the runtime: **Gemini** | Yes | Today repeaters fall back to defaults in decoupled mode (visible content bug). |
-| R6 | **Phase D — cross-mode parity CI**: GitHub Actions job that boots the Docker WordPress sandbox, exports a fixture project natively, runs it decoupled, and fails on differences in resource JSON, key DOM text per route, form submit, auth guard and locale behavior | **Claude** (sandbox, workflow, PHP side) + **Gemini** (Next.js decoupled build/run step and DOM comparison helpers) | Strongly recommended | Locks in everything above. Claude builds the job; Gemini adds the Next side. |
+| R6 ✅ | **Phase D — cross-mode parity CI** (first version done, §8): GitHub Actions job that boots the Docker WordPress sandbox, exports a fixture project natively, runs it decoupled, and fails on differences in resource JSON, key DOM text per route, form submit, auth guard and locale behavior | **Claude** (sandbox, workflow, PHP side) + **Gemini** (Next.js decoupled build/run step and DOM comparison helpers) | Strongly recommended | Locks in everything above. Claude builds the job; Gemini adds the Next side. |
 | R7 | **WooCommerce on the runtime** (cart, checkout, account resources) | Contract draft: **Claude** (after R1 findings). React: **Gemini** | Post-beta unless R1 finds blockers | Security fixes already shipped. |
 | R8 | **B5** `transformBackendPhp` hook | Claude | No | No package needs it yet. |
 | R9 | **B6** hand-written Companion Plugin sources (Composer, multi-file, lifecycle hooks) | Claude | Post-beta | Needed for Hospitality 2035 licensing. |
 
 **Order:** Gemini starts with R4 + R5 contract drafts and R2 marker proposal, then R3. Claude starts R6 (parity CI) and R2's PHP side as soon as Gemini's marker shape is agreed, then the R4/R5 PHP once their contracts are approved. Founder: run R1 with the local agent any time; it is independent.
 
-**Handoff (2026-11-23):** Claude continues in the cloud session; plugin-dependent checks go to the founder's local agent. Start with `docs/agent-handoff.md`.
+**Handoff (2026-11-23):** Claude continues in the cloud session; Claude's companion is Gemini on the founder's machine (LocalWP), which also runs the plugin-dependent checks. Start with `docs/agent-handoff.md`.
+
+---
+
+## 8. Parity CI (R6) — what it checks and what it found (Claude, 2026-11-23)
+
+**Run it:** `scripts/parity/run.sh` (reuses the cloud sandbox) or `PARITY_RESET=1 scripts/parity/run.sh` (fresh WordPress, what CI does). CI: `.github/workflows/parity.yml` on PRs touching `packages/**`, the fixture or the scripts. Details: [scripts/parity/README.md](../scripts/parity/README.md).
+
+**Fixture:** `projects/parity-fixture` (trimmed copy of Claude's e2e site): home, about, contact form, `/blog`, `/blog/[slug]` with comments, `/listing` (posts/terms outside `WpQueryLoop`), two guarded routes, primary menu, site options and theme mods. Every compared element carries `data-parity="<name>"`.
+
+**Checks (first run: 69 passed, 0 failed):**
+| Check | What must agree |
+|---|---|
+| resources | Every native `forgeWpHydration.resources.*` deep-equals its REST body on 8 routes (57 comparisons) |
+| dom | `[data-parity]` text, primary-menu links, HTTP status and `<html lang>` language, native vs decoupled, 7 routes |
+| form | Contact form submits successfully in both modes with the same status text |
+| auth | Logged-out visits to guarded routes redirect to the same path in both modes, without leaking content |
+| locale | `<html lang>` matches `i18n.currentLanguage` in both modes |
+| debug.log | No PHP fatal/parse/warning or `[ForgeWP]` line after the run |
+
+**Known gaps** (`scripts/parity/known-gaps.json`): reported, not failing. An entry that stops reproducing fails the run, so remove it in the PR that fixes it.
+
+| Id | Gap | Owner |
+|---|---|---|
+| P2-native-site-settings-keys | Native `getSiteSettings()` only tokenizes options/theme mods passed to `createWpServerClient({ siteOptions, themeMods })`. The starter passes none, so native renders blanks where decoupled shows WordPress's values. Suggested fix: tokenize the keys declared in `wp.config` (`options`, `themeMods`) by default. | Gemini (`server.ts`) |
+| R2-native-single-frozen | `/blog/[slug]` natively: title, terms, comment list/count and the comment form's `postId` are the first mock post's, on every post. Only the body (`the_content`) is live. | Gemini (markers) + Claude (PHP) |
+| R2-native-getposts-frozen | `getPosts()` / `getTerms()` / `getTerm()` outside `WpQueryLoop` render mock data in mock order natively. | Gemini (markers) + Claude (PHP) |
+
+**Other findings, fixed in this change:**
+- **P1 (doc only):** native `<html lang>` is WordPress's full locale (`en-US`), decoupled is whatever the layout hard-codes (`en`). The DOM check compares the language subtag; a future `i18n.htmlLang` field would let layouts match exactly. Suggest for Gemini's R4/i18n follow-up.
+- Declared `themeMods.footer_text` was replaced on activation by a generic "© year site. All rights reserved." Fixed (`routing.js`, test `footer-text-default.test.js`).
+- `scripts/cloud-e2e/sandbox.sh up` re-ran the WordPress installer on an installed site (a `grep` exit status leaked through `pipefail`), which reset permalinks to `/%postname%/` and made every `/blog/<slug>/` 404. Fixed.
