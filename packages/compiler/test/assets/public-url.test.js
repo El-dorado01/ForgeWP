@@ -5,7 +5,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   PUBLIC_ASSET_RUNTIME,
   collectPublicAssetUrls,
@@ -14,10 +14,12 @@ import {
   rewriteJsPublicAssetUrls,
   rewriteThemePublicAssetUrls,
 } from '../../lib/assets/public-url.js';
+import { resolveWpAsset } from '../../../react/src/hooks.ts';
 
 const temps = [];
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   for (const dir of temps.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -63,6 +65,43 @@ describe('rewriteJsPublicAssetUrls', () => {
       `src:${PUBLIC_ASSET_RUNTIME}+"/assets/editorial/cover.png"`,
     );
     expect(rewritten.split(PUBLIC_ASSET_RUNTIME)).toHaveLength(2);
+  });
+
+  it('does not double-prefix paths already concatenated with themeUri (G3 regression) and is idempotent', () => {
+    const urls = ['/Logo/hotelchecker24-logo_farbe.svg'];
+    const concatSource =
+      'const a=themeUri+"/Logo/hotelchecker24-logo_farbe.svg";const b=themeUri + \'/Logo/hotelchecker24-logo_farbe.svg\';';
+    expect(rewriteJsPublicAssetUrls(concatSource, urls)).toBe(concatSource);
+
+    const standalone = 'src:"/Logo/hotelchecker24-logo_farbe.svg"';
+    const once = rewriteJsPublicAssetUrls(standalone, urls);
+    expect(once).toBe(`src:${PUBLIC_ASSET_RUNTIME}+"/Logo/hotelchecker24-logo_farbe.svg"`);
+    expect(rewriteJsPublicAssetUrls(once, urls)).toBe(once);
+  });
+});
+
+describe('resolveWpAsset (G3 absolute URL pass-through)', () => {
+  it('passes http(s), protocol-relative, data, blob, and already-prefixed URLs through unchanged without collapsing //', () => {
+    const themeUri = 'http://localhost:8080/wp-content/themes/hotelchecker24';
+    vi.stubGlobal('window', {
+      forgeWpHydration: { themeUri },
+    });
+
+    const absoluteLogo = `${themeUri}/Logo/hotelchecker24-logo_farbe.svg`;
+    expect(resolveWpAsset(absoluteLogo)).toBe(absoluteLogo);
+    expect(resolveWpAsset(`  ${absoluteLogo}  `)).toBe(absoluteLogo);
+    expect(resolveWpAsset('HTTPS://cdn.example.com/logo.svg')).toBe(
+      'HTTPS://cdn.example.com/logo.svg',
+    );
+    expect(resolveWpAsset('//cdn.example.com/logo.svg')).toBe('//cdn.example.com/logo.svg');
+    expect(resolveWpAsset('data:image/svg+xml,<svg/>')).toBe('data:image/svg+xml,<svg/>');
+    expect(resolveWpAsset('blob:http://localhost:8080/abc')).toBe(
+      'blob:http://localhost:8080/abc',
+    );
+
+    // Relative paths still resolve cleanly once
+    expect(resolveWpAsset('/Logo/hotelchecker24-logo_farbe.svg')).toBe(absoluteLogo);
+    expect(resolveWpAsset('./Logo/hotelchecker24-logo_farbe.svg')).toBe(absoluteLogo);
   });
 });
 

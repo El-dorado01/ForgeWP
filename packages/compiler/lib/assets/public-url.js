@@ -64,7 +64,18 @@ export function rewriteJsPublicAssetUrls(source, urls) {
   for (const url of urls) {
     const re = new RegExp(`(['"\`])${escapeRegExp(url)}\\1`, 'g');
     const literal = JSON.stringify(url);
-    out = out.replace(re, `${PUBLIC_ASSET_RUNTIME}+${literal}`);
+    out = out.replace(re, (match, _quote, offset, full) => {
+      // Do not prefix a literal that is already the right-hand side of a `+`
+      // concatenation (e.g. `themeUri + "/Logo/logo.svg"` or an already-rewritten
+      // `${PUBLIC_ASSET_RUNTIME}+"/Logo/logo.svg"`), which would otherwise
+      // produce a doubled theme URL like `http://.../themehttp:/.../theme/Logo/...`.
+      let i = offset - 1;
+      while (i >= 0 && /\s/.test(full[i])) i -= 1;
+      if (i >= 0 && full[i] === '+') {
+        return match;
+      }
+      return `${PUBLIC_ASSET_RUNTIME}+${literal}`;
+    });
   }
   return out;
 }
