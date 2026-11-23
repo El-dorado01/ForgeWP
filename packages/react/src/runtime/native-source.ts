@@ -8,6 +8,9 @@ import type {
 import {
   normalizeFormResource,
   normalizeFormsCollection,
+  normalizeI18nResource,
+  normalizeMenusCollection,
+  normalizeRoutesResource,
   normalizeSiteSettings,
 } from './registry.js';
 
@@ -68,7 +71,15 @@ export function getNativePostMeta(): { id?: number | string; slug?: string } | n
 }
 
 export function getNativePageLink(name: string): string | null {
-  const links = getWindowHydration()?.pageLinks;
+  const hydration = getWindowHydration();
+  const canonicalRoutes = hydration?.resources?.routes;
+  if (canonicalRoutes && typeof canonicalRoutes === 'object') {
+    const normalized = normalizeRoutesResource(canonicalRoutes);
+    if (normalized && typeof normalized.pageLinks[name] === 'string') {
+      return normalized.pageLinks[name];
+    }
+  }
+  const links = hydration?.pageLinks;
   if (links && typeof links === 'object' && typeof links[name] === 'string') {
     return links[name];
   }
@@ -76,7 +87,15 @@ export function getNativePageLink(name: string): string | null {
 }
 
 export function getNativeMenu(location: string): any[] | null {
-  const menus = getWindowHydration()?.menus;
+  const hydration = getWindowHydration();
+  const canonicalMenus = hydration?.resources?.menus;
+  if (canonicalMenus && typeof canonicalMenus === 'object') {
+    const normalized = normalizeMenusCollection(canonicalMenus);
+    if (normalized && Array.isArray(normalized.menus[location])) {
+      return normalized.menus[location];
+    }
+  }
+  const menus = hydration?.menus;
   if (menus && typeof menus === 'object' && Array.isArray(menus[location])) {
     return menus[location];
   }
@@ -95,8 +114,9 @@ export function getNativeForm(name: string): FormResource | null {
 export function getNativeTranslations(): I18nResource | null {
   const hydration = getWindowHydration();
   const canonical = hydration?.resources?.i18n;
-  if (canonical && typeof canonical === 'object' && canonical.currentLanguage) {
-    return canonical as I18nResource;
+  if (canonical && typeof canonical === 'object') {
+    const normalized = normalizeI18nResource(canonical);
+    if (normalized) return normalized;
   }
   const legacy = getWindowTranslations();
   if (!legacy) return null;
@@ -146,13 +166,32 @@ export function createNativeSource(): ForgeWpSource {
           | ForgeWpResourceMap[K]
           | undefined;
       }
+      if (resource === 'menus') {
+        return (normalizeMenusCollection(canonical) ?? undefined) as
+          | ForgeWpResourceMap[K]
+          | undefined;
+      }
+      if (resource === 'routes') {
+        return (normalizeRoutesResource(canonical) ?? undefined) as
+          | ForgeWpResourceMap[K]
+          | undefined;
+      }
       return canonical as ForgeWpResourceMap[K];
     }
 
-    if (resource === 'menus') {
-      return (hydration.menus && typeof hydration.menus === 'object'
-        ? hydration.menus
-        : undefined) as ForgeWpResourceMap[K] | undefined;
+    if (resource === 'menus' && hydration.menus && typeof hydration.menus === 'object') {
+      return (normalizeMenusCollection(hydration.menus) ?? undefined) as
+        | ForgeWpResourceMap[K]
+        | undefined;
+    }
+
+    if (resource === 'routes' && hydration.pageLinks && typeof hydration.pageLinks === 'object') {
+      return (normalizeRoutesResource({
+        homeUrl: '',
+        basePath: '',
+        routes: [],
+        pageLinks: hydration.pageLinks,
+      }) ?? undefined) as ForgeWpResourceMap[K] | undefined;
     }
 
     return undefined;
