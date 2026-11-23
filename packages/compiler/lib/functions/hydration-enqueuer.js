@@ -391,6 +391,15 @@ ${fontsEnqueue}
             filemtime($css_path)
         );
     }
+
+    // enqueue_block_assets also fires inside the block editor (wp-admin and its
+    // canvas iframe). The theme CSS above belongs there; the front-end island
+    // runtime and hydrator do not — the Next.js runtime assigns window.React
+    // (React 19), replacing the React that WordPress core's editor runs on and
+    // crashing it (React error #525, blank editor).
+    if (is_admin()) {
+        return;
+    }
 ${hydrationEnqueue}
 }
 add_action('enqueue_block_assets', 'forgewp_enqueue_assets');
