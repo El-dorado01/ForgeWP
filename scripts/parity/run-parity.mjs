@@ -20,6 +20,11 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import {
+  compareResourceJson,
+  normalizeComparableUrlPath,
+  normalizeParityText,
+} from '../../packages/compiler/lib/next-parity-helpers.js';
 
 // Playwright is a devDependency of the fixture (pinned to the CI browser build).
 const require = createRequire(new URL('../../projects/parity-fixture/package.json', import.meta.url));
@@ -139,9 +144,12 @@ async function checkResources(page) {
         fail('resources', route.path, `GET ${rest} returned ${status}`, body);
         continue;
       }
-      const diffs = differences(value, body);
-      for (const diff of diffs) fail('resources', route.path, `resources.${name} != GET ${rest}`, diff);
-      if (!diffs.length) pass('resources', route.path, name);
+      const cmp = compareResourceJson(value, body);
+      const show = (v) => (v === undefined ? 'undefined' : JSON.stringify(v)?.slice(0, 160));
+      for (const d of cmp.diffs) {
+        fail('resources', route.path, `resources.${name} != GET ${rest}`, `${d.path}: ${show(d.native)} != ${show(d.rest)}`);
+      }
+      if (cmp.ok) pass('resources', route.path, name);
     }
   }
 }
@@ -149,23 +157,30 @@ async function checkResources(page) {
 /** Text of every [data-parity] element plus the primary menu, normalized. */
 async function domSnapshot(page, url) {
   const res = await page.goto(url, { waitUntil: 'networkidle' });
-  return page.evaluate((status) => {
-    const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+  const raw = await page.evaluate((status) => {
     // Primary language subtag only: native <html lang> comes from WordPress (en-US),
     // decoupled from the layout (en). Full-tag parity is tracked as gap P1 in
     // docs/phase-status-and-blog-urls.md; the locale check covers the language itself.
     const out = { status, lang: (document.documentElement.lang || '').toLowerCase().split('-')[0], parity: {}, menu: [] };
     for (const el of document.querySelectorAll('[data-parity]')) {
       const key = el.getAttribute('data-parity');
-      (out.parity[key] ||= []).push(norm(el.textContent));
+      (out.parity[key] ||= []).push(el.textContent || '');
     }
     for (const a of document.querySelectorAll('.fwp-nav a')) {
-      let p = a.getAttribute('href') || '';
-      try { p = new URL(p, location.href).pathname; } catch {}
-      out.menu.push([norm(a.textContent), p.replace(/\/?$/, '/')]);
+      out.menu.push([a.textContent || '', a.getAttribute('href') || '']);
     }
     return out;
   }, res?.status() ?? 0);
+  const origins = [WP, NEXT];
+  const parity = {};
+  for (const [k, vals] of Object.entries(raw.parity)) {
+    parity[k] = vals.map((v) => normalizeParityText(v));
+  }
+  const menu = raw.menu.map(([label, href]) => [
+    normalizeParityText(label),
+    normalizeComparableUrlPath(href, origins),
+  ]);
+  return { status: raw.status, lang: raw.lang, parity, menu };
 }
 
 async function checkDom(page) {
@@ -263,7 +278,26 @@ async function checkLocale(page) {
   }
 }
 
-const checks = { resources: checkResources, dom: checkDom, form: checkForm, auth: checkAuth, locale: checkLocale };
+async function checkLeaks(page) {
+  for (const route of ROUTES) {
+    for (const [mode, base] of [['native', WP], ['decoupled', NEXT]]) {
+      await page.goto(base + route.path, { waitUntil: 'domcontentloaded' });
+      const html = await page.content();
+      const hits = [];
+      const tokenMatches = html.match(/__FORGEWP_[A-Z0-9_]+__|<forgewp-[a-z-]+/gi);
+      if (tokenMatches) hits.push(...Array.from(new Set(tokenMatches)));
+      if (/<\?php/i.test(html)) hits.push('<?php');
+      if (mode === 'native' && /\/_next\/static/.test(html)) hits.push('/_next/static');
+      if (hits.length > 0) {
+        fail('leaks', route.path, `${mode} HTML leaked compile/runtime artifact(s)`, hits.join(', '));
+      } else {
+        pass('leaks', route.path, mode);
+      }
+    }
+  }
+}
+
+const checks = { resources: checkResources, dom: checkDom, leaks: checkLeaks, form: checkForm, auth: checkAuth, locale: checkLocale };
 const needsBrowser = { form: true, auth: true };
 
 const browser = await chromium.launch({ args: ['--no-sandbox'] });

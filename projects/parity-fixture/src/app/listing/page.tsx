@@ -1,3 +1,4 @@
+import { WpQueryLoop, WpTermsLoop } from '@forgewp/react';
 import { wpClient } from '@/lib/content';
 
 export default async function ListingPage() {
@@ -6,8 +7,31 @@ export default async function ListingPage() {
   const term = await wpClient.getTerm('category', 'uncategorized');
   return (
     <main className="fwp-content">
-      <ul data-parity="posts">{(Array.isArray(posts) ? posts : (posts as any).items ?? []).map((p: any) => <li key={p.id}>{p.title} → {p.path}</li>)}</ul>
-      <p data-parity="term-list">{(Array.isArray(terms) ? terms : (terms as any)?.items ?? []).map((t: any) => `${t.name}(${t.count})`).join(', ')}</p>
+      <ul data-parity="posts">
+        <WpQueryLoop
+          postType="post"
+          useMainQuery={false}
+          postsPerPage={2}
+          posts={posts}
+          renderItem={(p) => (
+            <li key={p.id}>
+              {p.title} → {p.path}
+            </li>
+          )}
+        />
+      </ul>
+      <p data-parity="term-list">
+        <WpTermsLoop
+          taxonomy="category"
+          terms={terms}
+          renderItem={(t, idx) => (
+            <span key={t.id}>
+              {idx > 0 ? ', ' : ''}
+              {`${t.name}(${t.count})`}
+            </span>
+          )}
+        />
+      </p>
       <p data-parity="term">{term ? `${term.name} ${term.path}` : 'none'}</p>
     </main>
   );

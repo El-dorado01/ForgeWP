@@ -304,7 +304,7 @@ echo json_encode(array('header' => $header_out, 'front' => $front_out, 'landing'
           content: '',
           date: '2026-11-22T10:00:00',
           author: 'Ada Lovelace',
-          permalink: '/blog/live-release',
+          permalink: 'https://cms.example.com/wp/blog/live-release/',
           path: '/blog/live-release',
           featuredImage: 'https://cms.example.com/hero.jpg',
           terms: {},
