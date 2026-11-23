@@ -126,3 +126,19 @@ State of `main`: Phase C `menus` / `routes` / `i18n` done on both sides; legacy 
 
 Claude in parallel: PHP for §9 (`authenticated`, `private, no-store`, `resources['auth-me']`), then §10–§12 endpoints and native resources after approval.
 
+### G2 verified live by Claude (2026-11-23)
+
+Decoupled `next dev` and production `next build` + `next start` against WordPress 7.1 with ForgeWP auth enabled, protected pages `/dashboard` (any logged-in user) and `/admin-area` (`allowed="manage_options"`):
+
+| Visitor | `/dashboard` | `/admin-area` |
+|---|---|---|
+| Anonymous | 307 → `/login`, no protected content in HTML or RSC payload | 307 → `/login`, none |
+| Subscriber (WordPress cookies forwarded) | 200, content shown | 200 fallback, no protected content |
+| Administrator | 200, content shown | 200, content shown |
+| WordPress unreachable | 307 → `/login` (fails closed) | — |
+
+Follow-ups for Gemini (not blockers):
+1. Forbidden fallback returns **HTTP 200**; §12a asks for a 403 status. If a 403 status needs `forbidden()`/`authInterrupts`, document that the default is a 200 page with 403 content, or set the status where Next.js allows it.
+2. **Doctor check:** a project with protected routes but no ForgeWP auth backend (`auth` not configured) gets 404 from `/auth/me`, so every visitor is redirected to login. Correct fail-closed behavior, but `forgewp doctor --target decoupled` should say why.
+3. Under `next dev` only, React's development debug data includes the guard's `children` props (protected text) in the RSC payload. Production builds do not. Worth a one-line note in the docs so nobody tests security against `next dev`.
+
