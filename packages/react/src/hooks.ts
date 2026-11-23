@@ -748,14 +748,13 @@ export function useWpThemeUri(): string {
 
 export function resolveWpAsset(path: string): string {
   if (!path) return '';
+  const trimmed = path.trim();
+  if (!trimmed) return '';
   if (
-    path.startsWith('http://') ||
-    path.startsWith('https://') ||
-    path.startsWith('//') ||
-    path.startsWith('data:') ||
-    path.startsWith('blob:')
+    /^(?:https?:)?\/\//i.test(trimmed) ||
+    /^(?:data|blob):/i.test(trimmed)
   ) {
-    return path;
+    return trimmed;
   }
   if (typeof window !== 'undefined') {
     const themeUri =
@@ -763,12 +762,14 @@ export function resolveWpAsset(path: string): string {
       (window as any).forgeWpThemeUri ||
       (window as any).forgewpData?.themeUri;
     if (themeUri) {
-      return (
-        themeUri.replace(/\/+$/, '') + '/' + path.replace(/^(\/|\.\/)+/, '')
-      );
+      const cleanBase = String(themeUri).replace(/\/+$/, '');
+      if (cleanBase && (trimmed === cleanBase || trimmed.startsWith(`${cleanBase}/`))) {
+        return trimmed;
+      }
+      return cleanBase + '/' + trimmed.replace(/^(\/|\.\/)+/, '');
     }
   }
-  return path;
+  return trimmed;
 }
 
 export interface UseWpPageLinkOptions {
