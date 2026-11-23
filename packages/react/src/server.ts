@@ -98,6 +98,8 @@ export interface WpServerAuthMeOptions {
   authorization?: string | null;
   /** Override JWT HttpOnly cookie name (default: `'forgewp_auth_token'`). */
   authCookieName?: string;
+  /** Request timeout in milliseconds before failing closed (default: `5000`). */
+  timeoutMs?: number;
 }
 
 export interface WpServerClientOptions {
@@ -476,11 +478,23 @@ async function fetchDecoupledAuthMe(params: {
   }
 
   const headers = buildForwardedAuthHeaders(reqOpts);
+  const timeoutMs =
+    typeof reqOpts.timeoutMs === 'number' && reqOpts.timeoutMs > 0
+      ? reqOpts.timeoutMs
+      : 5000;
+  const controller =
+    typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer =
+    controller && typeof setTimeout === 'function'
+      ? setTimeout(() => controller.abort(), timeoutMs)
+      : null;
+
   try {
     const response = await fetchImpl(`${base.baseUrl}/wp-json/forgewp/v1/auth/me`, {
       method: 'GET',
       headers,
       cache: 'no-store',
+      ...(controller ? { signal: controller.signal } : {}),
     });
     if (!response.ok) {
       return { authenticated: false, user: null };
@@ -490,6 +504,10 @@ async function fetchDecoupledAuthMe(params: {
   } catch {
     // Fail closed on network failure or timeout
     return { authenticated: false, user: null };
+  } finally {
+    if (timer !== null && typeof clearTimeout === 'function') {
+      clearTimeout(timer);
+    }
   }
 }
 
