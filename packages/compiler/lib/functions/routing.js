@@ -127,6 +127,18 @@ ${pagesPhpArray}
         } else {
             $page_id = $existing_page->ID;
             $current_tpl = get_post_meta($page_id, '_wp_page_template', true);
+            // Fallback "Coming next" entries (menu links without a route) carry the
+            // placeholder template. When one matches a real page by slug (e.g. a
+            // translated page owned by another route), leave that page alone:
+            // never downgrade a real route id or template to the placeholder.
+            if ($route_id === 'placeholder') {
+                $existing_route_id = (string) get_post_meta($page_id, 'forgewp_route_id', true);
+                $has_real_route = $existing_route_id !== '' && $existing_route_id !== 'placeholder';
+                $has_real_tpl = !empty($current_tpl) && $current_tpl !== 'page-placeholder.php' && $current_tpl !== 'default';
+                if ($has_real_route || $has_real_tpl) {
+                    continue;
+                }
+            }
             if ($current_tpl === 'page-placeholder.php' || empty($current_tpl) || (!$has_run && $current_tpl !== $p['template'])) {
                 update_post_meta($page_id, '_wp_page_template', $p['template']);
             }

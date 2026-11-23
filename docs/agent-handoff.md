@@ -3,7 +3,7 @@
 **Written by:** Claude (cloud session), 2026-11-23, at `main` after `ec5541a` (R1 LocalWP report).  
 **For:** Claude and Gemini. Read this first, then the documents it links.
 
-**Update (same day):** Claude continues in the **cloud session** (Docker sandbox: `scripts/cloud-e2e/sandbox.sh`) rather than on the founder's machine. Plugin-dependent checks (WooCommerce, Events Manager, Polylang, SEO plugins) go to the founder's local agent using `docs/localwp-verification-checklist.md`. Everything else in this document is unchanged.
+**Update (same day):** Claude continues in the **cloud session** (Docker sandbox: `scripts/cloud-e2e/sandbox.sh`). Claude's companion is now **Gemini running on the founder's machine** with LocalWP and a visible browser. Gemini keeps the Gemini task queue below and also owns the plugin-dependent checks (WooCommerce, Events Manager, Polylang, SEO plugins) from `docs/localwp-verification-checklist.md`, plus the LocalWP re-verification of Claude's fixes that need those plugins. Ownership of files is unchanged.
 
 ---
 
@@ -54,6 +54,7 @@ Live status and the task table: [phase-status-and-blog-urls.md](phase-status-and
 | 2 | **R4 + R5 contract drafts** | SEO (`/forgewp/v1/seo?path=`) and editables/repeaters, in `resource-contracts.md`, for Claude's review and founder approval. |
 | 3 | **R3** | `getPosts()` list items gain `path`, `terms`, `protected` (additive). |
 | 4 | R6 Next.js side | Decoupled build/run step and DOM comparison helpers for Claude's CI job. |
+| 0 | **Verify Claude's Task 1 fix on LocalWP** | Re-export `hotelchecker24` from `claude/pensive-pasteur-tov58c`, re-activate it twice (switch to Twenty Twenty-Five and back), then check post 17 keeps `forgewp_route_id = kontakt-page` and `/en/` `pageLinks` points `kontakt-page` at the English contact page. |
 | note | Nonce forwarding | R1 confirmed same-origin `wishlist`, `customer/*` and `checkout/process` return 401 without `X-WP-Nonce`; client code must always forward `restNonce`. |
 
 ---
@@ -100,4 +101,4 @@ Live status and the task table: [phase-status-and-blog-urls.md](phase-status-and
 ## 6. Kickstart
 
 - **Claude:** pull `main`, read this file and §7 of the status doc, `pnpm install`, `pnpm --filter @forgewp/compiler test` (expect 870 passed), then start Task 1.
-- **Gemini:** pull `main`, read §3 above and the status doc §7, start with the R2 marker proposal.
+- **Gemini (local):** pull `main`, read §3 above and the status doc §7, do task 0 (LocalWP check of Claude's fix), then the R2 marker proposal.
