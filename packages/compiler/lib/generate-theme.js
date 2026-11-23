@@ -43,7 +43,8 @@ import {
 } from './php-builders.js';
 import { collectFallbackPageRoutes } from './collect-static-routes.js';
 import { collectPageTemplateRoutes } from './collect-page-template-routes.js';
-import { buildFunctionsPhp } from './functions/index.js';
+import { buildFunctionsPhpParts } from './functions/index.js';
+import { buildThemeCompanionLoaderPhp, writeCompanionPlugin } from './companion-plugin.js';
 import { loadMenusData } from './functions/load-menus.js';
 import {
   loadTranslationsData,
@@ -1991,8 +1992,9 @@ if (window.forgeWpBlocks) {
   }
 
   let functionsPhpContent;
+  let companionBackendPhp = '';
   try {
-    functionsPhpContent = buildFunctionsPhp(
+    const functionsParts = buildFunctionsPhpParts(
       config,
       assets,
       compiledBlocks,
@@ -2005,6 +2007,9 @@ if (window.forgeWpBlocks) {
       queries,
       wpOptions,
     );
+    companionBackendPhp = functionsParts.backend;
+    functionsPhpContent =
+      functionsParts.header + buildThemeCompanionLoaderPhp(config) + '\n' + functionsParts.theme;
   } catch (error) {
     console.error('CRITICAL ERROR in buildFunctionsPhp:', error.stack);
     throw error;
@@ -2067,6 +2072,7 @@ if (window.forgeWpBlocks) {
     functionsPhpContent,
     'utf8',
   );
+  writeCompanionPlugin({ outDir, config, backendPhp: companionBackendPhp });
 
   // WordPress runtime reads translations.json from the theme root. Serialize
   // cms/translations.ts (preferred) or the legacy JSON file into that artifact.

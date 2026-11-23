@@ -73,4 +73,18 @@ echo json_encode(array('footer' => get_theme_mod('footer_text'), 'menus' => get_
     });
     expect(out).toEqual({ header_textcolor: '#111' });
   });
+  it('keeps menu locations through core\'s theme-switch remap, but honors normal edits', () => {
+    const out = run(`
+do_action('init');
+$options['theme_switch_menu_locations'] = array('primary' => 7);   // core: switch in progress
+set_theme_mod('nav_menu_locations', array());                        // core remap to a theme with no locations
+unset($options['theme_switch_menu_locations']);
+$after_switch = get_theme_mod('nav_menu_locations');
+set_theme_mod('nav_menu_locations', array('footer' => 3));           // editor reassigns in the Menus screen
+echo json_encode(array($after_switch, get_theme_mod('nav_menu_locations')));
+`, { stylesheet: 'theme-a', 'theme_mods_theme-a': { nav_menu_locations: { primary: 7 } } });
+    expect(out[0]).toEqual({ primary: 7 });
+    expect(out[1]).toEqual({ footer: 3 });
+  });
 });
+

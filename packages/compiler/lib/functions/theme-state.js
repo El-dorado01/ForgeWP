@@ -68,7 +68,18 @@ if (!function_exists('forgewp_theme_state_keys')) {
                 if (!is_array($state)) {
                     $state = array();
                 }
-                $state[$key] = $value;
+                // On a theme switch, core's _wp_menus_changed() remaps menu
+                // locations to the new theme's registered locations (often
+                // none) via set_theme_mod(), while theme_switch_menu_locations
+                // still holds the old ones. Merge in that case so ForgeWP's
+                // assignments survive the switch; any other write (Menus
+                // screen, Customizer) replaces as usual.
+                if ($key === 'nav_menu_locations' && get_option('theme_switch_menu_locations', null) !== null
+                    && isset($state[$key]) && is_array($state[$key]) && is_array($value)) {
+                    $state[$key] = array_merge($state[$key], $value);
+                } else {
+                    $state[$key] = $value;
+                }
                 update_option('forgewp_theme_state', $state, true);
                 return $value;
             });

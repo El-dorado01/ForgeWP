@@ -242,7 +242,10 @@ describe('Next.js optional module parity: Native Forms, SEO, Auth, and WooCommer
       expect(dashHead).toContain('og:title');
 
       // Auth REST endpoints generated in functions.php & all PHP files lint cleanly
-      const functionsPhp = readFileSync(path.join(outDir, 'functions.php'), 'utf8');
+      // Backend contracts (auth REST) live in the embedded companion backend (Phase B).
+      const functionsPhp =
+        readFileSync(path.join(outDir, 'functions.php'), 'utf8') +
+        readFileSync(path.join(outDir, 'companion', 'backend.php'), 'utf8');
       expect(functionsPhp).toContain('/auth/login');
       expect(functionsPhp).toContain('/auth/logout');
 

@@ -8,6 +8,7 @@ import { loadConfig } from './load-config.js';
 import { findWpConfigPath } from './project-language.js';
 import { renderStaticMarkup } from './render-static.js';
 import { assertZipCreated, zipTheme } from './zip-theme.js';
+import { companionPluginSlug } from './companion-plugin.js';
 
 import { validateCriticalFiles } from './validate.js';
 import { validateExport } from './validate-export.js';
@@ -215,6 +216,13 @@ export async function exportTheme(options) {
     report('zip', 'Creating ZIP…');
     await zipTheme(outDir, zipPath);
     assertZipCreated(zipPath);
+    // Companion Plugin ZIP next to the theme ZIP (see companion-plugin.js).
+    const companionDir = path.join(path.dirname(outDir), companionPluginSlug(config.slug));
+    if (existsSync(companionDir)) {
+      const companionZip = path.join(path.dirname(zipPath), `${companionPluginSlug(config.slug)}.zip`);
+      await zipTheme(companionDir, companionZip);
+      assertZipCreated(companionZip);
+    }
     report('zip-done', 'ZIP created', 'green');
   }
 
