@@ -1705,6 +1705,14 @@ function forgewp_cart_register_rest_routes() {
         ),
     ) );
 
+    register_rest_route( 'forgewp/v1', '/cart/remove-coupon', array(
+        array(
+            'methods'             => 'POST',
+            'callback'            => 'forgewp_rest_remove_coupon',
+            'permission_callback' => '__return_true',
+        ),
+    ) );
+
     register_rest_route( 'forgewp/v1', '/cart/sync', array(
         array(
             'methods'             => 'POST',
@@ -2386,9 +2394,11 @@ function forgewp_rest_get_shipping_rates( $request ) {
 }
 
 function forgewp_rest_get_checkout_gateways( $request ) {
+    // Only gateways WooCommerce actually offers for this cart. Never invent
+    // entries: a fake "Stripe" option would place orders nobody can pay.
     $gateways_list = array();
-
     if ( function_exists( 'WC' ) && WC()->payment_gateways() ) {
+        forgewp_ensure_wc_cart();
         $available = WC()->payment_gateways()->get_available_payment_gateways();
         if ( ! empty( $available ) ) {
             foreach ( $available as $id => $gateway ) {
@@ -2397,48 +2407,46 @@ function forgewp_rest_get_checkout_gateways( $request ) {
                     'title'       => $gateway->get_title() ?: $gateway->get_method_title(),
                     'description' => $gateway->get_description(),
                     'icon'        => $gateway->get_icon(),
-                    'supports'    => method_exists( $gateway, 'supports' ) ? array( 'products' ) : array(),
+                    'supports'    => isset( $gateway->supports ) && is_array( $gateway->supports ) ? array_values( $gateway->supports ) : array( 'products' ),
                 );
             }
         }
     }
-
-    if ( empty( $gateways_list ) ) {
-        $gateways_list = array(
-            array(
-                'id'          => 'stripe',
-                'title'       => 'Credit Card (Stripe)',
-                'description' => 'Pay securely with your credit card.',
-                'icon'        => '',
-                'supports'    => array( 'products' ),
-            ),
-            array(
-                'id'          => 'paypal',
-                'title'       => 'PayPal',
-                'description' => 'Pay securely using your PayPal balance or bank card.',
-                'icon'        => '',
-                'supports'    => array( 'products' ),
-            ),
-            array(
-                'id'          => 'cod',
-                'title'       => 'Cash on Delivery',
-                'description' => 'Pay in cash upon delivery of your order.',
-                'icon'        => '',
-                'supports'    => array( 'products' ),
-            ),
-            array(
-                'id'          => 'bacs',
-                'title'       => 'Direct Bank Transfer',
-                'description' => 'Make your payment directly into our bank account.',
-                'icon'        => '',
-                'supports'    => array( 'products' ),
-            ),
-        );
-    }
-
     return rest_ensure_response( array(
         'gateways' => $gateways_list,
     ) );
+}
+
+/** Checkout address fields accepted from the client, mapped to WooCommerce's posted-data keys. */
+function forgewp_checkout_address_fields( $type ) {
+    $fields = array( 'first_name', 'last_name', 'company', 'address_1', 'address_2', 'city', 'state', 'postcode', 'country' );
+    if ( 'billing' === $type ) {
+        $fields[] = 'email';
+        $fields[] = 'phone';
+    } else {
+        $fields[] = 'phone';
+    }
+    return $fields;
+}
+
+function forgewp_checkout_posted_data( $params, $payment_method ) {
+    $billing  = ! empty( $params['billing_address'] ) && is_array( $params['billing_address'] ) ? $params['billing_address'] : ( ! empty( $params['billing'] ) && is_array( $params['billing'] ) ? $params['billing'] : array() );
+    $shipping = ! empty( $params['shipping_address'] ) && is_array( $params['shipping_address'] ) ? $params['shipping_address'] : ( ! empty( $params['shipping'] ) && is_array( $params['shipping'] ) ? $params['shipping'] : $billing );
+
+    $data = array(
+        'payment_method'            => $payment_method,
+        'order_comments'            => ! empty( $params['customer_note'] ) ? sanitize_textarea_field( $params['customer_note'] ) : '',
+        'ship_to_different_address' => true,
+        'shipping_method'           => WC()->session ? (array) WC()->session->get( 'chosen_shipping_methods', array() ) : array(),
+        'terms'                     => 1,
+    );
+    foreach ( array( 'billing' => $billing, 'shipping' => $shipping ) as $type => $address ) {
+        foreach ( forgewp_checkout_address_fields( $type ) as $field ) {
+            $value = isset( $address[ $field ] ) && is_scalar( $address[ $field ] ) ? (string) $address[ $field ] : '';
+            $data[ $type . '_' . $field ] = 'email' === $field ? sanitize_email( $value ) : sanitize_text_field( $value );
+        }
+    }
+    return $data;
 }
 
 function forgewp_rest_process_checkout( $request ) {
@@ -2451,66 +2459,103 @@ function forgewp_rest_process_checkout( $request ) {
         $params = $request->get_params();
     }
 
-    $cart_contents = WC()->cart->get_cart();
-    if ( empty( $cart_contents ) ) {
+    if ( empty( WC()->cart->get_cart() ) ) {
         return new WP_Error( 'cart_empty', 'Cannot checkout with an empty cart', array( 'status' => 400 ) );
     }
 
-    $user_id = get_current_user_id();
-    $billing  = ! empty( $params['billing_address'] ) && is_array( $params['billing_address'] ) ? $params['billing_address'] : ( ! empty( $params['billing'] ) && is_array( $params['billing'] ) ? $params['billing'] : array() );
-    $shipping = ! empty( $params['shipping_address'] ) && is_array( $params['shipping_address'] ) ? $params['shipping_address'] : ( ! empty( $params['shipping'] ) && is_array( $params['shipping'] ) ? $params['shipping'] : $billing );
-    $payment_method = ! empty( $params['payment_method'] ) ? sanitize_text_field( $params['payment_method'] ) : 'cod';
-    $customer_note  = ! empty( $params['customer_note'] ) ? sanitize_textarea_field( $params['customer_note'] ) : '';
+    // The payment method must be one WooCommerce offers for this cart. There is
+    // no default: silently falling back to "cod" (or trusting any id) let a
+    // shopper place an order marked as processing without paying.
+    $payment_method = ! empty( $params['payment_method'] ) ? sanitize_key( $params['payment_method'] ) : '';
+    $needs_payment  = WC()->cart->needs_payment();
+    $available      = WC()->payment_gateways()->get_available_payment_gateways();
+    if ( $needs_payment && ( '' === $payment_method || empty( $available[ $payment_method ] ) ) ) {
+        return new WP_Error( 'invalid_payment_method', 'Choose an available payment method.', array( 'status' => 400 ) );
+    }
 
-    $order = wc_create_order( array(
-        'customer_id'   => $user_id,
-        'customer_note' => $customer_note,
-    ) );
+    $data = forgewp_checkout_posted_data( $params, $needs_payment ? $payment_method : '' );
+    if ( '' === $data['billing_email'] || ! is_email( $data['billing_email'] ) ) {
+        return new WP_Error( 'invalid_billing_email', 'A valid billing email address is required.', array( 'status' => 400 ) );
+    }
 
-    if ( is_wp_error( $order ) || ! $order ) {
+    // Taxes and shipping depend on the customer's address.
+    $customer = WC()->customer;
+    if ( $customer ) {
+        foreach ( forgewp_checkout_address_fields( 'billing' ) as $field ) {
+            $setter = 'set_billing_' . $field;
+            if ( method_exists( $customer, $setter ) ) {
+                $customer->{$setter}( $data[ 'billing_' . $field ] );
+            }
+        }
+        foreach ( forgewp_checkout_address_fields( 'shipping' ) as $field ) {
+            $setter = 'set_shipping_' . $field;
+            if ( method_exists( $customer, $setter ) ) {
+                $customer->{$setter}( $data[ 'shipping_' . $field ] );
+            }
+        }
+        $customer->save();
+    }
+    WC()->cart->calculate_shipping();
+    WC()->cart->calculate_totals();
+
+    $stock = WC()->cart->check_cart_item_stock();
+    if ( is_wp_error( $stock ) ) {
+        return new WP_Error( 'out_of_stock', wp_strip_all_tags( $stock->get_error_message() ), array( 'status' => 409 ) );
+    }
+
+    // WooCommerce builds the order from the cart: line items, chosen shipping
+    // lines, fees, coupons and taxes, and fires its checkout hooks.
+    $order_id = WC()->checkout()->create_order( $data );
+    if ( is_wp_error( $order_id ) || ! $order_id ) {
         return new WP_Error( 'order_creation_failed', 'Failed to create order. Please try again.', array( 'status' => 500 ) );
     }
-
-    foreach ( $cart_contents as $cart_item_key => $values ) {
-        $item_id = $order->add_product(
-            $values['data'],
-            $values['quantity'],
-            array(
-                'variation' => ! empty( $values['variation'] ) ? $values['variation'] : array(),
-                'subtotal'  => $values['line_subtotal'],
-                'total'     => $values['line_total'],
-            )
-        );
+    $order = wc_get_order( $order_id );
+    if ( ! $order ) {
+        return new WP_Error( 'order_creation_failed', 'Failed to create order. Please try again.', array( 'status' => 500 ) );
     }
+    $order->add_order_note( 'Order placed via ForgeWP checkout.' );
+    do_action( 'woocommerce_checkout_order_processed', $order_id, $data, $order );
 
-    $order->set_address( $billing, 'billing' );
-    $order->set_address( $shipping, 'shipping' );
-    $order->set_payment_method( $payment_method );
-
-    // Apply applied coupons to order
-    $applied_coupons = WC()->cart->get_applied_coupons();
-    if ( ! empty( $applied_coupons ) ) {
-        foreach ( $applied_coupons as $coupon_code ) {
-            $order->apply_coupon( $coupon_code );
+    // The gateway decides the order status (COD: processing, BACS: on-hold,
+    // card/redirect gateways: pending until paid). Never set it here.
+    $redirect      = '';
+    $needs_redirect = false;
+    if ( $needs_payment ) {
+        $result = $available[ $payment_method ]->process_payment( $order_id );
+        if ( ! is_array( $result ) || ! isset( $result['result'] ) || 'success' !== $result['result'] ) {
+            $notices = function_exists( 'wc_get_notices' ) ? wc_get_notices( 'error' ) : array();
+            if ( function_exists( 'wc_clear_notices' ) ) {
+                wc_clear_notices();
+            }
+            $message = ! empty( $notices[0]['notice'] ) ? wp_strip_all_tags( $notices[0]['notice'] ) : 'Payment failed. Please try another payment method.';
+            return new WP_Error( 'payment_failed', $message, array( 'status' => 402, 'orderId' => $order_id ) );
         }
+        $redirect = ! empty( $result['redirect'] ) ? (string) $result['redirect'] : $order->get_checkout_order_received_url();
+        $order    = wc_get_order( $order_id );
+        // Off-site gateways leave the order pending and send the shopper away;
+        // keep the cart until they come back paid (WooCommerce empties it then).
+        $needs_redirect = $order->has_status( array( 'pending', 'failed' ) );
+    } else {
+        $order->payment_complete();
+        $redirect = $order->get_checkout_order_received_url();
     }
 
-    $order->calculate_totals();
-    $order->update_status( 'processing', 'Order placed via ForgeWP Headless API' );
-
-    // Clear cart after successful order creation
-    WC()->cart->empty_cart();
+    if ( ! $needs_redirect ) {
+        WC()->cart->empty_cart();
+    }
     forgewp_save_wc_cart();
 
     return rest_ensure_response( array(
-        'success'     => true,
-        'orderId'     => $order->get_id(),
-        'orderKey'    => $order->get_order_key(),
-        'orderNumber' => $order->get_order_number(),
-        'status'      => $order->get_status(),
-        'total'       => $order->get_total(),
-        'currency'    => $order->get_currency(),
-        'redirectUrl' => $order->get_checkout_order_received_url(),
+        'success'       => true,
+        'orderId'       => $order->get_id(),
+        'orderKey'      => $order->get_order_key(),
+        'orderNumber'   => $order->get_order_number(),
+        'status'        => $order->get_status(),
+        'total'         => $order->get_total(),
+        'currency'      => $order->get_currency(),
+        'paymentMethod' => $order->get_payment_method(),
+        'needsRedirect' => $needs_redirect,
+        'redirectUrl'   => $redirect,
     ) );
 }
 
