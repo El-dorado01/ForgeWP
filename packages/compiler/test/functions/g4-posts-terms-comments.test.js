@@ -318,7 +318,12 @@ describe('G4: posts, terms, and comments contracts (§10–§12, §12a)', () => 
         },
       },
     );
-    expect(resultHold).toEqual({ ok: true, status: 'hold', comment: null, message: undefined });
+    expect(resultHold).toEqual({
+      ok: true,
+      status: 'hold',
+      comment: null,
+      message: 'Your comment is awaiting moderation.',
+    });
     expect(sentBodies[0]).toMatchObject({
       post: 42,
       parent: 0,
@@ -381,8 +386,8 @@ describe('G4: posts, terms, and comments contracts (§10–§12, §12a)', () => 
             name: 'Native News',
             count: 5,
             parent: 0,
-            path: '/category/news/',
-            permalink: '/category/news/',
+            path: '/blog/category/news/',
+            permalink: 'https://example.com/blog/category/news/',
           },
         },
       },
@@ -392,6 +397,7 @@ describe('G4: posts, terms, and comments contracts (§10–§12, §12a)', () => 
     expect(nativeSource.peek('post')?.title).toBe('Hello Native');
     expect(nativeSource.peek('posts')?.items).toHaveLength(1);
     expect(nativeSource.peek('term')?.name).toBe('Native News');
+    expect(nativeSource.peek('term')?.path).toBe('/blog/category/news/');
 
     function G4Probe() {
       const { post } = useWpPost('post', 'hello');
@@ -401,12 +407,12 @@ describe('G4: posts, terms, and comments contracts (§10–§12, §12a)', () => 
       return React.createElement(
         'div',
         null,
-        `${post?.title || ''}|${posts.length}|${terms.map((t) => t.name).join(',')}|${comments.length}`,
+        `${post?.title || ''}|${posts.length}|${terms.map((t) => `${t.name}@${t.path || ''}`).join(',')}|${comments.length}`,
       );
     }
 
     expect(renderToStaticMarkup(React.createElement(G4Probe))).toBe(
-      '<div>Hello Native|1|Native News|0</div>',
+      '<div>Hello Native|1|Native News@/blog/category/news/|0</div>',
     );
 
     // 2. Primed decoupled runtime
@@ -507,7 +513,7 @@ describe('G4: posts, terms, and comments contracts (§10–§12, §12a)', () => 
     );
 
     expect(renderToStaticMarkup(React.createElement(G4Probe))).toBe(
-      '<div>Hello Decoupled|1|Decoupled News|1</div>',
+      '<div>Hello Decoupled|1|Decoupled News@/category/news/|1</div>',
     );
 
     // 3. restSource encodes multi-segment slugs (/posts/post/hello, /terms/category/news) properly

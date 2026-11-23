@@ -623,11 +623,17 @@ export async function submitWpComment(
         errors,
       };
     }
+    const commentStatus = json?.status === 'hold' ? 'hold' : 'approved';
     return {
       ok: true,
-      status: json?.status === 'hold' ? 'hold' : 'approved',
+      status: commentStatus,
       comment: json?.comment ? normalizeCommentResource(json.comment) : null,
-      message: typeof json?.message === 'string' ? json.message : undefined,
+      message:
+        typeof json?.message === 'string' && json.message
+          ? json.message
+          : commentStatus === 'hold'
+            ? 'Your comment is awaiting moderation.'
+            : undefined,
     };
   } catch {
     return { ok: false, message: 'network' };
@@ -2305,6 +2311,11 @@ export interface WpTerm {
   description: string;
   count: number;
   meta: Record<string, any>;
+  /** Site-relative archive path from WordPress (e.g. `/blog/category/news/`). Always prefer this over constructing URLs manually. */
+  path?: string;
+  permalink?: string;
+  parent?: number;
+  taxonomy?: string;
 }
 
 export function useWpTaxonomyList(taxonomy: string, defaultValue = ''): string {
@@ -2331,6 +2342,10 @@ function toWpTerm(t: any): WpTerm {
     description: t.description ?? '',
     count: t.count ?? 0,
     meta: t.meta ?? {},
+    ...(typeof t.path === 'string' && t.path ? { path: t.path } : {}),
+    ...(typeof t.permalink === 'string' && t.permalink ? { permalink: t.permalink } : {}),
+    ...(typeof t.parent === 'number' ? { parent: t.parent } : {}),
+    ...(typeof t.taxonomy === 'string' && t.taxonomy ? { taxonomy: t.taxonomy } : {}),
   };
 }
 
