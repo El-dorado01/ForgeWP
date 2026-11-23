@@ -1,6 +1,6 @@
 # ForgeWP Resource Contracts
 
-**Status:** Draft — `site-settings` and `forms` proposed by Claude (2026-11-23), awaiting founder approval  
+**Status:** Approved by founder (2026-11-23) — `siteSettings` and `forms`  
 **Governs:** Phase A of [dual-mode-portability-architecture.md](dual-mode-portability-architecture.md) §9 and [parallel-workstreams.md](parallel-workstreams.md) §3
 
 A resource is one piece of WordPress-backed data the frontend reads. Each resource has **one JSON shape**, served two ways:
@@ -125,8 +125,8 @@ The native `forgeWpHydration.resources.forms.contact` (minus the wrapper keys) d
 
 ---
 
-## Open questions for the founder
+## Decisions (approved 2026-11-23)
 
-1. **`private: true` on options:** add it now (small, before beta), or treat every declared option as public?
-2. **Theme state migration:** confirm that moving ForgeWP-declared theme mods, `custom_logo` and `nav_menu_locations` into `forgewp_theme_state` (with read/write filters, so `get_theme_mod()` keeps working) is the intended Phase A change.
-3. **Legacy hydration keys:** remove `forgeWpHydration.siteSettings` / `.forms` before the Dec 31 beta (recommended, so beta users never depend on them), or keep them through the beta?
+1. **`private: true` on options:** adopted. Private options are omitted from REST and native output.
+2. **Theme state migration:** confirmed. ForgeWP-declared theme mods, `custom_logo` and `nav_menu_locations` move into `forgewp_theme_state` with read/write filters and a one-time migration.
+3. **Legacy hydration keys:** `forgeWpHydration.siteSettings` and `.forms` are removed before the Dec 31 beta. Order: Claude ships `resources.*` alongside the legacy keys → Gemini moves the runtime/hooks to `resources.*` → legacy keys are deleted in one PR that both agents sign off in their handoff notes.
