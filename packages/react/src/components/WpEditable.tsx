@@ -1,4 +1,5 @@
 import React, { ComponentPropsWithoutRef, ElementType } from 'react';
+import { hasNativeHydration } from '../runtime/index.js';
 
 export interface WpEditableProps<T extends ElementType = 'div'> {
   /**
@@ -74,8 +75,7 @@ export function WpEditable<T extends ElementType = 'div'>({
       (!!(globalThis as any)._forgeWpCompileTime ||
         (globalThis as any).process?.env?.FORGEWP_NATIVE_EXPORT === '1'));
 
-  const isProductionWordPressVisitor =
-    typeof window !== 'undefined' && !!(window as any).forgeWpHydration;
+  const isProductionWordPressVisitor = hasNativeHydration();
 
   const isDevRuntime =
     (typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV === true) ||

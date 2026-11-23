@@ -1,5 +1,6 @@
 import React from 'react';
 import type { WpFormFieldType } from '../config';
+import { getForgeWpRuntime, getNativeForm } from '../runtime/index.js';
 
 export interface WpFormFieldDescriptor {
   name: string;
@@ -55,8 +56,19 @@ function getClientFields(form: string): WpFormFieldDescriptor[] | null {
 
   if (win._forgeWpCompileTime) return null;
 
-  const hydratedFields = win.forgeWpHydration?.forms?.[form]?.fields;
-  if (Array.isArray(hydratedFields)) return hydratedFields;
+  const nativeForm = getNativeForm(form);
+  if (nativeForm && Array.isArray(nativeForm.fields)) {
+    return nativeForm.fields as WpFormFieldDescriptor[];
+  }
+
+  try {
+    const runtimeFields = getForgeWpRuntime().peek('forms')?.forms?.[form]?.fields;
+    if (Array.isArray(runtimeFields)) {
+      return runtimeFields as WpFormFieldDescriptor[];
+    }
+  } catch {
+    // Unconfigured runtime in SSR/dev preview falls through to mock/fallback
+  }
 
   const mockFields = win._forgeWpMockForms?.[form]?.fields;
   if (Array.isArray(mockFields)) return mockFields;

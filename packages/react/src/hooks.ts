@@ -12,6 +12,21 @@ import {
 import { WpPostContext } from './context.js';
 import type { WpPost, WpQueryArgs, WpQueryResults, WpMenuItem } from './types.js';
 import { validateLocalForm } from './local-form-validation.js';
+import {
+  ForgeWpRuntimeError,
+  getForgeWpRuntime,
+  getNativeForm,
+  getNativeMenu,
+  getNativePageLink,
+  getNativeRestNonce,
+  getNativeRestUrl,
+  getNativeThemeUri,
+  getNativeTranslations,
+  hasNativeHydration,
+  isProductionRuntime,
+  resolveConfiguredRestBaseUrl,
+  type SiteSettingsResource,
+} from './runtime/index.js';
 
 function isForgeWpCompileTime(): boolean {
   return (
@@ -209,12 +224,16 @@ export function getStaticMotionStyle(
 
 // ── State & Option Hooks ──────────────────────────────────────────────────────
 
-function getForgeWpSiteSettings() {
-  if (typeof window === 'undefined') return null;
-  const win = window as any;
-  return (
-    win._forgeWpMockSiteSettings || win.forgeWpHydration?.siteSettings || null
-  );
+function getForgeWpSiteSettings(): SiteSettingsResource | null {
+  try {
+    const runtime = getForgeWpRuntime();
+    return runtime.peek('site-settings') ?? null;
+  } catch (err) {
+    if (err instanceof ForgeWpRuntimeError) {
+      throw err;
+    }
+    return null;
+  }
 }
 
 /** Optional compiler hints for useWpOption — ignored at runtime, used by the ForgeWP compiler to generate richer admin UI. */
@@ -225,13 +244,9 @@ export interface WpOptionMeta {
 
 export function useWpOption(optionName: string, defaultValue = ''): string {
   const siteSettings = getForgeWpSiteSettings();
-  const option = siteSettings?.options?.[optionName];
-  if (option !== undefined && option !== null) {
-    const value =
-      typeof option === 'object' && '_type' in option ? option.default : option;
-    if (value !== undefined && value !== null) {
-      return String(value);
-    }
+  const value = siteSettings?.options?.[optionName];
+  if (value !== undefined && value !== null) {
+    return String(value);
   }
   return defaultValue || `[option: ${optionName}]`;
 }
@@ -260,10 +275,27 @@ export interface SubmitWpFormOptions {
 // submit; a bot firing the request immediately does not.
 const forgeWpFormsLoadedAt = typeof window !== 'undefined' ? Date.now() : 0;
 
-function isProductionForms(): boolean {
-  return (
-    typeof window !== 'undefined' && !!(window as any).forgeWpHydration?.restUrl
-  );
+function resolveFormsRestEndpoint(): { restUrl: string; restNonce: string | null } | null {
+  const nativeUrl = getNativeRestUrl();
+  if (nativeUrl) {
+    return { restUrl: nativeUrl, restNonce: getNativeRestNonce() };
+  }
+  const configuredUrl = resolveConfiguredRestBaseUrl();
+  if (configuredUrl) {
+    return { restUrl: configuredUrl, restNonce: getNativeRestNonce() };
+  }
+  try {
+    const runtime = getForgeWpRuntime();
+    const runtimeUrl = runtime.getRestBaseUrl();
+    if (runtimeUrl) {
+      return { restUrl: runtimeUrl, restNonce: runtime.getRestNonce() };
+    }
+  } catch (err) {
+    if (err instanceof ForgeWpRuntimeError) {
+      throw err;
+    }
+  }
+  return null;
 }
 
 /**
@@ -271,15 +303,28 @@ function isProductionForms(): boolean {
  * plain function (not a hook) so it composes with any form library —
  * react-hook-form's handleSubmit, a plain onSubmit, anything.
  *
- * Never throws: network failures resolve to { ok: false, message }, so
- * callers never need try/catch around this call.
+ * In local development (`NODE_ENV !== 'production'`), simulates submission when
+ * no WordPress REST endpoint is configured. In production, throws a typed
+ * `ForgeWpRuntimeError('FORGEWP_RUNTIME_UNCONFIGURED')` if neither native
+ * WordPress hydration nor a decoupled `FORGEWP_WP_URL` is configured.
+ * Network failures resolve to `{ ok: false, message: 'network' }`.
  */
 export async function submitWpForm(
   name: string,
   data: FormData | Record<string, unknown>,
   options: SubmitWpFormOptions = {},
 ): Promise<WpFormResult> {
-  if (!isProductionForms()) {
+  const endpoint = resolveFormsRestEndpoint();
+  if (!endpoint) {
+    if (isProductionRuntime()) {
+      throw new ForgeWpRuntimeError(
+        'FORGEWP_RUNTIME_UNCONFIGURED',
+        `Cannot submit ForgeWP form "${name}" in production: no WordPress REST endpoint is configured. ` +
+          'Ensure WordPress native hydration is present or set FORGEWP_WP_URL / NEXT_PUBLIC_FORGEWP_WP_URL.',
+        { resource: `forms:${name}` },
+      );
+    }
+
     let plain: Record<string, unknown>;
     if (data instanceof FormData) {
       plain = {};
@@ -322,15 +367,14 @@ export async function submitWpForm(
   }
 
   try {
-    const win = window as any;
-    const restUrl = win.forgeWpHydration.restUrl;
+    const { restUrl, restNonce } = endpoint;
     const elapsed = String(Date.now() - forgeWpFormsLoadedAt);
 
     // The visitor's page language (Polylang/WPML), not the browser's own
     // locale — needed server-side so the submission validates against and
     // stores under the same language's client-owned field set the visitor
     // actually saw, not always the site default.
-    const lang = win.forgeWpTranslations?.currentLanguage;
+    const lang = getNativeTranslations()?.currentLanguage || undefined;
 
     let response: Response;
     if (data instanceof FormData) {
@@ -357,8 +401,8 @@ export async function submitWpForm(
       outgoing.set('_forgewp_elapsed', elapsed);
       if (lang) outgoing.set('lang', lang);
       const headers: Record<string, string> = {};
-      if (win.forgeWpHydration.restNonce) {
-        headers['X-WP-Nonce'] = win.forgeWpHydration.restNonce;
+      if (restNonce) {
+        headers['X-WP-Nonce'] = restNonce;
       }
       response = await fetch(`${restUrl}/forms/${name}/submit`, {
         method: 'POST',
@@ -369,8 +413,8 @@ export async function submitWpForm(
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-      if (win.forgeWpHydration.restNonce) {
-        headers['X-WP-Nonce'] = win.forgeWpHydration.restNonce;
+      if (restNonce) {
+        headers['X-WP-Nonce'] = restNonce;
       }
       response = await fetch(`${restUrl}/forms/${name}/submit`, {
         method: 'POST',
@@ -406,14 +450,19 @@ export interface WpFormState {
 
 /**
  * Reads administrator-overridden labels for developer-owned fields from the
- * WordPress hydration payload. The field names and validation rules remain
- * part of the developer-owned form contract.
+ * ForgeWP runtime (WordPress hydration payload or primed REST resource).
  */
 export function useWpFormFieldLabels(form: string): Record<string, string> {
   if (typeof window === 'undefined') return {};
-  const win = window as any;
-  const labels = win.forgeWpHydration?.forms?.[form]?.fieldLabels;
-  return labels && typeof labels === 'object' ? labels : {};
+  const nativeForm = getNativeForm(form);
+  if (nativeForm?.fieldLabels) return nativeForm.fieldLabels;
+  try {
+    const runtimeForms = getForgeWpRuntime().peek('forms');
+    const labels = runtimeForms?.forms?.[form]?.fieldLabels;
+    return labels && typeof labels === 'object' ? labels : {};
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -575,17 +624,15 @@ export function defineWpOptions(schema: WpOptionsSchema): WpOptionsSchema {
 
 export function useWpThemeMod(modName: string, defaultValue = ''): string {
   const siteSettings = getForgeWpSiteSettings();
-  if (siteSettings?.theme_mods) {
-    return siteSettings.theme_mods[modName] ?? defaultValue;
+  const value = siteSettings?.themeMods?.[modName];
+  if (value !== undefined && value !== null) {
+    return String(value);
   }
   return defaultValue || `[theme_mod: ${modName}]`;
 }
 
 export function useWpThemeUri(): string {
-  if (typeof window !== 'undefined') {
-    return (window as any).forgeWpHydration?.themeUri || '';
-  }
-  return '';
+  return getNativeThemeUri();
 }
 
 export function resolveWpAsset(path: string): string {
@@ -601,7 +648,7 @@ export function resolveWpAsset(path: string): string {
   }
   if (typeof window !== 'undefined') {
     const themeUri =
-      (window as any).forgeWpHydration?.themeUri ||
+      getNativeThemeUri() ||
       (window as any).forgeWpThemeUri ||
       (window as any).forgewpData?.themeUri;
     if (themeUri) {
@@ -614,13 +661,7 @@ export function resolveWpAsset(path: string): string {
 }
 
 export function useWpPageLink(name: string, fallback: string): string {
-  if (typeof window !== 'undefined') {
-    const win = window as any;
-    if (win.forgeWpHydration?.pageLinks?.[name]) {
-      return win.forgeWpHydration.pageLinks[name];
-    }
-  }
-  return fallback;
+  return getNativePageLink(name) || fallback;
 }
 
 function normalizeMenuUrl(url: string): string {
@@ -671,7 +712,7 @@ export function useWpMenu(location: string = 'primary'): {
 
   const win = window as any;
   const rawItems =
-    win.forgeWpHydration?.menus?.[location] ||
+    getNativeMenu(location) ||
     win._forgeWpMockMenus?.[location] ||
     [];
   const items = useMemo(() => normalizeMenuItems(rawItems), [rawItems]);
@@ -1644,7 +1685,7 @@ export function isDecoupled(): boolean {
 
   return (
     isDev ||
-    (typeof window !== 'undefined' && !(window as any).forgeWpHydration)
+    (typeof window !== 'undefined' && !hasNativeHydration())
   );
 }
 
@@ -1659,7 +1700,7 @@ export function useIsDecoupled(): boolean {
  * True when running in a live WordPress site (hydrating inside an exported WordPress theme).
  */
 export function isWordPress(): boolean {
-  return typeof window !== 'undefined' && !!(window as any).forgeWpHydration;
+  return hasNativeHydration();
 }
 
 /**
@@ -1880,20 +1921,81 @@ export function useWpTerms(taxonomy: string): {
   return { terms, loading: false, error: null };
 }
 
+function resolveI18nState(): {
+  currentLanguage: string;
+  translations: Record<string, any> | null;
+  urls: Record<string, string>;
+  homeUrls: Record<string, string>;
+} {
+  const win = typeof window !== 'undefined' ? (window as any) : null;
+  const runtimeI18n = (() => {
+    try {
+      return getForgeWpRuntime().peek('i18n') ?? null;
+    } catch (err) {
+      if (err instanceof ForgeWpRuntimeError && isProductionRuntime()) {
+        throw err;
+      }
+      return null;
+    }
+  })();
+
+  const nativeI18n = runtimeI18n ?? getNativeTranslations();
+  const explicitLocale =
+    (win && typeof win.forgeWpLocale === 'string' && win.forgeWpLocale.trim()) ||
+    nativeI18n?.currentLanguage ||
+    '';
+  const translations =
+    nativeI18n?.translations ??
+    (win && win._forgeWpMockTranslations && typeof win._forgeWpMockTranslations === 'object'
+      ? win._forgeWpMockTranslations
+      : null);
+
+  if (!explicitLocale && isProductionRuntime() && !isForgeWpCompileTime()) {
+    throw new ForgeWpRuntimeError(
+      'FORGEWP_LOCALE_UNCONFIGURED',
+      'ForgeWP i18n locale is unconfigured in production. ' +
+        'Ensure WordPress i18n hydration is active or configure an i18n resource via ForgeWpRuntime.',
+      { resource: 'i18n' },
+    );
+  }
+
+  const inferredDevLocale =
+    explicitLocale ||
+    (translations ? Object.keys(translations)[0] : '') ||
+    (typeof document !== 'undefined' && document.documentElement?.lang
+      ? document.documentElement.lang.split(/[-_]/)[0]
+      : '') ||
+    'en';
+
+  const defaultUrls: Record<string, string> = { [inferredDevLocale]: '/' };
+  const urls =
+    nativeI18n?.urls && Object.keys(nativeI18n.urls).length > 0
+      ? nativeI18n.urls
+      : defaultUrls;
+  const homeUrls =
+    nativeI18n?.homeUrls && Object.keys(nativeI18n.homeUrls).length > 0
+      ? nativeI18n.homeUrls
+      : defaultUrls;
+
+  return {
+    currentLanguage: inferredDevLocale,
+    translations,
+    urls,
+    homeUrls,
+  };
+}
+
 export function useWpI18n() {
   const getTranslatedText = useCallback((text: string) => {
     if (typeof window === 'undefined') return text;
-    const currentLang =
-      (window as any).forgeWpLocale ||
-      (window as any).forgeWpTranslations?.currentLanguage ||
-      'de';
-    const dict =
-      (window as any).forgeWpTranslations?.translations ||
-      (window as any)._forgeWpMockTranslations;
+    const { currentLanguage, translations: dict } = resolveI18nState();
 
     if (dict) {
-      if (dict[currentLang] && typeof dict[currentLang][text] !== 'undefined') {
-        return dict[currentLang][text];
+      if (
+        dict[currentLanguage] &&
+        typeof dict[currentLanguage][text] !== 'undefined'
+      ) {
+        return dict[currentLanguage][text];
       }
       if (typeof dict[text] !== 'undefined') {
         return dict[text];
@@ -1908,24 +2010,7 @@ export function useWpI18n() {
 }
 
 export function useWpLanguage() {
-  const currentLanguage =
-    typeof window !== 'undefined'
-      ? (window as any).forgeWpLocale ||
-        (window as any).forgeWpTranslations?.currentLanguage ||
-        'de'
-      : 'de';
-
-  const urls: Record<string, string> =
-    typeof window !== 'undefined' && (window as any).forgeWpTranslations?.urls
-      ? (window as any).forgeWpTranslations.urls
-      : { de: '/', en: '/en/' };
-
-  const homeUrls: Record<string, string> =
-    typeof window !== 'undefined' &&
-    (window as any).forgeWpTranslations?.homeUrls
-      ? (window as any).forgeWpTranslations.homeUrls
-      : { de: '/', en: '/en/' };
-
+  const { currentLanguage, urls, homeUrls } = resolveI18nState();
   const homeUrl = homeUrls[currentLanguage] || '/';
   const languages = useMemo(() => Object.keys(urls), [urls]);
 
@@ -1933,7 +2018,7 @@ export function useWpLanguage() {
     (lang: string) => {
       if (typeof window !== 'undefined') {
         const search = window.location.search;
-        const base = urls[lang] || (lang === 'de' ? '/' : `/${lang}/`);
+        const base = urls[lang] || `/${lang}/`;
         const separator = base.includes('?') ? '&' : '?';
         window.location.href = search
           ? base + separator + search.substring(1)
