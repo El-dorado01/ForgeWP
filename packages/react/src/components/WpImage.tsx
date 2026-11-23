@@ -1,6 +1,7 @@
 import React, { useContext } from "react";
 import { WpPostContext } from "../context";
 import type { WpAttachment, StaticImageData } from "../types";
+import { getNativeThemeUri } from "../runtime/index.js";
 
 export type { StaticImageData };
 
@@ -239,7 +240,7 @@ export function WpImage({
     !resolvedSrc.startsWith("blob:")
   ) {
     const themeUri =
-      (window as any).forgeWpHydration?.themeUri ||
+      getNativeThemeUri() ||
       (window as any).forgeWpThemeUri ||
       (window as any).forgewpData?.themeUri;
     if (themeUri) {

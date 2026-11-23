@@ -1,4 +1,5 @@
 import React from "react";
+import { hasNativeHydration } from "../runtime/index.js";
 
 export interface WpHeadProps {
   title?: string;
@@ -33,7 +34,7 @@ export function WpHead({
     (typeof window !== "undefined" && (window as any)._forgeWpCompileTime)
       ? false
       : (typeof import.meta !== "undefined" && (import.meta as any).env?.DEV === true) ||
-        (typeof window !== "undefined" && !(window as any).forgeWpHydration);
+        (typeof window !== "undefined" && !hasNativeHydration());
 
   if (IS_DECOUPLED) {
     return (

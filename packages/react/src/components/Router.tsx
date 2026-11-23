@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { getNativePostMeta } from '../runtime/index.js';
 
 /**
  * Route matching context providing current route parameters to child components.
@@ -169,8 +170,8 @@ export function useParams<T extends Record<string, string> = Record<string, stri
   }
 
   if (typeof window !== 'undefined') {
-    const win = window as any;
-    const postSlug = win.forgeWpHydration?.post?.slug;
+    const nativePost = getNativePostMeta();
+    const postSlug = nativePost?.slug;
     const pathname = normalizePath(window.location.pathname);
     const segments = pathname.split('/').filter(Boolean);
     const lastSegment = segments[segments.length - 1] || '';
@@ -178,7 +179,7 @@ export function useParams<T extends Record<string, string> = Record<string, stri
     const fallbackParams: Record<string, string> = {};
     if (postSlug) {
       fallbackParams.slug = postSlug;
-      fallbackParams.id = String(win.forgeWpHydration?.post?.id || postSlug);
+      fallbackParams.id = String(nativePost?.id || postSlug);
     } else if (lastSegment) {
       fallbackParams.slug = decodeURIComponent(lastSegment);
       fallbackParams.id = decodeURIComponent(lastSegment);
