@@ -115,6 +115,7 @@ export function buildFunctionsPhpParts(
   if (hasAuth) {
     currentUserHydrationField =
       "\n                'currentUser' => forgewp_get_current_user_hydration_payload(),";
+    // contract §9: resources['auth-me'] (same shape as GET /auth/me), added below with the other resources.
   }
 
   const css = assets.cssFile.replace(/\\/g, '/');

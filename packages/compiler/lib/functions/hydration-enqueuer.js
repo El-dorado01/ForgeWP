@@ -87,6 +87,7 @@ ${manifestPairs}
                 ),${providersPhp}
                 'resources' => array(
                     'site-settings' => function_exists('forgewp_site_settings_resource') ? forgewp_site_settings_resource() : null,
+                    'auth-me' => function_exists('forgewp_auth_me_resource') ? forgewp_auth_me_resource() : null,
                     'menus' => function_exists('forgewp_menus_resource') ? forgewp_menus_resource(forgewp_resource_lang(null)) : null,
                     'routes' => function_exists('forgewp_routes_resource') ? forgewp_routes_resource(forgewp_resource_lang(null)) : null,
                     'i18n' => function_exists('forgewp_i18n_resource') ? forgewp_i18n_resource(forgewp_resource_lang(null), forgewp_resource_path(home_url(isset($_SERVER['REQUEST_URI']) ? (string) wp_parse_url(wp_unslash($_SERVER['REQUEST_URI']), PHP_URL_PATH) : '/'))) : null,${hasForms ? `

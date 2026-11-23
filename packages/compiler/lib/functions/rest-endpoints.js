@@ -1032,9 +1032,56 @@ function forgewp_rest_logout() {
     return rest_ensure_response( array( 'success' => true ) );
 }
 
-function forgewp_rest_me() {
+/**
+ * Session user for /auth/me (docs/resource-contracts.md §9). WordPress REST
+ * ignores the logged-in cookie without an X-WP-Nonce, which a Next.js server
+ * checking a visitor's session cannot have. Accept the cookie without a
+ * nonce only for server-to-server calls (no Origin header), the site itself,
+ * or origins listed in FORGEWP_FRONTEND_ORIGIN, so a third-party site cannot
+ * read a visitor's account through their cookies. Bearer tokens are never
+ * sent ambiently by browsers and need no origin check.
+ */
+function forgewp_auth_resolve_session_user( $request ) {
+    if ( get_current_user_id() ) {
+        return get_current_user_id();
+    }
+    $origin = $request instanceof WP_REST_Request ? (string) $request->get_header( 'origin' ) : '';
+    $origin_ok = $origin === ''
+        || forgewp_origin_of( $origin ) === forgewp_origin_of( home_url() )
+        || forgewp_origin_of( $origin ) === forgewp_origin_of( site_url() )
+        || in_array( forgewp_origin_of( $origin ), forgewp_frontend_origins(), true );
+    if ( $origin_ok && ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
+        $cookie_user_id = wp_validate_auth_cookie( $_COOKIE[ LOGGED_IN_COOKIE ], 'logged_in' );
+        if ( $cookie_user_id ) {
+            wp_set_current_user( $cookie_user_id );
+            return (int) $cookie_user_id;
+        }
+    }
+    if ( function_exists( 'forgewp_validate_jwt_token' ) ) {
+        $auth_header = $request instanceof WP_REST_Request ? (string) $request->get_header( 'authorization' ) : '';
+        if ( $auth_header && preg_match( '/Bearer\s+(\S+)/i', $auth_header, $matches ) ) {
+            $jwt_user_id = forgewp_validate_jwt_token( $matches[1] );
+            if ( $jwt_user_id ) {
+                wp_set_current_user( $jwt_user_id );
+                return (int) $jwt_user_id;
+            }
+        }
+    }
+    return 0;
+}
+
+/** auth-me resource (contract §9): one shape for REST and native hydration. */
+function forgewp_auth_me_resource() {
     $payload = forgewp_get_current_user_hydration_payload();
-    return rest_ensure_response( array( 'user' => $payload ) );
+    return array( 'authenticated' => $payload !== null, 'user' => $payload );
+}
+
+function forgewp_rest_me( $request = null ) {
+    forgewp_auth_resolve_session_user( $request );
+    $response = rest_ensure_response( forgewp_auth_me_resource() );
+    $response->header( 'Cache-Control', 'private, no-store, max-age=0' );
+    $response->header( 'Vary', 'Cookie, Authorization' );
+    return $response;
 }
 
 function forgewp_rest_verify_email( $request ) {
