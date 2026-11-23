@@ -270,26 +270,26 @@ export interface SubmitWpFormOptions {
   validateLocal?: boolean;
   /** Optional explicit locale override (e.g. `'en'`, `'de'`) for localized validation/storage. */
   lang?: string;
+  /** Optional canonical `submitUrl` (e.g. from `await wpClient.getForm(name)`). */
+  submitUrl?: string;
 }
 
-// Baseline timestamps for the server-side time-trap: measure from the visitor's
-// first interaction (pointerdown/keydown/focusin/input) when available, falling
-// back to module-load time if no interaction event fired before submit.
+// Module-load timestamp for the server-side time-trap (`_forgewp_elapsed`),
+// paired with `_forgewp_interacted` so the server can distinguish fast human
+// autofill after page dwell from non-interactive bot submissions.
 const forgeWpFormsLoadedAt = typeof window !== 'undefined' ? Date.now() : 0;
-let forgeWpFormsFirstInteractionAt = 0;
+let forgeWpFormsInteracted = false;
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   const interactionEvents = ['pointerdown', 'keydown', 'focusin', 'input'] as const;
-  const markFirstInteraction = () => {
-    if (!forgeWpFormsFirstInteractionAt) {
-      forgeWpFormsFirstInteractionAt = Date.now();
-    }
+  const markInteracted = () => {
+    forgeWpFormsInteracted = true;
     for (const evt of interactionEvents) {
-      window.removeEventListener(evt, markFirstInteraction, true);
+      window.removeEventListener(evt, markInteracted, true);
     }
   };
   for (const evt of interactionEvents) {
-    window.addEventListener(evt, markFirstInteraction, { capture: true, passive: true });
+    window.addEventListener(evt, markInteracted, { capture: true, passive: true });
   }
 }
 
@@ -350,6 +350,7 @@ export async function submitWpForm(
   const formMeta = peekRuntimeFormMeta(name);
   const endpoint = resolveFormsRestEndpoint();
   const resolvedSubmitUrl =
+    options.submitUrl ||
     formMeta?.submitUrl ||
     (endpoint ? `${endpoint.restUrl}/forms/${encodeURIComponent(name)}/submit` : null);
 
@@ -406,8 +407,10 @@ export async function submitWpForm(
 
   try {
     const restNonce = endpoint?.restNonce ?? getNativeRestNonce();
-    const baseline = forgeWpFormsFirstInteractionAt || forgeWpFormsLoadedAt;
-    const elapsed = String(baseline ? Math.max(0, Date.now() - baseline) : 0);
+    const elapsed = String(
+      forgeWpFormsLoadedAt ? Math.max(0, Date.now() - forgeWpFormsLoadedAt) : 0,
+    );
+    const interacted = forgeWpFormsInteracted;
 
     // The visitor's page language (Polylang/WPML), not the browser's own
     // locale — needed server-side so the submission validates against and
@@ -442,6 +445,7 @@ export async function submitWpForm(
         outgoing = cloned;
       }
       outgoing.set('_forgewp_elapsed', elapsed);
+      outgoing.set('_forgewp_interacted', interacted ? '1' : '0');
       if (lang) outgoing.set('lang', lang);
       const headers: Record<string, string> = {};
       if (restNonce) {
@@ -465,6 +469,7 @@ export async function submitWpForm(
         body: JSON.stringify({
           ...data,
           _forgewp_elapsed: elapsed,
+          _forgewp_interacted: interacted,
           ...(lang ? { lang } : {}),
         }),
       });

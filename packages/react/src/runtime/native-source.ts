@@ -90,10 +90,6 @@ export function getNativeForm(name: string): FormResource | null {
   if (canonical && typeof canonical === 'object') {
     return normalizeFormResource(canonical, name);
   }
-  const legacy = hydration?.forms?.[name];
-  if (legacy && typeof legacy === 'object') {
-    return normalizeFormResource(legacy, name);
-  }
   return null;
 }
 
@@ -122,23 +118,9 @@ export function getNativeTranslations(): I18nResource | null {
   };
 }
 
-function normalizeNativeFormsCollection(
-  hydration: Record<string, any>,
-): FormsCollectionResource | undefined {
-  if (hydration.resources?.forms) {
-    return normalizeFormsCollection(hydration.resources.forms) ?? undefined;
-  }
-  if (hydration.forms) {
-    return normalizeFormsCollection(hydration.forms) ?? undefined;
-  }
-  return undefined;
-}
-
 /**
  * Native WordPress hydration source.
- * Reads prefetched JSON payloads from `window.forgeWpHydration.resources[name]`
- * (falling back to legacy `forgeWpHydration.*` / `forgeWpTranslations` keys during
- * the Phase A transition).
+ * Reads prefetched JSON payloads from `window.forgeWpHydration.resources[name]`.
  */
 export function createNativeSource(): ForgeWpSource {
   function peek<K extends ForgeWpResourceName>(
@@ -154,31 +136,27 @@ export function createNativeSource(): ForgeWpSource {
     if (!hydration) return undefined;
 
     const canonical = hydration.resources?.[resource];
-    if (canonical !== undefined) {
+    if (canonical !== undefined && canonical !== null) {
       if (resource === 'site-settings') {
         return (normalizeSiteSettings(canonical) ?? undefined) as
+          | ForgeWpResourceMap[K]
+          | undefined;
+      }
+      if (resource === 'forms') {
+        return (normalizeFormsCollection(canonical) ?? undefined) as
           | ForgeWpResourceMap[K]
           | undefined;
       }
       return canonical as ForgeWpResourceMap[K];
     }
 
-    switch (resource) {
-      case 'site-settings':
-        return (normalizeSiteSettings(hydration.siteSettings) ?? undefined) as
-          | ForgeWpResourceMap[K]
-          | undefined;
-      case 'forms':
-        return normalizeNativeFormsCollection(hydration) as
-          | ForgeWpResourceMap[K]
-          | undefined;
-      case 'menus':
-        return (hydration.menus && typeof hydration.menus === 'object'
-          ? hydration.menus
-          : undefined) as ForgeWpResourceMap[K] | undefined;
-      default:
-        return undefined;
+    if (resource === 'menus') {
+      return (hydration.menus && typeof hydration.menus === 'object'
+        ? hydration.menus
+        : undefined) as ForgeWpResourceMap[K] | undefined;
     }
+
+    return undefined;
   }
 
   return {

@@ -99,17 +99,47 @@ export function isProductionRuntime(): boolean {
   return false;
 }
 
+declare const process: { env: Record<string, string | undefined> };
+
+function readLiteralEnvWpUrl(): string | undefined {
+  // Exact literal `process.env.NEXT_PUBLIC_*` member expressions (no optional
+  // chaining) are required so Next.js webpack DefinePlugin & Turbopack inline
+  // them statically into browser client bundles.
+  try {
+    const v = process.env.NEXT_PUBLIC_FORGEWP_WP_URL;
+    if (typeof v === 'string' && v.trim() !== '') return v.trim();
+  } catch {
+    // Plain browser bundle without `process` global
+  }
+  try {
+    const v = process.env.FORGEWP_WP_URL;
+    if (typeof v === 'string' && v.trim() !== '') return v.trim();
+  } catch {
+    // ignore
+  }
+  try {
+    const v = process.env.NEXT_PUBLIC_WP_API_URL;
+    if (typeof v === 'string' && v.trim() !== '') return v.trim();
+  } catch {
+    // ignore
+  }
+  try {
+    const v = process.env.FORGEWP_API_URL;
+    if (typeof v === 'string' && v.trim() !== '') return v.trim();
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
 /**
  * Resolves a configured decoupled WordPress REST base URL from explicit options,
- * browser globals, or standard ForgeWP/Next.js environment variables.
+ * literal Next.js / Vite public env vars, or browser globals.
  */
 export function resolveConfiguredRestBaseUrl(explicitWpUrl?: string): string | null {
   const raw =
     explicitWpUrl ||
-    readRuntimeEnv('FORGEWP_WP_URL') ||
-    readRuntimeEnv('NEXT_PUBLIC_FORGEWP_WP_URL') ||
-    readRuntimeEnv('FORGEWP_API_URL') ||
-    readRuntimeEnv('NEXT_PUBLIC_WP_API_URL') ||
+    readLiteralEnvWpUrl() ||
     readRuntimeEnv('VITE_FORGEWP_WP_URL') ||
     (typeof window !== 'undefined'
       ? (window as any).__FORGEWP_WP_URL__ || (window as any).FORGEWP_API_URL
