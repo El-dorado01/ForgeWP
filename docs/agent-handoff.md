@@ -1,9 +1,9 @@
-# Agent Handoff: Claude (local) and Gemini
+# Agent Handoff: Claude and Gemini
 
 **Written by:** Claude (cloud session), 2026-11-23, at `main` after `ec5541a` (R1 LocalWP report).  
-**For:** the Claude agent now running on the founder's machine, and Gemini. Read this first, then the documents it links.
+**For:** Claude and Gemini. Read this first, then the documents it links.
 
-From here, Claude works locally with LocalWP instead of the cloud Docker sandbox. The working agreement, ownership split and quality bar stay the same.
+**Update (same day):** Claude continues in the **cloud session** (Docker sandbox: `scripts/cloud-e2e/sandbox.sh`) rather than on the founder's machine. Plugin-dependent checks (WooCommerce, Events Manager, Polylang, SEO plugins) go to the founder's local agent using `docs/localwp-verification-checklist.md`. Everything else in this document is unchanged.
 
 ---
 
@@ -35,7 +35,7 @@ Live status and the task table: [phase-status-and-blog-urls.md](phase-status-and
 
 ## 3. Task queue
 
-### Claude (local)
+### Claude
 
 | Order | Task | Notes |
 |---|---|---|
@@ -99,5 +99,5 @@ Live status and the task table: [phase-status-and-blog-urls.md](phase-status-and
 
 ## 6. Kickstart
 
-- **Claude (local):** pull `main`, read this file and §7 of the status doc, `pnpm install`, `pnpm --filter @forgewp/compiler test` (expect 870 passed), then start Task 1.
+- **Claude:** pull `main`, read this file and §7 of the status doc, `pnpm install`, `pnpm --filter @forgewp/compiler test` (expect 870 passed), then start Task 1.
 - **Gemini:** pull `main`, read §3 above and the status doc §7, start with the R2 marker proposal.

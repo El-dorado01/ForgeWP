@@ -171,4 +171,4 @@ Phase A is done; Phase B beta-critical work is done; Phase C core resources (`si
 
 **Order:** Gemini starts with R4 + R5 contract drafts and R2 marker proposal, then R3. Claude starts R6 (parity CI) and R2's PHP side as soon as Gemini's marker shape is agreed, then the R4/R5 PHP once their contracts are approved. Founder: run R1 with the local agent any time; it is independent.
 
-**Handoff (2026-11-23):** Claude continues on the founder's machine. Start with `docs/agent-handoff.md`.
+**Handoff (2026-11-23):** Claude continues in the cloud session; plugin-dependent checks go to the founder's local agent. Start with `docs/agent-handoff.md`.
