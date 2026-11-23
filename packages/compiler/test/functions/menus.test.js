@@ -157,7 +157,7 @@ describe('Mega Menus & Hierarchical Navigation Compiler Tests', () => {
     );
   });
 
-  it('buildHydrationEnqueuerPhp includes forgewp_build_menu_tree function and attaches nested hierarchy', () => {
+  it('buildHydrationEnqueuerPhp serves menus, page links and translations only through resources.* (legacy globals removed)', () => {
     const config = {
       textDomain: 'test_theme',
     };
@@ -181,21 +181,17 @@ describe('Mega Menus & Hierarchical Navigation Compiler Tests', () => {
       '', // providersPhp
     );
 
-    expect(enqueuerPhp).toContain(
-      'function forgewp_build_menu_tree($menu_items, $parent_id = 0)',
-    );
-    expect(enqueuerPhp).toContain(
-      '(int)$item->menu_item_parent === (int)$parent_id',
-    );
-    expect(enqueuerPhp).toContain(
-      'forgewp_build_menu_tree($menu_items, $item->ID)',
-    );
-    expect(enqueuerPhp).toContain("$node['children'] = $children;");
-    expect(enqueuerPhp).toContain(
-      '$items_list = forgewp_build_menu_tree($menu_items, 0);',
-    );
-    expect(enqueuerPhp).toContain("'id'    => (string) $item->ID,");
-    expect(enqueuerPhp).not.toContain("'id'    => (int)$item->ID,");
+    // End-of-Phase-C cleanup (docs/resource-contracts.md §5–§7): the nested menu
+    // tree, page links and translations come from resources.menus / .routes /
+    // .i18n; the legacy top-level keys and window.forgeWpTranslations are gone.
+    expect(enqueuerPhp).not.toContain('forgewp_build_menu_tree');
+    expect(enqueuerPhp).not.toContain("'menus' => $hydrated_menus");
+    expect(enqueuerPhp).not.toContain("'pageLinks' => $page_links");
+    expect(enqueuerPhp).not.toContain('window.forgeWpTranslations');
+    expect(enqueuerPhp).toContain("'menus' => function_exists('forgewp_menus_resource')");
+    expect(enqueuerPhp).toContain("'routes' => function_exists('forgewp_routes_resource')");
+    expect(enqueuerPhp).toContain("'i18n' => function_exists('forgewp_i18n_resource')");
+    expect(enqueuerPhp).toContain('pll_register_string($key, $key');
   });
 
   it('uses the local-provider route language for form hydration and translations', () => {

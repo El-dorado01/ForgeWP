@@ -67,10 +67,6 @@ export function buildHydrationEnqueuerPhp(config, assets, mainJs, uniqueMetaKeys
         );
 ${headlessScript}
 
-        $menu_locations = get_nav_menu_locations();
-        $hydrated_menus = array();
-        $registered_nav_menus = get_registered_nav_menus();
-        $registered_locations = is_array($registered_nav_menus) ? array_keys($registered_nav_menus) : array();
         $current_lang = '';
 ${currentLanguageSetupPhp}
         if (empty($current_lang)) {
@@ -80,84 +76,11 @@ ${currentLanguageSetupPhp}
 ${localLanguageFallbackPhp}
             }
         }
-        if (!function_exists('forgewp_build_menu_tree')) {
-            function forgewp_build_menu_tree($menu_items, $parent_id = 0) {
-                $branch = array();
-                foreach ($menu_items as $item) {
-                    if ((int)$item->menu_item_parent === (int)$parent_id) {
-                        $children = forgewp_build_menu_tree($menu_items, $item->ID);
-                        $node = array(
-                            // String, not int. Client state uses this id as an
-                            // object key, and those keys are always strings.
-                            // A numeric id never matches, so submenu toggles no-op.
-                            'id'    => (string) $item->ID,
-                            'title' => $item->title,
-                            'url'   => $item->url,
-                        );
-                        if (!empty($item->target)) {
-                            $node['target'] = $item->target;
-                        }
-                        if (!empty($item->classes) && is_array($item->classes)) {
-                            $classes = array_values(array_filter($item->classes));
-                            if (!empty($classes)) {
-                                $node['classes'] = $classes;
-                            }
-                        }
-                        if (!empty($item->description)) {
-                            $node['description'] = $item->description;
-                        }
-                        if (!empty($item->attr_title)) {
-                            $node['attrTitle'] = $item->attr_title;
-                        }
-                        $badge = get_post_meta($item->ID, '_forgewp_menu_badge', true);
-                        if (!empty($badge)) {
-                            $node['badge'] = $badge;
-                        }
-                        $image = get_post_meta($item->ID, '_forgewp_menu_image', true);
-                        if (!empty($image)) {
-                            $node['image'] = $image;
-                        }
-                        $icon = get_post_meta($item->ID, '_forgewp_menu_icon', true);
-                        if (!empty($icon)) {
-                            $node['icon'] = $icon;
-                        }
-                        if (!empty($children)) {
-                            $node['children'] = $children;
-                        }
-                        $branch[] = $node;
-                    }
-                }
-                return $branch;
-            }
-        }
-
-        foreach ($registered_locations as $loc) {
-            $base_loc = $loc;
-            if (strpos($loc, '___') !== false) {
-                $parts = explode('___', $loc);
-                $base_loc = $parts[0];
-            }
-            
-            $menu_id = forgewp_get_menu_id_for_lang($base_loc, $current_lang);
-            $raw_items = $menu_id ? wp_get_nav_menu_items($menu_id) : array();
-            $menu_items = is_array($raw_items) ? $raw_items : array();
-            $items_list = forgewp_build_menu_tree($menu_items, 0);
-            $hydrated_menus[$base_loc] = $items_list;
-            if (!empty($current_lang)) {
-                $hydrated_menus[$base_loc . '___' . $current_lang] = $items_list;
-            }
-        }
-
-        $page_links = array();
-${page_links_php}
-
         // Inject hydration manifest mappings dynamically
         wp_add_inline_script(
             '${config.textDomain}-react-runtime',
             'window.forgeWpHydration = Object.assign(window.forgeWpHydration || {}, ' . wp_json_encode(array(
                 'themeUri' => $theme_uri,
-                'menus' => $hydrated_menus,
-                'pageLinks' => $page_links,
                 'loginField' => get_option( 'forgewp_auth_login_field', '${defaultLoginField}' ),${currentUserHydrationField}${formsHydrationFields}
                 'manifest' => array(
 ${manifestPairs}
@@ -201,52 +124,7 @@ ${hasForms ? `        $current_lang = forgewp_forms_resolve_lang($current_lang);
         }
 `}
 
-        $json_dict = array();
-        $translations_file = get_template_directory() . '/translations.json';
-        if (file_exists($translations_file)) {
-            $json_data = json_decode(file_get_contents($translations_file), true);
-            if (is_array($json_data) && isset($json_data[$current_lang])) {
-                $json_dict = $json_data[$current_lang];
-            }
-        }
-
-        $translated_dict = array();
-        if (is_array($json_dict)) {
-            $translated_dict = $json_dict;
-        }
-        foreach ($i18n_keys as $key) {
-            if (!isset($translated_dict[$key])) {
-                $translated_dict[$key] = function_exists('pll__') ? pll__($key) : __($key, '${config.textDomain}');
-            }
-        }
-
-        $translations = array();
-        $home_urls = array();
-        if (function_exists('pll_the_languages')) {
-            $langs = pll_the_languages(array('raw' => 1));
-            if (is_array($langs)) {
-                foreach ($langs as $l) {
-                    $translations[$l['slug']] = $l['url'];
-                    if (function_exists('pll_home_url')) {
-                        $home_urls[$l['slug']] = pll_home_url($l['slug']);
-                    }
-                }
-            }
-        }
-        if (empty($home_urls)) {
-            $home_urls[$current_lang] = home_url('/');
-        }
-
-        wp_add_inline_script(
-            '${config.textDomain}-react-runtime',
-            'window.forgeWpTranslations = ' . wp_json_encode(array(
-                'currentLanguage' => $current_lang,
-                'urls' => $translations,
-                'homeUrls' => $home_urls,
-                'translations' => $translated_dict
-            ), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) . ';',
-            'before'
-        );
+        // Translations are served by resources.i18n (docs/resource-contracts.md §7).
 
         // Static key lists — compile-time-known, independent of whether the
         // current request actually resolves to a post (a 404 or archive page
