@@ -57,9 +57,9 @@ describe('G2: Server-side auth guards (docs/resource-contracts.md §9)', () => {
     else process.env.FORGEWP_NATIVE_EXPORT = ORIGINAL_NATIVE_EXPORT;
   });
 
-  it('forwards only WordPress session cookies and extracts JWT HttpOnly cookie as Authorization Bearer', () => {
+  it('forwards only WordPress session cookies and extracts JWT HttpOnly cookie as Authorization Bearer without Origin header', () => {
     const rawCookie =
-      '_ga=GA1.2.123; wordpress_logged_in_abc=ada%7C123; other_session=secret; wordpress_sec_abc=xyz; forgewp_auth_token=eyJhbGciOiJIUzI1NiJ9.payload.sig';
+      '_ga=GA1.2.123; wordpress_logged_in_abc=ada%7C123; other_session=secret; wordpress_sec_abc=xyz; forgewp_auth_token=test-session-token-123';
 
     expect(filterForwardedWordPressCookies(rawCookie)).toBe(
       'wordpress_logged_in_abc=ada%7C123; wordpress_sec_abc=xyz',
@@ -70,8 +70,10 @@ describe('G2: Server-side auth guards (docs/resource-contracts.md §9)', () => {
       'wordpress_logged_in_abc=ada%7C123; wordpress_sec_abc=xyz',
     );
     expect(headersFromCookies.Authorization).toBe(
-      'Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig',
+      'Bearer test-session-token-123',
     );
+    expect(headersFromCookies.Origin).toBeUndefined();
+    expect(headersFromCookies.origin).toBeUndefined();
     expect(headersFromCookies.Cookie).not.toContain('_ga');
     expect(headersFromCookies.Cookie).not.toContain('other_session');
 
@@ -83,7 +85,7 @@ describe('G2: Server-side auth guards (docs/resource-contracts.md §9)', () => {
     expect(headersWithExplicitAuth.Authorization).toBe('Bearer explicit-token');
   });
 
-  it('wpClient.getAuthMe() calls /auth/me per request with cache: no-store and fails closed on errors', async () => {
+  it('wpClient.getAuthMe() calls /auth/me per request with cache: no-store, no Origin header, and fails closed on errors or timeout', async () => {
     const calls = [];
     let nextResponse = () => makeJsonResponse({ authenticated: true, user: ADA_USER }, 200);
 
@@ -91,11 +93,11 @@ describe('G2: Server-side auth guards (docs/resource-contracts.md §9)', () => {
       wpUrl: 'https://wp.example.test',
       fetch: async (url, init) => {
         calls.push({ url: String(url), init });
-        return nextResponse();
+        return nextResponse(init);
       },
     });
 
-    // 1. Logged in via WP cookie
+    // 1. Logged in via WP cookie (no Origin header sent on server-to-server call)
     const res1 = await client.getAuthMe({
       cookie: '_ga=1; wordpress_logged_in_hash=val',
     });
@@ -104,6 +106,7 @@ describe('G2: Server-side auth guards (docs/resource-contracts.md §9)', () => {
     expect(calls[0].url).toBe('https://wp.example.test/wp-json/forgewp/v1/auth/me');
     expect(calls[0].init.cache).toBe('no-store');
     expect(calls[0].init.headers.Cookie).toBe('wordpress_logged_in_hash=val');
+    expect(calls[0].init.headers.Origin).toBeUndefined();
 
     // 2. Subsequent call is NOT cached — hits /auth/me again for a logged-out visitor
     nextResponse = () => makeJsonResponse({ authenticated: false, user: null }, 200);
@@ -122,6 +125,16 @@ describe('G2: Server-side auth guards (docs/resource-contracts.md §9)', () => {
     };
     const res4 = await client.getAuthMe({});
     expect(res4).toEqual({ authenticated: false, user: null });
+
+    // 5. Timeout -> aborts and fails closed
+    nextResponse = (init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new Error('Aborted due to timeout'));
+        });
+      });
+    const res5 = await client.getAuthMe({ timeoutMs: 25 });
+    expect(res5).toEqual({ authenticated: false, user: null });
 
     // 5. Runtime restSource never caches auth-me either
     let restCalls = 0;
