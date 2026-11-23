@@ -3,7 +3,6 @@ import type {
   ForgeWpResourceName,
   ForgeWpResourceParams,
   FormResource,
-  FormsCollectionResource,
   I18nResource,
 } from './registry.js';
 import {
