@@ -4,15 +4,14 @@ import path from 'node:path';
 export function buildHydrationEnqueuerPhp(config, assets, mainJs, uniqueMetaKeys, uniqueRichTextKeys, repeaterFieldsPhp, manifestPairs, optionsPairs, themeModsPairs, page_links_php, fontsEnqueue, i18nKeysPhp, headlessScript, currentUserHydrationField, defaultLoginField, providersPhp = '') {
   const css = assets.cssFile.replace(/\\/g, '/');
 
-  // Only forms need restUrl/restNonce/forms in the hydration payload — kept
+  // Only forms need restUrl/restNonce in the hydration payload — kept
   // out entirely for themes without a `forms` config so their generated
-  // output stays byte-identical.
+  // output stays byte-identical. Form schemas live under `resources.forms`.
   const hasForms = config.forms && Object.keys(config.forms).length > 0;
   const formsHydrationFields = hasForms
     ? `
                 'restUrl' => esc_url_raw( rest_url( 'forgewp/v1' ) ),
-                'restNonce' => is_user_logged_in() ? wp_create_nonce( 'wp_rest' ) : '',
-                'forms' => forgewp_forms_hydration_payload($current_lang),`
+                'restNonce' => is_user_logged_in() ? wp_create_nonce( 'wp_rest' ) : '',`
     : '';
   const phpStringLiteral = (value) =>
     `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
@@ -166,14 +165,6 @@ ${manifestPairs}
                 'resources' => array(
                     'site-settings' => function_exists('forgewp_site_settings_resource') ? forgewp_site_settings_resource() : null,${hasForms ? `
                     'forms' => function_exists('forgewp_forms_resource') ? forgewp_forms_resource($current_lang) : null,` : ''}
-                ),
-                'siteSettings' => array(
-                    'options' => array(
-${optionsPairs}
-                    ),
-                    'theme_mods' => array(
-${themeModsPairs}
-                    ),
                 ),
             ), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) . ');',
             'before'
