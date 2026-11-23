@@ -9,7 +9,12 @@ export function buildRoutingPhp(
   menuItemsPhpArray,
   socialSettingsPhp,
   postTypes,
+  frontPageSeed = null,
 ) {
+  // Initial front page title/content (from the cms/mock-data `home` page when present),
+  // base64-encoded so arbitrary HTML survives PHP string embedding.
+  const frontPageTitleB64 = Buffer.from(frontPageSeed?.title || 'Home', 'utf8').toString('base64');
+  const frontPageContentB64 = Buffer.from(frontPageSeed?.content || '', 'utf8').toString('base64');
   const iconSvgMapPhp = buildPhpIconSvgMapLiteral();
   const autoCreationPhp = `
 if (!function_exists('forgewp_ensure_route_parent_page')) {
@@ -329,6 +334,39 @@ ${menuItemsPhpArray}
                 set_theme_mod('nav_menu_locations', $locations);
                 forgewp_seed_menu_items($menu_id, $items, 0);
             }
+        }
+    }
+
+    // Fresh installs default to "Your latest posts" on the front page, but ForgeWP's
+    // front-page.php renders the front-page route (its BlockArea / the_content() is
+    // that page's content). Without a static front page, the_content() would print
+    // the newest blog post and editors would have no page to edit — and decoupled
+    // getLivePage('home') would find nothing. On first activation only, and only if
+    // the site has not already chosen a static front page, provision one.
+    if (!$has_run && get_option('show_on_front') === 'posts' && (int) get_option('page_on_front') <= 0) {
+        $front_id = function_exists('forgewp_resolve_route_page_id')
+            ? (int) forgewp_resolve_route_page_id('front-page')
+            : 0;
+        if ($front_id <= 0) {
+            $existing_home = get_page_by_path('home', OBJECT, 'page');
+            $front_id = $existing_home ? (int) $existing_home->ID : 0;
+        }
+        if ($front_id <= 0) {
+            $inserted = wp_insert_post(array(
+                'post_title'   => base64_decode('${frontPageTitleB64}'),
+                'post_name'    => 'home',
+                'post_content' => base64_decode('${frontPageContentB64}'),
+                'post_status'  => 'publish',
+                'post_type'    => 'page',
+            ), true);
+            $front_id = is_wp_error($inserted) ? 0 : (int) $inserted;
+        }
+        if ($front_id > 0) {
+            if (get_post_meta($front_id, 'forgewp_route_id', true) === '') {
+                update_post_meta($front_id, 'forgewp_route_id', 'front-page');
+            }
+            update_option('show_on_front', 'page');
+            update_option('page_on_front', $front_id);
         }
     }
 

@@ -11,6 +11,22 @@ import { buildSeedMockDataPhp, loadMockData } from './seed-mock-data.js';
 import { scanAppProviders } from '../hydration/scan-app-providers.js';
 import { collectCptRouteDiagnostics, buildCptRewriteRefreshPhp } from './cpt-routing.js';
 
+/** The cms/mock-data `home` page (if any) seeds the auto-provisioned static front page. */
+function resolveFrontPageSeed(themeRoot) {
+  if (!themeRoot) return null;
+  try {
+    const pages = loadMockData(themeRoot)?.page;
+    const home = Array.isArray(pages) ? pages.find((p) => p && p.slug === 'home') : null;
+    if (!home) return null;
+    return {
+      title: typeof home.title === 'string' ? home.title : 'Home',
+      content: typeof home.content === 'string' ? home.content : '',
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function buildFunctionsPhp(
   config,
   assets,
@@ -1131,6 +1147,7 @@ ${fieldsPhpLines.join('\n')}
     menuItemsPhpArray,
     socialSettingsPhp,
     postTypes,
+    resolveFrontPageSeed(themeRoot),
   );
 
   let mainJs = '';

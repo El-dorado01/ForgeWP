@@ -97,7 +97,7 @@ export function loadMockData(themeRoot) {
 
       if (extracted && typeof extracted === 'object' && !Array.isArray(extracted)) return extracted;
     } catch (e) {
-      console.warn(`⚠️  [ForgeWP Seed] Could not load ${tsPath}: ${e.message}`);
+      console.warn(`⚠️  [ForgeWP Seed] Could not load ${scriptPath}: ${e.message}`);
     }
   }
 
