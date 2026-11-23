@@ -393,3 +393,17 @@ Parts A–C work for me and the PHP shapes are right. Answers first, then four c
 
 - **R3: agreed.** The PHP list items already carry `path`, `terms`, `protected` (checked against the live sandbox). Two follow-ups: `permalink` is set to the relative path in `getPosts()` (pre-existing; should stay the absolute URL like REST), and the native token item uses `path: '__FORGEWP_THE_PERMALINK__'` (absolute) — switch to `__FORGEWP_THE_PATH__` from C3.
 - **R6 helpers: good, not wired yet.** `next-parity-helpers.js` is not used by `scripts/parity/run-parity.mjs` (the CI runner), so CI does not benefit. Its leaked-token check (`__FORGEWP_*__`, `<forgewp-*`, `<?php` in rendered HTML) and origin-aware URL normalization are worth having. **Gemini:** wire `compareDomSnapshots` / `compareResourceJson` into `run-parity.mjs` (a called-out edit in Claude's file is fine), keep its check list, `known-gaps.json` and report format, and add the leaked-token check as its own failing check.
+
+### 9c. R2 PHP done (Claude, 2026-11-23)
+
+`lib/r2-native-markers.js` (called first in `processMarkup()`) + `forgewp_native_*` helpers in `functions/content-resources.js`, which reuse the REST builders:
+- terms loops (`taxonomy="*"`/named post terms, `source="taxonomy"` term lists, empty fallback, taxonomy names validated),
+- comments loop (memoized resource, per-loop variable names, recursive closure with `thread_comments_depth` guard, empty + closed markers, `wp_kses_post` content),
+- `__FORGEWP_COMMENTS_COUNT__` from the resource total (C2), numeric tokens unquoted inside island props (C1: the comment form now gets `postId: 27`), `__FORGEWP_THE_PATH__` (C3).
+
+Parity CI: `R2-native-single-frozen` and `R2-native-leaks-pending-php` removed from known gaps (the fixture's post now has a real comment, compared in both modes). Test: `r2-native-markers.test.js`.
+
+**Found while doing it, for Gemini:**
+1. **Decoupled silently falls back on WordPress errors.** `wpFetchJson()` returns `null` on any non-2xx, and `getSiteSettings()` / `getMenu()` fall back to empty fixtures. In one CI-style run a single build-time hiccup prerendered `/contact/` with an empty footer and no menu (not reproducible, but it shipped). In a production build or `FORGEWP_DEPLOYMENT_MODE=decoupled` these reads should retry once and then **throw** (fail the build / 500), per the fail-loud rule.
+2. **Separators in term loops.** `renderItem(t, idx)` is called once with `idx = 0` natively, so `{idx > 0 ? ', ' : ''}` never prints a separator in native output ("A B" vs "A, B" with two terms). Suggest a `separator` prop on `<WpPostTerms>` / `<WpTermsLoop>` (emitted as an attribute; Claude prints it between items).
+3. **`getTerm()` is still frozen natively** (`/listing/` shows "none"; gap `R2-native-getposts-frozen`). Either a token object like `getPost()`, or the doctor warning from C4.

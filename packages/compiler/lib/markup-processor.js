@@ -1,3 +1,4 @@
+import { processR2NativeMarkers } from './r2-native-markers.js';
 /**
  * Process markup: fix nav links, replace ForgeWP dynamic template tags with PHP equivalents, etc.
  *
@@ -34,6 +35,9 @@ export function processMarkup(
     /href=(["'])\/\1/g,
     "href=\"<?php echo esc_url( function_exists( 'pll_home_url' ) ? pll_home_url( function_exists( 'pll_current_language' ) ? pll_current_language() : '' ) : home_url( '/' ) ); ?>\"",
   );
+
+  // R2: live terms/comments loops, post id/path, comment count (before generic tokens).
+  processed = processR2NativeMarkers(processed);
 
   processed = processed.replace(
     /__FORGEWP_THE_TITLE__/g,

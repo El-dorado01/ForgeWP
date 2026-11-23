@@ -250,6 +250,69 @@ if (!function_exists('forgewp_content_public_post_type')) {
         );
     }
 
+    // ── R2: native templates read the same builders as REST (status §9, §9a) ──
+
+    /** Comments resource for the current post, memoized per request (count + loop share one query). */
+    function forgewp_native_comments($page = 1, $per_page = 50) {
+        static $memo = array();
+        $post = get_post();
+        if (!$post) {
+            return array('post' => 0, 'open' => false, 'page' => 1, 'perPage' => (int) $per_page, 'total' => 0, 'items' => array());
+        }
+        $key = $post->ID . ':' . (int) $page . ':' . (int) $per_page;
+        if (!isset($memo[$key])) {
+            $memo[$key] = forgewp_comments_resource($post, $page, $per_page);
+        }
+        return $memo[$key];
+    }
+
+    /** Same number as the REST total (top-level threads), not get_comments_number(). */
+    function forgewp_native_comments_total() {
+        $resource = forgewp_native_comments(1, 50);
+        return (int) $resource['total'];
+    }
+
+    /** Recursion guard for <forgewp-comment-children />. */
+    function forgewp_native_comment_max_depth() {
+        $depth = (int) get_option('thread_comments_depth', 5);
+        return get_option('thread_comments') ? max(1, $depth) : 1;
+    }
+
+    /** The current post's terms as in REST post.terms; '*' flattens all public taxonomies in REST order. */
+    function forgewp_native_post_terms($taxonomy) {
+        $post = get_post();
+        if (!$post) {
+            return array();
+        }
+        $item = forgewp_post_resource_item($post, false, forgewp_content_lang(null));
+        $terms = (array) $item['terms'];
+        if ($taxonomy === '*') {
+            $flat = array();
+            foreach ($terms as $list) {
+                foreach ((array) $list as $term) {
+                    $flat[] = $term;
+                }
+            }
+            return $flat;
+        }
+        return isset($terms[$taxonomy]) ? (array) $terms[$taxonomy] : array();
+    }
+
+    /** A taxonomy's terms as in GET /terms/<taxonomy>. */
+    function forgewp_native_taxonomy_terms($taxonomy, $hide_empty = true) {
+        if (!forgewp_content_public_taxonomy($taxonomy)) {
+            return array();
+        }
+        $resource = forgewp_terms_resource($taxonomy, forgewp_content_lang(null), array('hideEmpty' => (bool) $hide_empty));
+        return $resource['items'];
+    }
+
+    /** Relative path of the current post in a loop, as the REST path field. */
+    function forgewp_native_the_path() {
+        $link = (string) get_permalink();
+        return $link !== '' ? forgewp_content_path($link) : '';
+    }
+
     function forgewp_comments_create(WP_REST_Request $request) {
         $origin = (string) $request->get_header('origin');
         if ($origin !== '' && !forgewp_origin_allowed($origin)) {

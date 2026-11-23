@@ -38,6 +38,12 @@ cp -r "$FIXTURE/.forgewp/out/parity-fixture" "$THEMES/"
 # First requests run activation provisioning (pages, menus, seed) and the
 # deferred rewrite refresh for /blog/ permalinks.
 for path in / /blog/ /; do curl -fsS -o /dev/null "$WP_URL$path"; done
+# One approved comment so the R2 comments loop is compared (before the decoupled build).
+FIRST_POST="$("$SANDBOX" wp post list --post_type=post --name=first-parity-post --field=ID)"
+if [ -n "$FIRST_POST" ] && [ "$("$SANDBOX" wp comment list --post_id="$FIRST_POST" --format=count)" = "0" ]; then
+  "$SANDBOX" wp comment create --comment_post_ID="$FIRST_POST" --comment_author="Parity Reader" \
+    --comment_author_email=reader@example.test --comment_content="Native and decoupled agree." --comment_approved=1 >/dev/null
+fi
 # Forms rate-limit counters from earlier local runs.
 "$SANDBOX" wp transient delete --all >/dev/null
 

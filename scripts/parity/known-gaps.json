@@ -1,29 +1,15 @@
 {
-  "$comment": "Triaged native/decoupled differences. Each entry silences matching differences; an entry that matches nothing fails the run. Remove an entry in the same PR that fixes it. See docs/phase-status-and-blog-urls.md §8.",
+  "$comment": "Triaged native/decoupled differences. Each entry silences matching differences; an entry that matches nothing fails the run. Remove an entry in the same PR that fixes it. See docs/phase-status-and-blog-urls.md \u00a78.",
   "gaps": [
-    {
-      "id": "R2-native-single-frozen",
-      "owner": "Gemini (markers in server.ts) + Claude (PHP)",
-      "title": "Native dynamic single route freezes post title, terms, comments and the comment form's postId at export; only the body (the_content) is live",
-      "check": "dom",
-      "routes": ["/blog/first-parity-post/", "/blog/second-parity-post/"],
-      "match": "\\$\\.parity\\.(title|terms|comment-count|comment)\\["
-    },
     {
       "id": "R2-native-getposts-frozen",
       "owner": "Gemini (markers in server.ts) + Claude (PHP)",
       "title": "Native getPosts()/getTerms()/getTerm() outside WpQueryLoop are frozen at export (mock data, mock order)",
       "check": "dom",
-      "routes": ["/listing/"],
+      "routes": [
+        "/listing/"
+      ],
       "match": "\\$\\.parity\\.(posts|term-list|term)\\["
-    },
-    {
-      "id": "R2-native-leaks-pending-php",
-      "owner": "Claude (markup-processor.js PHP emitters)",
-      "title": "R2 compile tokens/markers emitted by parity-fixture until Claude lands R2 PHP emitters in markup-processor.js",
-      "check": "leaks",
-      "routes": ["/blog/first-parity-post/", "/blog/second-parity-post/", "/listing/"],
-      "match": "__FORGEWP_(THE_|COMMENTS_COUNT|TERM_|COMMENT_)|<forgewp-(terms|comments|comment)"
     }
   ]
 }
