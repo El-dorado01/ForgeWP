@@ -1,6 +1,6 @@
 import React, { useContext } from "react";
 import { WpPostContext } from "../context";
-import { hasNativeHydration } from "../runtime/index.js";
+import { getForgeWpRuntime, hasNativeHydration } from "../runtime/index.js";
 
 export interface WpRepeaterProps<T> {
   name: string;                                    // Post meta key for the repeater
@@ -28,8 +28,22 @@ export function WpRepeater<T extends Record<string, any>>({
   const post = useContext(WpPostContext);
 
   if (IS_DECOUPLED) {
-    const data = post?.customFields?.[name] || defaultValue || [];
-    const dataArray = Array.isArray(data) ? data : [];
+    let runtimeRows: unknown;
+    try {
+      const editables = getForgeWpRuntime().peek('editables');
+      if (editables && !editables.protected) {
+        runtimeRows = editables.fields?.[name];
+      }
+    } catch {
+      // Runtime unconfigured
+    }
+    const candidate =
+      Array.isArray(runtimeRows) && runtimeRows.length > 0
+        ? runtimeRows
+        : Array.isArray(post?.customFields?.[name]) && post.customFields[name].length > 0
+          ? post.customFields[name]
+          : defaultValue;
+    const dataArray = Array.isArray(candidate) ? candidate : [];
     return (
       <>
         {dataArray.map((row, index) => children(row, index))}

@@ -1,4 +1,5 @@
 import type {
+  EditablesResource,
   ForgeWpResourceMap,
   ForgeWpResourceName,
   ForgeWpResourceParams,
@@ -6,11 +7,13 @@ import type {
   I18nResource,
   PostResource,
   PostsListResource,
+  SeoResource,
   TermResource,
 } from './registry.js';
 import {
   normalizeAuthMeResource,
   normalizeCommentsListResource,
+  normalizeEditablesResource,
   normalizeFormResource,
   normalizeFormsCollection,
   normalizeI18nResource,
@@ -18,6 +21,7 @@ import {
   normalizePostResource,
   normalizePostsListResource,
   normalizeRoutesResource,
+  normalizeSeoResource,
   normalizeSiteSettings,
   normalizeTermResource,
   normalizeTermsListResource,
@@ -137,6 +141,22 @@ export function getNativeTerm(): TermResource | null {
   return null;
 }
 
+export function getNativeSeo(): SeoResource | null {
+  const canonical = getWindowHydration()?.resources?.seo;
+  if (canonical && typeof canonical === 'object') {
+    return normalizeSeoResource(canonical);
+  }
+  return null;
+}
+
+export function getNativeEditables(): EditablesResource | null {
+  const canonical = getWindowHydration()?.resources?.editables;
+  if (canonical && typeof canonical === 'object') {
+    return normalizeEditablesResource(canonical);
+  }
+  return null;
+}
+
 /**
  * Native WordPress hydration source.
  * Reads prefetched JSON payloads exclusively from `window.forgeWpHydration.resources[name]`.
@@ -201,6 +221,16 @@ export function createNativeSource(): ForgeWpSource {
       }
       if (resource === 'comments') {
         return (normalizeCommentsListResource(canonical) ?? undefined) as
+          | ForgeWpResourceMap[K]
+          | undefined;
+      }
+      if (resource === 'seo') {
+        return (normalizeSeoResource(canonical) ?? undefined) as
+          | ForgeWpResourceMap[K]
+          | undefined;
+      }
+      if (resource === 'editables') {
+        return (normalizeEditablesResource(canonical) ?? undefined) as
           | ForgeWpResourceMap[K]
           | undefined;
       }

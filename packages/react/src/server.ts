@@ -18,6 +18,8 @@ import {
   isProductionRuntime,
   normalizeAuthMeResource,
   normalizeCommentsListResource,
+  normalizeEditableImage,
+  normalizeEditablesResource,
   normalizeFormResource,
   normalizeFormsCollection,
   normalizeI18nResource,
@@ -26,12 +28,15 @@ import {
   normalizePostResource,
   normalizePostsListResource,
   normalizeRoutesResource,
+  normalizeSeoResource,
   normalizeSiteSettings,
   normalizeTermResource,
   normalizeTermsListResource,
   type AuthMeResource,
   type CommentResource,
   type CommentsListResource,
+  type EditableImageContract,
+  type EditablesResource,
   type FormResource,
   type FormsCollectionResource,
   type I18nResource,
@@ -40,6 +45,14 @@ import {
   type PostsListResource,
   type PostTermRefContract,
   type RoutesResource,
+  type SeoAlternatesContract,
+  type SeoImageContract,
+  type SeoObjectType,
+  type SeoOpenGraphContract,
+  type SeoProvider,
+  type SeoResource,
+  type SeoRobotsContract,
+  type SeoTwitterContract,
   type SiteSettingsResource,
   type TermResource,
   type TermsListResource,
@@ -137,12 +150,23 @@ export interface WpServerCommentsQueryOptions {
   perPage?: number;
 }
 
+export interface WpServerEditablesTarget {
+  path?: string;
+  routeId?: string;
+  post?: number;
+  lang?: string;
+  schema?: string;
+  keys?: string[];
+}
+
 export interface WpServerClientOptions {
   fixtures?: Record<string, Array<Record<string, any>>>;
   menus?: Record<string, Array<Record<string, any>>>;
   forms?: Record<string, any>;
   terms?: Record<string, Array<Record<string, any>>>;
   comments?: Record<number | string, Array<Record<string, any>>>;
+  seo?: Record<string, SeoResource>;
+  editables?: Record<string, EditablesResource>;
   i18n?: Partial<I18nResource>;
   /** Optional local dev fixture for `getAuthMe()` when no `wpUrl` is configured. */
   authMe?: AuthMeResource;
@@ -236,6 +260,12 @@ export interface WpServerClient {
   getSiteSettings(): Promise<SiteSettingsResource>;
   getForm(name: string, options?: { lang?: string }): Promise<FormResource | null>;
   getForms(options?: { lang?: string }): Promise<FormsCollectionResource>;
+  getSeo(path: string, options?: { lang?: string }): Promise<SeoResource | null>;
+  getEditables(target: WpServerEditablesTarget): Promise<EditablesResource | null>;
+  getEditable<T extends Record<string, any>>(
+    schema: T,
+    target: WpServerEditablesTarget,
+  ): Promise<{ [K in keyof T]: any }>;
   getOption(key: string, defaultValue?: string): string;
   getThemeMod(key: string, defaultValue?: string): string;
   getLiveOption(key: string, defaultValue?: string): Promise<string>;
@@ -2015,6 +2045,154 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       return fallbackCollection;
     },
 
+    async getSeo(routePath, seoOptions = {}) {
+      const rawPath = String(routePath || '').trim();
+      if (!rawPath || /^https?:\/\//i.test(rawPath)) {
+        throw new ForgeWpRuntimeError(
+          'FORGEWP_RESOURCE_FETCH_FAILED',
+          `[FORGEWP_INVALID_PATH] SEO path must be a non-empty site-relative path, received "${rawPath}".`,
+          { resource: 'seo', status: 400 },
+        );
+      }
+      const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+      const lang =
+        typeof seoOptions.lang === 'string' && seoOptions.lang.trim()
+          ? seoOptions.lang.trim()
+          : undefined;
+
+      const wpBase = resolveWpBase();
+      if (wpBase && !isNativeWordPressExport()) {
+        const params = new URLSearchParams({ path: normalizedPath });
+        if (lang) params.set('lang', lang);
+        const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/seo?${params.toString()}`;
+        const response = await fetchImpl(
+          url,
+          buildTaggedInit(['seo', `seo:path:${normalizedPath}`]),
+        );
+        if (response.status === 404) {
+          const json404 = await response.json().catch(() => null);
+          throwIfLocaleNotFound(response, json404, 'seo');
+          return null;
+        }
+        const json = await response.json().catch(() => null);
+        throwIfLocaleNotFound(response, json, 'seo');
+        if (!response.ok) {
+          const code = json && typeof json.code === 'string' ? json.code : '';
+          const msg =
+            json && typeof json.message === 'string'
+              ? json.message
+              : `Failed to fetch SEO metadata for "${normalizedPath}" (HTTP ${response.status}).`;
+          throw new ForgeWpRuntimeError(
+            'FORGEWP_RESOURCE_FETCH_FAILED',
+            code ? `[${code}] ${msg}` : msg,
+            { resource: `seo:${normalizedPath}`, status: response.status },
+          );
+        }
+        return normalizeSeoResource(json);
+      }
+
+      const fixtureEntry =
+        options.seo?.[normalizedPath] ||
+        options.seo?.[normalizedPath.replace(/\/+$/, '') || '/'];
+      return fixtureEntry ? normalizeSeoResource(fixtureEntry) : null;
+    },
+
+    async getEditables(target) {
+      const hasSelector = Boolean(
+        (target?.path && String(target.path).trim()) ||
+          (target?.routeId && String(target.routeId).trim()) ||
+          (typeof target?.post === 'number' && target.post > 0),
+      );
+      if (!hasSelector) {
+        throw new ForgeWpRuntimeError(
+          'FORGEWP_RESOURCE_FETCH_FAILED',
+          '[FORGEWP_EDITABLES_TARGET_REQUIRED] Provide at least one of path, routeId, or post when calling getEditables().',
+          { resource: 'editables', status: 400 },
+        );
+      }
+
+      const lang =
+        typeof target.lang === 'string' && target.lang.trim()
+          ? target.lang.trim()
+          : undefined;
+      const wpBase = resolveWpBase();
+      if (wpBase && !isNativeWordPressExport()) {
+        const params = new URLSearchParams();
+        if (target.path) params.set('path', target.path);
+        if (target.routeId) params.set('routeId', target.routeId);
+        if (typeof target.post === 'number' && target.post > 0) {
+          params.set('post', String(target.post));
+        }
+        if (lang) params.set('lang', lang);
+        if (target.schema) params.set('schema', target.schema);
+        if (Array.isArray(target.keys) && target.keys.length > 0) {
+          params.set('keys', target.keys.join(','));
+        }
+        const tags = ['editables'];
+        if (target.post) tags.push(`post:${target.post}`);
+        if (target.routeId) tags.push(`route:${target.routeId}`);
+        const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/editables?${params.toString()}`;
+        const response = await fetchImpl(url, buildTaggedInit(tags));
+        if (response.status === 404) {
+          const json404 = await response.json().catch(() => null);
+          throwIfLocaleNotFound(response, json404, 'editables');
+          if (json404?.code === 'FORGEWP_EDITABLE_SCHEMA_NOT_FOUND') {
+            throw new ForgeWpRuntimeError(
+              'FORGEWP_RESOURCE_FETCH_FAILED',
+              `[FORGEWP_EDITABLE_SCHEMA_NOT_FOUND] ${json404.message || 'Editable schema not found.'}`,
+              { resource: 'editables', status: 404 },
+            );
+          }
+          return null;
+        }
+        const json = await response.json().catch(() => null);
+        throwIfLocaleNotFound(response, json, 'editables');
+        if (!response.ok) {
+          const code = json && typeof json.code === 'string' ? json.code : '';
+          const msg =
+            json && typeof json.message === 'string'
+              ? json.message
+              : `Failed to fetch editables (HTTP ${response.status}).`;
+          throw new ForgeWpRuntimeError(
+            'FORGEWP_RESOURCE_FETCH_FAILED',
+            code ? `[${code}] ${msg}` : msg,
+            { resource: 'editables', status: response.status },
+          );
+        }
+        return normalizeEditablesResource(json);
+      }
+
+      const fixtureMatch =
+        (target.routeId && options.editables?.[target.routeId]) ||
+        (target.path && options.editables?.[target.path]) ||
+        (target.schema && options.editables?.[target.schema]) ||
+        (target.post !== undefined ? options.editables?.[String(target.post)] : undefined);
+      if (fixtureMatch) {
+        return normalizeEditablesResource(fixtureMatch);
+      }
+      if (Object.keys(metaMap).length > 0) {
+        return normalizeEditablesResource({
+          postId: target.post || 0,
+          postType: 'page',
+          ...(target.routeId ? { routeId: target.routeId } : {}),
+          path: target.path || '/',
+          ...(lang ? { lang } : {}),
+          ...(target.schema ? { schema: target.schema } : {}),
+          protected: false,
+          fields: metaMap,
+        });
+      }
+      return null;
+    },
+
+    async getEditable(schema, target) {
+      if (isNativeWordPressExport()) {
+        return getWpEditable(schema, this);
+      }
+      const res = await this.getEditables(target);
+      return getWpEditable(schema, res);
+    },
+
     getOption(key, defaultValue = '') {
       const safeKey = sanitizeTokenKey(key);
       if (isNativeWordPressExport()) {
@@ -2741,10 +2919,56 @@ export async function guardProtectedPage(
   return { allowed: true, status: 200, auth };
 }
 
+function normalizeEditableFieldValue(field: any, rawValue: unknown, defaultVal: any): any {
+  if (
+    rawValue === null ||
+    rawValue === undefined ||
+    rawValue === '' ||
+    (Array.isArray(rawValue) && rawValue.length === 0)
+  ) {
+    if (field?.type === 'image') {
+      return normalizeEditableImage(defaultVal) ?? defaultVal ?? null;
+    }
+    return defaultVal;
+  }
+
+  switch (field?.type) {
+    case 'boolean':
+      return rawValue === true || rawValue === 'true' || rawValue === '1' || rawValue === 1;
+    case 'number': {
+      const parsed = Number(rawValue);
+      return Number.isNaN(parsed) ? defaultVal : parsed;
+    }
+    case 'image':
+      return normalizeEditableImage(rawValue) ?? normalizeEditableImage(defaultVal) ?? null;
+    case 'repeater': {
+      if (!Array.isArray(rawValue)) return Array.isArray(defaultVal) ? defaultVal : [];
+      const subFields = field.fields && typeof field.fields === 'object' ? field.fields : {};
+      return rawValue.map((row) => {
+        if (!row || typeof row !== 'object') return row;
+        const normalizedRow: Record<string, any> = { ...row };
+        for (const [subKey, subField] of Object.entries(subFields)) {
+          const subDefault = (subField as any)?.default ?? '';
+          if (subKey in row) {
+            normalizedRow[subKey] = normalizeEditableFieldValue(
+              subField,
+              (row as Record<string, unknown>)[subKey],
+              subDefault,
+            );
+          }
+        }
+        return normalizedRow;
+      });
+    }
+    default:
+      return rawValue;
+  }
+}
+
 /**
  * Pure-TypeScript, Server-Component-safe helper that resolves a `defineEditable()`
- * schema from either a `WpServerClient` (`wp.getField(...)`), a plain meta/page
- * object, or the schema's own defaults.
+ * schema from either a `WpServerClient` (`wp.getField(...)`), an `EditablesResource`
+ * (`docs/resource-contracts.md` §14), a plain meta/page object, or the schema's own defaults.
  *
  * - Native WordPress export (`FORGEWP_NATIVE_EXPORT=1`) with a `WpServerClient`:
  *   emits `__FORGEWP_META_<key>_DEFAULT_<default>__` compile tokens so each field
@@ -2753,7 +2977,7 @@ export async function guardProtectedPage(
  */
 export function getWpEditable<T extends Record<string, any>>(
   schema: T,
-  source?: WpServerClient | Record<string, any> | null,
+  source?: WpServerClient | EditablesResource | Record<string, any> | null,
 ): { [K in keyof T]: any } {
   const out: Record<string, any> = {};
   const isClient =
@@ -2762,7 +2986,8 @@ export function getWpEditable<T extends Record<string, any>>(
     typeof (source as WpServerClient).getField === 'function';
   const recordSource =
     !isClient && source && typeof source === 'object'
-      ? ((source as Record<string, any>).customFields ??
+      ? ((source as Record<string, any>).fields ??
+        (source as Record<string, any>).customFields ??
         (source as Record<string, any>).meta ??
         (source as Record<string, any>))
       : null;
@@ -2816,13 +3041,153 @@ export function getWpEditable<T extends Record<string, any>>(
       Object.prototype.hasOwnProperty.call(recordSource, key) &&
       recordSource[key] !== undefined
     ) {
-      out[key] = recordSource[key];
+      out[key] = normalizeEditableFieldValue(field, recordSource[key], defaultVal);
     } else {
       out[key] = defaultVal;
     }
   }
 
   return out as { [K in keyof T]: any };
+}
+
+export interface NextMetadataLike {
+  title?: string;
+  description?: string;
+  robots?: {
+    index?: boolean;
+    follow?: boolean;
+    googleBot?: {
+      index?: boolean;
+      follow?: boolean;
+      'max-snippet'?: number;
+      'max-image-preview'?: string;
+      'max-video-preview'?: number;
+    };
+  };
+  openGraph?: {
+    title?: string;
+    description?: string;
+    type?: string;
+    url?: string;
+    siteName?: string;
+    locale?: string;
+    images?: Array<{ url: string; width?: number; height?: number; alt?: string }>;
+  };
+  twitter?: {
+    card?: string;
+    title?: string;
+    description?: string;
+    site?: string;
+    creator?: string;
+    images?: string[];
+  };
+  alternates?: {
+    canonical?: string;
+    languages?: Record<string, string>;
+  };
+  [key: string]: unknown;
+}
+
+/**
+ * Converts a canonical `SeoResource` (`docs/resource-contracts.md` §13) into a
+ * Next.js App Router `Metadata` object for `generateMetadata()`.
+ */
+export function toNextMetadata(
+  seo: SeoResource | null | undefined,
+  fallback: NextMetadataLike = {},
+): NextMetadataLike {
+  if (!seo) return { ...fallback };
+  const robots: NextMetadataLike['robots'] = {
+    index: seo.robots.index,
+    follow: seo.robots.follow,
+    googleBot: {
+      index: seo.robots.index,
+      follow: seo.robots.follow,
+      ...(seo.robots.maxSnippet !== undefined ? { 'max-snippet': seo.robots.maxSnippet } : {}),
+      ...(seo.robots.maxImagePreview
+        ? { 'max-image-preview': seo.robots.maxImagePreview }
+        : {}),
+      ...(seo.robots.maxVideoPreview !== undefined
+        ? { 'max-video-preview': seo.robots.maxVideoPreview }
+        : {}),
+    },
+  };
+
+  return {
+    ...fallback,
+    title: seo.title || fallback.title,
+    description: seo.description || fallback.description,
+    robots,
+    openGraph: {
+      ...(fallback.openGraph || {}),
+      title: seo.openGraph.title || seo.title || fallback.openGraph?.title,
+      description:
+        seo.openGraph.description || seo.description || fallback.openGraph?.description,
+      type: seo.openGraph.type || fallback.openGraph?.type || 'website',
+      ...(seo.openGraph.url || seo.canonical
+        ? { url: seo.openGraph.url || seo.canonical }
+        : {}),
+      ...(seo.openGraph.siteName ? { siteName: seo.openGraph.siteName } : {}),
+      ...(seo.openGraph.locale ? { locale: seo.openGraph.locale } : {}),
+      ...(seo.openGraph.images.length > 0
+        ? { images: seo.openGraph.images }
+        : fallback.openGraph?.images
+          ? { images: fallback.openGraph.images }
+          : {}),
+    },
+    twitter: {
+      ...(fallback.twitter || {}),
+      card: seo.twitter.card || fallback.twitter?.card || 'summary_large_image',
+      title: seo.twitter.title || seo.title || fallback.twitter?.title,
+      description:
+        seo.twitter.description || seo.description || fallback.twitter?.description,
+      ...(seo.twitter.site ? { site: seo.twitter.site } : {}),
+      ...(seo.twitter.creator ? { creator: seo.twitter.creator } : {}),
+      ...(seo.twitter.images.length > 0
+        ? { images: seo.twitter.images }
+        : fallback.twitter?.images
+          ? { images: fallback.twitter.images }
+          : {}),
+    },
+    alternates: {
+      ...(fallback.alternates || {}),
+      ...(seo.alternates.canonical || seo.canonical
+        ? { canonical: seo.alternates.canonical || seo.canonical }
+        : {}),
+      ...(Object.keys(seo.alternates.languages).length > 0
+        ? { languages: seo.alternates.languages }
+        : fallback.alternates?.languages
+          ? { languages: fallback.alternates.languages }
+          : {}),
+    },
+  };
+}
+
+export interface WpJsonLdProps {
+  schemas?: Array<Record<string, unknown>> | null;
+}
+
+/**
+ * Server-safe JSON-LD `<script type="application/ld+json">` emitter for `seo.jsonLd`.
+ * Escapes `<` as `\u003c` so embedded schema strings cannot close the script tag.
+ */
+export function WpJsonLd({ schemas }: WpJsonLdProps): React.ReactElement | null {
+  if (!Array.isArray(schemas) || schemas.length === 0) {
+    return null;
+  }
+  const safeJson = (obj: unknown) =>
+    JSON.stringify(obj).replace(/</g, '\\u003c');
+  return React.createElement(
+    React.Fragment,
+    null,
+    ...schemas.map((schema, idx) =>
+      React.createElement('script', {
+        key: idx,
+        type: 'application/ld+json',
+        dangerouslySetInnerHTML: { __html: safeJson(schema) },
+      }),
+    ),
+  );
 }
 
 export interface WpServerPostTermsProps {
@@ -3189,6 +3554,9 @@ export {
   normalizeTermsListResource,
   normalizeCommentResource,
   normalizeCommentsListResource,
+  normalizeSeoResource,
+  normalizeEditableImage,
+  normalizeEditablesResource,
   createForgeWpRuntime,
   configureForgeWpRuntime,
   getForgeWpRuntime,
@@ -3233,6 +3601,16 @@ export type {
   CommentAuthorContract,
   CommentResource,
   CommentsListResource,
+  SeoProvider,
+  SeoObjectType,
+  SeoRobotsContract,
+  SeoImageContract,
+  SeoOpenGraphContract,
+  SeoTwitterContract,
+  SeoAlternatesContract,
+  SeoResource,
+  EditableImageContract,
+  EditablesResource,
   RestSourceOptions,
   PrimableForgeWpSource,
   FixtureSourceOptions,

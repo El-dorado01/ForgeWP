@@ -4,6 +4,7 @@ import {
   getResourceDefinition,
   normalizeAuthMeResource,
   normalizeCommentsListResource,
+  normalizeEditablesResource,
   normalizeFormResource,
   normalizeFormsCollection,
   normalizeI18nResource,
@@ -11,6 +12,7 @@ import {
   normalizePostResource,
   normalizePostsListResource,
   normalizeRoutesResource,
+  normalizeSeoResource,
   normalizeSiteSettings,
   normalizeTermResource,
   normalizeTermsListResource,
@@ -123,6 +125,12 @@ function normalizeResourcePayload<K extends ForgeWpResourceName>(
     const fallbackPostId =
       params?.query?.post !== undefined ? Number(params.query.post) : 0;
     return (normalizeCommentsListResource(raw, fallbackPostId) ?? raw) as ForgeWpResourceMap[K];
+  }
+  if (resource === 'seo') {
+    return (normalizeSeoResource(raw) ?? raw) as ForgeWpResourceMap[K];
+  }
+  if (resource === 'editables') {
+    return (normalizeEditablesResource(raw) ?? raw) as ForgeWpResourceMap[K];
   }
   return raw as ForgeWpResourceMap[K];
 }
@@ -286,6 +294,15 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
       if (tax) perResourceTags.push(`taxonomy:${tax}`);
     } else if (resource === 'comments' && params?.query?.post !== undefined) {
       perResourceTags.push(`comments:post:${String(params.query.post)}`);
+    } else if (resource === 'seo' && typeof params?.query?.path === 'string' && params.query.path) {
+      perResourceTags.push(`seo:path:${params.query.path}`);
+    } else if (resource === 'editables') {
+      if (params?.query?.post !== undefined) {
+        perResourceTags.push(`post:${String(params.query.post)}`);
+      }
+      if (typeof params?.query?.routeId === 'string' && params.query.routeId) {
+        perResourceTags.push(`route:${params.query.routeId}`);
+      }
     }
     if (!isSessionScoped && (options.next || def.cacheTags.length > 0 || perResourceTags.length > 0)) {
       const mergedTags = Array.from(
