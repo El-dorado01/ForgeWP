@@ -142,3 +142,32 @@ Follow-ups for Gemini (not blockers):
 2. **Doctor check:** a project with protected routes but no ForgeWP auth backend (`auth` not configured) gets 404 from `/auth/me`, so every visitor is redirected to login. Correct fail-closed behavior, but `forgewp doctor --target decoupled` should say why.
 3. Under `next dev` only, React's development debug data includes the guard's `children` props (protected text) in the RSC payload. Production builds do not. Worth a one-line note in the docs so nobody tests security against `next dev`.
 
+### G4 verified live by Claude (2026-11-23)
+
+Decoupled `next dev` against WordPress 7.1, using `getPost()`, `getPosts()`, `getTerms()`, `getTerm()`, `getComments()` and `submitWpComment()` from an island:
+
+- ✅ Decoupled single post: title, terms, block content, existing comments render; a comment posted from the browser reaches WordPress, is held for moderation and the UI shows "Your comment is awaiting moderation."; no browser errors.
+- ✅ `getTerms()` / `getTerm()` return counts and paths.
+- ⚠️ `getPosts()` keeps the legacy record shape: list items have `permalink` (a path) but not the contract's `path`, `terms`, `protected`. Additive fields would help developers.
+- ❌ **Native parity gap:** in the exported theme the same post shows an empty terms line and "Comments (0)" with no comments, although the post has an approved comment. Server Components run once at export against fixtures; title and content compile to WordPress template tags, but `getComments()` results and `post.terms` do not, so they are frozen at export time.
+
+---
+
+## 7. Remaining work and owners (Claude, 2026-11-23)
+
+Phase A is done; Phase B beta-critical work is done; Phase C core resources (`site-settings`, `forms`, `menus`, `routes`, `i18n`, `auth-me`, `posts`, `terms`, `comments`) are done on both sides. Security review done. Remaining, ordered for the Dec 31 beta:
+
+| # | Task | Owner | Beta? | Notes |
+|---|---|---|---|---|
+| R1 | **LocalWP plugin pass** (WooCommerce, Events Manager, Polylang, MailPoet, Yoast/Rank Math, CSRF checks) | Local agent (founder's machine) | Yes | Follow `docs/localwp-verification-checklist.md`; report back in its format. |
+| R2 | **G4 native parity:** comments list and post terms must render live from WordPress in the exported theme | Gemini (compile tokens/markers in `server.ts`) + Claude (PHP template output in `markup-processor.js`) | Yes | Same pattern as `WpQueryLoop` / `the_content`. Gemini proposes the marker shape first; Claude emits the PHP. |
+| R3 | **G4 polish:** `getPosts()` items gain `path`, `terms`, `protected` (additive) | Gemini | Nice to have | |
+| R4 | **SEO resource** (`/forgewp/v1/seo?path=`): title, description, canonical on the frontend domain, Open Graph, JSON-LD, hreflang; Yoast / Rank Math bridge; Next.js `generateMetadata()` helper | Contract draft: **Gemini**. PHP + plugin bridges: **Claude**. React/Next helper: **Gemini** | Yes | Without it, decoupled pages have no SEO plugin metadata. Replaces hotelchecker24's `hreflang.php`, `og-fallback.php`, `schemas.php` escape hatches. |
+| R5 | **Editables / repeaters resource**: normalized editable, ACF and repeater fields over REST + native | Contract draft: **Gemini**. PHP: **Claude**. `getWpEditable()` on the runtime: **Gemini** | Yes | Today repeaters fall back to defaults in decoupled mode (visible content bug). |
+| R6 | **Phase D — cross-mode parity CI**: GitHub Actions job that boots the Docker WordPress sandbox, exports a fixture project natively, runs it decoupled, and fails on differences in resource JSON, key DOM text per route, form submit, auth guard and locale behavior | **Claude** (sandbox, workflow, PHP side) + **Gemini** (Next.js decoupled build/run step and DOM comparison helpers) | Strongly recommended | Locks in everything above. Claude builds the job; Gemini adds the Next side. |
+| R7 | **WooCommerce on the runtime** (cart, checkout, account resources) | Contract draft: **Claude** (after R1 findings). React: **Gemini** | Post-beta unless R1 finds blockers | Security fixes already shipped. |
+| R8 | **B5** `transformBackendPhp` hook | Claude | No | No package needs it yet. |
+| R9 | **B6** hand-written Companion Plugin sources (Composer, multi-file, lifecycle hooks) | Claude | Post-beta | Needed for Hospitality 2035 licensing. |
+
+**Order:** Gemini starts with R4 + R5 contract drafts and R2 marker proposal, then R3. Claude starts R6 (parity CI) and R2's PHP side as soon as Gemini's marker shape is agreed, then the R4/R5 PHP once their contracts are approved. Founder: run R1 with the local agent any time; it is independent.
+
