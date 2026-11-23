@@ -4,15 +4,23 @@ import type {
   ForgeWpResourceParams,
   FormResource,
   I18nResource,
+  PostResource,
+  PostsListResource,
+  TermResource,
 } from './registry.js';
 import {
   normalizeAuthMeResource,
+  normalizeCommentsListResource,
   normalizeFormResource,
   normalizeFormsCollection,
   normalizeI18nResource,
   normalizeMenusCollection,
+  normalizePostResource,
+  normalizePostsListResource,
   normalizeRoutesResource,
   normalizeSiteSettings,
+  normalizeTermResource,
+  normalizeTermsListResource,
 } from './registry.js';
 
 export interface ForgeWpSource {
@@ -105,6 +113,30 @@ export function getNativeTranslations(): I18nResource | null {
   return null;
 }
 
+export function getNativePost(): PostResource | null {
+  const canonical = getWindowHydration()?.resources?.post;
+  if (canonical && typeof canonical === 'object') {
+    return normalizePostResource(canonical);
+  }
+  return null;
+}
+
+export function getNativePosts(): PostsListResource | null {
+  const canonical = getWindowHydration()?.resources?.posts;
+  if (canonical && typeof canonical === 'object') {
+    return normalizePostsListResource(canonical);
+  }
+  return null;
+}
+
+export function getNativeTerm(): TermResource | null {
+  const canonical = getWindowHydration()?.resources?.term;
+  if (canonical && typeof canonical === 'object') {
+    return normalizeTermResource(canonical);
+  }
+  return null;
+}
+
 /**
  * Native WordPress hydration source.
  * Reads prefetched JSON payloads exclusively from `window.forgeWpHydration.resources[name]`.
@@ -146,6 +178,31 @@ export function createNativeSource(): ForgeWpSource {
       }
       if (resource === 'auth-me') {
         return normalizeAuthMeResource(canonical) as ForgeWpResourceMap[K];
+      }
+      if (resource === 'post') {
+        return (normalizePostResource(canonical) ?? undefined) as
+          | ForgeWpResourceMap[K]
+          | undefined;
+      }
+      if (resource === 'posts') {
+        return (normalizePostsListResource(canonical) ?? undefined) as
+          | ForgeWpResourceMap[K]
+          | undefined;
+      }
+      if (resource === 'term') {
+        return (normalizeTermResource(canonical) ?? undefined) as
+          | ForgeWpResourceMap[K]
+          | undefined;
+      }
+      if (resource === 'terms') {
+        return (normalizeTermsListResource(canonical) ?? undefined) as
+          | ForgeWpResourceMap[K]
+          | undefined;
+      }
+      if (resource === 'comments') {
+        return (normalizeCommentsListResource(canonical) ?? undefined) as
+          | ForgeWpResourceMap[K]
+          | undefined;
       }
       return canonical as ForgeWpResourceMap[K];
     }
