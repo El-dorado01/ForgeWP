@@ -765,6 +765,16 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
 
     const headingText = extractFirstHeadingText(body);
 
+    const stripBrowserTitleSuffix = (rawTitle) => {
+      const cleaned = String(rawTitle || '').trim();
+      if (!cleaned) return '';
+      const sepMatch = cleaned.match(/^(.+?)\s+(?:·|\||—|–|-)\s+\S.+$/);
+      if (sepMatch && sepMatch[1].trim().length > 0) {
+        return sepMatch[1].trim();
+      }
+      return cleaned;
+    };
+
     let title;
     if (entry.kind === 'home') {
       title = entry.titleText || headingText || 'Home';
@@ -781,8 +791,8 @@ export function extractNextStaticMarkup(themeRoot, options = {}) {
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
       title = hasDistinctHeadTitle
-        ? entry.titleText
-        : headingText || entry.titleText || fallbackTitle;
+        ? stripBrowserTitleSuffix(entry.titleText)
+        : headingText || stripBrowserTitleSuffix(entry.titleText) || fallbackTitle;
     }
 
     const routeRecord = {

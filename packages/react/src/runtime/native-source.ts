@@ -6,7 +6,11 @@ import type {
   FormsCollectionResource,
   I18nResource,
 } from './registry.js';
-import { normalizeSiteSettings } from './registry.js';
+import {
+  normalizeFormResource,
+  normalizeFormsCollection,
+  normalizeSiteSettings,
+} from './registry.js';
 
 export interface ForgeWpSource {
   readonly kind: 'native' | 'rest' | 'fixture';
@@ -84,20 +88,11 @@ export function getNativeForm(name: string): FormResource | null {
   const hydration = getWindowHydration();
   const canonical = hydration?.resources?.forms?.forms?.[name];
   if (canonical && typeof canonical === 'object') {
-    return canonical as FormResource;
+    return normalizeFormResource(canonical, name);
   }
   const legacy = hydration?.forms?.[name];
   if (legacy && typeof legacy === 'object') {
-    return {
-      name,
-      mode: legacy.mode === 'shortcode' ? 'shortcode' : 'native',
-      fieldLabels:
-        legacy.fieldLabels && typeof legacy.fieldLabels === 'object'
-          ? legacy.fieldLabels
-          : {},
-      fields: Array.isArray(legacy.fields) ? legacy.fields : [],
-      ...(typeof legacy.submitUrl === 'string' ? { submitUrl: legacy.submitUrl } : {}),
-    };
+    return normalizeFormResource(legacy, name);
   }
   return null;
 }
@@ -130,26 +125,13 @@ export function getNativeTranslations(): I18nResource | null {
 function normalizeNativeFormsCollection(
   hydration: Record<string, any>,
 ): FormsCollectionResource | undefined {
-  const canonical = hydration.resources?.forms;
-  if (canonical && typeof canonical === 'object' && canonical.forms) {
-    return canonical as FormsCollectionResource;
+  if (hydration.resources?.forms) {
+    return normalizeFormsCollection(hydration.resources.forms) ?? undefined;
   }
-  const legacyForms = hydration.forms;
-  if (!legacyForms || typeof legacyForms !== 'object') return undefined;
-  const forms: Record<string, FormResource> = {};
-  for (const [name, entry] of Object.entries(legacyForms)) {
-    if (!entry || typeof entry !== 'object') continue;
-    const raw = entry as Record<string, any>;
-    forms[name] = {
-      name,
-      mode: raw.mode === 'shortcode' ? 'shortcode' : 'native',
-      fieldLabels:
-        raw.fieldLabels && typeof raw.fieldLabels === 'object' ? raw.fieldLabels : {},
-      fields: Array.isArray(raw.fields) ? raw.fields : [],
-      ...(typeof raw.submitUrl === 'string' ? { submitUrl: raw.submitUrl } : {}),
-    };
+  if (hydration.forms) {
+    return normalizeFormsCollection(hydration.forms) ?? undefined;
   }
-  return { forms };
+  return undefined;
 }
 
 /**

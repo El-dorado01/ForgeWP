@@ -268,12 +268,45 @@ export interface WpFormResult {
 export interface SubmitWpFormOptions {
   /** Opt into basic contract validation in local simulation. WordPress always validates real submissions. */
   validateLocal?: boolean;
+  /** Optional explicit locale override (e.g. `'en'`, `'de'`) for localized validation/storage. */
+  lang?: string;
 }
 
-// Module-load timestamp, used as the server-side time-trap's baseline —
-// a genuine human takes more than a few seconds between page load and
-// submit; a bot firing the request immediately does not.
+// Baseline timestamps for the server-side time-trap: measure from the visitor's
+// first interaction (pointerdown/keydown/focusin/input) when available, falling
+// back to module-load time if no interaction event fired before submit.
 const forgeWpFormsLoadedAt = typeof window !== 'undefined' ? Date.now() : 0;
+let forgeWpFormsFirstInteractionAt = 0;
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  const interactionEvents = ['pointerdown', 'keydown', 'focusin', 'input'] as const;
+  const markFirstInteraction = () => {
+    if (!forgeWpFormsFirstInteractionAt) {
+      forgeWpFormsFirstInteractionAt = Date.now();
+    }
+    for (const evt of interactionEvents) {
+      window.removeEventListener(evt, markFirstInteraction, true);
+    }
+  };
+  for (const evt of interactionEvents) {
+    window.addEventListener(evt, markFirstInteraction, { capture: true, passive: true });
+  }
+}
+
+function peekRuntimeFormMeta(name: string) {
+  const nativeForm = getNativeForm(name);
+  if (nativeForm) return nativeForm;
+  try {
+    const runtime = getForgeWpRuntime();
+    const scoped = runtime.peek('forms', { slug: name })?.forms?.[name];
+    if (scoped) return scoped;
+    const all = runtime.peek('forms')?.forms?.[name];
+    if (all) return all;
+  } catch {
+    // Unconfigured runtime falls through
+  }
+  return null;
+}
 
 function resolveFormsRestEndpoint(): { restUrl: string; restNonce: string | null } | null {
   const nativeUrl = getNativeRestUrl();
@@ -314,8 +347,13 @@ export async function submitWpForm(
   data: FormData | Record<string, unknown>,
   options: SubmitWpFormOptions = {},
 ): Promise<WpFormResult> {
+  const formMeta = peekRuntimeFormMeta(name);
   const endpoint = resolveFormsRestEndpoint();
-  if (!endpoint) {
+  const resolvedSubmitUrl =
+    formMeta?.submitUrl ||
+    (endpoint ? `${endpoint.restUrl}/forms/${encodeURIComponent(name)}/submit` : null);
+
+  if (!resolvedSubmitUrl) {
     if (isProductionRuntime()) {
       throw new ForgeWpRuntimeError(
         'FORGEWP_RUNTIME_UNCONFIGURED',
@@ -367,14 +405,19 @@ export async function submitWpForm(
   }
 
   try {
-    const { restUrl, restNonce } = endpoint;
-    const elapsed = String(Date.now() - forgeWpFormsLoadedAt);
+    const restNonce = endpoint?.restNonce ?? getNativeRestNonce();
+    const baseline = forgeWpFormsFirstInteractionAt || forgeWpFormsLoadedAt;
+    const elapsed = String(baseline ? Math.max(0, Date.now() - baseline) : 0);
 
     // The visitor's page language (Polylang/WPML), not the browser's own
     // locale — needed server-side so the submission validates against and
     // stores under the same language's client-owned field set the visitor
     // actually saw, not always the site default.
-    const lang = getNativeTranslations()?.currentLanguage || undefined;
+    const lang =
+      options.lang ||
+      getNativeTranslations()?.currentLanguage ||
+      formMeta?.lang ||
+      undefined;
 
     let response: Response;
     if (data instanceof FormData) {
@@ -404,7 +447,7 @@ export async function submitWpForm(
       if (restNonce) {
         headers['X-WP-Nonce'] = restNonce;
       }
-      response = await fetch(`${restUrl}/forms/${name}/submit`, {
+      response = await fetch(resolvedSubmitUrl, {
         method: 'POST',
         body: outgoing,
         headers,
@@ -416,7 +459,7 @@ export async function submitWpForm(
       if (restNonce) {
         headers['X-WP-Nonce'] = restNonce;
       }
-      response = await fetch(`${restUrl}/forms/${name}/submit`, {
+      response = await fetch(resolvedSubmitUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -429,9 +472,14 @@ export async function submitWpForm(
 
     const json = await response.json().catch(() => ({}) as any);
     if (!response.ok) {
-      return { ok: false, message: json.message, errors: json.errors };
+      const errors =
+        (json?.errors && typeof json.errors === 'object' ? json.errors : undefined) ||
+        (json?.data?.errors && typeof json.data.errors === 'object'
+          ? json.data.errors
+          : undefined);
+      return { ok: false, message: json?.message, errors };
     }
-    return { ok: true, message: json.message };
+    return { ok: true, message: json?.message };
   } catch {
     return { ok: false, message: 'network' };
   }
@@ -448,21 +496,78 @@ export interface WpFormState {
   reset: () => void;
 }
 
+export interface UseWpFormFieldLabelsOptions {
+  /** Optional explicit locale (`?lang=...`) for decoupled REST lookups. */
+  lang?: string;
+  /** Optional server-fetched initial labels (e.g. from `wpClient.getForm()`). */
+  initialLabels?: Record<string, string>;
+}
+
+function readSyncFormFieldLabels(
+  form: string,
+  initialLabels?: Record<string, string>,
+): Record<string, string> | null {
+  if (initialLabels && typeof initialLabels === 'object') {
+    return initialLabels;
+  }
+  if (typeof window === 'undefined') return null;
+  const meta = peekRuntimeFormMeta(form);
+  if (meta?.fieldLabels && typeof meta.fieldLabels === 'object') {
+    return meta.fieldLabels;
+  }
+  const mockLabels = (window as any)._forgeWpMockForms?.[form]?.fieldLabels;
+  if (mockLabels && typeof mockLabels === 'object') {
+    return mockLabels;
+  }
+  return null;
+}
+
 /**
  * Reads administrator-overridden labels for developer-owned fields from the
- * ForgeWP runtime (WordPress hydration payload or primed REST resource).
+ * ForgeWP runtime (WordPress native hydration, server-passed `initialLabels`,
+ * primed runtime cache, or automatic decoupled REST fetch from
+ * `GET /wp-json/forgewp/v1/forms/<name>`).
  */
-export function useWpFormFieldLabels(form: string): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  const nativeForm = getNativeForm(form);
-  if (nativeForm?.fieldLabels) return nativeForm.fieldLabels;
-  try {
-    const runtimeForms = getForgeWpRuntime().peek('forms');
-    const labels = runtimeForms?.forms?.[form]?.fieldLabels;
-    return labels && typeof labels === 'object' ? labels : {};
-  } catch {
-    return {};
-  }
+export function useWpFormFieldLabels(
+  form: string,
+  options: UseWpFormFieldLabelsOptions = {},
+): Record<string, string> {
+  const { lang, initialLabels } = options;
+  const syncLabels = readSyncFormFieldLabels(form, initialLabels);
+  const [asyncLabels, setAsyncLabels] = useState<Record<string, string> | null>(null);
+
+  useEffect(() => {
+    if (syncLabels !== null) return;
+    if (typeof window === 'undefined' || (window as any)._forgeWpCompileTime) return;
+
+    let runtime;
+    try {
+      runtime = getForgeWpRuntime();
+    } catch {
+      return;
+    }
+    if (runtime.mode !== 'decoupled') return;
+
+    let cancelled = false;
+    runtime
+      .get('forms', { slug: form, ...(lang ? { query: { lang } } : {}) })
+      .then((collection) => {
+        if (cancelled) return;
+        const labels = collection?.forms?.[form]?.fieldLabels;
+        if (labels && typeof labels === 'object') {
+          setAsyncLabels(labels);
+        }
+      })
+      .catch(() => {
+        // Keep empty labels if decoupled endpoint is unreachable
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form, lang, syncLabels !== null]);
+
+  return syncLabels ?? asyncLabels ?? {};
 }
 
 /**

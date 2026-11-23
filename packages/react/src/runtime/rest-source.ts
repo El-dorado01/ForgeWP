@@ -2,10 +2,13 @@ import { ForgeWpRuntimeError } from './errors.js';
 import type { ForgeWpSource } from './native-source.js';
 import {
   getResourceDefinition,
+  normalizeFormResource,
+  normalizeFormsCollection,
   normalizeSiteSettings,
   type ForgeWpResourceMap,
   type ForgeWpResourceName,
   type ForgeWpResourceParams,
+  type FormsCollectionResource,
 } from './registry.js';
 
 export interface RestSourceOptions {
@@ -55,6 +58,29 @@ function buildCacheKey(
   return `${resource}${slug}${qs}`;
 }
 
+function normalizeResourcePayload<K extends ForgeWpResourceName>(
+  resource: K,
+  raw: unknown,
+  params?: ForgeWpResourceParams,
+): ForgeWpResourceMap[K] {
+  if (resource === 'site-settings') {
+    return (normalizeSiteSettings(raw) ?? raw) as ForgeWpResourceMap[K];
+  }
+  if (resource === 'forms') {
+    if (params?.slug) {
+      const single = normalizeFormResource(raw, params.slug);
+      if (single) {
+        return {
+          ...(single.lang ? { lang: single.lang } : {}),
+          forms: { [single.name]: single },
+        } as ForgeWpResourceMap[K];
+      }
+    }
+    return (normalizeFormsCollection(raw) ?? raw) as ForgeWpResourceMap[K];
+  }
+  return raw as ForgeWpResourceMap[K];
+}
+
 /**
  * Decoupled WordPress REST source.
  * Fetches canonical JSON from `/wp-json/forgewp/v1/<restPath>` and caches
@@ -65,13 +91,40 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const cache = new Map<string, unknown>();
 
+  function mergeFormsIntoCollectionCache(
+    collection: FormsCollectionResource,
+  ): void {
+    const existing = cache.get('forms') as FormsCollectionResource | undefined;
+    cache.set('forms', {
+      ...(existing?.lang ? { lang: existing.lang } : {}),
+      ...(collection.lang ? { lang: collection.lang } : {}),
+      forms: {
+        ...(existing?.forms || {}),
+        ...(collection.forms || {}),
+      },
+    });
+  }
+
   function peek<K extends ForgeWpResourceName>(
     resource: K,
     params?: ForgeWpResourceParams,
   ): ForgeWpResourceMap[K] | undefined {
-    return cache.get(buildCacheKey(resource, params)) as
-      | ForgeWpResourceMap[K]
-      | undefined;
+    const exact = cache.get(buildCacheKey(resource, params));
+    if (exact !== undefined) {
+      return exact as ForgeWpResourceMap[K];
+    }
+    // Allow single-form peek('forms', { slug }) to hit the collection cache
+    if (resource === 'forms' && params?.slug) {
+      const coll = cache.get('forms') as FormsCollectionResource | undefined;
+      const found = coll?.forms?.[params.slug];
+      if (found) {
+        return {
+          ...(found.lang ? { lang: found.lang } : {}),
+          forms: { [found.name]: found },
+        } as ForgeWpResourceMap[K];
+      }
+    }
+    return undefined;
   }
 
   function prime<K extends ForgeWpResourceName>(
@@ -79,11 +132,11 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
     data: ForgeWpResourceMap[K],
     params?: ForgeWpResourceParams,
   ): void {
-    const normalized =
-      resource === 'site-settings'
-        ? (normalizeSiteSettings(data) ?? data)
-        : data;
+    const normalized = normalizeResourcePayload(resource, data, params);
     cache.set(buildCacheKey(resource, params), normalized);
+    if (resource === 'forms' && normalized && typeof normalized === 'object') {
+      mergeFormsIntoCollectionCache(normalized as FormsCollectionResource);
+    }
   }
 
   async function get<K extends ForgeWpResourceName>(
@@ -132,9 +185,17 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
       },
       ...(options.cache ? { cache: options.cache } : {}),
     };
-    if (options.next || def.cacheTags.length > 0) {
+    const perResourceTags =
+      resource === 'forms' && params?.slug
+        ? [`form:${params.slug}`]
+        : [];
+    if (options.next || def.cacheTags.length > 0 || perResourceTags.length > 0) {
       const mergedTags = Array.from(
-        new Set([...(def.cacheTags || []), ...(options.next?.tags || [])]),
+        new Set([
+          ...(def.cacheTags || []),
+          ...perResourceTags,
+          ...(options.next?.tags || []),
+        ]),
       );
       init.next = {
         ...(options.next || {}),
@@ -162,11 +223,11 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
     }
 
     const json = await response.json();
-    const normalized =
-      resource === 'site-settings'
-        ? (normalizeSiteSettings(json) ?? json)
-        : json;
+    const normalized = normalizeResourcePayload(resource, json, params);
     cache.set(key, normalized);
+    if (resource === 'forms' && normalized && typeof normalized === 'object') {
+      mergeFormsIntoCollectionCache(normalized as FormsCollectionResource);
+    }
     return normalized as ForgeWpResourceMap[K];
   }
 
