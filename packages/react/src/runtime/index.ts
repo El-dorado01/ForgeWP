@@ -340,6 +340,9 @@ export {
   normalizeTermsListResource,
   normalizeCommentResource,
   normalizeCommentsListResource,
+  normalizeSeoResource,
+  normalizeEditableImage,
+  normalizeEditablesResource,
 } from './registry.js';
 export type {
   ForgeWpResourceAuth,
@@ -370,6 +373,16 @@ export type {
   CommentAuthorContract,
   CommentResource,
   CommentsListResource,
+  SeoProvider,
+  SeoObjectType,
+  SeoRobotsContract,
+  SeoImageContract,
+  SeoOpenGraphContract,
+  SeoTwitterContract,
+  SeoAlternatesContract,
+  SeoResource,
+  EditableImageContract,
+  EditablesResource,
 } from './registry.js';
 export {
   createNativeSource,
@@ -385,6 +398,8 @@ export {
   getNativePost,
   getNativePosts,
   getNativeTerm,
+  getNativeSeo,
+  getNativeEditables,
 } from './native-source.js';
 export type { ForgeWpSource } from './native-source.js';
 export {
