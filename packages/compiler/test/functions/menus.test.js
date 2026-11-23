@@ -227,7 +227,9 @@ describe('Mega Menus & Hierarchical Navigation Compiler Tests', () => {
       '',
     );
 
-    expect(enqueuerPhp).toContain("'forms' => forgewp_forms_hydration_payload($current_lang)");
+    expect(enqueuerPhp).toContain("'forms' => function_exists('forgewp_forms_resource') ? forgewp_forms_resource($current_lang) : null");
+    expect(enqueuerPhp).not.toContain("'forms' => forgewp_forms_hydration_payload($current_lang)");
+    expect(enqueuerPhp).not.toContain("'siteSettings' => array(");
     expect(enqueuerPhp).toContain("$forgewp_path_locale = sanitize_key(reset($forgewp_path_segments));");
     expect(enqueuerPhp).toContain("$forgewp_home_path = rtrim((string) parse_url(home_url('/'), PHP_URL_PATH), '/');");
     expect(enqueuerPhp).toContain("$current_lang = 'de';");
