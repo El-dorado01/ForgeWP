@@ -113,6 +113,28 @@ export interface I18nResource {
   homeUrls?: Record<string, string>;
 }
 
+/**
+ * Canonical `auth-me` resource contract (docs/resource-contracts.md §9).
+ */
+export interface AuthMeUserContract {
+  id: number;
+  username: string;
+  displayName: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  avatarUrl?: string;
+  roles: string[];
+  capabilities: string[];
+  emailVerified?: boolean;
+  [key: string]: unknown;
+}
+
+export interface AuthMeResource {
+  authenticated: boolean;
+  user: AuthMeUserContract | null;
+}
+
 export interface ForgeWpResourceMap {
   'site-settings': SiteSettingsResource;
   forms: FormsCollectionResource;
@@ -121,7 +143,7 @@ export interface ForgeWpResourceMap {
   i18n: I18nResource;
   seo: Record<string, any>;
   editables: Record<string, any>;
-  'auth-me': Record<string, any> | null;
+  'auth-me': AuthMeResource;
 }
 
 export type ForgeWpResourceName = keyof ForgeWpResourceMap;
@@ -560,4 +582,70 @@ export function normalizeI18nResource(raw: any): I18nResource | null {
     ...(urls ? { urls } : {}),
     ...(homeUrls ? { homeUrls } : {}),
   };
+}
+
+/**
+ * Normalizes canonical `GET /wp-json/forgewp/v1/auth/me` or hydration
+ * `resources['auth-me']` payloads into `AuthMeResource` (docs/resource-contracts.md §9).
+ * Always fails closed to `{ authenticated: false, user: null }` on invalid/missing payloads.
+ */
+export function normalizeAuthMeResource(raw: any): AuthMeResource {
+  if (!raw || typeof raw !== 'object') {
+    return { authenticated: false, user: null };
+  }
+  const rawUser = raw.user;
+  const isAuthenticated =
+    raw.authenticated === true &&
+    Boolean(rawUser && typeof rawUser === 'object' && !Array.isArray(rawUser));
+
+  if (!isAuthenticated) {
+    return { authenticated: false, user: null };
+  }
+
+  const roles = Array.isArray(rawUser.roles)
+    ? rawUser.roles.filter((r: unknown) => typeof r === 'string' && r.trim()).map((r: string) => r.trim())
+    : [];
+  const capabilities = Array.isArray(rawUser.capabilities)
+    ? rawUser.capabilities
+        .filter((c: unknown) => typeof c === 'string' && c.trim())
+        .map((c: string) => c.trim())
+    : rawUser.capabilities && typeof rawUser.capabilities === 'object'
+      ? Object.entries(rawUser.capabilities)
+          .filter(([, enabled]) => Boolean(enabled))
+          .map(([cap]) => cap)
+      : [];
+
+  return {
+    authenticated: true,
+    user: {
+      ...rawUser,
+      id: typeof rawUser.id === 'number' ? rawUser.id : Number(rawUser.id || 0),
+      username: String(rawUser.username || ''),
+      displayName: String(rawUser.displayName || rawUser.username || ''),
+      roles,
+      capabilities,
+    },
+  };
+}
+
+/**
+ * Checks whether an `AuthMeResource` satisfies an optional `allowed` role/capability
+ * requirement (any-of matching across `user.roles` and `user.capabilities`).
+ */
+export function isAuthMeAllowed(
+  auth: AuthMeResource | null | undefined,
+  allowed?: string | string[],
+): boolean {
+  if (!auth || !auth.authenticated || !auth.user) {
+    return false;
+  }
+  const required = (Array.isArray(allowed) ? allowed : typeof allowed === 'string' ? allowed.split(',') : [])
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean);
+  if (required.length === 0) {
+    return true;
+  }
+  const roleSet = new Set(auth.user.roles || []);
+  const capSet = new Set(auth.user.capabilities || []);
+  return required.some((entry) => roleSet.has(entry) || capSet.has(entry));
 }

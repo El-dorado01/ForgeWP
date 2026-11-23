@@ -331,6 +331,35 @@ function analyzeSourceFile(fileAbs, projectRoot, cache) {
         } else if (idName === 'forgewpTemplate' || idName === 'pageConfig') {
           const val = parseWpModeFromObjectExpression(decl.init);
           if (val) empty.declaredWpMode = val;
+          if (idName === 'pageConfig') {
+            const objExpr =
+              decl.init?.type === 'ObjectExpression'
+                ? decl.init
+                : decl.init?.type === 'CallExpression' &&
+                    decl.init.arguments?.[0]?.type === 'ObjectExpression'
+                  ? decl.init.arguments[0]
+                  : null;
+            if (objExpr) {
+              for (const prop of objExpr.properties || []) {
+                if (prop.type !== 'ObjectProperty') continue;
+                const keyName =
+                  prop.key?.type === 'Identifier'
+                    ? prop.key.name
+                    : prop.key?.type === 'StringLiteral'
+                      ? prop.key.value
+                      : null;
+                if (keyName !== 'protected') continue;
+                const v = prop.value;
+                const isTruthy =
+                  (v?.type === 'BooleanLiteral' && v.value === true) ||
+                  (v?.type === 'StringLiteral' && v.value.trim().length > 0) ||
+                  (v?.type === 'ArrayExpression' && (v.elements || []).length > 0);
+                if (isTruthy) {
+                  registerCapability('auth');
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -1024,6 +1053,36 @@ export function buildRouteCapabilityManifest(projectRoot, options = {}) {
     ? normalizeRoutePath(postArchiveRoute.routePath)
     : null;
 
+  // Detect decoupled auth session transport (same-domain routing or JWT backend, per §9)
+  let hasNextWpRewrite = false;
+  for (const cfgFile of ['next.config.ts', 'next.config.mts', 'next.config.mjs', 'next.config.js', 'next.config.cjs']) {
+    const absCfg = path.join(resolvedRoot, cfgFile);
+    if (!existsSync(absCfg)) continue;
+    try {
+      const cfgSrc = readFileSync(absCfg, 'utf8');
+      if (/\/wp-json\b|\/wp-login\.php\b/.test(cfgSrc)) {
+        hasNextWpRewrite = true;
+        break;
+      }
+    } catch {
+      // Ignore unreadable config file
+    }
+  }
+  const authTransport = {
+    sameDomain: Boolean(
+      config.deploymentMode === 'hybrid' ||
+        config.auth?.transport === 'same-domain' ||
+        config.auth?.sameDomain === true ||
+        hasNextWpRewrite,
+    ),
+    jwt: Boolean(
+      config.auth?.jwt ||
+        config.auth?.backend === 'jwt' ||
+        config.auth?.transport === 'jwt' ||
+        process.env.FORGEWP_JWT_SECRET,
+    ),
+  };
+
   return {
     schemaVersion: 1,
     project: {
@@ -1045,6 +1104,7 @@ export function buildRouteCapabilityManifest(projectRoot, options = {}) {
       coveredShortcodeForms: Array.from(coveredShortcodeForms).sort(),
       serverPhpFiles,
       redirects,
+      authTransport,
     },
     suggestedHybridRoutes: suggestedHybridRoutes.sort(),
   };
@@ -1245,6 +1305,26 @@ export function evaluateTargetCompatibility(manifest, target) {
           message: `Redirect "${rule.from}" -> "${rule.to}" has ifNotFound: true, which matches existing route "${rule.from}". Next.js redirects() has no 404-fallback equivalent, so withForgeWP() skips this rule in ${target} mode.`,
           suggestion:
             'Remove ifNotFound: true if the redirect should always fire, or handle the fallback inside the route component when the WordPress page is missing.',
+        });
+      }
+    }
+
+    // 9. Protected routes in decoupled mode require same-domain routing or JWT session transport (§9)
+    if (target === 'decoupled') {
+      const protectedRoutes = routesEntries
+        .filter(([, route]) => !route.hybrid && (route.uses || []).includes('auth'))
+        .map(([routePath]) => routePath)
+        .sort();
+      const authTransport = manifest.global?.authTransport || { sameDomain: false, jwt: false };
+      if (protectedRoutes.length > 0 && !authTransport.sameDomain && !authTransport.jwt) {
+        warnings.push({
+          code: 'AUTH_CROSS_ORIGIN_SESSION_UNCONFIGURED',
+          severity: 'warning',
+          routes: protectedRoutes,
+          affectedMode: target,
+          message: `Protected route(s) (${protectedRoutes.join(', ')}) require WordPress session forwarding in decoupled mode, but neither same-domain routing (Next.js /wp-json & /wp-login.php rewrites or Hybrid edge router) nor a JWT auth backend is configured.`,
+          suggestion:
+            'Serve WordPress and Next.js on the same domain (recommended), configure Next.js rewrites for /wp-json/* and /wp-login.php, or enable the JWT auth backend (auth: { backend: "jwt" } / FORGEWP_JWT_SECRET).',
         });
       }
     }

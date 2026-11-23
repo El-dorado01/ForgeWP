@@ -332,6 +332,8 @@ export {
   normalizeMenusCollection,
   normalizeRoutesResource,
   normalizeI18nResource,
+  normalizeAuthMeResource,
+  isAuthMeAllowed,
 } from './registry.js';
 export type {
   ForgeWpResourceAuth,
@@ -349,6 +351,8 @@ export type {
   RouteRecordContract,
   RoutesResource,
   I18nResource,
+  AuthMeUserContract,
+  AuthMeResource,
 } from './registry.js';
 export {
   createNativeSource,

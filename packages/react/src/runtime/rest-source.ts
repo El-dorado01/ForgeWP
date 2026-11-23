@@ -2,6 +2,7 @@ import { ForgeWpRuntimeError } from './errors.js';
 import type { ForgeWpSource } from './native-source.js';
 import {
   getResourceDefinition,
+  normalizeAuthMeResource,
   normalizeFormResource,
   normalizeFormsCollection,
   normalizeI18nResource,
@@ -90,6 +91,9 @@ function normalizeResourcePayload<K extends ForgeWpResourceName>(
   }
   if (resource === 'i18n') {
     return (normalizeI18nResource(raw) ?? raw) as ForgeWpResourceMap[K];
+  }
+  if (resource === 'auth-me') {
+    return normalizeAuthMeResource(raw) as ForgeWpResourceMap[K];
   }
   return raw as ForgeWpResourceMap[K];
 }
@@ -184,8 +188,9 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
     resource: K,
     params?: ForgeWpResourceParams,
   ): Promise<ForgeWpResourceMap[K] | undefined> {
+    const isSessionScoped = resource === 'auth-me';
     const key = buildCacheKey(resource, params);
-    if (cache.has(key)) {
+    if (!isSessionScoped && cache.has(key)) {
       return cache.get(key) as ForgeWpResourceMap[K];
     }
 
@@ -224,7 +229,11 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
         Accept: 'application/json',
         ...(options.headers || {}),
       },
-      ...(options.cache ? { cache: options.cache } : {}),
+      ...(isSessionScoped
+        ? { cache: 'no-store' as RequestCache }
+        : options.cache
+          ? { cache: options.cache }
+          : {}),
     };
     const perResourceTags: string[] = [];
     if (resource === 'forms' && params?.slug) {
@@ -234,7 +243,7 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
     } else if (resource === 'i18n' && typeof params?.query?.lang === 'string' && params.query.lang) {
       perResourceTags.push(`i18n:${params.query.lang}`);
     }
-    if (options.next || def.cacheTags.length > 0 || perResourceTags.length > 0) {
+    if (!isSessionScoped && (options.next || def.cacheTags.length > 0 || perResourceTags.length > 0)) {
       const mergedTags = Array.from(
         new Set([
           ...(def.cacheTags || []),
@@ -269,12 +278,14 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
 
     const json = await response.json();
     const normalized = normalizeResourcePayload(resource, json, params);
-    cache.set(key, normalized);
-    if (resource === 'forms' && normalized && typeof normalized === 'object') {
-      mergeFormsIntoCollectionCache(normalized as FormsCollectionResource);
-    }
-    if (resource === 'menus' && normalized && typeof normalized === 'object') {
-      mergeMenusIntoCollectionCache(normalized as MenusCollectionResource);
+    if (!isSessionScoped) {
+      cache.set(key, normalized);
+      if (resource === 'forms' && normalized && typeof normalized === 'object') {
+        mergeFormsIntoCollectionCache(normalized as FormsCollectionResource);
+      }
+      if (resource === 'menus' && normalized && typeof normalized === 'object') {
+        mergeMenusIntoCollectionCache(normalized as MenusCollectionResource);
+      }
     }
     return normalized as ForgeWpResourceMap[K];
   }
