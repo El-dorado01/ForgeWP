@@ -159,7 +159,7 @@ Phase A is done; Phase B beta-critical work is done; Phase C core resources (`si
 
 | # | Task | Owner | Beta? | Notes |
 |---|---|---|---|---|
-| R1 | **LocalWP plugin pass** (WooCommerce, Events Manager, Polylang, MailPoet, Yoast/Rank Math, CSRF checks) | Local agent (founder's machine) | Yes | Follow `docs/localwp-verification-checklist.md`; report back in its format. |
+| R1 ✅ | **LocalWP plugin pass** (WooCommerce, Events Manager, Polylang, MailPoet, Yoast/Rank Math, CSRF checks) | Local agent (founder's machine) | Yes | Done 2026-11-23 ([localwp-verification-report.md](localwp-verification-report.md)): verified all plugin paths against WP 7.1.5 + fixed 5 discovered issues in `b864db9` (`1d` decoupled skipped; follow-up notes logged). |
 | R2 | **G4 native parity:** comments list and post terms must render live from WordPress in the exported theme | Gemini (compile tokens/markers in `server.ts`) + Claude (PHP template output in `markup-processor.js`) | Yes | Same pattern as `WpQueryLoop` / `the_content`. Gemini proposes the marker shape first; Claude emits the PHP. |
 | R3 | **G4 polish:** `getPosts()` items gain `path`, `terms`, `protected` (additive) | Gemini | Nice to have | |
 | R4 | **SEO resource** (`/forgewp/v1/seo?path=`): title, description, canonical on the frontend domain, Open Graph, JSON-LD, hreflang; Yoast / Rank Math bridge; Next.js `generateMetadata()` helper | Contract draft: **Gemini**. PHP + plugin bridges: **Claude**. React/Next helper: **Gemini** | Yes | Without it, decoupled pages have no SEO plugin metadata. Replaces hotelchecker24's `hreflang.php`, `og-fallback.php`, `schemas.php` escape hatches. |
