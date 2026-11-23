@@ -492,8 +492,11 @@ export interface ForgeWPSeedConfig {
 
 export {
   withForgeWP,
+  toNextRedirects,
   type ForgeWPNextAutoHydrateOptions,
   type ForgeWPNextDeploymentMode,
   type ForgeWPNextLikeConfig,
   type ForgeWPNextOptions,
+  type ForgeWPNextRedirectEntry,
+  type ForgeWPNextRedirectRule,
 } from './next.js';

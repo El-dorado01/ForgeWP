@@ -1001,6 +1001,16 @@ export function buildRouteCapabilityManifest(projectRoot, options = {}) {
   }
 
   const serverPhpFiles = scanServerPhpFiles(resolvedRoot);
+  const redirects = Array.isArray(config.redirects)
+    ? config.redirects
+        .filter((r) => r && typeof r === 'object' && typeof r.from === 'string' && typeof r.to === 'string')
+        .map((r) => ({
+          from: normalizeRoutePath(r.from),
+          to: r.to,
+          status: r.status ?? 301,
+          ifNotFound: r.ifNotFound === true,
+        }))
+    : [];
 
   return {
     schemaVersion: 1,
@@ -1021,6 +1031,7 @@ export function buildRouteCapabilityManifest(projectRoot, options = {}) {
       uncoveredShortcodeForms,
       coveredShortcodeForms: Array.from(coveredShortcodeForms).sort(),
       serverPhpFiles,
+      redirects,
     },
     suggestedHybridRoutes: suggestedHybridRoutes.sort(),
   };
@@ -1208,6 +1219,21 @@ export function evaluateTargetCompatibility(manifest, target) {
         suggestion:
           'Split backend logic into src/server/plugin/*.php (Companion Plugin, all modes) and presentation hooks into src/server/theme/*.php (Native/Hybrid only).',
       });
+    }
+
+    // 8. Declarative ifNotFound redirects that match an app route are skipped in Next.js redirects()
+    for (const rule of manifest.global?.redirects || []) {
+      if (rule.ifNotFound && Object.prototype.hasOwnProperty.call(manifest.routes || {}, rule.from)) {
+        warnings.push({
+          code: 'REDIRECT_IF_NOT_FOUND_SHADOWED',
+          severity: 'warning',
+          route: rule.from,
+          affectedMode: target,
+          message: `Redirect "${rule.from}" -> "${rule.to}" has ifNotFound: true, which matches existing route "${rule.from}". Next.js redirects() has no 404-fallback equivalent, so withForgeWP() skips this rule in ${target} mode.`,
+          suggestion:
+            'Remove ifNotFound: true if the redirect should always fire, or handle the fallback inside the route component when the WordPress page is missing.',
+        });
+      }
     }
   }
 

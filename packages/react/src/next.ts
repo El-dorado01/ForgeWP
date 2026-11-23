@@ -13,6 +13,19 @@
 
 export type ForgeWPNextDeploymentMode = 'native' | 'decoupled';
 
+export interface ForgeWPNextRedirectRule {
+  from: string;
+  to: string;
+  status?: 301 | 302 | 307 | 308;
+  ifNotFound?: boolean;
+}
+
+export interface ForgeWPNextRedirectEntry {
+  source: string;
+  destination: string;
+  statusCode: 301 | 302 | 307 | 308;
+}
+
 export interface ForgeWPNextAutoHydrateOptions {
   /** Default ForgeWP hydration trigger for auto-wrapped islands (default: `'visible'`). */
   defaultTrigger?: 'visible' | 'load' | 'idle' | 'interaction';
@@ -35,13 +48,152 @@ export interface ForgeWPNextOptions {
    * `defineBlock`, `@forgewp-no-hydrate`, and components already wrapped in `<Hydrate>`).
    */
   autoHydrate?: boolean | ForgeWPNextAutoHydrateOptions;
+  /**
+   * Declarative redirects from `wp.config.ts` (`redirects`). Mapped to Next.js
+   * `redirects()` in decoupled mode so both origins serve the same redirect table.
+   * Skipped during native static export (handled by Companion Plugin / theme PHP).
+   */
+  redirects?: ForgeWPNextRedirectRule[];
+  /**
+   * Optional list of known App Router route paths (e.g. `['/about', '/studie']`)
+   * used to skip `ifNotFound: true` redirects that would shadow an existing route.
+   * When omitted in Node.js, `withForgeWP()` checks `src/app/` and `app/` automatically.
+   */
+  appRoutes?: string[];
 }
 
 export interface ForgeWPNextLikeConfig {
   output?: string;
   transpilePackages?: string[];
+  redirects?: () => Promise<any[]> | any[];
   webpack?: (config: any, context: any) => any;
   [key: string]: any;
+}
+
+const VALID_REDIRECT_STATUSES = new Set([301, 302, 307, 308]);
+
+function normalizeRedirectPath(raw: string): string {
+  const clean = String(raw).split(/[?#]/)[0].replace(/\/+$/, '');
+  return clean === '' ? '/' : clean;
+}
+
+/**
+ * Convert ForgeWP declarative redirects (`wp.config.ts` `redirects`) into
+ * Next.js `redirects()` entries.
+ *
+ * `ifNotFound: true` has no direct Next.js filesystem fallback equivalent:
+ * when `appRoutes` contains the normalized `from` path, the rule is skipped so
+ * it does not shadow an existing App Router page (flagged by `forgewp doctor`).
+ */
+export function toNextRedirects(
+  rules: ForgeWPNextRedirectRule[] | undefined,
+  options: { appRoutes?: Iterable<string> } = {},
+): { redirects: ForgeWPNextRedirectEntry[]; skippedIfNotFound: ForgeWPNextRedirectRule[] } {
+  if (!rules || rules.length === 0) {
+    return { redirects: [], skippedIfNotFound: [] };
+  }
+  if (!Array.isArray(rules)) {
+    throw new Error(
+      '[ForgeWP] redirects must be an array of { from, to, status?, ifNotFound? }.',
+    );
+  }
+
+  const normalizedAppRoutes = new Set<string>();
+  if (options.appRoutes) {
+    for (const r of options.appRoutes) {
+      normalizedAppRoutes.add(normalizeRedirectPath(r));
+    }
+  }
+
+  const seen = new Set<string>();
+  const redirects: ForgeWPNextRedirectEntry[] = [];
+  const skippedIfNotFound: ForgeWPNextRedirectRule[] = [];
+
+  for (let i = 0; i < rules.length; i++) {
+    const r = rules[i];
+    const where = `redirects[${i}]`;
+    if (!r || typeof r !== 'object') {
+      throw new Error(`[ForgeWP] ${where} must be an object.`);
+    }
+    if (typeof r.from !== 'string' || !r.from.startsWith('/') || r.from.startsWith('//')) {
+      throw new Error(
+        `[ForgeWP] ${where}.from must be a site path starting with "/" (got ${JSON.stringify(r.from)}).`,
+      );
+    }
+    if (/[?#]/.test(r.from)) {
+      throw new Error(`[ForgeWP] ${where}.from must not contain a query or fragment.`);
+    }
+    const isExternal = /^https?:\/\//i.test(r.to);
+    if (
+      typeof r.to !== 'string' ||
+      (!isExternal && !(r.to.startsWith('/') && !r.to.startsWith('//')))
+    ) {
+      throw new Error(
+        `[ForgeWP] ${where}.to must be a site path starting with "/" or an http(s) URL.`,
+      );
+    }
+    const status = (r.status ?? 301) as 301 | 302 | 307 | 308;
+    if (!VALID_REDIRECT_STATUSES.has(status)) {
+      throw new Error(`[ForgeWP] ${where}.status must be 301, 302, 307 or 308.`);
+    }
+    const from = normalizeRedirectPath(r.from);
+    if (seen.has(from)) {
+      throw new Error(`[ForgeWP] ${where}.from "${r.from}" is listed twice.`);
+    }
+    seen.add(from);
+    if (!isExternal && normalizeRedirectPath(r.to) === from) {
+      throw new Error(`[ForgeWP] ${where} redirects "${r.from}" to itself.`);
+    }
+
+    if (r.ifNotFound === true && normalizedAppRoutes.has(from)) {
+      skippedIfNotFound.push({ ...r, from, status, ifNotFound: true });
+      continue;
+    }
+
+    redirects.push({
+      source: from,
+      destination: r.to,
+      statusCode: status,
+    });
+  }
+
+  return { redirects, skippedIfNotFound };
+}
+
+async function detectAppRouterPageMatch(
+  routePath: string,
+  projectRoot: string,
+): Promise<boolean> {
+  try {
+    const fsSpec = 'node:fs';
+    const pathSpec = 'node:path';
+    const fsMod: any = await import(/* @vite-ignore */ fsSpec);
+    const pathMod: any = await import(/* @vite-ignore */ pathSpec);
+    const existsSync = fsMod.existsSync ?? fsMod.default?.existsSync;
+    const join = pathMod.join ?? pathMod.default?.join;
+    if (typeof existsSync !== 'function' || typeof join !== 'function') {
+      return false;
+    }
+    const normalized = normalizeRedirectPath(routePath);
+    const segments = normalized === '/' ? [] : normalized.slice(1).split('/');
+    const appRoots = [
+      join(projectRoot, 'src', 'app'),
+      join(projectRoot, 'app'),
+    ];
+    const exts = ['tsx', 'jsx', 'ts', 'js', 'mjs'];
+    for (const appRoot of appRoots) {
+      if (!existsSync(appRoot)) continue;
+      const targetDir = join(appRoot, ...segments);
+      for (const ext of exts) {
+        if (existsSync(join(targetDir, `page.${ext}`))) {
+          return true;
+        }
+      }
+    }
+  } catch {
+    // Non-Node runtime: skip filesystem probe
+  }
+  return false;
 }
 
 function readEnvDeploymentMode(): ForgeWPNextDeploymentMode {
@@ -208,6 +360,17 @@ export function withForgeWP<
     serverWpUrl.trim() !== '' &&
     !(typeof explicitPublicWpUrl === 'string' && explicitPublicWpUrl.trim() !== '');
 
+  const configuredRedirects = Array.isArray(options.redirects)
+    ? options.redirects
+    : [];
+  const userRedirects =
+    typeof nextConfig.redirects === 'function' ? nextConfig.redirects : null;
+  const shouldWireRedirects = isDecoupled && configuredRedirects.length > 0;
+  // Validate rules eagerly at config load time so invalid redirects fail fast
+  if (configuredRedirects.length > 0) {
+    toNextRedirects(configuredRedirects, { appRoutes: options.appRoutes });
+  }
+
   const wrapped: ForgeWPNextLikeConfig = {
     ...nextConfig,
     ...(isDecoupled || nextConfig.output !== undefined
@@ -221,6 +384,32 @@ export function withForgeWP<
           env: {
             ...existingEnv,
             NEXT_PUBLIC_FORGEWP_WP_URL: serverWpUrl.trim(),
+          },
+        }
+      : {}),
+    ...(shouldWireRedirects
+      ? {
+          async redirects() {
+            const matchedRoutes = new Set<string>(options.appRoutes || []);
+            const projectRoot =
+              (globalThis as any).process?.cwd?.() || '.';
+            for (const rule of configuredRedirects) {
+              if (rule && rule.ifNotFound === true && typeof rule.from === 'string') {
+                const norm = normalizeRedirectPath(rule.from);
+                if (!matchedRoutes.has(norm) && (await detectAppRouterPageMatch(norm, projectRoot))) {
+                  matchedRoutes.add(norm);
+                }
+              }
+            }
+            const { redirects: forgeWpEntries } = toNextRedirects(
+              configuredRedirects,
+              { appRoutes: matchedRoutes },
+            );
+            const existing = userRedirects ? await userRedirects() : [];
+            return [
+              ...forgeWpEntries,
+              ...(Array.isArray(existing) ? existing : []),
+            ];
           },
         }
       : {}),
