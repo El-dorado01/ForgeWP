@@ -1,6 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { WpFormFieldType } from '../config';
-import { getForgeWpRuntime, getNativeForm } from '../runtime/index.js';
+import {
+  getForgeWpRuntime,
+  getNativeForm,
+  type FormResource,
+} from '../runtime/index.js';
 
 export interface WpFormFieldDescriptor {
   name: string;
@@ -19,6 +23,15 @@ export interface WpFormFieldDescriptor {
 export interface WpFormFieldsProps {
   /** The form name declared in wp.config.ts's `forms` key. */
   form: string;
+  /**
+   * Optional server-fetched form contract from `await wpClient.getForm(name)`
+   * (enables zero-flash SSR in Next.js App Router Server Components).
+   */
+  initialForm?: FormResource | null;
+  /** Optional explicit client-owned field list override. */
+  fields?: WpFormFieldDescriptor[];
+  /** Optional locale (`?lang=...`) for decoupled REST hydration. */
+  lang?: string;
   /** Initial client-owned fields for local preview before runtime data exists. */
   fallback?: WpFormFieldDescriptor[];
   /** Renders one client-owned field. Called once per field, in stored order. */
@@ -62,7 +75,12 @@ function getClientFields(form: string): WpFormFieldDescriptor[] | null {
   }
 
   try {
-    const runtimeFields = getForgeWpRuntime().peek('forms')?.forms?.[form]?.fields;
+    const runtime = getForgeWpRuntime();
+    const scopedFields = runtime.peek('forms', { slug: form })?.forms?.[form]?.fields;
+    if (Array.isArray(scopedFields)) {
+      return scopedFields as WpFormFieldDescriptor[];
+    }
+    const runtimeFields = runtime.peek('forms')?.forms?.[form]?.fields;
     if (Array.isArray(runtimeFields)) {
       return runtimeFields as WpFormFieldDescriptor[];
     }
@@ -90,15 +108,65 @@ function renderSafeProbe(
 /**
  * Renders the client-owned fields of a form (added/removed/reordered by the
  * site editor in wp-admin) through developer-supplied markup via a render
- * prop. During WordPress static export / SSR compilation, emits declarative
- * per-type templates compiled into live server-rendered PHP reading from
- * `forgewp_forms_get_registered_client_fields()`, matching client hydration
- * with zero duplicate fields or content swaps.
+ * prop.
+ *
+ * - **Native WordPress export:** emits declarative per-type templates compiled
+ *   into live server-rendered PHP reading from `forgewp_forms_get_registered_client_fields()`.
+ * - **Decoupled Next.js RSC:** accepts `initialForm={await wpClient.getForm('contact')}`
+ *   (or `fields={...}`) for zero-flash SSR, and also hydrates automatically from
+ *   `GET /wp-json/forgewp/v1/forms/<name>` via `ForgeWpRuntime` in client components.
  *
  * The dev owns 100% of the visible markup — this component contributes no
  * styling and no wrapper element of its own.
  */
-export function WpFormFields({ form, fallback, render }: WpFormFieldsProps) {
+export function WpFormFields({
+  form,
+  initialForm,
+  fields: explicitFields,
+  lang,
+  fallback,
+  render,
+}: WpFormFieldsProps) {
+  const compileTime = isCompileTimeFormsSsr();
+  const propFields =
+    explicitFields ??
+    (initialForm && Array.isArray(initialForm.fields)
+      ? (initialForm.fields as WpFormFieldDescriptor[])
+      : null);
+  const syncFields = compileTime ? null : (propFields ?? getClientFields(form));
+  const [asyncFields, setAsyncFields] = useState<WpFormFieldDescriptor[] | null>(null);
+
+  useEffect(() => {
+    if (compileTime || syncFields !== null) return;
+    if (typeof window === 'undefined' || (window as any)._forgeWpCompileTime) return;
+
+    let runtime;
+    try {
+      runtime = getForgeWpRuntime();
+    } catch {
+      return;
+    }
+    if (runtime.mode !== 'decoupled') return;
+
+    let cancelled = false;
+    runtime
+      .get('forms', { slug: form, ...(lang ? { query: { lang } } : {}) })
+      .then((collection) => {
+        if (cancelled) return;
+        const fetched = collection?.forms?.[form]?.fields;
+        if (Array.isArray(fetched)) {
+          setAsyncFields(fetched as WpFormFieldDescriptor[]);
+        }
+      })
+      .catch(() => {
+        // Fall back to `fallback` prop when decoupled endpoint is unavailable
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [compileTime, form, lang, syncFields !== null]);
+
   const honeypot = (
     <input
       type="text"
@@ -110,7 +178,7 @@ export function WpFormFields({ form, fallback, render }: WpFormFieldsProps) {
     />
   );
 
-  if (isCompileTimeFormsSsr()) {
+  if (compileTime) {
     const templates: React.ReactElement[] = [];
     for (const type of SSR_FIELD_TYPES) {
       const hasOptions = OPTION_FIELD_TYPES.has(type);
@@ -202,7 +270,7 @@ export function WpFormFields({ form, fallback, render }: WpFormFieldsProps) {
     );
   }
 
-  const fields = getClientFields(form) ?? fallback ?? null;
+  const fields = syncFields ?? asyncFields ?? fallback ?? null;
 
   if (!fields) {
     if (typeof window !== 'undefined' && !(window as any)._forgeWpCompileTime) {
