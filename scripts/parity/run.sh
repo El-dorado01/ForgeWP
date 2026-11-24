@@ -59,9 +59,25 @@ fi
 # Forms rate-limit counters from earlier local runs.
 "$SANDBOX" wp transient delete --all >/dev/null
 
+step "Settle WordPress before the decoupled build"
+# Run jobs WooCommerce and core queue after install, then wait until every
+# endpoint the build reads answers 200 with JSON. The decoupled runtime still
+# falls back silently on a failed fetch (status §9c/§9d, Gemini), and a
+# prerendered page would keep that empty fallback.
+"$SANDBOX" wp cron event run --due-now >/dev/null 2>&1 || true
+for endpoint in site-settings menus/primary menus forms routes i18n; do
+  ok=0
+  for _ in $(seq 1 20); do
+    if curl -fsS -H 'Accept: application/json' "$WP_URL/wp-json/forgewp/v1/$endpoint" | head -c 1 | grep -q '[{[]'; then ok=1; break; fi
+    sleep 1
+  done
+  [ "$ok" = 1 ] || echo "warning: /forgewp/v1/$endpoint did not answer with JSON before the build"
+done
+
 step "Decoupled: next build && next start (port $NEXT_PORT)"
 rm -rf "$FIXTURE/.next"
-(cd "$FIXTURE" && FORGEWP_DEPLOYMENT_MODE=decoupled FORGEWP_WP_URL="$WP_URL" pnpm exec next build)
+(cd "$FIXTURE" && FORGEWP_DEPLOYMENT_MODE=decoupled FORGEWP_WP_URL="$WP_URL" pnpm exec next build) 2>&1 | tee "$(dirname "$REPORT")/next-build.log"
+[ "${PIPESTATUS[0]}" = 0 ] || exit 1
 (cd "$FIXTURE" && FORGEWP_DEPLOYMENT_MODE=decoupled FORGEWP_WP_URL="$WP_URL" exec pnpm exec next start -p "$NEXT_PORT") \
   > "$(dirname "$REPORT")/next.log" 2>&1 &
 NEXT_PID=$!
@@ -72,6 +88,9 @@ step "Compare"
 status=0
 PARITY_WP_URL="$WP_URL" PARITY_NEXT_URL="http://localhost:$NEXT_PORT" \
   node "$REPO/scripts/parity/run-parity.mjs" --report "$REPORT" || status=$?
+
+# Web server access/error log for the CI artifact (REST status codes during the build).
+sudo docker logs forgewp-e2e-wordpress-1 > "$(dirname "$REPORT")/wordpress-access.log" 2>&1 || true
 
 step "WordPress debug.log"
 LOG="$FORGEWP_E2E_DATA/wp/wp-content/debug.log"
