@@ -875,7 +875,7 @@ WpCheckoutForm.PaymentGateways = function WpPaymentGateways({ className }: { cla
   );
 };
 
-WpCheckoutForm.SubmitButton = function SubmitButton({ className }: { className?: string }) {
+export function WpCheckoutSubmitButton({ className }: { className?: string }) {
   const context = React.useContext(CheckoutFormContext);
   const { processOrder, isSubmitting, error } = useWpCheckout();
 
@@ -904,7 +904,9 @@ WpCheckoutForm.SubmitButton = function SubmitButton({ className }: { className?:
       </button>
     </div>
   );
-};
+}
+
+WpCheckoutForm.SubmitButton = WpCheckoutSubmitButton;
 
 export function WpShippingSelector() {
   const { shippingMethods } = useWpCheckout();

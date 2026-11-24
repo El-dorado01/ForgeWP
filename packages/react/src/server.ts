@@ -506,6 +506,52 @@ export function buildForwardedAuthHeaders(
   return out;
 }
 
+let cachedNextUnstableRethrow: ((err: unknown) => void) | null | undefined;
+
+async function getNextUnstableRethrow(): Promise<((err: unknown) => void) | null> {
+  if (cachedNextUnstableRethrow !== undefined) {
+    return cachedNextUnstableRethrow;
+  }
+  try {
+    const spec = 'next/navigation';
+    const mod = await import(/* @vite-ignore */ spec);
+    cachedNextUnstableRethrow =
+      mod && typeof mod.unstable_rethrow === 'function' ? mod.unstable_rethrow : null;
+  } catch {
+    cachedNextUnstableRethrow = null;
+  }
+  return cachedNextUnstableRethrow ?? null;
+}
+
+function isNextControlFlowError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as Record<string, unknown>;
+  if (e.$$typeof === Symbol.for('react.postpone') || e.name === 'Postpone') {
+    return true;
+  }
+  const digest = typeof e.digest === 'string' ? e.digest : '';
+  if (!digest) return false;
+  return (
+    digest === 'DYNAMIC_SERVER_USAGE' ||
+    digest === 'BAILOUT_TO_CLIENT_SIDE_RENDERING' ||
+    digest === 'NEXT_PRERENDER_INTERRUPTED' ||
+    digest.startsWith('NEXT_REDIRECT') ||
+    digest.startsWith('NEXT_NOT_FOUND') ||
+    digest.startsWith('NEXT_HTTP_ERROR_FALLBACK') ||
+    digest.startsWith('NEXT_POSTPONE')
+  );
+}
+
+async function rethrowIfNextControlFlowError(err: unknown): Promise<void> {
+  if (isNextControlFlowError(err)) {
+    throw err;
+  }
+  const unstableRethrow = await getNextUnstableRethrow();
+  if (unstableRethrow) {
+    unstableRethrow(err);
+  }
+}
+
 async function performNextRedirect(target: string): Promise<never> {
   let redirectFn: ((url: string) => never) | null = null;
   try {
@@ -814,6 +860,7 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         if (err instanceof ForgeWpRuntimeError) {
           throw err;
         }
+        await rethrowIfNextControlFlowError(err);
         lastCause = err;
         lastDetail = err instanceof Error ? err.message : String(err);
       }

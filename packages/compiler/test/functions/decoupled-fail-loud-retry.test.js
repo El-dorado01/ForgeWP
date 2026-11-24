@@ -164,6 +164,75 @@ describe('Task 1 & Task 3: decoupled fail-loud retry, schema exports, separator 
     expect(devSettings.options.contact_phone).toBe('local-dev-phone');
   });
 
+  it('rethrows Next.js control-flow errors unchanged without retrying or wrapping in ForgeWpRuntimeError', async () => {
+    process.env.FORGEWP_DEPLOYMENT_MODE = 'decoupled';
+
+    const dynamicErr = Object.assign(
+      new Error("Dynamic server usage: Route /_not-found couldn't be rendered statically because it used no-store fetch."),
+      { digest: 'DYNAMIC_SERVER_USAGE' },
+    );
+    let calls = 0;
+
+    const client = createWpServerClient({
+      wpUrl: 'https://wp.example.test',
+      fetch: async () => {
+        calls++;
+        throw dynamicErr;
+      },
+    });
+
+    await expect(client.getMenu('primary')).rejects.toBe(dynamicErr);
+    expect(calls).toBe(1);
+
+    const redirectErr = { digest: 'NEXT_REDIRECT;replace;/login;307;' };
+    let redirectCalls = 0;
+    const redirectClient = createWpServerClient({
+      wpUrl: 'https://wp.example.test',
+      fetch: async () => {
+        redirectCalls++;
+        throw redirectErr;
+      },
+    });
+    await expect(redirectClient.getSiteSettings()).rejects.toBe(redirectErr);
+    expect(redirectCalls).toBe(1);
+
+    const notFoundErr = { digest: 'NEXT_NOT_FOUND' };
+    let notFoundCalls = 0;
+    const notFoundClient = createWpServerClient({
+      wpUrl: 'https://wp.example.test',
+      fetch: async () => {
+        notFoundCalls++;
+        throw notFoundErr;
+      },
+    });
+    await expect(notFoundClient.getMenu('primary')).rejects.toBe(notFoundErr);
+    expect(notFoundCalls).toBe(1);
+
+    const httpFallbackErr = { digest: 'NEXT_HTTP_ERROR_FALLBACK;404' };
+    let httpFallbackCalls = 0;
+    const httpFallbackClient = createWpServerClient({
+      wpUrl: 'https://wp.example.test',
+      fetch: async () => {
+        httpFallbackCalls++;
+        throw httpFallbackErr;
+      },
+    });
+    await expect(httpFallbackClient.getMenu('primary')).rejects.toBe(httpFallbackErr);
+    expect(httpFallbackCalls).toBe(1);
+
+    const postponeErr = { $$typeof: Symbol.for('react.postpone'), message: 'Prerender postponed' };
+    let postponeCalls = 0;
+    const postponeClient = createWpServerClient({
+      wpUrl: 'https://wp.example.test',
+      fetch: async () => {
+        postponeCalls++;
+        throw postponeErr;
+      },
+    });
+    await expect(postponeClient.getMenu('primary')).rejects.toBe(postponeErr);
+    expect(postponeCalls).toBe(1);
+  });
+
   it('Task 3a: exports defineEditable and field builders from @forgewp/react/server', () => {
     const schema = defineEditable({
       heading: text({ default: 'Hi' }),
