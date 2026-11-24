@@ -68,6 +68,14 @@ function splitEmpty(body, emptyTag) {
   return { item: body.slice(0, m.index), empty: body.slice(m.index + m[0].length) };
 }
 
+const decodeAttrEntities = (value) =>
+  String(value || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0*39;|&#x0*27;|&apos;/gi, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+
 function processTermLoops(html, counter) {
   const re = new RegExp(`${TAG('forgewp-terms-loop-start')}([\\s\\S]*?)${TAG('forgewp-terms-loop-end')}`, 'i');
   let out = html;
@@ -78,16 +86,21 @@ function processTermLoops(html, counter) {
     const taxonomy = safeTaxonomy(attr(attrs, 'taxonomy'));
     const fromTaxonomy = attr(attrs, 'source') === 'taxonomy';
     const hideEmpty = attr(attrs, 'hideempty') !== '0';
+    const rawSep = attr(attrs, 'separator');
+    const separator = rawSep ? decodeAttrEntities(rawSep).replace(/\\/g, '\\\\').replace(/'/g, "\\'") : '';
     const { item, empty } = splitEmpty(m[2], 'forgewp-terms-loop-empty');
     const list = `$__fwp_terms_${n}`;
     const v = `$__fwp_term_${n}`;
+    const idx = `$__fwp_ti_${n}`;
     const source = !taxonomy
       ? 'array()'
       : fromTaxonomy
         ? `(function_exists('forgewp_native_taxonomy_terms') ? forgewp_native_taxonomy_terms('${taxonomy}', ${hideEmpty ? 'true' : 'false'}) : array())`
         : `(function_exists('forgewp_native_post_terms') ? forgewp_native_post_terms('${taxonomy}') : array())`;
+    const sepHead = separator ? ` ${idx} = 0;` : '';
+    const sepPrint = separator ? ` if ( ${idx}++ > 0 ) { echo esc_html( '${separator}' ); }` : '';
     const php =
-      `<?php ${list} = ${source}; if ( ! empty( ${list} ) ) : foreach ( ${list} as ${v} ) : ?>` +
+      `<?php ${list} = ${source};${sepHead} if ( ! empty( ${list} ) ) : foreach ( ${list} as ${v} ) :${sepPrint} ?>` +
       termTokens(item, v) +
       `<?php endforeach; else : ?>${empty}<?php endif; ?>`;
     out = out.slice(0, m.index) + php + out.slice(m.index + m[0].length);
@@ -126,6 +139,31 @@ function processCommentLoops(html, counter) {
     .replace(new RegExp(TAG('forgewp-comments-closed-end'), 'gi'), '<?php endif; ?>');
 }
 
+function replaceTermLookupTokens(html) {
+  const FIELD_MAP = {
+    ID: { key: 'id', esc: '(int)', fallback: '0' },
+    COUNT: { key: 'count', esc: '(int)', fallback: '0' },
+    SLUG: { key: 'slug', esc: 'esc_attr', fallback: "''" },
+    PATH: { key: 'path', esc: 'esc_attr', fallback: "''" },
+    URL: { key: 'permalink', esc: 'esc_url', fallback: "''" },
+    NAME: { key: 'name', esc: 'esc_html', fallback: "''" },
+    DESCRIPTION: { key: 'description', esc: 'esc_html', fallback: "''" },
+  };
+  let out = html;
+  const propRe = /(?:&quot;|")__FORGEWP_TERM_LOOKUP_(ID|COUNT)__([a-zA-Z0-9_-]+)__([a-zA-Z0-9_-]+)__(?:&quot;|")/g;
+  out = out.replace(propRe, (_m, field, tax, slug) => {
+    const info = FIELD_MAP[field];
+    return `<?php $__fwp_tl = function_exists('forgewp_native_term') ? forgewp_native_term('${tax}', '${slug}') : null; echo ${info.esc}( $__fwp_tl ? ( $__fwp_tl['${info.key}'] ?? ${info.fallback} ) : ${info.fallback} ); ?>`;
+  });
+  return out.replace(
+    /__FORGEWP_TERM_LOOKUP_(ID|COUNT|SLUG|PATH|URL|NAME|DESCRIPTION)__([a-zA-Z0-9_-]+)__([a-zA-Z0-9_-]+)__/g,
+    (_m, field, tax, slug) => {
+      const info = FIELD_MAP[field];
+      return `<?php $__fwp_tl = function_exists('forgewp_native_term') ? forgewp_native_term('${tax}', '${slug}') : null; echo ${info.esc}( $__fwp_tl ? ( $__fwp_tl['${info.key}'] ?? ${info.fallback} ) : ${info.fallback} ); ?>`;
+    },
+  );
+}
+
 /**
  * @param {string} html
  * @returns {string}
@@ -136,6 +174,7 @@ export function processR2NativeMarkers(html) {
   }
   const counter = { next: 0 };
   let out = replaceNumericTokensInProps(html);
+  out = replaceTermLookupTokens(out);
   out = processCommentLoops(out, counter);
   out = processTermLoops(out, counter);
   out = out

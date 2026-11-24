@@ -118,4 +118,56 @@ All 5 issues above were fixed, re-exported across `hotelchecker24`, `hospitality
    - `hotelchecker24` exposes `POST /wp-json/mailpoet/v1/subscribers` (`src/server/plugin/mailpoet.php`), which works against `MailPoet 5.28.0`, but no newsletter signup `<form>` is currently rendered in `projects/hotelchecker24/src/` components.
 5. **Remaining checklist / test follow-ups:**
    - Checklist **1d (Decoupled WooCommerce mode)** was not run (tracked under **R7**).
+
+---
+
+## LocalWP Verification Addendum — 2026-11-24 (R2/R4/R5/R7 Live Site Checks)
+
+- **Branch:** `feat/gemini-final-stretch` (branched from `main` at `bf10b40`)
+- **WordPress site:** `http://forgewp-test.local` (WooCommerce `11.0.1`, Yoast SEO `28.9`, Rank Math `1.0.282`, ACF `6.8.2`, Polylang)
+- **Debug log:** Cleared prior to runs; `wp-content/debug.log` ended clean (`0` bytes) after all runs below.
+
+### 4(a) Route ID Persistence (`hotelchecker24`, commit `bf909e8`) — PASS
+1. Exported `hotelchecker24` (`pnpm forgewp export --no-zip`), installed theme + companion plugin, and switched themes twice (`twentytwentyfive` <-> `hotelchecker24`).
+2. Verified post `17`:
+   - `wp post meta get 17 forgewp_route_id` -> `kontakt-page`
+   - `_wp_page_template` -> `page-contact.php`
+3. Verified `/en/` hydration `resources.routes.pageLinks`: `{"kontakt-page":"/en/contact/","home":"/en/","listicles-page":"/en/hotel-comparisons/"}`.
+
+### 4(b) SEO Endpoint (`hotelchecker24`, Yoast SEO `28.9` & Rank Math `1.0.282`) — PARTIAL (2 open discrepancies)
+Tested `/kontakt/`, `/hello-world/`, `/category/uncategorized/`, `/en/contact/`:
+- **Yoast SEO `28.9`:** `GET /wp-json/forgewp/v1/seo?path=...` returned HTTP `200`, `provider: "yoast"`. REST `title`, `description`, `canonical`, `openGraph.title`, and `jsonLdCount` (`1`) matched rendered `<head>` tags across all 4 paths.
+  - With `FORGEWP_FRONTEND_ORIGIN = 'https://app.example.test'`: `canonical`, `alternates.languages`, `openGraph.url`, and JSON-LD `@id` / `url` / `item` rewrote to `https://app.example.test`, while `ogImages` stayed on `http://forgewp-test.local/wp-content/themes/hotelchecker24/Logo/hotelchecker24-logo_farbe.svg`. **Note:** `WebPage.potentialAction[0].target` (`["http://forgewp-test.local/kontakt/"]`) remained on `forgewp-test.local` because `forgewp_seo_rewrite_json_ld()` in `packages/compiler/lib/functions/seo-resource.js` recurses only on `'@id'`, `'url'`, and `'item'`.
+- **Rank Math `1.0.282` (`rank_math_registration_skip = 1`):** `GET /wp-json/forgewp/v1/seo?path=...` returned HTTP `200`, `provider: "rankmath"`. `canonical`, `description`, `alternates`, and `robots` matched `<head>`, **with 2 discrepancies:**
+  1. REST returned `jsonLd: []` (`restJsonLdCount: 0`) while native page `<head>` rendered `1` JSON-LD block (`headJsonLdCount: 1`) because Rank Math skips its JSON-LD module under `REST_REQUEST`.
+  2. REST `title` and `openGraph.title` used an en-dash (`"Kontakt – ForgeWP Test"`) while native `<head>` rendered a hyphen (`"Kontakt - ForgeWP Test"`).
+- Note on native hydration: `hotelchecker24` native hydration check reported `resources.seo: undefined` in `verify-localwp.mjs`, whereas `hospitality` (`provider: "core"`) and `forge-commerce` (`provider: "core"`) populated `h.resources.seo`.
+
+### 4(c) Editables & Repeaters (`hospitality` + ACF `6.8.2`) — PASS
+1. Seeded attachment ID `6` and ACF repeater `partners_associations` (`[{"name":"ACF Live Partner","logo":6,"url":"https://partner.example.test"}]`) on `page_on_front` (`74`).
+2. `GET /wp-json/forgewp/v1/editables?path=/` returned full attachment metadata (`id: 6`, `url`, `alt: "Hospitality Partner Logo Alt"`, `width: 1200`, `height: 1200`, `srcset`).
+3. `window.forgeWpHydration.resources.editables` on `/` deep-equaled REST (`editables deepEqual: true`).
+4. `GET /wp-json/forgewp/v1/editables?routeId=front-page` resolved post `26` (post `74` carries `forgewp_route_id=home` in this Polylang DB).
+
+### 4(d) & 4(e) WooCommerce `11.0.1` (`forge-commerce`) — REST & Decoupled 1d PASS; Browser Check NOT RUN
+1. **Cross-origin / Decoupled 1d (`FORGEWP_FRONTEND_ORIGIN = 'http://127.0.0.1:49999'`, `Origin: http://127.0.0.1:49999`, zero cookies):**
+   - `GET /commerce/settings` -> `200` (`USD`, `symbol: '$'`, `minorUnit: 2`, `prefix: '$'`, `suffix: ''`).
+   - `GET /products?contract=2&perPage=4` -> `200`, 4 items, minor-unit pricing (`price: 19500`, `regularPrice: 19500`, `salePrice: null`, `onSale: false`, `range: null`).
+   - Guest cart via `X-ForgeWP-Cart-Token` only (no `Cookie` header): `POST /cart/items` (product `28`) -> `200` (`tokenPresent: true`, `itemCount: 1`, `total: 29700`); `GET /cart?contract=2` -> `200` (`itemCount: 1`, `total: 29700`); `POST /cart/coupons` (`SAVE10`) -> `200` (discount `2850`, `total: 26850`); `DELETE /cart/coupons/SAVE10` -> `200` (`coupons: []`, `total: 29700`).
+   - `GET /checkout/gateways` -> `200`, returns `bacs` and `cod` with `id`, `title`, `description`, `icon`, `supports` (note: no `flow` property in payload).
+   - `POST /checkout`: invalid `'stripe'` -> `400 invalid_payment_method`; `'bacs'` -> `200` (`orderId: 93`, `status: 'on-hold'`, `total: 30000`, `needsRedirect: false`); `'cod'` -> `200` (`orderId: 94`, `status: 'processing'`, `total: 30000`).
+   - `GET /checkout/order?id=94&key=...` -> `200` (`number: '94'`, `status: 'processing'`, `totals.shipping: 1500`).
+   - **Mailpit (`http://127.0.0.1:10024`):** Captured customer order-received emails (`cod@forgewp-test.local`, `bacs@forgewp-test.local`) and admin new-order emails for `#93` and `#94`.
+2. **Authenticated customer, cart merge & wishlist (`?contract=2`, WP auth cookies + `X-WP-Nonce` from `#forgewp-session`):**
+   - Anonymous `GET /customer/orders?contract=2` -> `401`.
+   - `POST /auth/login` -> `200` (cookie-based session, 3 cookies set; no JWT `token` field; `restNonce` supplied in `<script id="forgewp-session">`).
+   - `POST /cart/merge` (auth cookies + `X-WP-Nonce` + guest `X-ForgeWP-Cart-Token`) -> `200` (`itemCount: 1`, `total: 29700`).
+   - Authed `POST /checkout` (`cod`) -> `200` (`orderId: 95`, `status: 'on-hold'`, `total: 32500`).
+   - `GET /customer/orders?contract=2` (`200`, contract v2 keys including `path`) and `GET /customer/orders/95?contract=2` (`200`).
+   - `GET /customer/profile` (`200`), `POST /customer/profile?contract=2` (`200`), `POST /customer/address?contract=2` (`200`), `GET /customer/downloads?contract=2` (`200`, `items: []`).
+   - `POST /wishlist/items?contract=2` -> `GET /wishlist?contract=2` -> `DELETE /wishlist/items/28?contract=2` -> `200` (`[28]` -> `[28]` -> `[]`). **Note:** In Node `fetch`, `POST /wishlist/items?contract=2` with an authenticated `Cookie` header and omitted `X-WP-Nonce` also returned `200` rather than rejecting missing nonce (anonymous calls still return `401`).
+3. **Browser & WooCommerce Blocks Cart Skeleton (`/shop/`, `/cart/`, `/checkout/`):** **NOT RUN (Blocked by tool environment)**
+   - Delegated to the `browser` subagent, which reported that the `chrome_devtools` MCP server was not loaded in its session.
+   - Server/HTML inspection confirmed `/checkout/` returns `302 -> /cart/` when empty, and WordPress page `8` (`/cart/`) contains `<!-- wp:woocommerce/cart -->` whose server-rendered HTML outputs `<div class="wp-block-woocommerce-cart alignwide is-loading">` inside `forge-commerce`'s `page.php` (`the_content()`); `forge-commerce` has `page-shop.php`, `page-shop-page.php`, and `page.php` with no dedicated `page-cart.php` or `page-checkout.php`. Whether `wc-cart-block-frontend` resolves the skeleton cleanly in Chrome and how `Navbar` (`cartTotal`) renders visually still require a live browser session once `chrome_devtools` MCP is connected.
+
    - Run the full 128-file `pnpm --filter @forgewp/compiler test` suite in a clean pass after `b864db9`.

@@ -24,9 +24,9 @@ export default async function ListingPage() {
         <WpTermsLoop
           taxonomy="category"
           terms={terms}
-          renderItem={(t, idx) => (
+          separator=", "
+          renderItem={(t) => (
             <span key={t.id}>
-              {idx > 0 ? ', ' : ''}
               {`${t.name}(${t.count})`}
             </span>
           )}

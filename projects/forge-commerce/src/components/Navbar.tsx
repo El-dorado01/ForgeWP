@@ -117,10 +117,9 @@ export default function Navbar({
   transparentUntilSelector,
   wishlistCount = 0,
 }: NavbarProps) {
-  const { cart } = useWpCart();
+  const { cart, cartTotal } = useWpCart();
   const cartItemCount =
     cart?.items?.reduce((acc, item) => acc + item.quantity, 0) || 0;
-  const cartTotal = cart?.totals?.total || '$0.00';
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeMegaMenu, setActiveMegaMenu] = useState<string | null>(null);
@@ -349,7 +348,7 @@ export default function Navbar({
                 )}
               </button>
               <span className='inline-block font-mono text-[10px] sm:text-xs md:text-sm font-bold text-slate-600 uppercase tracking-wider whitespace-nowrap shrink-0'>
-                ${cartTotal}
+                {cartTotal}
               </span>
             </div>
           </div>

@@ -738,10 +738,119 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
     }
   }
 
+  function isStrictDecoupledMode(
+    wpBase: { baseUrl: string } | null | undefined,
+  ): boolean {
+    return (
+      Boolean(wpBase) &&
+      (readEnv('FORGEWP_DEPLOYMENT_MODE') === 'decoupled' || isProductionRuntime())
+    );
+  }
+
+  function delayMs(ms: number): Promise<void> {
+    if (ms <= 0) return Promise.resolve();
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function fetchJsonWithRetry(
+    url: string,
+    init: Record<string, any>,
+    opts: {
+      resource: string;
+      strict: boolean;
+      allow404?: boolean;
+      retryDelayMs?: number;
+      checkDomainErrors?: (response: Response, json: any) => void;
+    },
+  ): Promise<{ ok: boolean; status: number; json: any }> {
+    const retryDelayMs = opts.retryDelayMs ?? 300;
+    const maxAttempts = opts.strict ? 2 : 1;
+    let lastStatus = 0;
+    let lastDetail = 'Unknown fetch error';
+    let lastCause: unknown = undefined;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const response = await fetchImpl(url, init);
+        lastStatus = response.status;
+
+        let json: any = null;
+        let parseFailed = false;
+        if (typeof (response as any).json === 'function') {
+          try {
+            json = await response.json();
+          } catch (parseErr) {
+            parseFailed = true;
+            lastCause = parseErr;
+          }
+        }
+
+        if (opts.checkDomainErrors) {
+          opts.checkDomainErrors(response, json);
+        } else {
+          throwIfLocaleNotFound(response, json, opts.resource);
+        }
+
+        if (response.status === 404 && opts.allow404) {
+          return { ok: false, status: 404, json };
+        }
+
+        if (response.ok && !parseFailed) {
+          return { ok: true, status: response.status, json };
+        }
+
+        if (
+          !response.ok &&
+          response.status >= 400 &&
+          response.status < 500 &&
+          response.status !== 408 &&
+          response.status !== 429 &&
+          !opts.strict
+        ) {
+          return { ok: false, status: response.status, json };
+        }
+
+        const errCode = json && typeof json.code === 'string' ? `[${json.code}] ` : '';
+        const errMsg =
+          json && typeof json.message === 'string'
+            ? json.message
+            : parseFailed
+              ? `Invalid JSON response (HTTP ${response.status})`
+              : `HTTP ${response.status}`;
+        lastDetail = `${errCode}${errMsg}`;
+      } catch (err) {
+        if (err instanceof ForgeWpRuntimeError) {
+          throw err;
+        }
+        lastCause = err;
+        lastDetail = err instanceof Error ? err.message : String(err);
+      }
+
+      if (attempt < maxAttempts) {
+        await delayMs(retryDelayMs);
+      }
+    }
+
+    if (opts.strict) {
+      throw new ForgeWpRuntimeError(
+        'FORGEWP_RESOURCE_FETCH_FAILED',
+        `Failed to fetch WordPress resource "${opts.resource}" (${url}): ${lastDetail}`,
+        {
+          resource: opts.resource,
+          ...(lastStatus > 0 ? { status: lastStatus } : {}),
+          ...(lastCause !== undefined ? { cause: lastCause } : {}),
+        },
+      );
+    }
+
+    return { ok: false, status: lastStatus, json: null };
+  }
+
   async function wpFetchJson(
     base: { baseUrl: string },
     endpoint: string,
     authenticated = false,
+    opts: { resource?: string; allow404?: boolean } = {},
   ) {
     const headers: Record<string, string> = {
       Accept: 'application/json',
@@ -753,13 +862,12 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       cache: cacheMode,
       ...(nextOptions ? { next: nextOptions } : {}),
     };
-    const response = await fetchImpl(`${base.baseUrl}${endpoint}`, init);
-    if (!response.ok) return null;
-    try {
-      return await response.json();
-    } catch {
-      return null;
-    }
+    const res = await fetchJsonWithRetry(`${base.baseUrl}${endpoint}`, init, {
+      resource: opts.resource || endpoint,
+      strict: isStrictDecoupledMode(base),
+      allow404: opts.allow404,
+    });
+    return res.ok ? res.json : null;
   }
 
   async function fetchDecoupledPage(
@@ -781,13 +889,20 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
     }
 
     let wpPage: any = null;
-    const bySlug = await wpFetchJson(base, `/wp-json/wp/v2/pages?${params.toString()}`, preview);
+    const bySlug = await wpFetchJson(
+      base,
+      `/wp-json/wp/v2/pages?${params.toString()}`,
+      preview,
+      { resource: `page:${cleanSlug}`, allow404: true },
+    );
     if (Array.isArray(bySlug) && bySlug.length > 0) {
       wpPage = bySlug[0];
     }
 
     if (!wpPage) {
-      const routeData = await wpFetchJson(base, '/wp-json/forgewp/v1/routes', false);
+      const routeData = await wpFetchJson(base, '/wp-json/forgewp/v1/routes', false, {
+        resource: 'routes',
+      });
       const match = Array.isArray(routeData?.routes)
         ? routeData.routes.find((r: any) => r.routeId === cleanSlug || r.slug === cleanSlug)
         : null;
@@ -795,7 +910,10 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         const byIdEndpoint = preview
           ? `/wp-json/wp/v2/pages/${match.id}?context=edit`
           : `/wp-json/wp/v2/pages/${match.id}`;
-        wpPage = await wpFetchJson(base, byIdEndpoint, preview);
+        wpPage = await wpFetchJson(base, byIdEndpoint, preview, {
+          resource: `page:${match.id}`,
+          allow404: true,
+        });
       }
     }
 
@@ -863,6 +981,7 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       if (base) {
         const live = await fetchDecoupledPage(base, cleanSlug, preview);
         if (live) return live;
+        if (isStrictDecoupledMode(base)) return null;
       }
 
       return findFixturePage(cleanSlug);
@@ -877,6 +996,7 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         if (base) {
           const remote = await fetchDecoupledPage(base, slug, preview);
           if (remote) return remote;
+          if (isStrictDecoupledMode(base)) return null;
         }
       }
       return findFixturePage(slug);
@@ -897,10 +1017,12 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       if (base) {
         const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
         const url = `${base.baseUrl}/wp-json/forgewp/v1/routes${qs}`;
-        const response = await fetchImpl(url, buildTaggedInit(['routes']));
-        const json = await response.json().catch(() => null);
-        throwIfLocaleNotFound(response, json, 'routes');
-        if (response.ok && json) {
+        const res = await fetchJsonWithRetry(url, buildTaggedInit(['routes']), {
+          resource: 'routes',
+          strict: isStrictDecoupledMode(base),
+        });
+        if (res.ok && res.json) {
+          const json = res.json;
           const normalized = normalizeRoutesResource({
             ...json,
             homeUrl: json.homeUrl || `${base.baseUrl}/`,
@@ -910,6 +1032,13 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
           if (normalized) {
             cachedRoutesByLang.set(cacheKey, normalized);
             return normalized;
+          }
+          if (isStrictDecoupledMode(base)) {
+            throw new ForgeWpRuntimeError(
+              'FORGEWP_RESOURCE_FETCH_FAILED',
+              'Failed to normalize routes resource from WordPress.',
+              { resource: 'routes' },
+            );
           }
         }
       }
@@ -939,7 +1068,7 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         routes,
         pageLinks,
       };
-      if (!isNativeWordPressExport()) {
+      if (!base && !isNativeWordPressExport()) {
         cachedRoutesByLang.set(cacheKey, fallbackRoutes);
       }
       return fallbackRoutes;
@@ -989,34 +1118,32 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         if (queryOptions.order) params.set('order', queryOptions.order);
 
         const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/posts?${params.toString()}`;
-        try {
-          const response = await fetchImpl(
-            url,
-            buildTaggedInit(['posts', `type:${cleanType}`]),
-          );
-          const json = await response.json().catch(() => null);
-          throwIfLocaleNotFound(response, json, `posts:${cleanType}`);
-          if (
-            !response.ok &&
-            json &&
-            typeof json === 'object' &&
-            json.code === 'FORGEWP_POST_TYPE_NOT_PUBLIC'
-          ) {
-            throw new ForgeWpRuntimeError(
-              'FORGEWP_RESOURCE_FETCH_FAILED',
-              `[FORGEWP_POST_TYPE_NOT_PUBLIC] ${json.message || `Post type "${cleanType}" is not public.`}`,
-              { resource: `posts:${cleanType}`, status: response.status },
-            );
-          }
-          if (response.ok && json) {
-            const normalized = normalizePostsListResource(json, cleanType);
-            if (normalized) return normalized;
-          }
-        } catch (err) {
-          if (err instanceof ForgeWpRuntimeError) {
-            throw err;
-          }
-          // Fall back to local fixtures if REST endpoint is unavailable
+        const res = await fetchJsonWithRetry(
+          url,
+          buildTaggedInit(['posts', `type:${cleanType}`]),
+          {
+            resource: `posts:${cleanType}`,
+            strict: isStrictDecoupledMode(wpBase),
+            checkDomainErrors(response, json) {
+              throwIfLocaleNotFound(response, json, `posts:${cleanType}`);
+              if (
+                !response.ok &&
+                json &&
+                typeof json === 'object' &&
+                json.code === 'FORGEWP_POST_TYPE_NOT_PUBLIC'
+              ) {
+                throw new ForgeWpRuntimeError(
+                  'FORGEWP_RESOURCE_FETCH_FAILED',
+                  `[FORGEWP_POST_TYPE_NOT_PUBLIC] ${json.message || `Post type "${cleanType}" is not public.`}`,
+                  { resource: `posts:${cleanType}`, status: response.status },
+                );
+              }
+            },
+          },
+        );
+        if (res.ok && res.json) {
+          const normalized = normalizePostsListResource(res.json, cleanType);
+          if (normalized) return normalized;
         }
       }
 
@@ -1104,36 +1231,35 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       if (wpBase && !isNativeWordPressExport()) {
         const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
         const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/posts/${encodeURIComponent(cleanType)}/${encodeURIComponent(cleanSlug)}${qs}`;
-        try {
-          const response = await fetchImpl(
-            url,
-            buildTaggedInit(['posts', `type:${cleanType}`]),
-          );
-          const json = await response.json().catch(() => null);
-          throwIfLocaleNotFound(response, json, `post:${cleanType}:${cleanSlug}`);
-          if (
-            !response.ok &&
-            json &&
-            typeof json === 'object' &&
-            json.code === 'FORGEWP_POST_TYPE_NOT_PUBLIC'
-          ) {
-            throw new ForgeWpRuntimeError(
-              'FORGEWP_RESOURCE_FETCH_FAILED',
-              `[FORGEWP_POST_TYPE_NOT_PUBLIC] ${json.message || `Post type "${cleanType}" is not public.`}`,
-              { resource: `post:${cleanType}:${cleanSlug}`, status: response.status },
-            );
-          }
-          if (response.status === 404) {
-            return null;
-          }
-          if (response.ok && json) {
-            return normalizePostResource(json, { fallbackType: cleanType });
-          }
-        } catch (err) {
-          if (err instanceof ForgeWpRuntimeError) {
-            throw err;
-          }
-          // Fall back to local fixtures if REST endpoint is unavailable
+        const res = await fetchJsonWithRetry(
+          url,
+          buildTaggedInit(['posts', `type:${cleanType}`]),
+          {
+            resource: `post:${cleanType}:${cleanSlug}`,
+            strict: isStrictDecoupledMode(wpBase),
+            allow404: true,
+            checkDomainErrors(response, json) {
+              throwIfLocaleNotFound(response, json, `post:${cleanType}:${cleanSlug}`);
+              if (
+                !response.ok &&
+                json &&
+                typeof json === 'object' &&
+                json.code === 'FORGEWP_POST_TYPE_NOT_PUBLIC'
+              ) {
+                throw new ForgeWpRuntimeError(
+                  'FORGEWP_RESOURCE_FETCH_FAILED',
+                  `[FORGEWP_POST_TYPE_NOT_PUBLIC] ${json.message || `Post type "${cleanType}" is not public.`}`,
+                  { resource: `post:${cleanType}:${cleanSlug}`, status: response.status },
+                );
+              }
+            },
+          },
+        );
+        if (res.status === 404) {
+          return null;
+        }
+        if (res.ok && res.json) {
+          return normalizePostResource(res.json, { fallbackType: cleanType });
         }
       }
 
@@ -1181,49 +1307,44 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         if (opts.orderby) params.set('orderby', opts.orderby);
         if (opts.order) params.set('order', opts.order);
 
-        try {
-          const response = await fetchImpl(
-            `${wpBase.baseUrl}/wp-json/forgewp/v1/posts?${params.toString()}`,
-            buildTaggedInit(['posts', `type:${cleanType}`]),
-          );
-          const json = await response.json().catch(() => null);
-          throwIfLocaleNotFound(response, json, `posts:${cleanType}`);
-          if (response.ok && json) {
-            const normalized = normalizePostsListResource(json, cleanType);
-            if (normalized) {
-              return normalized.items.map((item) => {
-                const resolvedPath =
+        const res = await fetchJsonWithRetry(
+          `${wpBase.baseUrl}/wp-json/forgewp/v1/posts?${params.toString()}`,
+          buildTaggedInit(['posts', `type:${cleanType}`]),
+          {
+            resource: `posts:${cleanType}`,
+            strict: isStrictDecoupledMode(wpBase),
+          },
+        );
+        if (res.ok && res.json) {
+          const normalized = normalizePostsListResource(res.json, cleanType);
+          if (normalized) {
+            return normalized.items.map((item) => {
+              const resolvedPath =
+                opts.basePath !== undefined
+                  ? `${defaultBase}/${item.slug}`
+                  : item.path || `${defaultBase}/${item.slug}`;
+              return {
+                id: item.id,
+                slug: item.slug,
+                postType: item.type,
+                title: item.title,
+                excerpt: stripTags(item.excerpt),
+                content: item.content ?? '',
+                date: item.date,
+                author: item.author?.name || '',
+                permalink:
                   opts.basePath !== undefined
-                    ? `${defaultBase}/${item.slug}`
-                    : item.path || `${defaultBase}/${item.slug}`;
-                return {
-                  id: item.id,
-                  slug: item.slug,
-                  postType: item.type,
-                  title: item.title,
-                  excerpt: stripTags(item.excerpt),
-                  content: item.content ?? '',
-                  date: item.date,
-                  author: item.author?.name || '',
-                  permalink:
-                    opts.basePath !== undefined
-                      ? resolvedPath
-                      : item.permalink || resolvedPath,
-                  path: resolvedPath,
-                  featuredImage: item.featuredImage?.url || '',
-                  terms: item.terms || {},
-                  blocks: Array.isArray(item.blocks) ? item.blocks : [],
-                  protected: item.protected === true,
-                  source: 'wordpress' as const,
-                };
-              });
-            }
+                    ? resolvedPath
+                    : item.permalink || resolvedPath,
+                path: resolvedPath,
+                featuredImage: item.featuredImage?.url || '',
+                terms: item.terms || {},
+                blocks: Array.isArray(item.blocks) ? item.blocks : [],
+                protected: item.protected === true,
+                source: 'wordpress' as const,
+              };
+            });
           }
-        } catch (err) {
-          if (err instanceof ForgeWpRuntimeError) {
-            throw err;
-          }
-          // Fall back to local fixtures if REST endpoint is unavailable
         }
       }
 
@@ -1361,34 +1482,32 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         }
         const qs = params.toString();
         const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/terms/${encodeURIComponent(cleanTax)}${qs ? `?${qs}` : ''}`;
-        try {
-          const response = await fetchImpl(
-            url,
-            buildTaggedInit(['terms', `taxonomy:${cleanTax}`]),
-          );
-          const json = await response.json().catch(() => null);
-          throwIfLocaleNotFound(response, json, `terms:${cleanTax}`);
-          if (
-            !response.ok &&
-            json &&
-            typeof json === 'object' &&
-            json.code === 'FORGEWP_TAXONOMY_NOT_PUBLIC'
-          ) {
-            throw new ForgeWpRuntimeError(
-              'FORGEWP_RESOURCE_FETCH_FAILED',
-              `[FORGEWP_TAXONOMY_NOT_PUBLIC] ${json.message || `Taxonomy "${cleanTax}" is not public.`}`,
-              { resource: `terms:${cleanTax}`, status: response.status },
-            );
-          }
-          if (response.ok && json) {
-            const normalized = normalizeTermsListResource(json, cleanTax);
-            if (normalized) return normalized;
-          }
-        } catch (err) {
-          if (err instanceof ForgeWpRuntimeError) {
-            throw err;
-          }
-          // Fall back to local fixtures if REST endpoint is unavailable
+        const res = await fetchJsonWithRetry(
+          url,
+          buildTaggedInit(['terms', `taxonomy:${cleanTax}`]),
+          {
+            resource: `terms:${cleanTax}`,
+            strict: isStrictDecoupledMode(wpBase),
+            checkDomainErrors(response, json) {
+              throwIfLocaleNotFound(response, json, `terms:${cleanTax}`);
+              if (
+                !response.ok &&
+                json &&
+                typeof json === 'object' &&
+                json.code === 'FORGEWP_TAXONOMY_NOT_PUBLIC'
+              ) {
+                throw new ForgeWpRuntimeError(
+                  'FORGEWP_RESOURCE_FETCH_FAILED',
+                  `[FORGEWP_TAXONOMY_NOT_PUBLIC] ${json.message || `Taxonomy "${cleanTax}" is not public.`}`,
+                  { resource: `terms:${cleanTax}`, status: response.status },
+                );
+              }
+            },
+          },
+        );
+        if (res.ok && res.json) {
+          const normalized = normalizeTermsListResource(res.json, cleanTax);
+          if (normalized) return normalized;
         }
       }
 
@@ -1407,6 +1526,22 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       const cleanTax = String(taxonomy || 'category').trim() || 'category';
       const cleanSlug = String(slug || '').replace(/^\/+|\/+$/g, '');
       if (!cleanSlug) return null;
+      if (
+        isNativeWordPressExport() &&
+        /^[a-zA-Z0-9_-]+$/.test(cleanTax) &&
+        /^[a-zA-Z0-9_-]+$/.test(cleanSlug)
+      ) {
+        return {
+          id: `__FORGEWP_TERM_LOOKUP_ID__${cleanTax}__${cleanSlug}__` as unknown as number,
+          slug: `__FORGEWP_TERM_LOOKUP_SLUG__${cleanTax}__${cleanSlug}__`,
+          name: `__FORGEWP_TERM_LOOKUP_NAME__${cleanTax}__${cleanSlug}__`,
+          description: `__FORGEWP_TERM_LOOKUP_DESCRIPTION__${cleanTax}__${cleanSlug}__`,
+          count: `__FORGEWP_TERM_LOOKUP_COUNT__${cleanTax}__${cleanSlug}__` as unknown as number,
+          parent: 0,
+          path: `__FORGEWP_TERM_LOOKUP_PATH__${cleanTax}__${cleanSlug}__`,
+          permalink: `__FORGEWP_TERM_LOOKUP_URL__${cleanTax}__${cleanSlug}__`,
+        };
+      }
       const lang =
         typeof termOptions.lang === 'string' && termOptions.lang.trim()
           ? termOptions.lang.trim()
@@ -1416,36 +1551,35 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       if (wpBase && !isNativeWordPressExport()) {
         const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
         const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/terms/${encodeURIComponent(cleanTax)}/${encodeURIComponent(cleanSlug)}${qs}`;
-        try {
-          const response = await fetchImpl(
-            url,
-            buildTaggedInit(['terms', `taxonomy:${cleanTax}`]),
-          );
-          const json = await response.json().catch(() => null);
-          throwIfLocaleNotFound(response, json, `term:${cleanTax}:${cleanSlug}`);
-          if (
-            !response.ok &&
-            json &&
-            typeof json === 'object' &&
-            json.code === 'FORGEWP_TAXONOMY_NOT_PUBLIC'
-          ) {
-            throw new ForgeWpRuntimeError(
-              'FORGEWP_RESOURCE_FETCH_FAILED',
-              `[FORGEWP_TAXONOMY_NOT_PUBLIC] ${json.message || `Taxonomy "${cleanTax}" is not public.`}`,
-              { resource: `term:${cleanTax}:${cleanSlug}`, status: response.status },
-            );
-          }
-          if (response.status === 404) {
-            return null;
-          }
-          if (response.ok && json) {
-            return normalizeTermResource(json, cleanTax);
-          }
-        } catch (err) {
-          if (err instanceof ForgeWpRuntimeError) {
-            throw err;
-          }
-          // Fall back to local fixtures if REST endpoint is unavailable
+        const res = await fetchJsonWithRetry(
+          url,
+          buildTaggedInit(['terms', `taxonomy:${cleanTax}`]),
+          {
+            resource: `term:${cleanTax}:${cleanSlug}`,
+            strict: isStrictDecoupledMode(wpBase),
+            allow404: true,
+            checkDomainErrors(response, json) {
+              throwIfLocaleNotFound(response, json, `term:${cleanTax}:${cleanSlug}`);
+              if (
+                !response.ok &&
+                json &&
+                typeof json === 'object' &&
+                json.code === 'FORGEWP_TAXONOMY_NOT_PUBLIC'
+              ) {
+                throw new ForgeWpRuntimeError(
+                  'FORGEWP_RESOURCE_FETCH_FAILED',
+                  `[FORGEWP_TAXONOMY_NOT_PUBLIC] ${json.message || `Taxonomy "${cleanTax}" is not public.`}`,
+                  { resource: `term:${cleanTax}:${cleanSlug}`, status: response.status },
+                );
+              }
+            },
+          },
+        );
+        if (res.status === 404) {
+          return null;
+        }
+        if (res.ok && res.json) {
+          return normalizeTermResource(res.json, cleanTax);
         }
       }
 
@@ -1483,33 +1617,31 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
           perPage: String(perPage),
         });
         const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/comments?${params.toString()}`;
-        try {
-          const response = await fetchImpl(
-            url,
-            buildTaggedInit(['comments', `comments:post:${cleanPostId}`]),
-          );
-          const json = await response.json().catch(() => null);
-          if (
-            !response.ok &&
-            json &&
-            typeof json === 'object' &&
-            json.code === 'FORGEWP_POST_NOT_FOUND'
-          ) {
-            throw new ForgeWpRuntimeError(
-              'FORGEWP_RESOURCE_FETCH_FAILED',
-              `[FORGEWP_POST_NOT_FOUND] ${json.message || `Post ${cleanPostId} not found.`}`,
-              { resource: `comments:${cleanPostId}`, status: response.status },
-            );
-          }
-          if (response.ok && json) {
-            const normalized = normalizeCommentsListResource(json, cleanPostId);
-            if (normalized) return normalized;
-          }
-        } catch (err) {
-          if (err instanceof ForgeWpRuntimeError) {
-            throw err;
-          }
-          // Fall back to local fixtures if REST endpoint is unavailable
+        const res = await fetchJsonWithRetry(
+          url,
+          buildTaggedInit(['comments', `comments:post:${cleanPostId}`]),
+          {
+            resource: `comments:${cleanPostId}`,
+            strict: isStrictDecoupledMode(wpBase),
+            checkDomainErrors(response, json) {
+              if (
+                !response.ok &&
+                json &&
+                typeof json === 'object' &&
+                json.code === 'FORGEWP_POST_NOT_FOUND'
+              ) {
+                throw new ForgeWpRuntimeError(
+                  'FORGEWP_RESOURCE_FETCH_FAILED',
+                  `[FORGEWP_POST_NOT_FOUND] ${json.message || `Post ${cleanPostId} not found.`}`,
+                  { resource: `comments:${cleanPostId}`, status: response.status },
+                );
+              }
+            },
+          },
+        );
+        if (res.ok && res.json) {
+          const normalized = normalizeCommentsListResource(res.json, cleanPostId);
+          if (normalized) return normalized;
         }
       }
 
@@ -1589,26 +1721,29 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
 
       const base = resolveWpBase();
       if (base) {
-        try {
-          const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
-          const url = `${base.baseUrl}/wp-json/forgewp/v1/menus/${encodeURIComponent(cleanLoc)}${qs}`;
-          const response = await fetchImpl(
-            url,
-            buildTaggedInit(['menus', `menu:${cleanLoc}`]),
-          );
-          const json = await response.json().catch(() => null);
-          throwIfLocaleNotFound(response, json, `menus:${cleanLoc}`);
-          if (response.ok && json && Array.isArray(json.items)) {
-            const normalized = normalizeLocalItems(json.items);
-            cachedMenuByKey.set(cacheKey, normalized);
-            return normalized;
-          }
-        } catch (err) {
-          if (err instanceof ForgeWpRuntimeError) {
-            throw err;
-          }
-          // Fall back to local menus fixture if endpoint is unavailable
+        const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+        const url = `${base.baseUrl}/wp-json/forgewp/v1/menus/${encodeURIComponent(cleanLoc)}${qs}`;
+        const res = await fetchJsonWithRetry(
+          url,
+          buildTaggedInit(['menus', `menu:${cleanLoc}`]),
+          {
+            resource: `menus:${cleanLoc}`,
+            strict: isStrictDecoupledMode(base),
+          },
+        );
+        if (res.ok && res.json && Array.isArray(res.json.items)) {
+          const normalized = normalizeLocalItems(res.json.items);
+          cachedMenuByKey.set(cacheKey, normalized);
+          return normalized;
         }
+        if (isStrictDecoupledMode(base)) {
+          throw new ForgeWpRuntimeError(
+            'FORGEWP_RESOURCE_FETCH_FAILED',
+            `Invalid menu payload for location "${cleanLoc}".`,
+            { resource: `menus:${cleanLoc}`, status: res.status },
+          );
+        }
+        return localItems;
       }
 
       cachedMenuByKey.set(cacheKey, localItems);
@@ -1639,33 +1774,35 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
 
       const base = resolveWpBase();
       if (base) {
-        try {
-          const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
-          const url = `${base.baseUrl}/wp-json/forgewp/v1/menus${qs}`;
-          const response = await fetchImpl(url, buildTaggedInit(['menus']));
-          const json = await response.json().catch(() => null);
-          throwIfLocaleNotFound(response, json, 'menus');
-          if (response.ok && json) {
-            const normalized = normalizeMenusCollection(json) || {
-              ...(lang ? { lang } : {}),
-              menus: {},
-            };
-            const finalCollection: MenusCollectionResource = {
-              ...(normalized.lang ? { lang: normalized.lang } : lang ? { lang } : {}),
-              menus: normalized.menus,
-            };
-            cachedMenusByLang.set(cacheKey, finalCollection);
-            for (const [loc, locItems] of Object.entries(finalCollection.menus)) {
-              cachedMenuByKey.set(`${loc}::${lang || ''}`, locItems);
-            }
-            return finalCollection;
+        const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+        const url = `${base.baseUrl}/wp-json/forgewp/v1/menus${qs}`;
+        const res = await fetchJsonWithRetry(url, buildTaggedInit(['menus']), {
+          resource: 'menus',
+          strict: isStrictDecoupledMode(base),
+        });
+        if (res.ok && res.json) {
+          const normalized = normalizeMenusCollection(res.json) || {
+            ...(lang ? { lang } : {}),
+            menus: {},
+          };
+          const finalCollection: MenusCollectionResource = {
+            ...(normalized.lang ? { lang: normalized.lang } : lang ? { lang } : {}),
+            menus: normalized.menus,
+          };
+          cachedMenusByLang.set(cacheKey, finalCollection);
+          for (const [loc, locItems] of Object.entries(finalCollection.menus)) {
+            cachedMenuByKey.set(`${loc}::${lang || ''}`, locItems);
           }
-        } catch (err) {
-          if (err instanceof ForgeWpRuntimeError) {
-            throw err;
-          }
-          // Fall back to local menus fixture if endpoint is unavailable
+          return finalCollection;
         }
+        if (isStrictDecoupledMode(base)) {
+          throw new ForgeWpRuntimeError(
+            'FORGEWP_RESOURCE_FETCH_FAILED',
+            'Invalid menus collection payload from WordPress.',
+            { resource: 'menus', status: res.status },
+          );
+        }
+        return withLangFallback;
       }
 
       cachedMenusByLang.set(cacheKey, withLangFallback);
@@ -1711,29 +1848,31 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
 
       const base = resolveWpBase();
       if (base) {
-        try {
-          const params = new URLSearchParams();
-          if (lang) params.set('lang', lang);
-          if (path) params.set('path', path);
-          const qs = params.toString();
-          const url = `${base.baseUrl}/wp-json/forgewp/v1/i18n${qs ? `?${qs}` : ''}`;
-          const tags = lang ? ['i18n', `i18n:${lang}`] : ['i18n'];
-          const response = await fetchImpl(url, buildTaggedInit(tags));
-          const json = await response.json().catch(() => null);
-          throwIfLocaleNotFound(response, json, 'i18n');
-          if (response.ok && json) {
-            const normalized = normalizeI18nResource(json);
-            if (normalized) {
-              cachedI18nByKey.set(cacheKey, normalized);
-              return normalized;
-            }
+        const params = new URLSearchParams();
+        if (lang) params.set('lang', lang);
+        if (path) params.set('path', path);
+        const qs = params.toString();
+        const url = `${base.baseUrl}/wp-json/forgewp/v1/i18n${qs ? `?${qs}` : ''}`;
+        const tags = lang ? ['i18n', `i18n:${lang}`] : ['i18n'];
+        const res = await fetchJsonWithRetry(url, buildTaggedInit(tags), {
+          resource: 'i18n',
+          strict: isStrictDecoupledMode(base),
+        });
+        if (res.ok && res.json) {
+          const normalized = normalizeI18nResource(res.json);
+          if (normalized) {
+            cachedI18nByKey.set(cacheKey, normalized);
+            return normalized;
           }
-        } catch (err) {
-          if (err instanceof ForgeWpRuntimeError) {
-            throw err;
-          }
-          // Fall back to local i18n fixture if endpoint is unavailable
         }
+        if (isStrictDecoupledMode(base)) {
+          throw new ForgeWpRuntimeError(
+            'FORGEWP_RESOURCE_FETCH_FAILED',
+            'Invalid i18n payload from WordPress.',
+            { resource: 'i18n', status: res.status },
+          );
+        }
+        return buildFallbackI18n();
       }
 
       const fallback = buildFallbackI18n();
@@ -1788,21 +1927,26 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
 
       const base = resolveWpBase();
       if (base) {
-        try {
-          const data = await wpFetchJson(base, '/wp-json/forgewp/v1/site-info', false);
-          if (data && typeof data === 'object') {
-            return {
-              name: String(data.name || fallbackName),
-              description: String(data.description ?? fallbackDesc),
-              url: String(data.url || data.homeUrl || base.baseUrl),
-              homeUrl: String(data.homeUrl || data.url || base.baseUrl),
-              language: String(data.language || fallbackLang),
-              ...(data.logoUrl ? { logoUrl: String(data.logoUrl) } : {}),
-              mode: 'decoupled',
-            };
-          }
-        } catch {
-          // Fall back to local siteInfo fixture if endpoint is unavailable
+        const data = await wpFetchJson(base, '/wp-json/forgewp/v1/site-info', false, {
+          resource: 'site-info',
+        });
+        if (data && typeof data === 'object') {
+          return {
+            name: String(data.name || fallbackName),
+            description: String(data.description ?? fallbackDesc),
+            url: String(data.url || data.homeUrl || base.baseUrl),
+            homeUrl: String(data.homeUrl || data.url || base.baseUrl),
+            language: String(data.language || fallbackLang),
+            ...(data.logoUrl ? { logoUrl: String(data.logoUrl) } : {}),
+            mode: 'decoupled',
+          };
+        }
+        if (isStrictDecoupledMode(base)) {
+          throw new ForgeWpRuntimeError(
+            'FORGEWP_RESOURCE_FETCH_FAILED',
+            'Invalid site-info payload from WordPress.',
+            { resource: 'site-info' },
+          );
         }
       }
 
@@ -1894,16 +2038,28 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
 
       const base = resolveWpBase();
       if (base) {
-        try {
-          const data = await wpFetchJson(base, '/wp-json/forgewp/v1/site-settings', false);
-          const normalized = normalizeSiteSettings(data);
-          if (normalized) {
-            cachedSiteSettings = normalized;
-            return normalized;
-          }
-        } catch {
-          // Fall back to fixture settings when endpoint is unavailable
+        const data = await wpFetchJson(base, '/wp-json/forgewp/v1/site-settings', false, {
+          resource: 'site-settings',
+        });
+        const normalized = normalizeSiteSettings(data);
+        if (normalized) {
+          cachedSiteSettings = normalized;
+          return normalized;
         }
+        if (isStrictDecoupledMode(base)) {
+          throw new ForgeWpRuntimeError(
+            'FORGEWP_RESOURCE_FETCH_FAILED',
+            'Invalid site-settings payload from WordPress.',
+            { resource: 'site-settings' },
+          );
+        }
+        const localSite = await this.getSiteInfo();
+        const { mode: _mode, ...localSiteMeta } = localSite;
+        return {
+          options: { ...siteOptions },
+          themeMods: { ...themeMods },
+          site: localSiteMeta,
+        };
       }
 
       const fixtureSite = await this.getSiteInfo();
@@ -1947,37 +2103,33 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       if (base) {
         const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
         const url = `${base.baseUrl}/wp-json/forgewp/v1/forms/${encodeURIComponent(cleanName)}${qs}`;
-        const mergedTags = Array.from(
-          new Set(['forms', `form:${cleanName}`, ...(nextOptions?.tags || [])]),
-        );
-        const init: Record<string, any> = {
-          method: 'GET',
-          headers: { Accept: 'application/json' },
-          cache: cacheMode,
-          next: {
-            ...(nextOptions || {}),
-            tags: mergedTags,
+        const res = await fetchJsonWithRetry(
+          url,
+          buildTaggedInit(['forms', `form:${cleanName}`]),
+          {
+            resource: `forms:${cleanName}`,
+            strict: isStrictDecoupledMode(base),
+            allow404: true,
           },
-        };
-        const response = await fetchImpl(url, init);
-        if (response.status === 404) {
+        );
+        if (res.status === 404) {
           cachedFormByKey.set(cacheKey, null);
           return null;
         }
-        const json = await response.json().catch(() => null);
-        if (!response.ok) {
+        if (!res.ok) {
+          const json = res.json;
           const code = json && typeof json.code === 'string' ? json.code : '';
           const msg =
             json && typeof json.message === 'string'
               ? json.message
-              : `Failed to fetch form "${cleanName}" (HTTP ${response.status}).`;
+              : `Failed to fetch form "${cleanName}" (HTTP ${res.status}).`;
           throw new ForgeWpRuntimeError(
             'FORGEWP_RESOURCE_FETCH_FAILED',
             code ? `[${code}] ${msg}` : msg,
-            { resource: `forms:${cleanName}`, status: response.status },
+            { resource: `forms:${cleanName}`, status: res.status },
           );
         }
-        const normalized = normalizeFormResource(json, cleanName);
+        const normalized = normalizeFormResource(res.json, cleanName);
         cachedFormByKey.set(cacheKey, normalized);
         return normalized;
       }
@@ -2010,22 +2162,12 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
       if (base) {
         const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
         const url = `${base.baseUrl}/wp-json/forgewp/v1/forms${qs}`;
-        const mergedTags = Array.from(
-          new Set(['forms', ...(nextOptions?.tags || [])]),
-        );
-        const init: Record<string, any> = {
-          method: 'GET',
-          headers: { Accept: 'application/json' },
-          cache: cacheMode,
-          next: {
-            ...(nextOptions || {}),
-            tags: mergedTags,
-          },
-        };
-        const response = await fetchImpl(url, init);
-        if (response.ok) {
-          const json = await response.json().catch(() => null);
-          const normalized = normalizeFormsCollection(json) || {
+        const res = await fetchJsonWithRetry(url, buildTaggedInit(['forms']), {
+          resource: 'forms',
+          strict: isStrictDecoupledMode(base),
+        });
+        if (res.ok && res.json) {
+          const normalized = normalizeFormsCollection(res.json) || {
             ...(lang ? { lang } : {}),
             forms: {},
           };
@@ -2035,6 +2177,17 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
           }
           return normalized;
         }
+        if (isStrictDecoupledMode(base)) {
+          throw new ForgeWpRuntimeError(
+            'FORGEWP_RESOURCE_FETCH_FAILED',
+            'Invalid forms collection payload from WordPress.',
+            { resource: 'forms', status: res.status },
+          );
+        }
+        return {
+          ...(lang ? { lang } : {}),
+          forms: { ...fixtureForms.forms },
+        };
       }
 
       const fallbackCollection: FormsCollectionResource = {
@@ -2065,30 +2218,35 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         const params = new URLSearchParams({ path: normalizedPath });
         if (lang) params.set('lang', lang);
         const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/seo?${params.toString()}`;
-        const response = await fetchImpl(
+        const res = await fetchJsonWithRetry(
           url,
           buildTaggedInit(['seo', `seo:path:${normalizedPath}`]),
+          {
+            resource: `seo:${normalizedPath}`,
+            strict: isStrictDecoupledMode(wpBase),
+            allow404: true,
+            checkDomainErrors(response, json) {
+              throwIfLocaleNotFound(response, json, 'seo');
+            },
+          },
         );
-        if (response.status === 404) {
-          const json404 = await response.json().catch(() => null);
-          throwIfLocaleNotFound(response, json404, 'seo');
+        if (res.status === 404) {
           return null;
         }
-        const json = await response.json().catch(() => null);
-        throwIfLocaleNotFound(response, json, 'seo');
-        if (!response.ok) {
+        if (!res.ok) {
+          const json = res.json;
           const code = json && typeof json.code === 'string' ? json.code : '';
           const msg =
             json && typeof json.message === 'string'
               ? json.message
-              : `Failed to fetch SEO metadata for "${normalizedPath}" (HTTP ${response.status}).`;
+              : `Failed to fetch SEO metadata for "${normalizedPath}" (HTTP ${res.status}).`;
           throw new ForgeWpRuntimeError(
             'FORGEWP_RESOURCE_FETCH_FAILED',
             code ? `[${code}] ${msg}` : msg,
-            { resource: `seo:${normalizedPath}`, status: response.status },
+            { resource: `seo:${normalizedPath}`, status: res.status },
           );
         }
-        return normalizeSeoResource(json);
+        return normalizeSeoResource(res.json);
       }
 
       const fixtureEntry =
@@ -2132,34 +2290,41 @@ export function createWpServerClient(options: WpServerClientOptions = {}): WpSer
         if (target.post) tags.push(`post:${target.post}`);
         if (target.routeId) tags.push(`route:${target.routeId}`);
         const url = `${wpBase.baseUrl}/wp-json/forgewp/v1/editables?${params.toString()}`;
-        const response = await fetchImpl(url, buildTaggedInit(tags));
-        if (response.status === 404) {
-          const json404 = await response.json().catch(() => null);
-          throwIfLocaleNotFound(response, json404, 'editables');
-          if (json404?.code === 'FORGEWP_EDITABLE_SCHEMA_NOT_FOUND') {
-            throw new ForgeWpRuntimeError(
-              'FORGEWP_RESOURCE_FETCH_FAILED',
-              `[FORGEWP_EDITABLE_SCHEMA_NOT_FOUND] ${json404.message || 'Editable schema not found.'}`,
-              { resource: 'editables', status: 404 },
-            );
-          }
+        const res = await fetchJsonWithRetry(url, buildTaggedInit(tags), {
+          resource: 'editables',
+          strict: isStrictDecoupledMode(wpBase),
+          allow404: true,
+          checkDomainErrors(response, json) {
+            throwIfLocaleNotFound(response, json, 'editables');
+            if (
+              response.status === 404 &&
+              json?.code === 'FORGEWP_EDITABLE_SCHEMA_NOT_FOUND'
+            ) {
+              throw new ForgeWpRuntimeError(
+                'FORGEWP_RESOURCE_FETCH_FAILED',
+                `[FORGEWP_EDITABLE_SCHEMA_NOT_FOUND] ${json.message || 'Editable schema not found.'}`,
+                { resource: 'editables', status: 404 },
+              );
+            }
+          },
+        });
+        if (res.status === 404) {
           return null;
         }
-        const json = await response.json().catch(() => null);
-        throwIfLocaleNotFound(response, json, 'editables');
-        if (!response.ok) {
+        if (!res.ok) {
+          const json = res.json;
           const code = json && typeof json.code === 'string' ? json.code : '';
           const msg =
             json && typeof json.message === 'string'
               ? json.message
-              : `Failed to fetch editables (HTTP ${response.status}).`;
+              : `Failed to fetch editables (HTTP ${res.status}).`;
           throw new ForgeWpRuntimeError(
             'FORGEWP_RESOURCE_FETCH_FAILED',
             code ? `[${code}] ${msg}` : msg,
-            { resource: 'editables', status: response.status },
+            { resource: 'editables', status: res.status },
           );
         }
-        return normalizeEditablesResource(json);
+        return normalizeEditablesResource(res.json);
       }
 
       const fixtureMatch =
@@ -3195,6 +3360,8 @@ export interface WpServerPostTermsProps {
   taxonomy?: string;
   /** Terms array rendered in local dev & decoupled mode. */
   terms?: PostTermRefContract[];
+  /** Optional separator rendered between adjacent terms (both decoupled and native PHP). */
+  separator?: React.ReactNode;
   /** Optional fallback rendered when the post has no matching terms. */
   empty?: React.ReactNode;
   /** Render function for each term item. */
@@ -3226,6 +3393,7 @@ function sanitizeTaxonomyAttr(taxonomy?: string): string {
 export function WpServerPostTerms({
   taxonomy = 'category',
   terms = [],
+  separator,
   empty,
   renderItem,
   children,
@@ -3242,6 +3410,7 @@ export function WpServerPostTerms({
       null,
       React.createElement('forgewp-terms-loop-start', {
         taxonomy: sanitizeTaxonomyAttr(taxonomy),
+        ...(typeof separator === 'string' && separator.length > 0 ? { separator } : {}),
       }),
       render(NATIVE_POST_TERM_TOKEN, 0),
       empty !== undefined && empty !== null
@@ -3260,11 +3429,14 @@ export function WpServerPostTerms({
   if (list.length === 0) {
     return React.createElement(React.Fragment, null, empty ?? null);
   }
-  return React.createElement(
-    React.Fragment,
-    null,
-    ...list.map((term, idx) => render(term, idx)),
-  );
+  const nodes: React.ReactNode[] = [];
+  list.forEach((term, idx) => {
+    if (idx > 0 && separator !== undefined && separator !== null && separator !== false) {
+      nodes.push(React.createElement(React.Fragment, { key: `sep-${idx}` }, separator));
+    }
+    nodes.push(render(term, idx));
+  });
+  return React.createElement(React.Fragment, null, ...nodes);
 }
 
 export interface WpServerTermsLoopProps {
@@ -3274,6 +3446,8 @@ export interface WpServerTermsLoopProps {
   hideEmpty?: boolean;
   /** Terms array or `TermsListResource` rendered in local dev & decoupled mode. */
   terms?: TermResource[] | TermsListResource | null;
+  /** Optional separator rendered between adjacent terms (both decoupled and native PHP). */
+  separator?: React.ReactNode;
   /** Optional fallback rendered when no terms exist. */
   empty?: React.ReactNode;
   /** Render function for each term item. */
@@ -3304,6 +3478,7 @@ export function WpServerTermsLoop({
   taxonomy = 'category',
   hideEmpty = true,
   terms = [],
+  separator,
   empty,
   renderItem,
   children,
@@ -3322,6 +3497,7 @@ export function WpServerTermsLoop({
         source: 'taxonomy',
         taxonomy: sanitizeTaxonomyAttr(taxonomy),
         hideempty: hideEmpty ? '1' : '0',
+        ...(typeof separator === 'string' && separator.length > 0 ? { separator } : {}),
       }),
       render(NATIVE_TAXONOMY_TERM_TOKEN, 0),
       empty !== undefined && empty !== null
@@ -3344,11 +3520,14 @@ export function WpServerTermsLoop({
   if (list.length === 0) {
     return React.createElement(React.Fragment, null, empty ?? null);
   }
-  return React.createElement(
-    React.Fragment,
-    null,
-    ...list.map((term, idx) => render(term, idx)),
-  );
+  const nodes: React.ReactNode[] = [];
+  list.forEach((term, idx) => {
+    if (idx > 0 && separator !== undefined && separator !== null && separator !== false) {
+      nodes.push(React.createElement(React.Fragment, { key: `sep-${idx}` }, separator));
+    }
+    nodes.push(render(term, idx));
+  });
+  return React.createElement(React.Fragment, null, ...nodes);
 }
 
 export interface WpCommentRenderHelpers {
@@ -3533,6 +3712,44 @@ export {
   optionNumber,
   optionPostPicker,
 } from './config.js';
+
+export {
+  defineEditable,
+  getEditableDefaults,
+  buildPageEditable,
+  pickEditable,
+  mergeEditable,
+  text,
+  richText,
+  image,
+  boolean,
+  repeater,
+  color,
+  url,
+  select,
+  number,
+  icon,
+} from './editable-schema.js';
+export type {
+  FieldBase,
+  EditableField,
+  EditableSchema,
+  TextField,
+  RichTextField,
+  ImageField,
+  BooleanField,
+  RepeaterField,
+  RepeaterMode,
+  ImageFieldVal,
+  ColorField,
+  UrlField,
+  SelectField,
+  NumberField,
+  IconField,
+  InferAttributes,
+  InferFieldType,
+  PageEditableSectionSource,
+} from './editable-schema.js';
 
 export {
   ForgeWpRuntimeError,

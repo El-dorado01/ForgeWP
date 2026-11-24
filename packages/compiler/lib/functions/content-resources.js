@@ -307,6 +307,20 @@ if (!function_exists('forgewp_content_public_post_type')) {
         return $resource['items'];
     }
 
+    /** A single term lookup as in GET /terms/<taxonomy>/<slug>, memoized per request. */
+    function forgewp_native_term($taxonomy, $slug) {
+        static $memo = array();
+        if (!forgewp_content_public_taxonomy($taxonomy)) {
+            return null;
+        }
+        $key = $taxonomy . ':' . $slug . ':' . (string) forgewp_content_lang(null);
+        if (!array_key_exists($key, $memo)) {
+            $term = get_term_by('slug', $slug, $taxonomy);
+            $memo[$key] = ($term && !is_wp_error($term)) ? forgewp_term_item($term) : null;
+        }
+        return $memo[$key];
+    }
+
     /** Relative path of the current post in a loop, as the REST path field. */
     function forgewp_native_the_path() {
         $link = (string) get_permalink();
