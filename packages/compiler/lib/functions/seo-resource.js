@@ -302,19 +302,29 @@ if (!function_exists('forgewp_seo_resource')) {
         if ($backend === '' || strpos($url, $backend) !== 0 || strpos($url, (string) $uploads['baseurl']) === 0 || strpos($url, '/wp-content/') !== false) {
             return $url;
         }
+        // Whole-origin match only: cms.example.com must not match cms.example.com.evil.test.
+        $next = substr($url, strlen($backend), 1);
+        if ($next !== '' && $next !== false && !in_array($next, array('/', '?', '#'), true)) {
+            return $url;
+        }
         return rtrim($frontend[0], '/') . substr($url, strlen($backend));
     }
 
+    /**
+     * Every page URL in structured data moves to the frontend origin: @id, url,
+     * item, and also SearchAction targets, breadcrumbs, sameAs entries, … (any
+     * string, including strings inside arrays). forgewp_seo_rewrite_url() leaves
+     * other domains and media files untouched.
+     */
     function forgewp_seo_rewrite_json_ld($node) {
+        if (is_string($node)) {
+            return forgewp_seo_rewrite_url($node);
+        }
         if (!is_array($node)) {
             return $node;
         }
         foreach ($node as $key => $value) {
-            if (is_array($value)) {
-                $node[$key] = forgewp_seo_rewrite_json_ld($value);
-            } elseif (is_string($value) && in_array($key, array('@id', 'url', 'item'), true)) {
-                $node[$key] = forgewp_seo_rewrite_url($value);
-            }
+            $node[$key] = forgewp_seo_rewrite_json_ld($value);
         }
         return $node;
     }
@@ -408,6 +418,47 @@ if (!function_exists('forgewp_seo_resource')) {
 
     // ── REST ──────────────────────────────────────────────────────────────────
 
+    /**
+     * The <head> of one of this site's own pages, fetched like a visitor would
+     * (no cookies), or '' on any failure. Only ever called with the resolved
+     * object's own permalink, never a caller-supplied URL. Filter
+     * 'forgewp_seo_loopback_url' rewrites the address used to reach the site
+     * from itself (for example behind a proxy or in a container).
+     */
+    function forgewp_seo_loopback_head($url) {
+        $url = (string) $url;
+        $home = wp_parse_url(function_exists('forgewp_raw_home_url') ? forgewp_raw_home_url() : home_url('/'));
+        $parsed = wp_parse_url($url);
+        if ($url === '' || empty($parsed['host']) || empty($home['host']) || strtolower($parsed['host']) !== strtolower($home['host'])) {
+            return '';
+        }
+        // Remember a failing loopback for 10 minutes instead of waiting on it every time.
+        if (get_transient('forgewp_seo_loopback_down')) {
+            return '';
+        }
+        $response = wp_remote_get((string) apply_filters('forgewp_seo_loopback_url', $url), array(
+            'timeout'     => 5,
+            'redirection' => 2,
+            'headers'     => array('Accept' => 'text/html'),
+            'sslverify'   => (bool) apply_filters('https_local_ssl_verify', false),
+        ));
+        if (is_wp_error($response)) {
+            set_transient('forgewp_seo_loopback_down', 1, 10 * MINUTE_IN_SECONDS);
+            return '';
+        }
+        if ((int) wp_remote_retrieve_response_code($response) !== 200) {
+            return '';
+        }
+        $body = (string) wp_remote_retrieve_body($response);
+        $start = stripos($body, '<head');
+        $end = stripos($body, '</head>');
+        if ($start === false || $end === false || $end <= $start) {
+            return '';
+        }
+        $start = strpos($body, '>', $start);
+        return $start === false ? '' : substr($body, $start + 1, $end - $start - 1);
+    }
+
     function forgewp_seo_rest($request) {
         $path = forgewp_seo_norm_path((string) $request->get_param('path'));
         if ($path === null) {
@@ -423,11 +474,22 @@ if (!function_exists('forgewp_seo_resource')) {
             return new WP_Error('FORGEWP_SEO_NOT_FOUND', 'No published page at this path.', array('status' => 404));
         }
         forgewp_seo_setup_query($target);
-        $GLOBALS['forgewp_seo_capturing'] = true;
-        ob_start();
-        do_action('wp_head');
-        $html = (string) ob_get_clean();
-        $GLOBALS['forgewp_seo_capturing'] = false;
+        $html = '';
+        // Read the page's real head, as a visitor gets it. A head captured inside
+        // this REST request misses whatever plugins and themes prepare on
+        // front-end-only hooks: Rank Math skips its title format and JSON-LD under
+        // REST, and themes build schema on template_redirect. If the site cannot
+        // reach itself, fall back to the in-request capture below.
+        if (apply_filters('forgewp_seo_use_loopback', true, $target)) {
+            $html = forgewp_seo_loopback_head(forgewp_seo_object_url($target));
+        }
+        if ($html === '') {
+            $GLOBALS['forgewp_seo_capturing'] = true;
+            ob_start();
+            do_action('wp_head');
+            $html = (string) apply_filters('forgewp_seo_theme_head', '') . (string) ob_get_clean();
+            $GLOBALS['forgewp_seo_capturing'] = false;
+        }
         $payload = forgewp_seo_build(forgewp_seo_parse_head($html), $target, $path, $lang);
         wp_reset_postdata();
         $response = new WP_REST_Response($payload, 200);
@@ -445,20 +507,47 @@ if (!function_exists('forgewp_seo_resource')) {
         return !is_admin() && !is_feed() && !wp_doing_ajax() && !(defined('REST_REQUEST') && REST_REQUEST) && empty($GLOBALS['forgewp_seo_capturing']);
     }
 
+    // Capture this page's own head output. Start first, end last. If another
+    // plugin or the theme still has its own output buffer open when wp_head
+    // ends (hotelchecker24's og-fallback closes at PHP_INT_MAX too), leave ours
+    // open and finish at the start of wp_footer, keeping only what precedes
+    // </head>. Never close someone else's buffer.
     add_action('wp_head', function () {
         if (forgewp_seo_native_enabled()) {
             ob_start();
             $GLOBALS['forgewp_seo_head_level'] = ob_get_level();
+            $GLOBALS['forgewp_seo_head_pending'] = false;
         }
     }, -99999);
 
-    add_action('wp_head', function () {
-        if (!empty($GLOBALS['forgewp_seo_head_level']) && ob_get_level() === $GLOBALS['forgewp_seo_head_level']) {
-            $GLOBALS['forgewp_seo_head_html'] = (string) ob_get_contents();
-            ob_end_flush();
+    function forgewp_seo_finish_head_capture($cut_at_head_end) {
+        $level = (int) ($GLOBALS['forgewp_seo_head_level'] ?? 0);
+        if ($level === 0 || ob_get_level() !== $level) {
+            return false;
         }
+        $html = (string) ob_get_contents();
+        ob_end_flush();
+        if ($cut_at_head_end) {
+            $end = stripos($html, '</head>');
+            $html = $end === false ? $html : substr($html, 0, $end);
+        }
+        $GLOBALS['forgewp_seo_head_html'] = $html;
         $GLOBALS['forgewp_seo_head_level'] = 0;
-    }, 99999);
+        $GLOBALS['forgewp_seo_head_pending'] = false;
+        return true;
+    }
+
+    add_action('wp_head', function () {
+        if (!empty($GLOBALS['forgewp_seo_head_level']) && !forgewp_seo_finish_head_capture(false)) {
+            $GLOBALS['forgewp_seo_head_pending'] = true;
+        }
+    }, PHP_INT_MAX);
+
+    add_action('wp_footer', function () {
+        if (!empty($GLOBALS['forgewp_seo_head_pending'])) {
+            forgewp_seo_finish_head_capture(true);
+        }
+    }, -99999);
 
     add_action('wp_footer', function () {
         if (!forgewp_seo_native_enabled() || !isset($GLOBALS['forgewp_seo_head_html'])) {
@@ -471,7 +560,8 @@ if (!function_exists('forgewp_seo_resource')) {
         $uri = isset($_SERVER['REQUEST_URI']) ? (string) wp_parse_url(wp_unslash($_SERVER['REQUEST_URI']), PHP_URL_PATH) : '/';
         $path = forgewp_seo_norm_path(forgewp_seo_url_path(home_url($uri))) ?: '/';
         $lang = function_exists('forgewp_resource_lang') ? forgewp_resource_lang(null) : '';
-        $payload = forgewp_seo_build(forgewp_seo_parse_head($GLOBALS['forgewp_seo_head_html']), $target, $path, is_wp_error($lang) ? '' : $lang);
+        $head = (string) apply_filters('forgewp_seo_theme_head', '') . (string) $GLOBALS['forgewp_seo_head_html'];
+        $payload = forgewp_seo_build(forgewp_seo_parse_head($head), $target, $path, is_wp_error($lang) ? '' : $lang);
         echo '<script>(function(h){h.resources=h.resources||{};h.resources.seo=' . wp_json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) . ';})(window.forgeWpHydration=window.forgeWpHydration||{});</script>' . "\n";
     }, 100);
 }

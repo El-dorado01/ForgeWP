@@ -287,7 +287,7 @@ describe('Next.js optional module parity: Native Forms, SEO, Auth, and WooCommer
       );
 
       expect(php).toContain('forgewp_cart_register_rest_routes');
-      expect(php).toContain('forgewp_rest_query_products');
+      expect(php).toContain('forgewp_commerce_rest_products');
       expect(php).toContain("'/cart'");
       const fnPath = path.join(tmp, 'functions.php');
       writeFileSync(fnPath, php, 'utf8');

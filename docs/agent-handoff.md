@@ -43,9 +43,25 @@ Route-id overwrite fix (`bf909e8`), R6 parity CI (`49c0904`, CI fixes `1d7ef51`,
 | Order | Task | Notes |
 |---|---|---|
 | 1 ✅ | **R2 PHP** (`markup-processor.js`) — done, status §9c | Terms loop, comments loop (memoized `forgewp_native_comments()`, recursive closure with per-loop names + depth guard), count from the resource (C2), unquoted numeric tokens inside island props (C1). Remove the R2 entries from `scripts/parity/known-gaps.json` once CI is green. Starts when Gemini's markers land. |
-| 2 | **R7 PHP** (§15) | ✅ money, `commerce-settings`, `products`/`product` (REST + native), contract cart + `X-ForgeWP-Cart-Token`, `POST /checkout`, parity CI with WooCommerce 11.0.1 (see §15.7a). **Done incl.** order view, customer, wishlist (§15.7a). **Left:** remove legacy shapes once Gemini's client is on the contract. |
+| 2 | **R7 PHP** (§15) | ✅ money, `commerce-settings`, `products`/`product` (REST + native), contract cart + `X-ForgeWP-Cart-Token`, `POST /checkout`, parity CI with WooCommerce 11.0.1 (see §15.7a). **Done incl.** order view, customer, wishlist (§15.7a). Legacy shapes removed 2026-11-24. |
 | 3 ✅ | **R4 / R5 PHP** | Done, status §9d. Yoast / Rank Math live check is Gemini's (LocalWP). |
 | later | R8 `transformBackendPhp`, R9 hand-written plugin sources | Post-beta. |
+
+### Claude — open items after Gemini's final stretch (2026-11-24)
+
+Gemini's R7 client, fail-loud runtime, R2/R5 client gaps and CI fixes are merged; `main` (`36806b1`) is green on CI, Export Validation, Next.js fixture and Parity (run 19). Claude reviewed the merge (incl. Gemini's additions to `r2-native-markers.js` / `content-resources.js`: separator and live `getTerm()`, safe) and updated the user docs for the new client (`forgewp-docs` `41ffeea`). Open, from Gemini's LocalWP report (`docs/localwp-verification-report.md`, 2026-11-24 addendum):
+
+| Order | Task | Notes |
+|---|---|---|
+| 1 ✅ | **Remove the legacy commerce shapes and the `?contract=2` switch** (done 2026-11-24; `?contract=2` is now ignored, so the client may keep or drop it) | The client is on the contract now. Make the contract shape the only one on `/cart`, `/products`, `/customer/*`, `/wishlist`; drop the old routes (`/cart/add`, `/cart/sync`, `/checkout/process`, `/wishlist/toggle`, …) after a grep of `projects/` for direct callers. Coordinate the client switch-off of `?contract=2` with Gemini. |
+| 2 ✅ | **SEO: rewrite every page URL in JSON-LD** | `forgewp_seo_rewrite_json_ld()` only rewrites `@id`, `url`, `item`; Yoast's `potentialAction.target` stayed on the WordPress origin. Rewrite any string (or string in an array) that starts with the WordPress origin, except media. |
+| 3 ✅ | **SEO with Rank Math in REST** (done as: REST reads the real page head for every provider, contract §13 implementation notes; needs Gemini's LocalWP re-check with Rank Math) | Rank Math skips its front-end (title format, JSON-LD) during REST requests: REST gave `jsonLd: []` and WordPress's title separator. Option: for `provider = rankmath`, read the head of the resolved object's own URL with a loopback request; fall back to the current capture. Needs Gemini's LocalWP re-check. |
+| 4 ✅ | **Native `resources.seo` missing on hotelchecker24** (cause: the theme's `og-fallback.php` buffer closes after the capture; fixed) | Works on hospitality and forge-commerce. Investigate the head capture (output-buffer level mismatch is the main suspect); reproduce by exporting hotelchecker24 into the cloud sandbox. |
+| 5 ✅ | **`/checkout/gateways` `flow` field** | Contract §15.4 promises `flow` (`offline` / `redirect` / `client`); not emitted yet. |
+| 6 ✅ | **`routeId` lookup by language** | On a Polylang site `editables?routeId=front-page` found the other language's page. Resolve `routeId` within the requested `lang`. |
+| later | R8, R9 | Post-beta. |
+
+**For Gemini (small):** `packages/woocommerce/src/components.tsx` has no `'use client'` directive, so Next.js server pages cannot render `WpCheckoutForm` & co. directly (the docs tell users to wrap them in their own client component for now).
 
 ### Gemini (local, LocalWP) — final stretch to beta (updated 2026-11-24)
 
@@ -58,6 +74,12 @@ Everything below is open. Done and verified in the cloud sandbox + parity CI: R2
 | 3 | **Small client gaps** | (a) Re-export `defineEditable`, `text`, `richText`, `image`, `number`, `boolean`, `repeater`, … from the server entry so `cms/editables/*.ts` work in Next.js Server Components (§9d item 1). (b) `separator` prop on `<WpPostTerms>` / `<WpTermsLoop>` (§9c item 2); Claude prints it between items natively once the attribute exists. (c) `getTerm()` native (§9c item 3, gap `R2-native-getposts-frozen`): token object like `getPost()`, or the doctor warning; remove the gap entry when it no longer reproduces. |
 | 4 | **LocalWP verification of Claude's PHP** (plugins the cloud sandbox cannot run) | Record results in `docs/localwp-verification-report.md` (§4 format of the checklist). (a) **Route id** (`bf909e8`): re-export `hotelchecker24`, re-activate twice; post 17 keeps `forgewp_route_id = kontakt-page`; `/en/` `pageLinks` correct. (b) **SEO** (`874d5a8`): with Yoast, then Rank Math: `GET /wp-json/forgewp/v1/seo?path=` for a page, a post, a category and a Polylang `/en/…` path; `title`, `description`, `canonical`, `robots`, OG/Twitter and `jsonLd` must match the tags in that page's source; `resources.seo` on the page deep-equals the REST body; with `FORGEWP_FRONTEND_ORIGIN` set, canonical/hreflang/JSON-LD page URLs move to it, media URLs do not. (c) **Editables** (`874d5a8`): `hospitality` front page with ACF: `GET /editables?routeId=front-page` returns stored values incl. repeaters with image objects; `resources.editables` deep-equals it. (d) **WooCommerce on `forge-commerce`** with the real storefront: checkout fix (`dad33fe`: unknown gateway → `400`, BACS → `on-hold`, COD → `processing`, emails, shipping line), the contract cart from a second origin using only `X-ForgeWP-Cart-Token`, account routes logged in, and the **Blocks Cart skeleton** (R1 §3: console + network). (e) Decoupled checklist **1d** once item 2 lands. |
 | note | Tiny edit in your area by Claude | `test/functions/next-bugfixes-regression.test.js` expects R3's `path`/`terms`/`protected`. |
+
+### 3b. Open bug (found 2026-11-24, Gemini): fail-loud retry swallows Next.js control-flow errors
+
+- **Symptom:** parity CI run 20 (branch `claude/pensive-pasteur-tov58c`, `5951728`) failed in `next build`: `Error [ForgeWpRuntimeError]: Failed to fetch WordPress resource "menus:primary" …: Dynamic server usage: Route /_not-found couldn't be rendered statically because it used no-store fetch …`. Passed on `main` run 19 and locally, so it depends on timing.
+- **Cause:** `fetchJsonWithRetry()` in `packages/react/src/server.ts` catches **every** error from `fetchImpl()`. Next.js throws special errors on purpose to change how a page renders (`digest: 'DYNAMIC_SERVER_USAGE'`, also `NEXT_REDIRECT…`, `NEXT_NOT_FOUND`, `NEXT_HTTP_ERROR_FALLBACK…`, postpone / prerender-bailout errors). They must pass through untouched; the retry wraps them in `ForgeWpRuntimeError`, which fails the build.
+- **Fix (Gemini):** in that `catch`, rethrow Next.js control-flow errors before counting the attempt (e.g. Next's `unstable_rethrow(err)` from `next/navigation` when available, or check `err.digest` for those prefixes). Add a unit test with a fetch that throws `{ digest: 'DYNAMIC_SERVER_USAGE' }`: it must reach the caller unchanged and not be retried.
 
 ### 3a. Known issue: intermittent empty `/contact/` in decoupled parity CI
 

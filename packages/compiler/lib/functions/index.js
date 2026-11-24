@@ -1849,6 +1849,10 @@ if (!function_exists('forgewp_register_decoupled_rest_bridge')) {
   }
 
   themePhp += '\n\n' + buildPostsRoutingPhp(config._postsRouting, config.textDomain);
+  // R4: the theme's exported head file (printed by header.php before wp_head()) carries the
+  // site's own description, social tags and JSON-LD when no SEO plugin is active. The SEO
+  // resource reads it through this filter so native and REST see the whole head.
+  themePhp += "\n\nadd_filter('forgewp_seo_theme_head', function ($html) {\n    if (forgewp_seo_plugin_active() || !function_exists('forgewp_resolve_head_target')) {\n        return $html;\n    }\n    $target = forgewp_resolve_head_target();\n    if (!$target || !file_exists($target)) {\n        return $html;\n    }\n    ob_start();\n    include $target;\n    return $html . preg_replace('/<title>.*?<\\/title>/is', '', (string) ob_get_clean());\n});\n";
   // R5: the theme resolves its own asset paths for the editables resource (backend stays theme-independent).
   themePhp += "\n\nadd_filter('forgewp_editables_image_source', function ($value) {\n    return function_exists('forgewp_resolve_image_source') ? forgewp_resolve_image_source($value) : $value;\n});\n";
 

@@ -111,7 +111,7 @@ export function restUrlFor(name, route, lang = 'en') {
     case 'commerce-settings': return '/commerce/settings';
     case 'seo': return `/seo?${q({ path: route.path })}`;
     case 'editables': return route.post ? `/editables?${q({ path: route.path })}` : null;
-    case 'products': return route.products ? `/products?${q({ contract: 2, category: route.products.category })}` : null;
+    case 'products': return route.products ? `/products?${q({ category: route.products.category })}` : null;
     case 'product': return route.product ? `/products/${route.product}` : null;
     default: return undefined;
   }
@@ -338,13 +338,13 @@ async function checkCommerce() {
   expect('coupon', coupon.status === 200 && coupon.body.totals.discount > 0, coupon.body?.totals);
   const saved = token;
   token = '';
-  const fresh = await call('GET', '/cart?contract=2');
+  const fresh = await call('GET', '/cart');
   expect('no token: new empty cart', fresh.status === 200 && fresh.body.itemCount === 0, fresh.body?.itemCount);
   token = saved;
-  const back = await call('GET', '/cart?contract=2');
+  const back = await call('GET', '/cart');
   expect('token: same cart', back.status === 200 && back.body.itemCount === 3, back.body?.itemCount);
   token = 'v1.' + Buffer.from('1|9999999999|9999999999|forged').toString('base64url');
-  const forged = await call('GET', '/cart?contract=2');
+  const forged = await call('GET', '/cart');
   expect('forged token selects no user cart', forged.status === 200 && forged.body.itemCount === 0, forged.body?.itemCount);
   token = saved;
   const badGateway = await call('POST', '/checkout', { billingAddress: { email: 'parity@example.test', country: 'DE' }, paymentMethod: 'stripe' });
@@ -354,7 +354,7 @@ async function checkCommerce() {
     paymentMethod: 'bacs',
   });
   expect('checkout (bank transfer → on-hold)', order.status === 200 && order.body.status === 'on-hold' && order.body.needsRedirect === false && Number.isInteger(order.body.total), order.body);
-  const after = await call('GET', '/cart?contract=2');
+  const after = await call('GET', '/cart');
   expect('cart emptied after order', after.body?.itemCount === 0, after.body?.itemCount);
   expect('guest order view needs the key', (await call('GET', `/checkout/order?id=${order.body.orderId}&key=wc_order_wrong`)).status === 404);
   expect('guest order view with key', (await call('GET', `/checkout/order?id=${order.body.orderId}&key=${order.body.orderKey}`)).body?.status === 'on-hold');
@@ -376,7 +376,7 @@ async function checkCommerce() {
   const ada = await login('parity-ada', 'parity-ada-pass');
   const bob = await login('parity-bob', 'parity-bob-pass');
   token = '';
-  expect('account needs a session', (await call('GET', '/customer/orders?contract=2')).status === 401);
+  expect('account needs a session', (await call('GET', '/customer/orders')).status === 401);
   await ada('DELETE', '/cart/items');
   await ada('POST', '/cart/items', { productId: shirt.id, quantity: 1 });
   const mine = await ada('POST', '/checkout', {
@@ -384,10 +384,10 @@ async function checkCommerce() {
     paymentMethod: 'cod',
   });
   expect('signed-in checkout (COD → processing)', mine.status === 200 && mine.body.status === 'processing', mine.body);
-  const orders = await ada('GET', '/customer/orders?contract=2');
+  const orders = await ada('GET', '/customer/orders');
   expect('order history', orders.status === 200 && orders.body.items?.some((o) => o.id === mine.body.orderId), orders.body);
-  expect('order detail', (await ada('GET', `/customer/orders/${mine.body.orderId}?contract=2`)).body?.items?.length === 1);
-  expect("another customer's order is 404", (await bob('GET', `/customer/orders/${mine.body.orderId}?contract=2`)).status === 404);
+  expect('order detail', (await ada('GET', `/customer/orders/${mine.body.orderId}`)).body?.items?.length === 1);
+  expect("another customer's order is 404", (await bob('GET', `/customer/orders/${mine.body.orderId}`)).status === 404);
   expect('address saved from checkout', (await ada('GET', '/customer/address')).body?.billing?.city === 'Berlin');
   const wish = await ada('POST', '/wishlist/items', { productId: jacket.id });
   expect('wishlist add', wish.body?.items?.includes(jacket.id), wish.body);

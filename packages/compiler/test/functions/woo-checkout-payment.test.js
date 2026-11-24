@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { buildRestEndpointsPhp } from '../../lib/functions/rest-endpoints.js';
+import { buildCommerceResourcesPhp } from '../../lib/functions/commerce-resources.js';
 
 const hasPhp = spawnSync('php', ['-v']).status === 0;
 
@@ -21,7 +22,9 @@ function checkoutPhp() {
   if (!cached) {
     const php = buildRestEndpointsPhp({ textDomain: 't', auth: true }, [], true, 'R', 'B', 'V', 'B', 'usernameAndEmail', '0', '1', '0', {});
     const a = php.indexOf('function forgewp_rest_get_checkout_gateways(');
-    const b = php.indexOf('function forgewp_rest_get_customer_orders(', a);
+    const c = php.indexOf('function forgewp_rest_process_checkout(', a);
+    const b = php.indexOf('\n}\n', c) + 3;
+    expect(c).toBeGreaterThan(a);
     expect(a).toBeGreaterThan(-1);
     expect(b).toBeGreaterThan(a);
     cached = php.slice(a, b);
@@ -41,11 +44,12 @@ function is_email($v) { return (bool) filter_var($v, FILTER_VALIDATE_EMAIL); }
 function wp_strip_all_tags($v) { return strip_tags($v); }
 function do_action(...$a) { global $log; $log[] = 'action:' . $a[0]; }
 function wc_get_notices($t) { global $notices; return $notices; }
+function apply_filters($n, $v) { return $v; }
 function wc_clear_notices() { global $notices; $notices = array(); }
 function forgewp_ensure_wc_cart() { return true; }
 function forgewp_save_wc_cart() { global $log; $log[] = 'save'; }
 class Req { public $p; function __construct($p) { $this->p = $p; } function get_json_params() { return $this->p; } function get_params() { return $this->p; } }
-class Gateway { public $id; public $supports = array('products'); public $result; function __construct($id, $result) { $this->id = $id; $this->result = $result; }
+class Gateway { public $id; public $supports = array('products'); public $result; public $fields = false; function __construct($id, $result) { $this->id = $id; $this->result = $result; } function has_fields() { return $this->fields; }
   function get_title() { return strtoupper($this->id); } function get_method_title() { return $this->id; } function get_description() { return ''; } function get_icon() { return ''; }
   function process_payment($order_id) { global $log, $orders; $log[] = 'pay:' . $this->id; if (($this->result['result'] ?? '') === 'success') { $orders[$order_id]->status = $this->result['status']; } return $this->result; } }
 class Order { public $id; public $status = 'pending'; public $pm; function __construct($id, $pm) { $this->id = $id; $this->pm = $pm; }
@@ -150,14 +154,29 @@ describe('checkout payment (R7 review)', () => {
   it.skipIf(!hasPhp)('lists only real gateways, never invented ones', () => {
     const real = run(setup() + `echo json_encode(array('r' => forgewp_rest_get_checkout_gateways(null), 'log' => array()));`).r;
     expect(real.gateways.map((g) => g.id)).toEqual(['cod', 'bacs']);
+    expect(real.gateways.map((g) => g.flow)).toEqual(['offline', 'offline']);
+    const mixed = run(setup({ gateways: "array('paypal' => new Gateway('paypal', array()), 'card' => (function () { $g = new Gateway('card', array()); $g->fields = true; return $g; })())" }) + `echo json_encode(array('r' => forgewp_rest_get_checkout_gateways(null), 'log' => array()));`).r;
+    expect(mixed.gateways.map((g) => [g.id, g.flow])).toEqual([['paypal', 'redirect'], ['card', 'client']]);
     const none = run(setup({ gateways: 'array()' }) + `echo json_encode(array('r' => forgewp_rest_get_checkout_gateways(null), 'log' => array()));`).r;
     expect(none.gateways).toEqual([]);
   });
 });
 
 describe('cart routes', () => {
-  it('registers /cart/remove-coupon (called by useWpCart, previously 404)', () => {
+  it('registers only /checkout/gateways here; the legacy cart routes are gone', () => {
     const php = buildRestEndpointsPhp({ textDomain: 't', auth: true }, [], true, 'R', 'B', 'V', 'B', 'usernameAndEmail', '0', '1', '0', {});
-    expect(php).toMatch(/register_rest_route\( 'forgewp\/v1', '\/cart\/remove-coupon'[\s\S]{0,120}forgewp_rest_remove_coupon/);
+    expect(php).toMatch(/'\/checkout\/gateways'/);
+    for (const legacy of ['/cart/add', '/cart/sync', '/cart/remove-coupon', '/cart/apply-coupon', '/checkout/process', '/wishlist/toggle']) {
+      expect(php).not.toContain(`'${legacy}'`);
+    }
+    expect(php).not.toMatch(/function forgewp_rest_(get_cart|add_to_cart|remove_coupon|toggle_wishlist)\(/);
+  });
+
+  it('registers the contract routes on the shared paths', () => {
+    const php = buildCommerceResourcesPhp();
+    for (const path of ['/cart', '/products', '/customer/orders', '/customer/downloads', '/wishlist', '/cart/coupons', '/customer/profile', '/customer/address']) {
+      expect(php).toContain(`register_rest_route('forgewp/v1', '${path}'`);
+    }
+    expect(php).not.toContain('forgewp_commerce_contract_v2');
   });
 });

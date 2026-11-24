@@ -4,11 +4,9 @@
  * cross-origin guest cart token. Backend code (Companion Plugin + theme
  * fallback). Every function is inert unless WooCommerce is active.
  *
- * Transition (§15.3, Q3): today's routes keep their legacy shapes. The contract
- * shapes are served by the new routes, and on the shared GET paths (`/cart`,
- * `/products`) when the request asks for them with `?contract=2` (or header
- * `X-ForgeWP-Contract: 2`). Before beta the legacy shapes are removed and the
- * contract becomes the only shape.
+ * The contract shape is the only shape (the legacy routes and shapes were
+ * removed on 2026-11-24). A `?contract=2` parameter or `X-ForgeWP-Contract`
+ * header from older clients is accepted and ignored.
  *
  * Note: PHP lives in a JS template literal. No backslashes, no `${`.
  */
@@ -20,17 +18,6 @@ export function buildCommerceResourcesPhp() {
 if (!function_exists('forgewp_commerce_available')) {
     function forgewp_commerce_available() {
         return class_exists('WooCommerce') && function_exists('WC');
-    }
-
-    /** Contract shapes on shared legacy paths: ?contract=2 or X-ForgeWP-Contract: 2. */
-    function forgewp_commerce_contract_v2($request) {
-        if (!$request || !is_object($request) || !method_exists($request, 'get_param')) {
-            return false;
-        }
-        if ((string) $request->get_param('contract') === '2') {
-            return true;
-        }
-        return method_exists($request, 'get_header') && (string) $request->get_header('x_forgewp_contract') === '2';
     }
 
     // ── Money (§15.1): integers in minor units + one currency object ──────────
@@ -858,6 +845,13 @@ if (!function_exists('forgewp_commerce_available')) {
     }
 
     /** After login: WooCommerce merges the guest session (cookie or token) into the user's cart. */
+    function forgewp_commerce_rest_get_cart($request) {
+        if (!forgewp_ensure_wc_cart()) {
+            return new WP_Error('wc_unavailable', 'WooCommerce is not available', array('status' => 503));
+        }
+        return forgewp_commerce_cart_response();
+    }
+
     function forgewp_commerce_rest_merge($request) {
         if (!forgewp_ensure_wc_cart()) {
             return new WP_Error('wc_unavailable', 'WooCommerce is not available', array('status' => 503));
@@ -1265,6 +1259,12 @@ if (!function_exists('forgewp_commerce_available')) {
     add_action('rest_api_init', function () {
         $public = array('permission_callback' => '__return_true');
         register_rest_route('forgewp/v1', '/commerce/settings', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_settings') + $public));
+        register_rest_route('forgewp/v1', '/products', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_products') + $public));
+        register_rest_route('forgewp/v1', '/cart', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_get_cart') + $public));
+        register_rest_route('forgewp/v1', '/customer/orders', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_customer_orders') + $public));
+        register_rest_route('forgewp/v1', '/customer/orders/(?P<id>[0-9]+)', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_customer_order') + $public));
+        register_rest_route('forgewp/v1', '/customer/downloads', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_customer_downloads') + $public));
+        register_rest_route('forgewp/v1', '/wishlist', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_wishlist') + $public));
         register_rest_route('forgewp/v1', '/products/(?P<slug>[a-z0-9_%-]+)', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_product') + $public));
         register_rest_route('forgewp/v1', '/cart/items', array(
             array('methods' => 'POST', 'callback' => 'forgewp_commerce_rest_add_item') + $public,
@@ -1281,9 +1281,14 @@ if (!function_exists('forgewp_commerce_available')) {
         register_rest_route('forgewp/v1', '/cart/merge', array(array('methods' => 'POST', 'callback' => 'forgewp_commerce_rest_merge') + $public));
         register_rest_route('forgewp/v1', '/checkout', array(array('methods' => 'POST', 'callback' => 'forgewp_commerce_rest_checkout') + $public));
         register_rest_route('forgewp/v1', '/checkout/order', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_checkout_order') + $public));
-        // GET added next to today's POST-only routes (same path, extra method).
-        register_rest_route('forgewp/v1', '/customer/profile', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_get_profile') + $public));
-        register_rest_route('forgewp/v1', '/customer/address', array(array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_get_address') + $public));
+        register_rest_route('forgewp/v1', '/customer/profile', array(
+            array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_get_profile') + $public,
+            array('methods' => 'POST', 'callback' => 'forgewp_commerce_rest_update_profile') + $public,
+        ));
+        register_rest_route('forgewp/v1', '/customer/address', array(
+            array('methods' => 'GET', 'callback' => 'forgewp_commerce_rest_get_address') + $public,
+            array('methods' => 'POST', 'callback' => 'forgewp_commerce_rest_update_address') + $public,
+        ));
         register_rest_route('forgewp/v1', '/wishlist/items', array(array('methods' => 'POST', 'callback' => 'forgewp_commerce_rest_wishlist_add') + $public));
         register_rest_route('forgewp/v1', '/wishlist/items/(?P<id>[0-9]+)', array(array('methods' => 'DELETE', 'callback' => 'forgewp_commerce_rest_wishlist_remove') + $public));
         register_rest_route('forgewp/v1', '/wishlist/merge', array(array('methods' => 'POST', 'callback' => 'forgewp_commerce_rest_wishlist_merge') + $public));
