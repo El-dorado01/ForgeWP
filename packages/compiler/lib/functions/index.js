@@ -15,6 +15,9 @@ import { buildPhaseCResourcesPhp } from './phase-c-resources.js';
 import { buildPostsRoutingPhp } from './posts-routing.js';
 import { buildContentResourcesPhp } from './content-resources.js';
 import { buildCommerceResourcesPhp } from './commerce-resources.js';
+import { buildSeoResourcePhp } from './seo-resource.js';
+import { buildEditablesResourcePhp } from './editables-resource.js';
+import { scanForEditableSchemas } from '../hydration/editable-schemas.js';
 import { buildAuthCookieSameSitePhp } from './auth-cookies.js';
 import { scanAppProviders } from '../hydration/scan-app-providers.js';
 import { collectCptRouteDiagnostics, buildCptRewriteRefreshPhp } from './cpt-routing.js';
@@ -1834,6 +1837,8 @@ if (!function_exists('forgewp_register_decoupled_rest_bridge')) {
   backendPhp += '\n\n' + buildAuthCookieSameSitePhp();
   backendPhp += '\n\n' + buildContentResourcesPhp(config.textDomain);
   backendPhp += '\n\n' + buildCommerceResourcesPhp();
+  backendPhp += '\n\n' + buildSeoResourcePhp();
+  backendPhp += '\n\n' + buildEditablesResourcePhp(themeRoot ? scanForEditableSchemas(themeRoot) : {});
   backendPhp += '\n\n' + buildPhaseCResourcesPhp(config, themeRoot, Object.keys(menus || {}).filter((k) => !k.startsWith('_')), i18nKeys);
   backendPhp += '\n\n' + buildThemeStatePhp(resolveDeclaredThemeMods(config, themeRoot));
   backendPhp += '\n\n' + buildSiteSettingsResourcePhp(wpOptions, resolveDeclaredThemeMods(config, themeRoot));
@@ -1844,6 +1849,8 @@ if (!function_exists('forgewp_register_decoupled_rest_bridge')) {
   }
 
   themePhp += '\n\n' + buildPostsRoutingPhp(config._postsRouting, config.textDomain);
+  // R5: the theme resolves its own asset paths for the editables resource (backend stays theme-independent).
+  themePhp += "\n\nadd_filter('forgewp_editables_image_source', function ($value) {\n    return function_exists('forgewp_resolve_image_source') ? forgewp_resolve_image_source($value) : $value;\n});\n";
 
   // Append opt-in WooCommerce Products Data Seeder
   const seedProductsPhp = buildSeedProductsPhp(config, themeRoot);

@@ -109,6 +109,8 @@ export function restUrlFor(name, route, lang = 'en') {
     case 'posts': return route.posts && !route.products ? `/posts?${q({ type: route.posts.type, page: 1, perPage: 10, lang, taxonomy: route.posts.taxonomy, term: route.posts.term })}` : null;
     case 'term': return route.term ? `/terms/${route.term.taxonomy}/${route.term.slug}?${q({ lang })}` : null;
     case 'commerce-settings': return '/commerce/settings';
+    case 'seo': return `/seo?${q({ path: route.path })}`;
+    case 'editables': return route.post ? `/editables?${q({ path: route.path })}` : null;
     case 'products': return route.products ? `/products?${q({ contract: 2, category: route.products.category })}` : null;
     case 'product': return route.product ? `/products/${route.product}` : null;
     default: return undefined;

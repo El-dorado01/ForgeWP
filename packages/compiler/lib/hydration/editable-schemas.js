@@ -55,7 +55,7 @@ export function scanForEditableSchemas(themeRoot) {
   for (const filePath of filesToScan) {
     try {
       const content = readFileSync(filePath, "utf8");
-      if (!content.includes("defineEditable") && !content.includes("buildPageEditable") && !content.includes("pageEditableSections")) {
+      if (!content.includes("defineEditable") && !content.includes("buildPageEditable") && !content.includes("pageEditableSections") && !/export\s+const\s+editable\s*=\s*\{/.test(content)) {
         continue;
       }
 
@@ -255,7 +255,7 @@ function extractModuleLevelConstPrelude(fileContent, endIndex) {
 
 function extractDefineEditableContent(fileContent) {
   const match = fileContent.match(/export\s+const\s+editable\s*=\s*defineEditable\s*\(/);
-  if (!match) return null;
+  if (!match) return extractPlainEditableObject(fileContent);
 
   const startIndex = match.index + match[0].length;
   let parenCount = 1;
@@ -273,6 +273,35 @@ function extractDefineEditableContent(fileContent) {
 
   if (parenCount === 0) {
     return fileContent.substring(startIndex, currentIndex - 1);
+  }
+  return null;
+}
+
+/**
+ * `export const editable = { ... }` (optionally `as const`): a plain object
+ * schema. Next.js Server Components cannot import defineEditable() from
+ * '@forgewp/react' (it resolves to the server entry), so plain objects are
+ * accepted too. Returns the `{...}` literal or null.
+ */
+function extractPlainEditableObject(fileContent) {
+  const match = fileContent.match(/export\s+const\s+editable\s*=\s*\{/);
+  if (!match) return null;
+  const start = match.index + match[0].length - 1;
+  let depth = 0;
+  let quote = null;
+  for (let i = start; i < fileContent.length; i++) {
+    const char = fileContent[i];
+    if (quote) {
+      if (char === "\\") i++;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"' || char === "`") quote = char;
+    else if (char === "{") depth++;
+    else if (char === "}") {
+      depth--;
+      if (depth === 0) return fileContent.substring(start, i + 1);
+    }
   }
   return null;
 }

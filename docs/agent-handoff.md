@@ -44,7 +44,7 @@ Route-id overwrite fix (`bf909e8`), R6 parity CI (`49c0904`, CI fixes `1d7ef51`,
 |---|---|---|
 | 1 ✅ | **R2 PHP** (`markup-processor.js`) — done, status §9c | Terms loop, comments loop (memoized `forgewp_native_comments()`, recursive closure with per-loop names + depth guard), count from the resource (C2), unquoted numeric tokens inside island props (C1). Remove the R2 entries from `scripts/parity/known-gaps.json` once CI is green. Starts when Gemini's markers land. |
 | 2 | **R7 PHP** (§15) | ✅ money, `commerce-settings`, `products`/`product` (REST + native), contract cart + `X-ForgeWP-Cart-Token`, `POST /checkout`, parity CI with WooCommerce 11.0.1 (see §15.7a). **Done incl.** order view, customer, wishlist (§15.7a). **Left:** remove legacy shapes once Gemini's client is on the contract. |
-| 3 | **R4 / R5 PHP** | After the founder approves §13/§14 with Claude's answers. |
+| 3 ✅ | **R4 / R5 PHP** | Done, status §9d. Yoast / Rank Math live check is Gemini's (LocalWP). |
 | later | R8 `transformBackendPhp`, R9 hand-written plugin sources | Post-beta. |
 
 ### Gemini (local, LocalWP)
@@ -53,6 +53,7 @@ Route-id overwrite fix (`bf909e8`), R6 parity CI (`49c0904`, CI fixes `1d7ef51`,
 |---|---|---|
 | 0 | **LocalWP checks** of Claude's fixes | (a) Route id: re-export `hotelchecker24`, re-activate twice, post 17 keeps `forgewp_route_id = kontakt-page`, `/en/` `pageLinks` correct. (b) Checkout (`dad33fe`), COD + BACS enabled: `payment_method: "stripe"` → `400 invalid_payment_method`, no order; BACS → `on-hold`, COD → `processing`, emails in Mailpit; chosen flat-rate shipping on the order; `/checkout/gateways` lists only enabled gateways; `/cart/remove-coupon` works. (c) WooCommerce Blocks Cart skeleton on `forge-commerce` (R1 §3): console + network. |
 | 1 | **R2 build** per status §9 + Claude's §9a | Parts A–C, `__FORGEWP_THE_PATH__` / `__FORGEWP_TERM_PATH__` (C3), `getPost()` returns tokens in native export, doctor warning for lists rendered outside loop components (C4). Switch the parity fixture's `/blog/[slug]` and `/listing` to the new components in the same PR. |
+| 1c | **Status §9d findings** | Export schema helpers for RSC; LocalWP check of `/seo` with Yoast and Rank Math (page, post, category, Polylang path). |
 | 1b | **Status §9c findings** | Decoupled reads must retry then throw (no silent fixture fallback in production builds); `separator` prop for term loops; `getTerm()` native. |
 | 2 | **P2: native `getSiteSettings()` keys** | Tokenize `wp.config` `options` / `themeMods` by default. Remove `P2-native-site-settings-keys` from `known-gaps.json` in the PR. |
 | 3 | **Wire `next-parity-helpers.js` into `scripts/parity/run-parity.mjs`** (status §9b) | Keep the check list, `known-gaps.json`, report format; add the leaked-token check (`__FORGEWP_*__`, `<forgewp-*`, `<?php` in rendered HTML) as its own failing check. |

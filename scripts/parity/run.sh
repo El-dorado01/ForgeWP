@@ -44,6 +44,18 @@ if [ -n "$FIRST_POST" ] && [ "$("$SANDBOX" wp comment list --post_id="$FIRST_POS
   "$SANDBOX" wp comment create --comment_post_ID="$FIRST_POST" --comment_author="Parity Reader" \
     --comment_author_email=reader@example.test --comment_content="Native and decoupled agree." --comment_approved=1 >/dev/null
 fi
+# R5: stored editable values on /about/ (not just schema defaults), before the decoupled build.
+ABOUT="$("$SANDBOX" wp post list --post_type=page --name=about --field=ID)"
+if [ -n "$ABOUT" ]; then
+  "$SANDBOX" wp eval "
+    update_post_meta($ABOUT, 'about_tagline', 'Seeded tagline from WordPress');
+    update_post_meta($ABOUT, 'about_intro', \"First paragraph.\n\nSecond paragraph with <strong>markup</strong>.\");
+    update_post_meta($ABOUT, 'about_founded', '1999');
+    update_post_meta($ABOUT, 'about_team', 2);
+    update_post_meta($ABOUT, 'about_team_0_name', 'Ada'); update_post_meta($ABOUT, 'about_team_0_role', 'Engineering');
+    update_post_meta($ABOUT, 'about_team_1_name', 'Grace'); update_post_meta($ABOUT, 'about_team_1_role', 'Compilers');
+  " >/dev/null
+fi
 # Forms rate-limit counters from earlier local runs.
 "$SANDBOX" wp transient delete --all >/dev/null
 

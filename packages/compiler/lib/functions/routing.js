@@ -625,6 +625,12 @@ function forgewp_custom_document_title( $title ) {
         return $title;
     }
     $target = forgewp_resolve_head_target();
+    // Single posts and archives share one exported head (rendered once, from mock
+    // data), so its <title> would be the same for every post or term. Keep
+    // WordPress's per-object title there; page templates keep their own title.
+    if ( preg_match( '/^(single|taxonomy|archive)(-|$)/', basename( $target, '-head.html' ) ) ) {
+        return $title;
+    }
     if ( file_exists( $target ) ) {
         ob_start();
         include $target;
