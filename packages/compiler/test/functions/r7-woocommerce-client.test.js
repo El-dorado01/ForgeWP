@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-const wooHooksPath = new URL('../../../woocommerce/src/hooks.ts', import.meta.url).href;
+const wooServerUrl = new URL('../../../woocommerce/src/server.ts', import.meta.url).href;
+const wooHooksUrl = new URL('../../../woocommerce/src/hooks.ts', import.meta.url).href;
 const {
   formatMoney,
   getCommerceApiBaseUrl,
@@ -9,12 +10,12 @@ const {
   getCartToken,
   setCartToken,
   clearGuestCartToken,
-  mergeGuestCart,
   fetchCheckoutOrder,
   submitCheckoutOrder,
   normalizeContractCart,
   DEFAULT_COMMERCE_CURRENCY,
-} = await import(wooHooksPath);
+} = await import(wooServerUrl);
+const { mergeGuestCart } = await import(wooHooksUrl);
 
 function createMemoryStorage() {
   const map = new Map();

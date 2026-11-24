@@ -1,3 +1,5 @@
+'use client';
+
 import React from "react";
 import { WpPostContext } from "@forgewp/react";
 import {
@@ -25,10 +27,12 @@ import {
   useWpProductCategories,
   useWpProductTags,
   useWpProductReviews,
+} from "./hooks";
+import {
   formatMoney,
   getHydratedCommerceCurrency,
   IS_DEV,
-} from "./hooks";
+} from "./server";
 
 function displayImgUrl(img: any): string {
   if (!img) return "";
