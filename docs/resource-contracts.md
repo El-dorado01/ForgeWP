@@ -936,7 +936,7 @@ Parity: `resources.products` / `resources.product` / `resources['commerce-settin
 | `POST /cart/customer` | `{ "billingAddress"?, "shippingAddress"? }` (address for tax/shipping estimates) |
 | `POST /cart/merge` | — (after login: merge the guest cart into the user's persistent cart; also done automatically on `/auth/login`) |
 
-Today's routes (`/cart/add`, `/cart/update`, `/cart/remove`, `/cart/clear`, `/cart/apply-coupon`, `/cart/remove-coupon`, `/cart/sync`, `/cart/shipping-rates`) stay as aliases until `@forgewp/woocommerce` moves to the new ones, then are removed before beta (breaking is fine pre-stable). `/cart/sync` (client pushes a whole cart) goes away: the server cart is the truth.
+The earlier routes (`/cart/add`, `/cart/update`, `/cart/remove`, `/cart/clear`, `/cart/apply-coupon`, `/cart/remove-coupon`, `/cart/sync`, `/cart/shipping-rates`, `/checkout/process`, `/wishlist/toggle`, `/wishlist/sync`) were **removed on 2026-11-24** once `@forgewp/woocommerce` was on the routes above. The server cart is the truth.
 
 **Session transport**
 | Deployment | Guest | Logged in |
@@ -1007,17 +1007,17 @@ Built in `lib/functions/commerce-resources.js` (backend: Companion Plugin + them
 | Money + `currency` (§15.1) | ✅ `forgewp_commerce_money()` (string math, no float drift; 0/2/3-decimal currencies tested) |
 | `commerce-settings` REST + `resources['commerce-settings']` on every page | ✅ |
 | `products` / `product` REST + `resources.products` (shop, product category/tag) / `resources.product` (single product) | ✅ native deep-equals REST (parity CI). `related` is sorted (WooCommerce shuffles it). An attribute's `slug` is the key variations use (`pa_size`, or `size` for custom attributes). |
-| Cart (§15.3): `GET /cart?contract=2`, `POST/DELETE /cart/items`, `POST/DELETE /cart/items/<key>`, `POST /cart/coupons`, `DELETE /cart/coupons/<code>`, `POST /cart/shipping-rate`, `POST /cart/customer`, `POST /cart/merge` | ✅ `Cache-Control: private, no-store`, `Vary: Cookie, Authorization, X-ForgeWP-Cart-Token`. Error messages are plain text. |
+| Cart (§15.3): `GET /cart`, `POST/DELETE /cart/items`, `POST/DELETE /cart/items/<key>`, `POST /cart/coupons`, `DELETE /cart/coupons/<code>`, `POST /cart/shipping-rate`, `POST /cart/customer`, `POST /cart/merge` | ✅ `Cache-Control: private, no-store`, `Vary: Cookie, Authorization, X-ForgeWP-Cart-Token`. Error messages are plain text. |
 | `X-ForgeWP-Cart-Token` | ✅ The token is WooCommerce's own signed guest-session cookie, wrapped (`v1.` + base64url). A request with the token and no cookie gets the cookie restored before the session starts; WooCommerce verifies signature and expiry and refuses non-guest sessions for logged-out requests (tested with a forged token for user 1 → empty cart). Allowed and exposed in CORS. |
 | `POST /checkout` (camelCase, money as integers) | ✅ delegates to the gateway-safe checkout (`dad33fe`); `paymentData` forwarded as posted fields |
-| Shared legacy paths | `GET /cart` and `GET /products` return the contract shape with `?contract=2` or `X-ForgeWP-Contract: 2`; without it, the legacy shape (forge-commerce keeps working). Legacy shapes and the switch go before beta. |
+| Shared paths | ✅ The contract shape is the only shape (2026-11-24). `?contract=2` / `X-ForgeWP-Contract: 2` from older clients are accepted and ignored. |
 | Native `resources.posts` on WooCommerce archives | Fixed: now `null` there (it contained WooCommerce's stand-in page); `products` covers them. |
 | `/checkout/gateways` `flow` | ✅ `offline` (cod, bacs, cheque), `client` (gateway draws its own fields: `has_fields()`), `redirect` (otherwise); filter `forgewp_checkout_gateway_flow` |
 | `GET /checkout/order?id=&key=` | ✅ order-received view for whoever holds the order key (wrong key → `404`); `actions` empty there |
-| Customer (§15.5): `GET /customer/orders?contract=2&page=&perPage=`, `GET /customer/orders/<id>?contract=2`, `GET /customer/downloads?contract=2`, `GET`/`POST /customer/profile`, `GET`/`POST /customer/address` (POST contract shape with `?contract=2`) | ✅ `401` without a session (`forgewp_auth_resolve_session_user()`: nonce'd cookie, allowed-origin cookie, or Bearer JWT); another customer's order is `404`; profile email already used by another account → `409`; order `currency` uses the order's currency code |
-| Wishlist (§15.5): `GET /wishlist?contract=2` → `{ items }`, `POST /wishlist/items`, `DELETE /wishlist/items/<id>`, `POST /wishlist/merge` | ✅ only published products accepted (`404` otherwise); same storage as today (`_forgewp_wishlist`) |
+| Customer (§15.5): `GET /customer/orders?page=&perPage=`, `GET /customer/orders/<id>`, `GET /customer/downloads`, `GET`/`POST /customer/profile`, `GET`/`POST /customer/address` | ✅ `401` without a session (`forgewp_auth_resolve_session_user()`: nonce'd cookie, allowed-origin cookie, or Bearer JWT); another customer's order is `404`; profile email already used by another account → `409`; order `currency` uses the order's currency code |
+| Wishlist (§15.5): `GET /wishlist` → `{ items }`, `POST /wishlist/items`, `DELETE /wishlist/items/<id>`, `POST /wishlist/merge` | ✅ only published products accepted (`404` otherwise); same storage as today (`_forgewp_wishlist`) |
 | Signed-in checkout saves billing/shipping to the account | ✅ like WooCommerce's own checkout |
-| Remove legacy shapes + `?contract=2` switch | After Gemini's client moves to the contract (before beta) |
+| Remove legacy shapes + `?contract=2` switch | ✅ 2026-11-24: 20 legacy handlers and their routes deleted; parity (WooCommerce) 173/173 without `?contract=2` |
 
 ### 15.8 Decisions (founder, 2026-11-23): Claude's recommendations accepted for Q1–Q6
 

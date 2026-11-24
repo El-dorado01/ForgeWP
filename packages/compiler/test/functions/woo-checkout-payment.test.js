@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { buildRestEndpointsPhp } from '../../lib/functions/rest-endpoints.js';
+import { buildCommerceResourcesPhp } from '../../lib/functions/commerce-resources.js';
 
 const hasPhp = spawnSync('php', ['-v']).status === 0;
 
@@ -21,7 +22,9 @@ function checkoutPhp() {
   if (!cached) {
     const php = buildRestEndpointsPhp({ textDomain: 't', auth: true }, [], true, 'R', 'B', 'V', 'B', 'usernameAndEmail', '0', '1', '0', {});
     const a = php.indexOf('function forgewp_rest_get_checkout_gateways(');
-    const b = php.indexOf('function forgewp_rest_get_customer_orders(', a);
+    const c = php.indexOf('function forgewp_rest_process_checkout(', a);
+    const b = php.indexOf('\n}\n', c) + 3;
+    expect(c).toBeGreaterThan(a);
     expect(a).toBeGreaterThan(-1);
     expect(b).toBeGreaterThan(a);
     cached = php.slice(a, b);
@@ -160,8 +163,20 @@ describe('checkout payment (R7 review)', () => {
 });
 
 describe('cart routes', () => {
-  it('registers /cart/remove-coupon (called by useWpCart, previously 404)', () => {
+  it('registers only /checkout/gateways here; the legacy cart routes are gone', () => {
     const php = buildRestEndpointsPhp({ textDomain: 't', auth: true }, [], true, 'R', 'B', 'V', 'B', 'usernameAndEmail', '0', '1', '0', {});
-    expect(php).toMatch(/register_rest_route\( 'forgewp\/v1', '\/cart\/remove-coupon'[\s\S]{0,120}forgewp_rest_remove_coupon/);
+    expect(php).toMatch(/'\/checkout\/gateways'/);
+    for (const legacy of ['/cart/add', '/cart/sync', '/cart/remove-coupon', '/cart/apply-coupon', '/checkout/process', '/wishlist/toggle']) {
+      expect(php).not.toContain(`'${legacy}'`);
+    }
+    expect(php).not.toMatch(/function forgewp_rest_(get_cart|add_to_cart|remove_coupon|toggle_wishlist)\(/);
+  });
+
+  it('registers the contract routes on the shared paths', () => {
+    const php = buildCommerceResourcesPhp();
+    for (const path of ['/cart', '/products', '/customer/orders', '/customer/downloads', '/wishlist', '/cart/coupons', '/customer/profile', '/customer/address']) {
+      expect(php).toContain(`register_rest_route('forgewp/v1', '${path}'`);
+    }
+    expect(php).not.toContain('forgewp_commerce_contract_v2');
   });
 });
