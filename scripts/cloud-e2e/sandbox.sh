@@ -11,6 +11,13 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
+# Data folder: explicit FORGEWP_E2E_DATA, else the folder the running WordPress
+# container already uses (so `sandbox.sh wp ...` never re-points a running stack
+# at another folder), else the default.
+if [ -z "${FORGEWP_E2E_DATA:-}" ]; then
+  running_wp="$(sudo docker inspect forgewp-e2e-wordpress-1 --format '{{range .Mounts}}{{if eq .Destination "/var/www/html"}}{{.Source}}{{end}}{{end}}' 2>/dev/null || true)"
+  [ -n "$running_wp" ] && FORGEWP_E2E_DATA="${running_wp%/wp}"
+fi
 export FORGEWP_E2E_DATA="${FORGEWP_E2E_DATA:-/home/user/e2e}"
 # Pass the data dir explicitly: some sudo configurations (GitHub runners) ignore -E.
 DC=(sudo env "FORGEWP_E2E_DATA=$FORGEWP_E2E_DATA" docker compose -p forgewp-e2e -f "$HERE/docker-compose.yml")
@@ -32,7 +39,7 @@ up() {
   "${DC[@]}" up -d
   for _ in $(seq 1 60); do [ -f "$FORGEWP_E2E_DATA/wp/wp-config.php" ] && break; sleep 2; done
   sudo mkdir -p "$FORGEWP_E2E_DATA/wp/wp-content/mu-plugins"
-  sudo cp "$HERE/e2e-mailpit.php" "$FORGEWP_E2E_DATA/wp/wp-content/mu-plugins/"
+  sudo cp "$HERE/e2e-mailpit.php" "$HERE/e2e-loopback.php" "$FORGEWP_E2E_DATA/wp/wp-content/mu-plugins/"
   if ! wpcli core is-installed >/dev/null 2>&1; then
     wpcli core install --url=http://localhost:8080 --title="ForgeWP E2E" \
       --admin_user=admin --admin_password=admin --admin_email=admin@example.test --skip-email

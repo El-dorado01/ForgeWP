@@ -77,6 +77,27 @@ echo json_encode(array('canonical' => forgewp_seo_rewrite_url($h['canonical']), 
     expect(r.ld['@graph'][0].image.url).toBe('https://wp.example.com/wp-content/uploads/og.jpg');
   });
 
+  it.skipIf(!hasPhp)('rewrites every page URL in structured data, including arrays and search targets, never lookalike domains', () => {
+    const ld = {
+      '@graph': [{
+        '@type': 'WebSite',
+        potentialAction: [{ '@type': 'SearchAction', target: ['https://wp.example.com/?s={search_term_string}'] }],
+        sameAs: ['https://wp.example.com/about/', 'https://twitter.com/site'],
+        logo: 'https://wp.example.com/wp-content/uploads/logo.png',
+        decoy: 'https://wp.example.com.evil.test/x',
+        name: 'Plain text stays',
+      }],
+    };
+    const r = php(buildSeoResourcePhp(), `$GLOBALS['frontend'] = array('https://example.com');
+echo json_encode(forgewp_seo_rewrite_json_ld(json_decode(${JSON.stringify(JSON.stringify(ld))}, true)));`);
+    const node = r['@graph'][0];
+    expect(node.potentialAction[0].target[0]).toBe('https://example.com/?s={search_term_string}');
+    expect(node.sameAs).toEqual(['https://example.com/about/', 'https://twitter.com/site']);
+    expect(node.logo).toBe('https://wp.example.com/wp-content/uploads/logo.png');
+    expect(node.decoy).toBe('https://wp.example.com.evil.test/x');
+    expect(node.name).toBe('Plain text stays');
+  });
+
   it.skipIf(!hasPhp)('accepts only site-relative paths', () => {
     const r = php(buildSeoResourcePhp(), `echo json_encode(array_map('forgewp_seo_norm_path', array('/', '/en/contact', '/a/?x=1#y', 'https://evil.test/', '//evil.test/x', '/a/../b', 'javascript:alert(1)', '')));`);
     expect(r).toEqual(['/', '/en/contact/', '/a/', null, null, null, null, null]);
@@ -128,3 +149,112 @@ echo json_encode(array(
     expect(r.repeaterEmpty).toEqual([{ name: 'Default', photo: null }]);
   });
 });
+
+describe('editables routeId lookup by language', () => {
+  const lookup = (polylang, lang) =>
+    php(buildEditablesResourcePhp({}), `${polylang ? `function pll_get_post_language($id) { return array(26 => 'de', 74 => 'en', 90 => 'fr')[$id] ?? ''; }
+function pll_get_post($id, $lang) { return array('en' => 74, 'de' => 26, 'fr' => 90)[$lang] ?? 0; }` : ''}
+function get_posts($args) { return $args['meta_value'] === 'front-page' ? array(26, 90) : array(); }
+function has_filter($n) { return false; }
+echo json_encode(array(forgewp_editables_route_post_id('front-page', ${JSON.stringify(lang)}), forgewp_editables_route_post_id('nope', ${JSON.stringify(lang)})));`);
+
+  it.skipIf(!hasPhp)('picks the page tagged in the requested language', () => {
+    expect(lookup(true, 'fr')).toEqual([90, 0]);
+  });
+  it.skipIf(!hasPhp)('follows the translation when only another language carries the route id', () => {
+    expect(lookup(true, 'en')).toEqual([74, 0]);
+  });
+  it.skipIf(!hasPhp)('uses the first tagged page on single-language sites', () => {
+    expect(lookup(false, '')).toEqual([26, 0]);
+  });
+});
+
+describe('native SEO head capture', () => {
+  // Runs the real add_action() wiring: wp_head with an optional nested buffer
+  // opened by another plugin/theme at priority 1 and closed at PHP_INT_MAX
+  // (registered after ours, like a theme file), then body output, then wp_footer.
+  const capture = (nested) => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'forgewp-headcap-'));
+    try {
+      const f = path.join(dir, 'run.php');
+      writeFileSync(f, `<?php
+$actions = array();
+function add_action($hook, $cb, $prio = 10) { global $actions; $actions[$hook][$prio][] = $cb; }
+function add_filter(...$a) {} function apply_filters($n, $v) { return $v; }
+function do_action($hook) { global $actions; if (empty($actions[$hook])) return; ksort($actions[$hook]); foreach ($actions[$hook] as $cbs) { foreach ($cbs as $cb) { $cb(); } } }
+function is_admin() { return false; } function is_feed() { return false; } function wp_doing_ajax() { return false; }
+function is_front_page() { return false; } function is_home() { return false; } function is_singular() { return false; } function is_category() { return false; } function is_tag() { return false; } function is_tax() { return false; } function is_post_type_archive() { return false; } function get_queried_object() { return null; }
+${buildSeoResourcePhp()}
+${nested ? "add_action('wp_head', function () { ob_start(); }, 1); add_action('wp_head', function () { $h = ob_get_clean(); echo $h . '<meta name=\"description\" content=\"from theme\">'; }, PHP_INT_MAX);" : ''}
+add_action('wp_head', function () { echo '<title>Kontakt</title>'; }, 1);
+ob_start();
+echo '<html><head>';
+do_action('wp_head');
+echo '</head><body><script type="application/ld+json">{"body":true}</script>';
+do_action('wp_footer');
+echo '</body></html>';
+$page = ob_get_clean();
+echo json_encode(array('head' => $GLOBALS['forgewp_seo_head_html'] ?? null, 'level' => ob_get_level(), 'page' => $page));`);
+      const out = spawnSync('php', [f], { encoding: 'utf8' });
+      expect(out.status, out.stderr + out.stdout).toBe(0);
+      return JSON.parse(out.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  it.skipIf(!hasPhp)('captures the head when no other buffer is open', () => {
+    const r = capture(false);
+    expect(r.head).toBe('<title>Kontakt</title>');
+    expect(r.page).toBe('<html><head><title>Kontakt</title></head><body><script type="application/ld+json">{"body":true}</script></body></html>');
+    expect(r.level).toBe(0);
+  });
+
+  it.skipIf(!hasPhp)('still captures when a theme buffer closes after ours, without body content or changed output', () => {
+    const r = capture(true);
+    expect(r.head).toContain('<title>Kontakt</title>');
+    expect(r.head).toContain('content="from theme"');
+    expect(r.head).not.toContain('body');
+    expect(r.page).toBe('<html><head><title>Kontakt</title><meta name="description" content="from theme"></head><body><script type="application/ld+json">{"body":true}</script></body></html>');
+    expect(r.level).toBe(0);
+  });
+});
+
+describe('SEO loopback head', () => {
+  const loop = (script) =>
+    php(buildSeoResourcePhp(), `$GLOBALS['t'] = array(); $GLOBALS['calls'] = array();
+const MINUTE_IN_SECONDS = 60;
+function wp_parse_url($u) { return parse_url($u); }
+function get_transient($k) { return $GLOBALS['t'][$k] ?? false; }
+function set_transient($k, $v, $e) { $GLOBALS['t'][$k] = $v; }
+class WP_Error {} function is_wp_error($v) { return $v instanceof WP_Error; }
+function wp_remote_get($url, $args) { $GLOBALS['calls'][] = $url; return $GLOBALS['reply']; }
+function wp_remote_retrieve_response_code($r) { return $r['code']; }
+function wp_remote_retrieve_body($r) { return $r['body']; }
+${script}`);
+
+  it.skipIf(!hasPhp)('returns only the head of this site\'s own page', () => {
+    const r = loop(`$GLOBALS['reply'] = array('code' => 200, 'body' => '<html lang="en"><head class="x"><title>T</title></head><body><script type="application/ld+json">{}</script></body></html>');
+echo json_encode(array(forgewp_seo_loopback_head('https://wp.example.com/contact/'), $GLOBALS['calls']));`);
+    expect(r).toEqual(['<title>T</title>', ['https://wp.example.com/contact/']]);
+  });
+
+  it.skipIf(!hasPhp)('never fetches another host', () => {
+    const r = loop(`$GLOBALS['reply'] = array('code' => 200, 'body' => '<head>x</head>');
+echo json_encode(array(forgewp_seo_loopback_head('https://evil.test/'), forgewp_seo_loopback_head('https://wp.example.com.evil.test/'), $GLOBALS['calls']));`);
+    expect(r).toEqual(['', '', []]);
+  });
+
+  it.skipIf(!hasPhp)('remembers a failing loopback and stops trying', () => {
+    const r = loop(`$GLOBALS['reply'] = new WP_Error();
+echo json_encode(array(forgewp_seo_loopback_head('https://wp.example.com/a/'), forgewp_seo_loopback_head('https://wp.example.com/b/'), count($GLOBALS['calls']), (bool) get_transient('forgewp_seo_loopback_down')));`);
+    expect(r).toEqual(['', '', 1, true]);
+  });
+
+  it.skipIf(!hasPhp)('ignores non-200 pages without marking the loopback as down', () => {
+    const r = loop(`$GLOBALS['reply'] = array('code' => 404, 'body' => '<head>x</head>');
+echo json_encode(array(forgewp_seo_loopback_head('https://wp.example.com/a/'), (bool) get_transient('forgewp_seo_loopback_down')));`);
+    expect(r).toEqual(['', false]);
+  });
+});
+

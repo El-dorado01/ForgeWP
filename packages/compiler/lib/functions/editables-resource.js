@@ -266,7 +266,39 @@ if (!function_exists('forgewp_editables_resource')) {
         );
     }
 
-    function forgewp_editables_find_post($request) {
+    /**
+     * Page carrying a route id, in the requested language. The route id is stored
+     * on one page of a translation group; the requested language's translation
+     * is returned when Polylang or WPML knows one.
+     */
+    function forgewp_editables_route_post_id($route, $lang) {
+        $matches = get_posts(array('post_type' => 'any', 'post_status' => 'publish', 'meta_key' => 'forgewp_route_id', 'meta_value' => $route, 'posts_per_page' => -1, 'fields' => 'ids', 'lang' => '', 'suppress_filters' => false, 'orderby' => 'ID', 'order' => 'ASC'));
+        if (empty($matches)) {
+            return 0;
+        }
+        $lang = (string) $lang;
+        if ($lang !== '') {
+            foreach ($matches as $id) {
+                if (function_exists('pll_get_post_language') && pll_get_post_language((int) $id) === $lang) {
+                    return (int) $id;
+                }
+            }
+            if (function_exists('pll_get_post')) {
+                $translated = (int) pll_get_post((int) $matches[0], $lang);
+                if ($translated > 0) {
+                    return $translated;
+                }
+            } elseif (has_filter('wpml_object_id')) {
+                $translated = (int) apply_filters('wpml_object_id', (int) $matches[0], get_post_type((int) $matches[0]), false, $lang);
+                if ($translated > 0) {
+                    return $translated;
+                }
+            }
+        }
+        return (int) $matches[0];
+    }
+
+    function forgewp_editables_find_post($request, $lang = '') {
         $post = null;
         $id = (int) $request->get_param('post');
         $route = sanitize_key((string) $request->get_param('routeId'));
@@ -274,11 +306,7 @@ if (!function_exists('forgewp_editables_resource')) {
         if ($id > 0) {
             $post = get_post($id);
         } elseif ($route !== '') {
-            $found = function_exists('forgewp_resolve_route_page_id') ? (int) forgewp_resolve_route_page_id($route) : 0;
-            if (!$found) {
-                $matches = get_posts(array('post_type' => 'any', 'post_status' => 'publish', 'meta_key' => 'forgewp_route_id', 'meta_value' => $route, 'posts_per_page' => 1, 'fields' => 'ids'));
-                $found = $matches ? (int) $matches[0] : 0;
-            }
+            $found = forgewp_editables_route_post_id($route, $lang);
             $post = $found ? get_post($found) : null;
         } elseif ($path !== '' && function_exists('forgewp_resolve_path_object')) {
             $target = forgewp_resolve_path_object($path);
@@ -295,7 +323,7 @@ if (!function_exists('forgewp_editables_resource')) {
         if (is_wp_error($lang)) {
             return $lang;
         }
-        $post = forgewp_editables_find_post($request);
+        $post = forgewp_editables_find_post($request, $lang);
         if (!$post) {
             return new WP_Error('FORGEWP_POST_NOT_FOUND', 'No published page for this target.', array('status' => 404));
         }

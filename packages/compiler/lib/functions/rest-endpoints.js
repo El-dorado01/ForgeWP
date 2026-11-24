@@ -2411,6 +2411,7 @@ function forgewp_rest_get_checkout_gateways( $request ) {
                     'description' => $gateway->get_description(),
                     'icon'        => $gateway->get_icon(),
                     'supports'    => isset( $gateway->supports ) && is_array( $gateway->supports ) ? array_values( $gateway->supports ) : array( 'products' ),
+                    'flow'        => forgewp_checkout_gateway_flow( $id, $gateway ),
                 );
             }
         }
@@ -2418,6 +2419,25 @@ function forgewp_rest_get_checkout_gateways( $request ) {
     return rest_ensure_response( array(
         'gateways' => $gateways_list,
     ) );
+}
+
+/**
+ * How a gateway takes payment (contract §15.4):
+ * - offline:  no payment step on the site (cash on delivery, bank transfer, cheque);
+ * - client:   the gateway draws its own payment fields (card forms) and needs its SDK on the page;
+ * - redirect: the shopper is sent to the gateway's own payment page.
+ * Filter 'forgewp_checkout_gateway_flow' corrects the class for a specific gateway.
+ */
+function forgewp_checkout_gateway_flow( $id, $gateway ) {
+    if ( in_array( $id, array( 'cod', 'bacs', 'cheque' ), true ) ) {
+        $flow = 'offline';
+    } elseif ( is_object( $gateway ) && method_exists( $gateway, 'has_fields' ) && $gateway->has_fields() ) {
+        $flow = 'client';
+    } else {
+        $flow = 'redirect';
+    }
+    $flow = (string) apply_filters( 'forgewp_checkout_gateway_flow', $flow, $id, $gateway );
+    return in_array( $flow, array( 'offline', 'client', 'redirect' ), true ) ? $flow : 'redirect';
 }
 
 /** Checkout address fields accepted from the client, mapped to WooCommerce's posted-data keys. */
