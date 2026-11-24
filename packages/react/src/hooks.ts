@@ -2736,7 +2736,18 @@ export function useWpEditables(
   const hasTarget = Boolean(path || routeId || (typeof post === 'number' && post > 0));
 
   const syncData = (() => {
-    if (initialData) return initialData;
+    if (initialData) {
+      try {
+        getForgeWpRuntime().prime(
+          'editables',
+          initialData,
+          hasTarget ? { query } : undefined,
+        );
+      } catch {
+        // Runtime unconfigured
+      }
+      return initialData;
+    }
     const native = getNativeEditables();
     if (native) return native;
     try {

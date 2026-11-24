@@ -1629,7 +1629,7 @@ export function useWpCheckout() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [paymentGateways, setPaymentGateways] = React.useState<PaymentGateway[]>(
-    IS_DEV
+    isDevFallbackMode()
       ? [
           {
             id: "cod",
@@ -1665,7 +1665,7 @@ export function useWpCheckout() {
   }, [cartContext.cart.shippingPackages, cartContext.currency]);
 
   React.useEffect(() => {
-    if (!IS_DEV && typeof window !== "undefined") {
+    if (!isDevFallbackMode() && typeof window !== "undefined") {
       commerceFetch<{ gateways?: PaymentGateway[] }>("/checkout/gateways", {
         method: "GET",
         includeCartToken: true,

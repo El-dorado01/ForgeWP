@@ -213,6 +213,9 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
   ): void {
     const normalized = normalizeResourcePayload(resource, data, params);
     cache.set(buildCacheKey(resource, params), normalized);
+    if (resource === 'editables' && normalized && typeof normalized === 'object') {
+      cache.set('editables', normalized);
+    }
     if (resource === 'forms' && normalized && typeof normalized === 'object') {
       mergeFormsIntoCollectionCache(normalized as FormsCollectionResource);
     }
@@ -341,6 +344,9 @@ export function createRestSource(options: RestSourceOptions): PrimableForgeWpSou
     const normalized = normalizeResourcePayload(resource, json, params);
     if (!isSessionScoped) {
       cache.set(key, normalized);
+      if (resource === 'editables' && normalized && typeof normalized === 'object') {
+        cache.set('editables', normalized);
+      }
       if (resource === 'forms' && normalized && typeof normalized === 'object') {
         mergeFormsIntoCollectionCache(normalized as FormsCollectionResource);
       }

@@ -324,4 +324,18 @@ describe('R7 WooCommerce client (§15.1–§15.5, §15.7)', () => {
     expect(failRes.error).toBe('Card declined by issuer.');
     expect(clearedCount).toBe(1);
   });
+
+  it('contains no sample Stripe gateway fallback or GET /cart/clear calls, and uses DELETE /cart/items + isDevFallbackMode() in useWpCheckout', () => {
+    const src = readFileSync(
+      path.resolve(import.meta.dirname, '../../../woocommerce/src/hooks.ts'),
+      'utf8',
+    ).replace(/\r\n/g, '\n');
+    expect(src).not.toContain('Credit Card (Stripe)');
+    expect(src).not.toContain('fetchForgeWpCart');
+    expect(src).not.toContain('/cart/clear');
+    expect(src).toContain('commerceFetch<ContractCart>("/cart/items"');
+    expect(src).toContain('method: "DELETE"');
+    expect(src).toContain('useState<PaymentGateway[]>(\n    isDevFallbackMode()');
+    expect(src).toContain('if (!isDevFallbackMode() && typeof window !== "undefined") {\n      commerceFetch<{ gateways?: PaymentGateway[] }>("/checkout/gateways"');
+  });
 });

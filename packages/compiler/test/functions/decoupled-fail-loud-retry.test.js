@@ -234,4 +234,55 @@ describe('Task 1 & Task 3: decoupled fail-loud retry, schema exports, separator 
     const phpBackend = buildContentResourcesPhp('forgewp');
     expect(phpBackend).toContain('function forgewp_native_term($taxonomy, $slug)');
   });
+
+  it('mirrors queried editables into peek("editables") for <WpRepeater> and useWpMeta() in decoupled mode', async () => {
+    const restSourceMod = await import(
+      new URL('../../../react/src/runtime/rest-source.ts', import.meta.url).href
+    );
+    const runtimeMod = await import(
+      new URL('../../../react/src/runtime/index.ts', import.meta.url).href
+    );
+
+    const payload = {
+      objectType: 'post',
+      objectId: 42,
+      path: '/about/',
+      routeId: 'about',
+      lang: 'en',
+      fields: {
+        hero_title: 'About Studio',
+        team_members: [{ name: 'Ada', role: 'Lead' }],
+      },
+      protected: false,
+    };
+
+    const source = restSourceMod.createRestSource({
+      baseUrl: 'https://wp.example.test/wp-json/forgewp/v1',
+      fetch: async () =>
+        new Response(JSON.stringify(payload), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    });
+
+    await source.get('editables', { query: { path: '/about/' } });
+    const exact = source.peek('editables', { query: { path: '/about/' } });
+    expect(exact).toMatchObject({ fields: payload.fields });
+    expect(source.peek('editables')).toEqual(exact);
+
+    const runtime = runtimeMod.createForgeWpRuntime({
+      mode: 'decoupled',
+      wpUrl: 'https://wp.example.test',
+      fetch: async () =>
+        new Response(JSON.stringify(payload), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    });
+    await runtime.get('editables', { query: { path: '/about/' } });
+    expect(runtime.peek('editables')?.fields?.hero_title).toBe('About Studio');
+    expect(runtime.peek('editables')?.fields?.team_members).toEqual([
+      { name: 'Ada', role: 'Lead' },
+    ]);
+  });
 });
