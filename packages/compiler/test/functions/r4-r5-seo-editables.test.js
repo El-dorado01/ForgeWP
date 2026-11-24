@@ -26,8 +26,8 @@ import {
   useWpMeta,
   useWpSeo,
   useWpEditables,
-  WpRepeater,
-} from '../../../react/src/index.ts';
+} from '../../../react/src/hooks.ts';
+import { WpRepeater } from '../../../react/src/components/WpRepeater.tsx';
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 const ORIGINAL_NATIVE_EXPORT = process.env.FORGEWP_NATIVE_EXPORT;
