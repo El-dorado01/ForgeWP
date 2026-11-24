@@ -485,7 +485,7 @@ export function defineProduct(product: WooCommerceProduct): WooCommerceProduct {
   return product;
 }
 
-function getProductDisplayUrl(img: any): string {
+export function getProductDisplayUrl(img: any): string {
   if (!img) return "";
   if (typeof img === "string") return img;
   return img.src || img.url || img.thumbnail || "";
