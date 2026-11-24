@@ -64,7 +64,7 @@ Everything below is open. Done and verified in the cloud sandbox + parity CI: R2
 - **Symptom:** on a fresh WordPress, the decoupled build sometimes prerenders `/contact/` with empty `contact-phone` / `footer-text` and no primary menu (every other page fine). Parity `dom` fails with `$.parity.contact-phone[0]: "+1 (555) 010-2000" != ""` and `$.menu[*] … != undefined`.
 - **Seen:** 3 of ~9 fresh runs (CI runs 15 and two local runs); always `/contact/`. Not reproducible on demand; locally every `site-settings` / `menus` request returned 200 in two instrumented runs.
 - **Cause (known part):** the runtime's silent fallback + cached fallback (Gemini task 1). **Unknown part:** which request fails, and why only `/contact/` (worker scheduling or the forms island are candidates).
-- **Mitigation (Claude, `5187a65`):** `scripts/parity/run.sh` runs due WP-cron jobs and waits for the REST endpoints before the build. CI passed after it (branch run 16; the first `main` run, 17, was still running when this was written). One pass does not prove it.
+- **Mitigation (Claude, `5187a65`):** `scripts/parity/run.sh` runs due WP-cron jobs and waits for the REST endpoints before the build. CI passed after it (branch run 16 and `main` run 17). Two passes do not prove it is fixed.
 - **To debug:** the parity artifact now includes `next-build.log` and `wordpress-access.log` (the web server's log with every REST status code during the build). On the next failure, look for non-200 `/wp-json/forgewp/v1/…` lines around the build and any `/contact` render errors in the build log. Task 1 should make the failure loud instead of silent.
 
 ---|---|---|
