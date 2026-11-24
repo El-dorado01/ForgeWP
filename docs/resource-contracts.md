@@ -833,7 +833,7 @@ Every field in `fields` is normalized identically for REST and Native hydration,
 | A4 | Money is mixed: cart items use floats (`price: 25.5`), totals use 2-decimal strings, `currency` is only the symbol. Floats round wrongly for 3-decimal and 0-decimal currencies (KWD, JPY), and clients cannot format without the store's separators/position. | Design | §15.1 |
 | A5 | Guest carts depend on the WooCommerce session cookie. Cross-origin decoupled apps cannot keep a guest cart (third-party cookies blocked, `SameSite`). | Design | §15.3 session transport |
 | A6 | The package reads its own env vars (`NEXT_PUBLIC_WP_API_URL`, `VITE_WP_API_URL`, `window.FORGEWP_API_URL`) instead of the runtime's (`FORGEWP_WP_URL` / `NEXT_PUBLIC_FORGEWP_WP_URL`). | DX | Gemini, with the hook migration |
-| A7 | Same-origin `wishlist`, `customer/*`, `checkout/process` need `X-WP-Nonce` (R1). | Rule | §15.3 transport table |
+| A7 | Changes (POST/PUT/PATCH/DELETE) from the WordPress site's own pages need `X-WP-Nonce` (R1); enforced in `forgewp_cookie_auth_request_allowed()` since 2026-11-24. Cookie without nonce is accepted only for reads, for `FORGEWP_FRONTEND_ORIGIN`, and for server-to-server calls (no `Origin`, not `Sec-Fetch-Site: cross-site`). | Rule | §15.3 transport table |
 
 ### 15.1 Conventions for every commerce shape
 
@@ -1014,7 +1014,7 @@ Built in `lib/functions/commerce-resources.js` (backend: Companion Plugin + them
 | Native `resources.posts` on WooCommerce archives | Fixed: now `null` there (it contained WooCommerce's stand-in page); `products` covers them. |
 | `/checkout/gateways` `flow` | ✅ `offline` (cod, bacs, cheque), `client` (gateway draws its own fields: `has_fields()`), `redirect` (otherwise); filter `forgewp_checkout_gateway_flow` |
 | `GET /checkout/order?id=&key=` | ✅ order-received view for whoever holds the order key (wrong key → `404`); `actions` empty there |
-| Customer (§15.5): `GET /customer/orders?page=&perPage=`, `GET /customer/orders/<id>`, `GET /customer/downloads`, `GET`/`POST /customer/profile`, `GET`/`POST /customer/address` | ✅ `401` without a session (`forgewp_auth_resolve_session_user()`: nonce'd cookie, allowed-origin cookie, or Bearer JWT); another customer's order is `404`; profile email already used by another account → `409`; order `currency` uses the order's currency code |
+| Customer (§15.5): `GET /customer/orders?page=&perPage=`, `GET /customer/orders/<id>`, `GET /customer/downloads`, `GET`/`POST /customer/profile`, `GET`/`POST /customer/address` | ✅ `401` without a session (`forgewp_auth_resolve_session_user()`: nonce'd cookie, cookie from `FORGEWP_FRONTEND_ORIGIN` or a server-to-server call, or Bearer JWT; see A7); another customer's order is `404`; profile email already used by another account → `409`; order `currency` uses the order's currency code |
 | Wishlist (§15.5): `GET /wishlist` → `{ items }`, `POST /wishlist/items`, `DELETE /wishlist/items/<id>`, `POST /wishlist/merge` | ✅ only published products accepted (`404` otherwise); same storage as today (`_forgewp_wishlist`) |
 | Signed-in checkout saves billing/shipping to the account | ✅ like WooCommerce's own checkout |
 | Remove legacy shapes + `?contract=2` switch | ✅ 2026-11-24: 20 legacy handlers and their routes deleted; parity (WooCommerce) 173/173 without `?contract=2` |

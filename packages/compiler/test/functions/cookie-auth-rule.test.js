@@ -37,9 +37,21 @@ describe('forgewp_cookie_auth_request_allowed', () => {
   it('allows server-to-server calls (no Origin, no Sec-Fetch-Site)', () => {
     expect(allowed({})).toBe(true);
   });
-  it('allows the site itself and same-origin browser requests', () => {
+  it('allows reads from the site itself and same-origin browser requests', () => {
     expect(allowed({ HTTP_ORIGIN: 'https://site.test' })).toBe(true);
     expect(allowed({ HTTP_SEC_FETCH_SITE: 'same-origin' })).toBe(true);
+    expect(allowed({ REQUEST_METHOD: 'GET', HTTP_ORIGIN: 'https://site.test' })).toBe(true);
+  });
+  it('requires the REST nonce for changes from the site itself (refuses the cookie fallback)', () => {
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+      expect(allowed({ REQUEST_METHOD: method, HTTP_ORIGIN: 'https://site.test' })).toBe(false);
+      expect(allowed({ REQUEST_METHOD: method, HTTP_SEC_FETCH_SITE: 'same-origin' })).toBe(false);
+    }
+  });
+  it('still allows changes from FORGEWP_FRONTEND_ORIGIN and server-to-server calls', () => {
+    expect(allowed({ REQUEST_METHOD: 'POST', HTTP_ORIGIN: 'https://app.example' }, 'https://app.example')).toBe(true);
+    expect(allowed({ REQUEST_METHOD: 'POST' })).toBe(true);
+    expect(allowed({ REQUEST_METHOD: 'POST', HTTP_ORIGIN: 'https://evil.example' })).toBe(false);
   });
   it('rejects foreign origins, and cross-site requests without an Origin', () => {
     expect(allowed({ HTTP_ORIGIN: 'https://evil.example' })).toBe(false);

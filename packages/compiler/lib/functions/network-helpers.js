@@ -110,18 +110,31 @@ if (!function_exists('forgewp_cookie_auth_request_allowed')) {
      * FORGEWP_FRONTEND_ORIGIN, or no Origin and no browser "cross-site" mark
      * (server-to-server calls such as the Next.js server). Used by /auth/me
      * and every store/account route that falls back to the cookie.
+     *
+     * Changes (anything but GET/HEAD/OPTIONS) from the WordPress site's own
+     * pages must carry the REST nonce: those pages always have it
+     * (it is printed on every page), and WordPress has already logged the user
+     * in when it is valid, so reaching this fallback without one is refused.
      */
     function forgewp_cookie_auth_request_allowed() {
+        $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
+        $is_write = !in_array($method, array('GET', 'HEAD', 'OPTIONS'), true);
         $origin = isset($_SERVER['HTTP_ORIGIN']) ? (string) $_SERVER['HTTP_ORIGIN'] : '';
+        $fetch_site = isset($_SERVER['HTTP_SEC_FETCH_SITE']) ? strtolower((string) $_SERVER['HTTP_SEC_FETCH_SITE']) : '';
         if ($origin !== '') {
             $o = forgewp_origin_of($origin);
-            return $o !== '' && (
-                $o === forgewp_origin_of(home_url())
-                || $o === forgewp_origin_of(site_url())
-                || in_array($o, forgewp_frontend_origins(), true)
-            );
+            if ($o === '') {
+                return false;
+            }
+            $own_site = $o === forgewp_origin_of(home_url()) || $o === forgewp_origin_of(site_url());
+            if ($own_site && !in_array($o, forgewp_frontend_origins(), true)) {
+                return !$is_write;
+            }
+            return in_array($o, forgewp_frontend_origins(), true);
         }
-        $fetch_site = isset($_SERVER['HTTP_SEC_FETCH_SITE']) ? strtolower((string) $_SERVER['HTTP_SEC_FETCH_SITE']) : '';
+        if ($fetch_site === 'same-origin') {
+            return !$is_write;
+        }
         return $fetch_site !== 'cross-site';
     }
 }
