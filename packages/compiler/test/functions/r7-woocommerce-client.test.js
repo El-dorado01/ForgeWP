@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import {
+const wooHooksPath = new URL('../../../woocommerce/src/hooks.ts', import.meta.url).href;
+const {
   formatMoney,
   getCommerceApiBaseUrl,
   commerceFetch,
@@ -13,7 +14,7 @@ import {
   submitCheckoutOrder,
   normalizeContractCart,
   DEFAULT_COMMERCE_CURRENCY,
-} from '../../../woocommerce/src/index.ts';
+} = await import(wooHooksPath);
 
 function createMemoryStorage() {
   const map = new Map();
