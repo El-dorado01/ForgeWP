@@ -1033,7 +1033,7 @@ Original questions:
 - **Q5 Beta gateway scope:** `offline` + `redirect` only; `client` gateways (Stripe Elements, PayPal buttons) post-beta? (Recommended.)
 - **Q6 Parity CI with WooCommerce:** the workflow would download WooCommerce from its GitHub release (`woocommerce/woocommerce` → `woocommerce.zip`) into the CI WordPress. OK to add? (The cloud sandbox install was blocked by the permission classifier here, so this needs your approval.)
 
-## 16. Companion Plugin sources — hand-written plugin code (R9 — Status: **Draft 2026-11-25**, needs founder Q1–Q3 + Gemini review)
+## 16. Companion Plugin sources — hand-written plugin code (R9 — Status: **Founder decisions Q1–Q3 recorded 2026-11-25**; awaiting Gemini review)
 
 **Why:** Hospitality 2035 (EDD order-linked sequential licenses, PDF stamping, private delivery, admin settings) needs real plugin code: several files, namespaced classes, Composer libraries (PDF), its own assets and templates, and setup on activation/upgrade. Today `src/server/plugin/*.php` is flat files pasted into one `backend.php`.
 
@@ -1062,10 +1062,11 @@ Only one copy runs at a time (the active plugin wins, the existing `FORGEWP_COMP
 
 PSR-4 autoloading without Composer: `wp.config.ts` `companion.autoload: { 'Hospitality\\Licensing\\': 'src/' }` (paths relative to `src/server/plugin/`). The compiler emits a small `spl_autoload_register` for these prefixes. With Composer (16.3), Composer's autoloader is used instead.
 
-### 16.3 Composer libraries — **Q1 (founder)**
+### 16.3 Composer libraries — **Q1 decided (founder, 2026-11-25): Option A**
 
-- **Option A (recommended): `composer install --no-dev --optimize-autoloader` during export** when `src/server/plugin/composer.json` exists; `vendor/` goes into both copies. Needs Composer on the developer machine and in CI (`forgewp doctor` checks it and explains how to install). Lockfile (`composer.lock`) required, so builds are repeatable.
-- Option B: the project commits `src/server/plugin/vendor/`; the export only copies it. No Composer needed at export time, but `vendor/` lives in Git.
+- **Option A (chosen): `composer install --no-dev --optimize-autoloader` during export** when `src/server/plugin/composer.json` exists; `vendor/` goes into both copies. Needs Composer on the developer machine and in CI (`forgewp doctor` checks it and explains how to install). Lockfile (`composer.lock`) required, so builds are repeatable.
+- ~~Option B: the project commits `vendor/`~~ (not chosen).
+- Details: Composer runs in a temporary copy of `src/server/plugin/` (the project folder is never changed); the export stops with a clear message when Composer is missing, `composer.lock` is missing or out of date, or the install fails. Projects without `composer.json` never need Composer. GitHub's Ubuntu runners ship Composer. Library clashes between plugins that bundle different versions of the same library are documented (namespace prefixing, e.g. Strauss) and out of scope.
 
 ### 16.4 Lifecycle hooks (both copies)
 
@@ -1076,9 +1077,9 @@ PSR-4 autoloading without Composer: `wp.config.ts` `companion.autoload: { 'Hospi
 | `forgewp_companion_deactivated` **NEW** | Plugin deactivated (the theme's copy takes over if the theme is active) |
 | `forgewp_companion_uninstall` **NEW** | Plugin deleted in wp-admin (`uninstall.php`); see Q2 |
 
-### 16.5 Uninstall data — **Q2 (founder)**
+### 16.5 Uninstall data — **Q2 decided (founder, 2026-11-25): keep data by default**
 
-- **Recommended: keep data by default.** `forgewp_companion_uninstall` runs only when the site owner opted in (`define('FORGEWP_COMPANION_DELETE_DATA', true)` in `wp-config.php`, or a checkbox on the Theme Options page). Deleting the plugin then never destroys license records or orders by accident. Note the theme's copy keeps serving the backend after the plugin is deleted, which is another reason not to delete data by default.
+- **Chosen: keep data by default.** `forgewp_companion_uninstall` runs only when the site owner opted in (`define('FORGEWP_COMPANION_DELETE_DATA', true)` in `wp-config.php`, or a checkbox on the Theme Options page). Deleting the plugin then never destroys license records or orders by accident. Note the theme's copy keeps serving the backend after the plugin is deleted, which is another reason not to delete data by default.
 - Alternative: always run it (WordPress's usual meaning of "delete").
 
 ### 16.6 Private files
@@ -1088,10 +1089,10 @@ PSR-4 autoloading without Composer: `wp.config.ts` `companion.autoload: { 'Hospi
 - **Files to sell (the study PDF) must not be in the plugin at all**: everything in a plugin folder can be downloaded by URL. The docs show storing them in a protected uploads folder and delivering them through a REST/download handler that checks the order (the Hospitality feature).
 - The export fails if a PHP file under `src/`, `includes/` or `templates/` lacks the `defined('ABSPATH') || exit;` guard (a direct URL to it must not run it); `forgewp doctor --fix` can add it.
 
-### 16.7 The theme's built-in copy — **Q3 (founder)**
+### 16.7 The theme's built-in copy — **Q3 decided (founder, 2026-11-25): embed by default, opt-out**
 
 The embedded copy doubles the theme ZIP size with Composer libraries, and the WordPress.org theme directory does not accept themes that contain plugin features. Options:
-- **Recommended: `companion.embedInTheme: true` by default** (one-ZIP install keeps working), with `false` for themes going to WordPress.org or with large libraries; then the theme shows an admin notice asking to install the Companion Plugin.
+- **Chosen: `companion.embedInTheme: true` by default** (one-ZIP install keeps working), with `false` for themes going to WordPress.org or with large libraries; then the theme shows an admin notice asking to install the Companion Plugin.
 - Alternative: always embed.
 
 ### 16.8 Out of scope
