@@ -61,7 +61,7 @@ export async function renderStaticMarkup(themeRoot) {
     console.warn(result.stderr);
   }
 
-  const outDir = result.stdout?.trim() || path.join(themeRoot, '.forgewp');
+  const outDir = result.stdout?.trim() || path.join(themeRoot, '.forgewp', 'render');
   const appHtmlPath = path.join(outDir, 'app.html');
 
   if (!existsSync(appHtmlPath)) {

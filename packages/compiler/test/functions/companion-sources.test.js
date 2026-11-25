@@ -15,6 +15,7 @@ import {
   buildCompanionUninstallPhp,
   stripSourceInstalls,
   buildComposerVendor,
+  writeCompanionTree,
 } from '../../lib/companion-sources.js';
 import { buildCompanionPluginMainFile, buildThemeCompanionLoaderPhp } from '../../lib/companion-plugin.js';
 import { generateTheme } from '../../lib/generate-theme.js';
@@ -67,6 +68,28 @@ describe('globs and exclusions (§16.6)', () => {
       write(root, 'assets/a.css', 'body{}');
       write(root, 'templates/mail.php', "<?php defined('ABSPATH') || exit; ?>");
       expect(listCompanionTree(root)).toEqual(['assets/a.css', 'src/A.php', 'templates/mail.php']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('vendor exclusions', () => {
+  it("leaves out the project's vendor/ globs (unused library fonts) and nothing else", () => {
+    const root = tmpdir();
+    try {
+      write(root, 'vendor/acme/pdf/src/Pdf.php', '<?php');
+      write(root, 'vendor/acme/pdf/tests/Keep.php', '<?php');
+      write(root, 'vendor/acme/pdf/font/DejaVuSans.ttf', 'x');
+      write(root, 'vendor/acme/pdf/font/DejaVuSerif.ttf', 'x');
+      write(root, 'vendor/acme/pdf/font/DejaVuSerif-Bold.ttf', 'x');
+      const dest = path.join(root, 'out', 'project');
+      writeCompanionTree(root, [], dest, path.join(root, 'vendor'), ['vendor/acme/pdf/font/DejaVuSerif*', 'assets/raw/**']);
+      expect(fs.existsSync(path.join(dest, 'vendor/acme/pdf/font/DejaVuSans.ttf'))).toBe(true);
+      expect(fs.existsSync(path.join(dest, 'vendor/acme/pdf/font/DejaVuSerif.ttf'))).toBe(false);
+      expect(fs.existsSync(path.join(dest, 'vendor/acme/pdf/font/DejaVuSerif-Bold.ttf'))).toBe(false);
+      expect(fs.existsSync(path.join(dest, 'vendor/acme/pdf/tests/Keep.php'))).toBe(true);
+      expect(fs.existsSync(path.join(dest, 'vendor/acme/pdf/src/Pdf.php'))).toBe(true);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

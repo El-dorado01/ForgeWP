@@ -145,6 +145,11 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
           const fileBasename = path.basename(value.file || '');
           const cleanName = fileBasename.replace(/-[A-Za-z0-9_-]+\.js$/, '');
           if (
+            // Vite records the entry's name: the reliable match. The file-name
+            // check below cannot tell "cta-section-<hash>.js" from "cta-<hash>"
+            // (hashes contain "-" too), so hyphenated islands failed validation.
+            value.name === island ||
+            key === island ||
             key.endsWith(`/${pascalName}.tsx`) ||
             key.endsWith(`/${pascalName}.ts`) ||
             key.endsWith(`/${island}.tsx`) ||
@@ -218,7 +223,7 @@ export async function validateExport({ themeRoot, outDir, assets, config, strict
     }
   }
 
-  const templateDir = path.join(themeRoot, '.forgewp');
+  const templateDir = path.join(themeRoot, '.forgewp', 'render');
   if (fs.existsSync(templateDir)) {
     const templateFiles = fs.readdirSync(templateDir).filter((file) => /^template-.*\.html$/.test(file) && !file.endsWith('-head.html'));
     for (const templateFile of templateFiles) {

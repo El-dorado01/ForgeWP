@@ -1015,8 +1015,19 @@ const cleanAppHtml = appHtml.replace(
 // ── Compile Dynamic WordPress Template Hierarchy ──────────────────────────────
 const layoutSeo = extractSeoPropsFromSource(layoutPath);
 let headHtml = buildHeadHtml(layoutSeo);
-const outDir = path.join(themeRoot, '.forgewp');
+// Intermediate page HTML for the theme generator, kept in its own folder so
+// .forgewp/ only shows what people use (ZIPs, out/, cache/). Earlier versions
+// wrote these files loose into .forgewp/: remove those leftovers.
+const forgewpRoot = path.join(themeRoot, '.forgewp');
+const outDir = path.join(forgewpRoot, 'render');
 mkdirSync(outDir, { recursive: true });
+for (const f of readdirSync(forgewpRoot)) {
+  if (f.endsWith('.html')) {
+    try {
+      unlinkSync(path.join(forgewpRoot, f));
+    } catch {}
+  }
+}
 if (existsSync(outDir)) {
   const existingFiles = readdirSync(outDir);
   for (const f of existingFiles) {

@@ -76,7 +76,7 @@ export const nothing = 1;`);
     const run = () => spawnSync(process.execPath, [tsx, '--tsconfig', path.join(root, 'tsconfig.json'), path.join(compilerRoot, 'lib/render-theme.mts'), root], { cwd: root, encoding: 'utf8', timeout: 30000 });
     const first = run();
     expect(first.status, first.stderr).toBe(0);
-    const cache = path.join(root, '.forgewp');
+    const cache = path.join(root, '.forgewp', 'render');
     expect(fs.readFileSync(path.join(cache, 'single-project.html'), 'utf8')).toContain('Shared detail');
     expect(fs.existsSync(path.join(cache, 'template-helper.html'))).toBe(false);
     expect(fs.existsSync(path.join(cache, 'single-story.html'))).toBe(true);

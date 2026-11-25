@@ -221,8 +221,14 @@ export function stripSourceInstalls(vendorDir) {
   return stripped;
 }
 
-/** Copies the project tree (+ vendor/) into <destBackendDir>/project/. */
-export function writeCompanionTree(pluginSrcDir, treeFiles, destProjectDir, vendorDir) {
+/**
+ * Copies the project tree (+ vendor/) into <destBackendDir>/project/.
+ * vendorExclude: the project's own companion.exclude globs, matched against
+ * "vendor/<package>/<path>" (e.g. unused fonts a library ships). ForgeWP's
+ * default exclusions are not applied to libraries: a library may need its own
+ * folder called tests/.
+ */
+export function writeCompanionTree(pluginSrcDir, treeFiles, destProjectDir, vendorDir, vendorExclude = []) {
   rmSync(destProjectDir, { recursive: true, force: true });
   if (treeFiles.length === 0 && !vendorDir) return;
   for (const rel of treeFiles) {
@@ -230,7 +236,17 @@ export function writeCompanionTree(pluginSrcDir, treeFiles, destProjectDir, vend
     mkdirSync(path.dirname(dest), { recursive: true });
     cpSync(path.join(pluginSrcDir, rel), dest);
   }
-  if (vendorDir) cpSync(vendorDir, path.join(destProjectDir, 'vendor'), { recursive: true });
+  if (vendorDir) {
+    const patterns = (Array.isArray(vendorExclude) ? vendorExclude : []).filter((g) => /^(\*\*\/)?vendor\//.test(String(g))).map(globToRegExp);
+    cpSync(vendorDir, path.join(destProjectDir, 'vendor'), {
+      recursive: true,
+      filter: (src) => {
+        if (patterns.length === 0) return true;
+        const rel = 'vendor/' + path.relative(vendorDir, src).split(path.sep).join('/');
+        return !patterns.some((re) => re.test(rel));
+      },
+    });
+  }
   // No directory listings if the host allows them.
   writeFileSync(path.join(destProjectDir, 'index.php'), "<?php\n// Silence is golden.\n");
 }

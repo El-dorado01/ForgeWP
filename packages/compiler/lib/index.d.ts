@@ -269,7 +269,10 @@ export interface ForgeWPThemeConfig {
   companion?: {
     /** PSR-4 prefixes → folders relative to src/server/plugin/, e.g. { 'Acme\\Shop\\': 'src/' }. Not needed with Composer. */
     autoload?: Record<string, string>;
-    /** Extra globs (relative to src/server/plugin/) that are never copied, e.g. ['assets/raw/**']. */
+    /**
+     * Extra globs (relative to src/server/plugin/) that are never copied, e.g. ['assets/raw/**'].
+     * Globs starting with vendor/ also apply to Composer libraries, e.g. ['vendor/setasign/tfpdf/font/unifont/DejaVuSerif*'].
+     */
     exclude?: string[];
     /** Ship the backend inside the theme too (default true). false: the theme needs the Companion Plugin. */
     embedInTheme?: boolean;

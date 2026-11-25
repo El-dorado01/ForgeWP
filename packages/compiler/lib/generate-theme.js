@@ -227,7 +227,8 @@ export async function generateTheme({
   }
 
   // Map compiled Page templates to menu paths, including nested menu items.
-  const forgewpDir = path.join(themeRoot, '.forgewp');
+  // Page HTML written by the render step (render-theme.mts).
+  const forgewpDir = path.join(themeRoot, '.forgewp', 'render');
   const adapterTemplateSlugs = new Set(
     adapterPageRoutes.map((route) => route.templateSlug),
   );
@@ -2158,7 +2159,7 @@ if (window.forgeWpBlocks) {
       backendPhp: companionBackendPhp,
       uninstallPhp: buildCompanionUninstallPhp(config),
       writeTree: hasCompanionProject
-        ? (dest) => writeCompanionTree(pluginSrcDir, companionTree, dest, composerVendor && composerVendor.vendorDir)
+        ? (dest) => writeCompanionTree(pluginSrcDir, companionTree, dest, composerVendor && composerVendor.vendorDir, config.companion && config.companion.exclude)
         : null,
     });
   } finally {
