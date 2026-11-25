@@ -172,3 +172,30 @@ Tested `/kontakt/`, `/hello-world/`, `/category/uncategorized/`, `/en/contact/`:
    - **Filled `/cart/`:** Returning to `/cart/` rendered `.wp-block-woocommerce-filled-cart-block` cleanly with `0` skeletons (`skeletonCount: 0`, `isLoadingCount: 0`): `Cashmere Ribbed Turtleneck $195.00`, `Subtotal $195.00`, `US Flat Rate $12.00`, `Estimated total $207.00`, `Proceed to Checkout`, Navbar `1 $207.00`, `GET /wp-json/forgewp/v1/cart?contract=2` -> `200`, `0` console errors (only a dependency-detection warning from `order-attribution.min.js` accessing `wc.wcBlocksData`). The earlier R1 Blocks Cart skeleton issue no longer reproduces.
 
    - Run the full 128-file `pnpm --filter @forgewp/compiler test` suite in a clean pass after `b864db9`.
+
+---
+
+## LocalWP Re-Verification Addendum — 2026-11-25 (`main` @ `986df69`)
+
+- **Branch:** `docs/localwp-recheck-986df69` (branched from `origin/main` at `986df69`)
+- **WordPress site:** `http://forgewp-test.local` (WooCommerce `11.0.1`, Rank Math `1.0.282`, Yoast SEO `28.9`, Polylang `3.8.4`); re-exported `hotelchecker24` and `forge-commerce` from `986df69` (`--no-zip`) and deployed both themes and companion plugins.
+- **Debug log:** `wp-content/debug.log` ended clean (`0` bytes) after both the SEO and WooCommerce runs.
+
+### 4(b) SEO Re-Check (`hotelchecker24`) — PASS on Rank Math; PASS on Yoast (`<head>` parity + `FORGEWP_FRONTEND_ORIGIN`) with 1 Polylang locale diff
+Tested sequentially across `/kontakt/`, `/hello-world/`, `/category/uncategorized/`, `/en/contact/`:
+- **Rank Math `1.0.282` (`rank_math_registration_skip = 1`, Polylang active) — PASS:**
+  - All 4 paths returned `200`, `provider: "rankmath"`, `restJsonLdCount: 1` matching `headJsonLdCount: 1` (no longer `[]`), `titleMatch: true` with hyphen (`"Kontakt - ForgeWP Test"`, `"Hello world! - ForgeWP Test"`, `"Uncategorized - ForgeWP Test"`, `"Contact - ForgeWP Test"`), `canonicalMatch: true`, `ogTitleMatch: true`, and `nativeSeoDeepEqual: true` (`window.forgeWpHydration.resources.seo` deep-equaled REST on all 4 paths and was verified in live Chrome on `/kontakt/`).
+  - With `FORGEWP_FRONTEND_ORIGIN = 'https://app.example.test'`: `canonical`, `alternates.languages`, `openGraph.url`, and all JSON-LD page URLs (`@id`, `url`, `#website`, `#webpage`, `#richSnippet`, `/author/`) moved to `https://app.example.test`, while `ogImages` stayed on `http://forgewp-test.local/wp-content/themes/hotelchecker24/Logo/hotelchecker24-logo_farbe.svg`.
+- **Yoast SEO `28.9` — PASS (1 Polylang locale/hreflang note):**
+  - All 4 paths returned `200`, `provider: "yoast"`, `titleMatch: true`, `canonicalMatch: true`, `ogTitleMatch: true`, `restJsonLdCount: 1`, `headJsonLdCount: 1`, and `window.forgeWpHydration.resources.seo` present.
+  - With `FORGEWP_FRONTEND_ORIGIN = 'https://app.example.test'`: `canonical`, `alternates`, `openGraph.url`, and every JSON-LD URL including `WebPage.potentialAction[0].target` (`https://app.example.test/kontakt/`) and `SearchAction.target` (`https://app.example.test/?s={search_term_string}`) rewrote cleanly, while `ogImages` stayed on `forgewp-test.local`.
+  - Observed Polylang/Yoast note on `/kontakt/` (confirmed both via Node and live Chrome `evaluate_script`): native page `resources.seo` carried `openGraph.locale: "de_DE"`, `jsonLd` `inLanguage: "de-DE"`, and `alternates.languages: { de, en, x-default }`, whereas REST `/wp-json/forgewp/v1/seo?path=/kontakt/` returned `en_US` / `en-US` and `{ x-default }`.
+- **Loopback concurrency note (LocalWP Windows):** When `GET /wp-json/forgewp/v1/seo?path=/hello-world/` and `GET /hello-world/` ran concurrently via `Promise.all()`, `forgewp_seo_loopback_head()` timed out (>5s) against LocalWP's low-concurrency PHP worker pool and set transient `forgewp_seo_loopback_down` for 10 minutes, falling back to in-request capture (`jsonLd: []`, en-dash title). Deleting the transient and querying sequentially made loopback succeed reliably on every path (`WP_REMOTE_CODE: 200`).
+
+### `forge-commerce` Gateways `flow` & Wishlist Nonce/Origin (`986df69`) — PASS
+- **`GET /wp-json/forgewp/v1/checkout/gateways`:** Returned `200` with `"flow": "offline"` on both `bacs` (`Direct bank transfer`) and `cod` (`Cash on delivery`).
+- **`POST /wp-json/forgewp/v1/wishlist/items` (logged-in session cookie):**
+  - `Origin: http://forgewp-test.local`, **no** `X-WP-Nonce` -> `401` (`unauthorized`)
+  - `Origin: http://forgewp-test.local`, **with** `X-WP-Nonce` -> `200` (`{ items: [28] }`)
+  - **No** `Origin` header, **no** `X-WP-Nonce` -> `200` (`{ items: [28, 29] }`, script path still permitted)
+
