@@ -54,16 +54,25 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
         run: node scripts/release/publish.mjs
 
+      # Tags the commit that introduced the compiler's current version (the
+      # release commit), not whatever is newest on main. Also runs when nothing
+      # new was published, so a release published by hand gets its tag too.
       - name: Tag the release
-        if: ${{ !inputs.dry_run && steps.publish.outputs.published != '' }}
+        if: ${{ !inputs.dry_run }}
         env:
           TAG: ${{ steps.publish.outputs.tag }}
         run: |
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
             echo "Tag $TAG already exists"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" -m "ForgeWP release $TAG (published: ${{ steps.publish.outputs.published }})"
-            git push origin "$TAG"
+            exit 0
           fi
+          VERSION="${TAG#v}"
+          COMMIT=$(git log --reverse --format=%H -S"\"version\": \"$VERSION\"" -- packages/compiler/package.json | head -1)
+          if [ -z "$COMMIT" ]; then
+            echo "Could not find the commit that set version $VERSION"; exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" "$COMMIT" -m "ForgeWP release $TAG"
+          git push origin "$TAG"
+          echo "Tagged $TAG at $COMMIT" | tee -a "$GITHUB_STEP_SUMMARY"

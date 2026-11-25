@@ -34,8 +34,11 @@ package can only be published by this workflow.
 3. GitHub → **Actions** → **Release to npm** → **Run workflow** with
    **Dry run** ticked. The run summary lists what would be published.
 4. Run it again with **Dry run** unticked. It publishes every package whose
-   version is not on npm yet, in dependency order, and tags the commit
-   `v<compiler version>`.
+   version is not on npm yet, in dependency order, and tags the release commit
+   (the commit that set the compiler's version) `v<compiler version>`.
+
+A run with nothing new to publish still creates a missing tag. That is how a
+release published by hand (like 0.6.0) gets its tag.
 
 A version with a pre-release part (`1.0.0-beta.1`) is published under its own
 npm tag (`beta`), not as `latest`: `npm create forgewp` keeps installing the
