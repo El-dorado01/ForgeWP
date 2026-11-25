@@ -16,6 +16,10 @@ on:
         description: 'Dry run: show what would be published, publish nothing'
         type: boolean
         default: true
+      direct:
+        description: 'Publish directly (needs the "npm publish" permission on npm). Unticked: stage for approval on npmjs.com'
+        type: boolean
+        default: false
 
 permissions:
   contents: write # create the release tag
@@ -52,6 +56,7 @@ jobs:
         id: publish
         env:
           DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          PUBLISH_MODE: ${{ inputs.direct && 'direct' || 'stage' }}
         run: node scripts/release/publish.mjs
 
       # Tags the commit that introduced the compiler's current version (the

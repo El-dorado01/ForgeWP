@@ -92,10 +92,19 @@ Ask Claude: *"prepare a release"*. It will:
 ### 3. Publish
 
 1. Same page, click **Run workflow** again.
-2. This time **untick** **Dry run**.
+2. This time **untick** **Dry run**. Leave **Publish directly** unticked.
 3. Click the green **Run workflow** button.
-4. Wait for the green tick. The summary lists what was published, and the
+4. Wait for the green tick. The summary lists the **staged** versions, and the
    commit is tagged `v<version>`.
+5. **Approve the staged versions on npm.** They are uploaded but not
+   installable until an owner approves them with two-factor (npm calls this
+   *staged publishing*; it's what the "npm stage publish" permission on the
+   Trusted Publisher allows). Each staged version is approved once; until
+   then `npm install` keeps getting the previous version.
+
+> **Publish directly** (the second checkbox) skips the approval step. It only
+> works after you change each package's Trusted Publisher permission on npm
+> from *npm stage publish* to *npm publish* (**Edit** on the Settings tab).
 5. Check on npm: open a package page from the table in Part A. The version
    at the top should be the new one, with a **Provenance** badge showing it
    was built by this repository's workflow.

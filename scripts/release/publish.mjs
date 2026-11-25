@@ -9,7 +9,9 @@
  *   GitHub Actions: no npm token is stored anywhere).
  * - Pre-releases (1.0.0-beta.1) are published under their own dist-tag (beta),
  *   never as latest.
- * - DRY_RUN=1 packs and runs `npm publish --dry-run` only.
+ * - PUBLISH_MODE=direct uses `npm publish`; the default stages each version
+ *   (`npm stage publish`) for an owner to approve on npmjs.com with two-factor.
+ * - DRY_RUN=1 packs and only simulates (`--dry-run`).
  *
  * Used by .github/workflows/release.yml. Prints the published packages and
  * writes `published=<names>` and `tag=v<compiler version>` to $GITHUB_OUTPUT.
@@ -23,6 +25,11 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ORDER = ['react', 'ui', 'compiler', 'plugin-seo', 'auth', 'woocommerce', 'create-forgewp'];
 const dryRun = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true';
+// stage (default): `npm stage publish`. The version waits on npmjs.com until an
+// owner approves it with two-factor; matches the "npm stage publish" permission
+// of the trusted publisher. direct: `npm publish`, needs the "npm publish"
+// permission on the package's Trusted Publisher settings.
+const direct = process.env.PUBLISH_MODE === 'direct';
 
 function onNpm(name, version) {
   const r = spawnSync('npm', ['view', `${name}@${version}`, 'version'], { encoding: 'utf8' });
@@ -49,9 +56,9 @@ try {
     // A pre-release (1.0.0-beta.1) goes out under its own dist-tag (beta), never
     // as latest: `npm create forgewp` keeps installing the last stable release.
     const pre = pkg.version.includes('-') ? pkg.version.split('-')[1].split('.')[0] || 'next' : null;
-    const args = ['publish', path.join(outDir, tarball), '--access', 'public', '--provenance', '--tag', pre || 'latest'];
+    const args = [...(direct ? ['publish'] : ['stage', 'publish']), path.join(outDir, tarball), '--access', 'public', '--provenance', '--tag', pre || 'latest'];
     if (dryRun) args.push('--dry-run');
-    console.log(`${dryRun ? '~' : '+'} ${id} → npm tag "${pre || 'latest'}"${dryRun ? ' (dry run)' : ''}`);
+    console.log(`${dryRun ? '~' : '+'} ${id} → npm tag "${pre || 'latest'}", ${direct ? 'published directly' : 'staged for approval'}${dryRun ? ' (dry run)' : ''}`);
     execFileSync('npm', args, { stdio: 'inherit' });
     published.push(id);
   }
@@ -63,7 +70,12 @@ const compiler = JSON.parse(readFileSync(path.join(root, 'packages', 'compiler',
 const summary = [
   `## ForgeWP release${dryRun ? ' (dry run)' : ''}`,
   '',
-  published.length ? published.map((p) => `- ${dryRun ? 'would publish' : 'published'} \`${p}\``).join('\n') : '- nothing new to publish',
+  published.length
+    ? published.map((p) => `- ${dryRun ? 'would ' : ''}${direct ? (dryRun ? 'publish' : 'published') : (dryRun ? 'stage' : 'staged')} \`${p}\``).join('\n')
+    : '- nothing new to publish',
+  ...(!direct && !dryRun && published.length
+    ? ['', '**Next:** approve the staged versions on npmjs.com (they are not installable until approved).']
+    : []),
   ...skipped.map((p) => `- already on npm: \`${p}\``),
 ].join('\n');
 console.log(`\n${summary}`);
