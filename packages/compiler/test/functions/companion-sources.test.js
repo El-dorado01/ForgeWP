@@ -13,6 +13,7 @@ import {
   checkCompanionSources,
   buildCompanionPreludePhp,
   buildCompanionUninstallPhp,
+  stripSourceInstalls,
 } from '../../lib/companion-sources.js';
 import { buildCompanionPluginMainFile, buildThemeCompanionLoaderPhp } from '../../lib/companion-plugin.js';
 import { generateTheme } from '../../lib/generate-theme.js';
@@ -65,6 +66,30 @@ describe('globs and exclusions (§16.6)', () => {
       write(root, 'assets/a.css', 'body{}');
       write(root, 'templates/mail.php', "<?php defined('ABSPATH') || exit; ?>");
       expect(listCompanionTree(root)).toEqual(['assets/a.css', 'src/A.php', 'templates/mail.php']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('Composer packages installed from a git clone', () => {
+  it("removes .git and the package's export-ignore paths, like its release zip", () => {
+    const root = tmpdir();
+    try {
+      const pkg = 'vendor/acme/pdf/';
+      write(root, pkg + '.git/HEAD', 'ref');
+      write(root, pkg + '.gitattributes', '/tests export-ignore\n/.github export-ignore\n*.pdf binary\n/../escape export-ignore\n');
+      write(root, pkg + 'tests/big.pdf', 'x');
+      write(root, pkg + '.github/ci.yml', 'x');
+      write(root, pkg + 'src/Pdf.php', '<?php');
+      write(root, 'vendor/acme/zip/tests/keep.php', '<?php'); // release zip install: untouched
+      write(root, 'vendor/composer/installed.json', '{}');
+      expect(stripSourceInstalls(path.join(root, 'vendor'))).toEqual(['acme/pdf']);
+      expect(fs.existsSync(path.join(root, pkg, '.git'))).toBe(false);
+      expect(fs.existsSync(path.join(root, pkg, 'tests'))).toBe(false);
+      expect(fs.existsSync(path.join(root, pkg, '.github'))).toBe(false);
+      expect(fs.existsSync(path.join(root, pkg, 'src/Pdf.php'))).toBe(true);
+      expect(fs.existsSync(path.join(root, 'vendor/acme/zip/tests/keep.php'))).toBe(true);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

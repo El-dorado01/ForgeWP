@@ -162,7 +162,7 @@ export function buildComposerVendor(pluginSrcDir, treeFiles, { spawn = spawnSync
   }
   const run = spawn(
     'composer',
-    ['install', '--no-dev', '--optimize-autoloader', '--no-interaction', '--no-progress', '--no-scripts'],
+    ['install', '--no-dev', '--prefer-dist', '--optimize-autoloader', '--no-interaction', '--no-progress', '--no-scripts'],
     { cwd: tmp, encoding: 'utf8', env: { ...process.env, COMPOSER_NO_AUDIT: '1' } },
   );
   const output = `${run.stdout || ''}${run.stderr || ''}`;
@@ -177,7 +177,41 @@ export function buildComposerVendor(pluginSrcDir, treeFiles, { spawn = spawnSync
         'in src/server/plugin/ and commit composer.lock.',
     );
   }
+  stripSourceInstalls(path.join(tmp, 'vendor'));
   return { vendorDir: path.join(tmp, 'vendor'), cleanup: () => rmSync(tmp, { recursive: true, force: true }) };
+}
+
+/**
+ * When Composer cannot download a release zip it clones the package instead,
+ * which brings its .git folder and everything the release zip leaves out
+ * (tests, CI files). Do what the release zip would have done: remove the
+ * paths the package marks export-ignore in .gitattributes, and .git itself.
+ */
+export function stripSourceInstalls(vendorDir) {
+  if (!existsSync(vendorDir)) return [];
+  const stripped = [];
+  for (const vendor of readdirSync(vendorDir)) {
+    const vendorPath = path.join(vendorDir, vendor);
+    if (vendor === 'bin' || vendor === 'composer' || !statSync(vendorPath).isDirectory()) continue;
+    for (const pkg of readdirSync(vendorPath)) {
+      const root = path.join(vendorPath, pkg);
+      if (!statSync(root).isDirectory() || !existsSync(path.join(root, '.git'))) continue;
+      const attributes = path.join(root, '.gitattributes');
+      if (existsSync(attributes)) {
+        for (const line of readFileSync(attributes, 'utf8').split(/\r?\n/)) {
+          const m = line.trim().match(/^(\S+)\s+.*\bexport-ignore\b/);
+          if (!m) continue;
+          const rel = m[1].replace(/^\/+/, '');
+          // Plain paths only (what packages use in practice); never leave the package folder.
+          if (rel === '' || /[*?[]/.test(rel) || rel.split('/').includes('..')) continue;
+          rmSync(path.join(root, rel), { recursive: true, force: true });
+        }
+      }
+      rmSync(path.join(root, '.git'), { recursive: true, force: true });
+      stripped.push(`${vendor}/${pkg}`);
+    }
+  }
+  return stripped;
 }
 
 /** Copies the project tree (+ vendor/) into <destBackendDir>/project/. */
