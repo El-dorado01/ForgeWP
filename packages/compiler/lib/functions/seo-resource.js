@@ -396,7 +396,7 @@ if (!function_exists('forgewp_seo_resource')) {
                 'type'        => (string) ($og['type'] ?? ($is_article ? 'article' : 'website')),
                 'url'         => forgewp_seo_rewrite_url((string) ($og['url'] ?? $canonical)),
                 'siteName'    => forgewp_seo_text($og['site_name'] ?? get_bloginfo('name')),
-                'locale'      => (string) ($og['locale'] ?? get_locale()),
+                'locale'      => (string) ($og['locale'] ?? forgewp_seo_object_locale($target, is_string($lang) ? $lang : '')),
                 'images'      => array_values($images),
             ),
             'twitter'     => array(
@@ -487,16 +487,108 @@ if (!function_exists('forgewp_seo_resource')) {
         return $start === false ? '' : substr($body, $start + 1, $end - $start - 1);
     }
 
+    /** WordPress locale (de_DE) of the resolved object's language (else of $fallback_lang); the site's locale otherwise. */
+    function forgewp_seo_object_locale($target, $fallback_lang = '') {
+        $slug = forgewp_seo_object_lang($target);
+        if ($slug === '') {
+            $slug = (string) $fallback_lang;
+        }
+        if ($slug !== '' && function_exists('PLL') && isset(PLL()->model) && is_callable(array(PLL()->model, 'get_language'))) {
+            $language = PLL()->model->get_language($slug);
+            if ($language && !empty($language->locale)) {
+                return (string) $language->locale;
+            }
+        }
+        if ($slug !== '' && has_filter('wpml_active_languages')) {
+            $languages = apply_filters('wpml_active_languages', null);
+            if (is_array($languages) && !empty($languages[$slug]['default_locale'])) {
+                return (string) $languages[$slug]['default_locale'];
+            }
+        }
+        return get_locale();
+    }
+
+    /** Language slug of the resolved post or term (Polylang / WPML), or ''. */
+    function forgewp_seo_object_lang($target) {
+        $id = isset($target['id']) ? (int) $target['id'] : 0;
+        if ($id <= 0) {
+            return '';
+        }
+        $is_term = ($target['type'] ?? '') === 'term';
+        if (function_exists('pll_get_post_language')) {
+            $slug = $is_term ? pll_get_term_language($id, 'slug') : pll_get_post_language($id, 'slug');
+            return is_string($slug) ? $slug : '';
+        }
+        if (has_filter('wpml_element_language_code')) {
+            $type = $is_term && isset($target['object']->taxonomy) ? 'tax_' . $target['object']->taxonomy : 'post_' . ($target['postType'] ?: 'post');
+            $code = apply_filters('wpml_element_language_code', null, array('element_id' => $id, 'element_type' => $type));
+            return is_string($code) ? $code : '';
+        }
+        return '';
+    }
+
+    /**
+     * hreflang links for the REST fallback: Polylang prints them only on real
+     * page views, never during REST. Mirrors Polylang's own rule
+     * (PLL_Frontend_Filters_Links::wp_head): one link per translation keyed by
+     * the language code, the full code only when two languages share it, and
+     * x-default only on the front page when the default language is not hidden.
+     */
+    function forgewp_seo_polylang_alternates($target) {
+        $id = isset($target['id']) ? (int) $target['id'] : 0;
+        if ($id <= 0 || !function_exists('pll_get_post_translations') || !function_exists('PLL') || !isset(PLL()->model)) {
+            return array();
+        }
+        $is_term = ($target['type'] ?? '') === 'term';
+        $translations = $is_term ? pll_get_term_translations($id) : pll_get_post_translations($id);
+        if (!is_array($translations) || count($translations) < 2) {
+            return array();
+        }
+        $urls = array();
+        foreach (PLL()->model->get_languages_list() as $language) {
+            $tr = (int) ($translations[$language->slug] ?? 0);
+            $url = $tr > 0 ? ($is_term ? get_term_link($tr) : get_permalink($tr)) : '';
+            if (is_string($url) && $url !== '') {
+                $display = method_exists($language, 'get_locale') ? $language->get_locale('display') : (string) ($language->w3c ?? $language->slug);
+                $urls[$display] = $url;
+            }
+        }
+        if (count($urls) < 2) {
+            return array();
+        }
+        $short = array();
+        foreach (array_keys($urls) as $locale) {
+            $parts = explode('-', $locale);
+            $short[$locale] = reset($parts);
+        }
+        $count = array_count_values($short);
+        $out = array();
+        foreach ($urls as $locale => $url) {
+            $out[$count[$short[$locale]] > 1 ? $locale : $short[$locale]] = $url;
+        }
+        $options = isset(PLL()->options) ? PLL()->options : array();
+        if (($target['type'] ?? '') === 'front-page' && empty($options['hide_default']) && (int) ($options['force_lang'] ?? 1) < 3) {
+            $out['x-default'] = home_url('/');
+        }
+        return (array) apply_filters('pll_rel_hreflang_attributes', $out);
+    }
+
     function forgewp_seo_switch_language($lang) {
         if ($lang === '') {
             return;
         }
-        if (function_exists('PLL') && is_object(PLL()) && isset(PLL()->model) && method_exists(PLL()->model, 'get_language')) {
+        if (function_exists('PLL') && is_object(PLL()) && isset(PLL()->model) && is_callable(array(PLL()->model, 'get_language'))) {
             $language = PLL()->model->get_language($lang);
             if ($language) {
                 PLL()->curlang = $language;
-                if (!empty($language->locale) && function_exists('switch_to_locale')) {
-                    switch_to_locale($language->locale);
+                if (!empty($language->locale)) {
+                    // Like Polylang on the front end: through the locale filter,
+                    // which (unlike switch_to_locale) works without a language pack.
+                    $locale = (string) $language->locale;
+                    add_filter('locale', function () use ($locale) { return $locale; }, 99);
+                    if (function_exists('switch_to_locale')) {
+                        switch_to_locale($locale);
+                    }
                 }
             }
         } elseif (has_action('wpml_switch_language')) {
@@ -518,6 +610,15 @@ if (!function_exists('forgewp_seo_resource')) {
         if ($target === null) {
             return new WP_Error('FORGEWP_SEO_NOT_FOUND', 'No published page at this path.', array('status' => 404));
         }
+        // No ?lang= and no language prefix in the path: use the language of the
+        // post or term itself (REST requests have no "current language").
+        $object_lang = forgewp_seo_object_lang($target);
+        if ($requested_lang === '' && forgewp_seo_path_lang($path) === '') {
+            if ($object_lang !== '' && function_exists('forgewp_resource_lang')) {
+                $resolved = forgewp_resource_lang($object_lang);
+                $lang = is_wp_error($resolved) ? $lang : $resolved;
+            }
+        }
         forgewp_seo_setup_query($target);
         $cache_key = forgewp_seo_head_cache_key($path);
         $html = (string) get_transient($cache_key);
@@ -529,17 +630,22 @@ if (!function_exists('forgewp_seo_resource')) {
         if ($html === '' && apply_filters('forgewp_seo_use_loopback', true, $target)) {
             $html = forgewp_seo_loopback_head(forgewp_seo_object_url($target));
         }
-        if ($html === '') {
+        $in_request = $html === '';
+        if ($in_request) {
             // Last resort: render the head inside this request, in the page's
             // language (Polylang/WPML do not switch language for REST requests).
-            forgewp_seo_switch_language(is_string($lang) ? $lang : '');
+            forgewp_seo_switch_language($object_lang !== '' ? $object_lang : (is_string($lang) ? $lang : ''));
             $GLOBALS['forgewp_seo_capturing'] = true;
             ob_start();
             do_action('wp_head');
             $html = (string) apply_filters('forgewp_seo_theme_head', '') . (string) ob_get_clean();
             $GLOBALS['forgewp_seo_capturing'] = false;
         }
-        $payload = forgewp_seo_build(forgewp_seo_parse_head($html), $target, $path, $lang);
+        $head = forgewp_seo_parse_head($html);
+        if ($in_request) {
+            $head['languages'] = array_merge(forgewp_seo_polylang_alternates($target), (array) $head['languages']);
+        }
+        $payload = forgewp_seo_build($head, $target, $path, $lang);
         wp_reset_postdata();
         $response = new WP_REST_Response($payload, 200);
         $response->header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
