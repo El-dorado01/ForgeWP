@@ -59,11 +59,13 @@ jobs:
           PUBLISH_MODE: ${{ inputs.direct && 'direct' || 'stage' }}
         run: node scripts/release/publish.mjs
 
-      # Tags the commit that introduced the compiler's current version (the
-      # release commit), not whatever is newest on main. Also runs when nothing
-      # new was published, so a release published by hand gets its tag too.
+      # Tags the commit this run published from. (GitHub refuses a tag made by
+      # the workflow on an older commit whose workflow files differ from main's,
+      # so it can't go back to the release commit.) A missing tag never makes
+      # the release itself count as failed: the packages are already out.
       - name: Tag the release
         if: ${{ !inputs.dry_run }}
+        continue-on-error: true
         env:
           TAG: ${{ steps.publish.outputs.tag }}
         run: |
@@ -71,11 +73,7 @@ jobs:
             echo "Tag $TAG already exists"
             exit 0
           fi
-          VERSION="${TAG#v}"
-          COMMIT=$(git log --reverse --format=%H -S"\"version\": \"$VERSION\"" -- packages/compiler/package.json | head -1)
-          if [ -z "$COMMIT" ]; then
-            echo "Could not find the commit that set version $VERSION"; exit 1
-          fi
+          COMMIT="$GITHUB_SHA"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" "$COMMIT" -m "ForgeWP release $TAG"

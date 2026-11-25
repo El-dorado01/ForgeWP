@@ -95,7 +95,8 @@ Ask Claude: *"prepare a release"*. It will:
 2. This time **untick** **Dry run**. Leave **Publish directly** unticked.
 3. Click the green **Run workflow** button.
 4. Wait for the green tick. The summary lists the **staged** versions, and the
-   commit is tagged `v<version>`.
+   commit is tagged `v<version>` (if tagging fails the packages are still out;
+   run the workflow again later to add the tag).
 5. **Approve the staged versions on npm.** They are uploaded but not
    installable until an owner approves them with two-factor (npm calls this
    *staged publishing*; it's what the "npm stage publish" permission on the
