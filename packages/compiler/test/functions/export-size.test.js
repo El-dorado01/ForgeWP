@@ -11,6 +11,7 @@ import { generateResponsiveVariants, DEFAULT_RESPONSIVE_WIDTHS } from '../../lib
 import { getResponsiveFallbackSrc } from '../../lib/markup-processor.js';
 import { pruneOptimizedOriginals, rewriteBundles, fallbackVariantUrl, findUnreferencedPublicFiles, removeExcludedPublicFiles } from '../../lib/assets/prune-originals.js';
 import { globToRegExp } from '../../lib/companion-sources.js';
+import { runLosslessPass } from '../../lib/assets/lossless-pass.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'forgewp-size-'));
@@ -129,6 +130,99 @@ describe('unreferenced public files and assets.exclude', () => {
       expect(fs.existsSync(path.join(out, 'raw/a.psd'))).toBe(false);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('lossless pass', () => {
+  const noisyPng = async (w, h) => {
+    const raw = Buffer.alloc(w * h * 4);
+    for (let i = 0; i < raw.length; i++) raw[i] = (i * 7919 + (i >> 5) * 31) % 256;
+    return sharp(raw, { raw: { width: w, height: h, channels: 4 } }).png({ compressionLevel: 0 }).toBuffer();
+  };
+
+  it('turns a referenced PNG into a pixel-identical lossless WebP and updates every quoted reference', async () => {
+    const out = tmp();
+    try {
+      fs.mkdirSync(path.join(out, 'assets', 'img'), { recursive: true });
+      const png = await sharp({ create: { width: 600, height: 400, channels: 4, background: { r: 10, g: 120, b: 200, alpha: 1 } } }).png({ compressionLevel: 0 }).toBuffer();
+      fs.writeFileSync(path.join(out, 'assets/img/logo.png'), png);
+      fs.writeFileSync(path.join(out, 'functions.php'), "$d = attributes.logo || '/assets/img/logo.png'; get_theme_file_uri('assets/img/logo.png');");
+      const r = await runLosslessPass(out);
+      expect(r.converted).toEqual(['assets/img/logo.png']);
+      expect(fs.existsSync(path.join(out, 'assets/img/logo.png'))).toBe(false);
+      const webp = fs.readFileSync(path.join(out, 'assets/img/logo.webp'));
+      const a = await sharp(png).ensureAlpha().raw().toBuffer();
+      const b = await sharp(webp).ensureAlpha().raw().toBuffer();
+      expect(a.equals(b)).toBe(true);
+      expect(fs.readFileSync(path.join(out, 'functions.php'), 'utf8')).toBe("$d = attributes.logo || '/assets/img/logo.webp'; get_theme_file_uri('assets/img/logo.webp');");
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
+    }
+  });
+
+  it('changes nothing for a PNG that is also named in a form it cannot rewrite (all or nothing)', async () => {
+    const out = tmp();
+    try {
+      fs.mkdirSync(path.join(out, 'assets'), { recursive: true });
+      const png = await sharp({ create: { width: 600, height: 400, channels: 4, background: '#123456' } }).png({ compressionLevel: 0 }).toBuffer();
+      fs.writeFileSync(path.join(out, 'assets/partner.png'), png);
+      const php = 'a = "/assets/partner.png"; b = "\\/assets\\/partner.png\\";';
+      fs.writeFileSync(path.join(out, 'index.php'), php);
+      const r = await runLosslessPass(out);
+      expect(r.converted).toEqual([]);
+      expect(fs.readFileSync(path.join(out, 'index.php'), 'utf8')).toBe(php);
+      expect(fs.existsSync(path.join(out, 'assets/partner.png'))).toBe(true);
+      expect(fs.existsSync(path.join(out, 'assets/partner.webp'))).toBe(false);
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
+    }
+  });
+
+  it('never renames a PNG the theme does not reference (a post may link to it)', async () => {
+    const out = tmp();
+    try {
+      const png = await sharp({ create: { width: 600, height: 400, channels: 4, background: '#335577' } }).png({ compressionLevel: 0 }).toBuffer();
+      fs.writeFileSync(path.join(out, 'brochure-cover.png'), png);
+      fs.writeFileSync(path.join(out, 'index.php'), '<p>no image here</p>');
+      const r = await runLosslessPass(out);
+      expect(r.converted).toEqual([]);
+      expect(fs.existsSync(path.join(out, 'brochure-cover.png'))).toBe(true);
+      expect(fs.existsSync(path.join(out, 'brochure-cover.webp'))).toBe(false);
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps screenshot.png a PNG (WordPress needs it) and only recompresses it pixel-identically', async () => {
+    const out = tmp();
+    try {
+      const png = await noisyPng(300, 200);
+      fs.writeFileSync(path.join(out, 'screenshot.png'), png);
+      await runLosslessPass(out);
+      expect(fs.existsSync(path.join(out, 'screenshot.png'))).toBe(true);
+      expect(fs.existsSync(path.join(out, 'screenshot.webp'))).toBe(false);
+      const a = await sharp(png).ensureAlpha().raw().toBuffer();
+      const b = await sharp(fs.readFileSync(path.join(out, 'screenshot.png'))).ensureAlpha().raw().toBuffer();
+      expect(a.equals(b)).toBe(true);
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
+    }
+  });
+
+  it('merges byte-identical font files and points the CSS at the one kept', async () => {
+    const out = tmp();
+    try {
+      fs.mkdirSync(path.join(out, 'assets', 'fonts'), { recursive: true });
+      for (const n of ['lora-400-aaa.woff2', 'lora-500-bbb.woff2']) fs.writeFileSync(path.join(out, 'assets/fonts', n), 'same-bytes');
+      fs.writeFileSync(path.join(out, 'assets/fonts', 'lora-700-ccc.woff2'), 'other-bytes');
+      fs.writeFileSync(path.join(out, 'assets/fonts.css'), '@font-face{src:url(fonts/lora-400-aaa.woff2)}@font-face{src:url(fonts/lora-500-bbb.woff2)}@font-face{src:url(fonts/lora-700-ccc.woff2)}');
+      const r = await runLosslessPass(out);
+      expect(r.fontsMerged).toBe(1);
+      expect(fs.readdirSync(path.join(out, 'assets/fonts')).sort()).toEqual(['lora-400-aaa.woff2', 'lora-700-ccc.woff2']);
+      expect(fs.readFileSync(path.join(out, 'assets/fonts.css'), 'utf8')).toBe('@font-face{src:url(fonts/lora-400-aaa.woff2)}@font-face{src:url(fonts/lora-400-aaa.woff2)}@font-face{src:url(fonts/lora-700-ccc.woff2)}');
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
     }
   });
 });

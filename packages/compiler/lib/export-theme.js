@@ -11,6 +11,7 @@ import { assertZipCreated, zipTheme } from './zip-theme.js';
 import { companionPluginSlug } from './companion-plugin.js';
 import { findUnreferencedPublicFiles, pruneOptimizedOriginals, removeExcludedPublicFiles } from './assets/prune-originals.js';
 import { globToRegExp } from './companion-sources.js';
+import { runLosslessPass } from './assets/lossless-pass.js';
 
 import { validateCriticalFiles } from './validate.js';
 import { validateExport } from './validate-export.js';
@@ -198,6 +199,23 @@ export async function exportTheme(options) {
         'green',
       );
     }
+  }
+
+  // Lossless size pass (pixel-identical images, merged identical fonts).
+  if (config.assets?.lossless !== false) {
+    report('lossless', 'Compressing images and fonts losslessly…');
+    const lossless = await runLosslessPass(outDir);
+    const parts = [];
+    if (lossless.converted.length) parts.push(`${lossless.converted.length} PNG → lossless WebP`);
+    if (lossless.recompressed.length) parts.push(`${lossless.recompressed.length} PNG recompressed`);
+    if (lossless.fontsMerged) parts.push(`${lossless.fontsMerged} duplicate font file(s) merged`);
+    report(
+      'lossless-done',
+      parts.length
+        ? `Lossless compression: ${parts.join(', ')} (${(lossless.bytesSaved / 1048576).toFixed(1)} MB, pixel-identical)`
+        : 'Lossless compression: nothing to gain',
+      'green',
+    );
   }
 
   const excludedPublic = removeExcludedPublicFiles(themeRoot, outDir, config.assets?.exclude, globToRegExp);
