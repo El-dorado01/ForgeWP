@@ -250,6 +250,23 @@ export interface ForgeWPSeedConfig {
 }
 
 export interface ForgeWPThemeConfig {
+  /**
+   * Companion Plugin options (docs/resource-contracts.md §16). Hand-written plugin
+   * code lives in src/server/plugin/: flat *.php files, plus src/, includes/,
+   * templates/, assets/ and an optional composer.json (installed at export).
+   */
+  companion?: {
+    /** PSR-4 prefixes → folders relative to src/server/plugin/, e.g. { 'Acme\\Shop\\': 'src/' }. Not needed with Composer. */
+    autoload?: Record<string, string>;
+    /** Extra globs (relative to src/server/plugin/) that are never copied, e.g. ['assets/raw/**']. */
+    exclude?: string[];
+    /** Ship the backend inside the theme too (default true). false: the theme needs the Companion Plugin. */
+    embedInTheme?: boolean;
+    /** Plugin slugs for the "Requires Plugins" header, e.g. ['easy-digital-downloads']. */
+    requiresPlugins?: string[];
+    /** Minimum PHP version for the "Requires PHP" header (default '7.4'). */
+    requiresPhp?: string;
+  };
   /** Generated style.css requirements. Raise minima for project dependencies; record testedUpTo after WordPress acceptance. */
   compatibility?: {
     requiresWordPress?: string;

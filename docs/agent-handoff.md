@@ -46,7 +46,7 @@ Route-id overwrite fix (`bf909e8`), R6 parity CI (`49c0904`, CI fixes `1d7ef51`,
 | 2 | **R7 PHP** (§15) | ✅ money, `commerce-settings`, `products`/`product` (REST + native), contract cart + `X-ForgeWP-Cart-Token`, `POST /checkout`, parity CI with WooCommerce 11.0.1 (see §15.7a). **Done incl.** order view, customer, wishlist (§15.7a). Legacy shapes removed 2026-11-24. |
 | 3 ✅ | **R4 / R5 PHP** | Done, status §9d. Yoast / Rank Math live check is Gemini's (LocalWP). |
 | R8 ✅ | `transformBackendPhp` (2026-11-25) | Done: hook + types + test + docs; live check: a REST route added by a compiler plugin answers with the theme only, theme + plugin, and plugin under another theme. |
-| R9 | Hand-written plugin sources | Next: contract draft for the founder and Gemini. |
+| R9 ✅ | Hand-written plugin sources (2026-11-25) | Done per §16 (see §16.11). Gemini: Hospitality licensing on top, then LocalWP §16.9. |
 
 ### Claude — open items after Gemini's final stretch (2026-11-24)
 

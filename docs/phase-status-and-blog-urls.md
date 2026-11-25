@@ -167,7 +167,7 @@ Phase A is done; Phase B beta-critical work is done; Phase C core resources (`si
 | R6 ✅ | **Phase D — cross-mode parity CI** (first version done, §8): GitHub Actions job that boots the Docker WordPress sandbox, exports a fixture project natively, runs it decoupled, and fails on differences in resource JSON, key DOM text per route, form submit, auth guard and locale behavior | **Claude** (sandbox, workflow, PHP side) + **Gemini** (Next.js decoupled build/run step and DOM comparison helpers) | Strongly recommended | Locks in everything above. Claude builds the job; Gemini adds the Next side. |
 | R7 | **WooCommerce on the runtime** (cart, checkout, account resources) | Contract: **approved** (§15). PHP: **Claude — done** (§15.7a: products, cart + token, checkout, order view, customer, wishlist; legacy shapes removed once Gemini's client is on the contract). React: **Gemini** | Partly: the draft's audit found a **critical checkout payment bypass**, fixed in `dad33fe` (live LocalWP check pending) | Security fixes already shipped. |
 | R8 ✅ | **B5** `transformBackendPhp` hook | Claude | Done 2026-11-25 | |
-| R9 | **B6** hand-written Companion Plugin sources (Composer, multi-file, lifecycle hooks) | Claude | Post-beta | Needed for Hospitality 2035 licensing. |
+| R9 ✅ | **B6** hand-written Companion Plugin sources (Composer, multi-file, lifecycle hooks) | Claude | Done 2026-11-25 | Contract §16. |
 
 **Order:** Gemini starts with R4 + R5 contract drafts and R2 marker proposal, then R3. Claude starts R6 (parity CI) and R2's PHP side as soon as Gemini's marker shape is agreed, then the R4/R5 PHP once their contracts are approved. Founder: run R1 with the local agent any time; it is independent.
 
