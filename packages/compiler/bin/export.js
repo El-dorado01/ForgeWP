@@ -123,6 +123,11 @@ async function main() {
       console.log(ui.detail('Install it in WordPress: Appearance → Themes → Add New → Upload Theme'));
     }
     console.log('');
+    for (const warning of result.warnings || []) {
+      console.log(ui.warn(warning.message));
+      for (const detail of warning.details || []) console.log(ui.detail(detail));
+      console.log('');
+    }
   } catch (error) {
     if (spin.active) spin.fail();
     const message = error instanceof Error ? error.message : String(error);

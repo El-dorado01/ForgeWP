@@ -9,6 +9,8 @@ import { findWpConfigPath } from './project-language.js';
 import { renderStaticMarkup } from './render-static.js';
 import { assertZipCreated, zipTheme } from './zip-theme.js';
 import { companionPluginSlug } from './companion-plugin.js';
+import { findUnreferencedPublicFiles, pruneOptimizedOriginals, removeExcludedPublicFiles } from './assets/prune-originals.js';
+import { globToRegExp } from './companion-sources.js';
 
 import { validateCriticalFiles } from './validate.js';
 import { validateExport } from './validate-export.js';
@@ -67,6 +69,9 @@ export async function exportTheme(options) {
       flush: false,
     });
   }
+
+  // Warnings the CLI prints after the summary (never shown as a finished step).
+  const exportWarnings = [];
 
   function report(stage, message, level = 'dim') {
     if (options.onProgress && typeof options.onProgress === 'function') {
@@ -181,6 +186,47 @@ export async function exportTheme(options) {
   });
   printAssetDiagnosticsReport(assetManifest);
 
+  // Originals whose WebP variants replaced every reference (validation below
+  // fails the export if a file that is still referenced went missing).
+  if (config.assets?.images?.keepOriginals !== true) {
+    const pruned = pruneOptimizedOriginals(themeRoot, outDir, assetGraph);
+    if (pruned.removed.length > 0) {
+      report(
+        'assets-pruned',
+        `Left out ${pruned.removed.length} original image(s) replaced by WebP variants (${(pruned.bytesSaved / 1048576).toFixed(1)} MB)` +
+          (pruned.kept.length > 0 ? `; kept ${pruned.kept.length} still referenced` : ''),
+        'green',
+      );
+    }
+  }
+
+  const excludedPublic = removeExcludedPublicFiles(themeRoot, outDir, config.assets?.exclude, globToRegExp);
+  if (excludedPublic.length > 0) {
+    report('assets-excluded', `Left out ${excludedPublic.length} file(s) from public/ (assets.exclude)`, 'green');
+  }
+  const unreferenced = findUnreferencedPublicFiles(themeRoot, outDir);
+  if (unreferenced.length > 0) {
+    const total = unreferenced.reduce((sum, f) => sum + f.bytes, 0);
+    const shown = unreferenced.slice(0, 8).map((f) => `${f.rel}  ${(f.bytes / 1024).toFixed(0)} KB`);
+    if (unreferenced.length > 8) shown.push(`…and ${unreferenced.length - 8} more`);
+    exportWarnings.push({
+      code: 'unreferenced-public-files',
+      message: `${unreferenced.length} large file(s) in public/ (${(total / 1048576).toFixed(1)} MB) are not used by the theme but are still in the export.`,
+      details: [
+        ...shown,
+        'Delete them from public/, or list them under assets.exclude in wp.config.ts.',
+        'Keep a file only if a post or page links to it directly.',
+      ],
+      files: unreferenced,
+    });
+  }
+  if (!options.onProgress) {
+    for (const w of exportWarnings) {
+      console.log(pc.yellow(`  ! ${w.message}`));
+      for (const d of w.details) console.log(pc.dim(`      ${d}`));
+    }
+  }
+
   // Optional export validation
   if (options.validate) {
     report('validate', 'Validating exported theme package…');
@@ -231,5 +277,6 @@ export async function exportTheme(options) {
     outDir,
     zipPath: options.zip !== false ? zipPath : null,
     assets,
+    warnings: exportWarnings,
   };
 }

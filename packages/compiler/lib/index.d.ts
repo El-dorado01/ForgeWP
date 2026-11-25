@@ -255,6 +255,17 @@ export interface ForgeWPThemeConfig {
    * code lives in src/server/plugin/: flat *.php files, plus src/, includes/,
    * templates/, assets/ and an optional composer.json (installed at export).
    */
+  /** Export asset options. */
+  assets?: {
+    images?: {
+      /** WebP quality for generated variants (default 80). */
+      quality?: number;
+      /** Keep original JPEG/PNG files in the theme even when WebP variants replaced every reference (default false). */
+      keepOriginals?: boolean;
+    };
+    /** Globs relative to public/ that are never copied into the theme, e.g. ['videos/raw/**', '*.psd']. */
+    exclude?: string[];
+  };
   companion?: {
     /** PSR-4 prefixes → folders relative to src/server/plugin/, e.g. { 'Acme\\Shop\\': 'src/' }. Not needed with Composer. */
     autoload?: Record<string, string>;

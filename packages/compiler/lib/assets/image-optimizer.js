@@ -6,7 +6,7 @@ import sharp from 'sharp';
 /**
  * Standard responsive breakpoints for static image generation.
  */
-export const DEFAULT_RESPONSIVE_WIDTHS = [480, 768, 1024, 1440, 1920];
+export const DEFAULT_RESPONSIVE_WIDTHS = [480, 768, 1024, 1440, 1920, 2560];
 
 /**
  * Extract intrinsic image metadata (dimensions, format, alpha).
@@ -129,11 +129,14 @@ export async function generateResponsiveVariants(
   const targetWidths = options.widths || DEFAULT_RESPONSIVE_WIDTHS;
   const publicPrefix = (options.publicUrlPrefix || 'assets/images').replace(/\/+$/, '');
 
-  // Filter widths: never upscale beyond original intrinsic resolution
+  // Never upscale beyond the original. Add the original width only when it is
+  // below the largest target: a 4912px photo gets 2560w at most, because no
+  // screen shows more and that one file used to be most of the image's weight.
+  const maxTarget = Math.max(...targetWidths);
   let widthsToGenerate = targetWidths.filter((w) => w <= origWidth);
   if (widthsToGenerate.length === 0 && origWidth > 0) {
     widthsToGenerate = [origWidth];
-  } else if (!widthsToGenerate.includes(origWidth) && origWidth > 0) {
+  } else if (!widthsToGenerate.includes(origWidth) && origWidth > 0 && origWidth < maxTarget) {
     widthsToGenerate.push(origWidth);
   }
   widthsToGenerate.sort((a, b) => a - b);
