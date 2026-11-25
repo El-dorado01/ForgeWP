@@ -546,8 +546,8 @@ ${phpArgs}
         if (/^https?:\/\//i.test(src) || /^\/\//.test(src)) {
           return `<img src="${src}"${extraHtmlStr} />`;
         }
-        // Local theme asset path
-        const cleanPath = src.replace(/^(\/|\.\/|@\/)+/, '');
+        // Local theme asset path (the WebP fallback when variants exist)
+        const cleanPath = (responsiveAttrs.length > 0 ? getResponsiveFallbackSrc(src, assetGraph) || src : src).replace(/^(\/|\.\/|@\/)+/, '');
         return `<img src="<?php echo esc_url( get_theme_file_uri( '${cleanPath}' ) ); ?>"${extraHtmlStr} />`;
       } else {
         return `<img src="<?php echo esc_url( get_theme_file_uri( 'assets/image-placeholder.png' ) ); ?>"${extraHtmlStr} />`;
@@ -573,6 +573,10 @@ ${phpArgs}
         );
         if (responsiveAttrs.length > 0) {
           updatedAttrs += ` ${responsiveAttrs.join(' ')}`;
+          const fallback = getResponsiveFallbackSrc(src, assetGraph);
+          if (fallback && srcMatch) {
+            updatedAttrs = updatedAttrs.replace(srcMatch[0], `src="${fallback}"`);
+          }
         }
       }
       updatedAttrs = updatedAttrs.replace(
@@ -1273,6 +1277,24 @@ endforeach;
       return `${serverLoop}${remainder.trim()}`;
     },
   );
+}
+
+/**
+ * The WebP to use as <img src> when responsive variants exist: the largest one
+ * up to 1920px. Every current browser reads WebP and picks from srcset; src is
+ * only the fallback, so the original JPEG/PNG no longer has to ship.
+ */
+export function getResponsiveFallbackSrc(src, assetGraph) {
+  if (!src || !assetGraph || typeof assetGraph.getAsset !== 'function') return null;
+  const node = assetGraph.getAsset(src);
+  if (!node || node.classification !== 'local-static' || !Array.isArray(node.variants)) return null;
+  const variants = node.variants
+    .filter((v) => v && typeof v.publicUrl === 'string' && Number(v.width) > 0)
+    .sort((a, b) => Number(a.width) - Number(b.width));
+  if (variants.length === 0) return null;
+  const upTo = variants.filter((v) => Number(v.width) <= 1920);
+  const pick = upTo.length > 0 ? upTo[upTo.length - 1] : variants[0];
+  return '/' + pick.publicUrl.replace(/^\/+/, '');
 }
 
 function getResponsiveImageAttributes(src, assetGraph, existingAttrs) {

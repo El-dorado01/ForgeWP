@@ -5,6 +5,12 @@ name: Parity (native vs decoupled)
 
 on:
   workflow_dispatch:
+  # Nightly on main (02:17 UTC): catches failures that only show up some of the
+  # time (timing, slow start-up) and changes in WordPress or WooCommerce
+  # downloads, on days without a push. GitHub emails the repository's admins
+  # when a scheduled run fails.
+  schedule:
+    - cron: '17 2 * * *'
   pull_request:
     paths:
       - 'packages/react/**'

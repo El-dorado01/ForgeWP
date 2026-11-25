@@ -179,8 +179,15 @@ describe('Live disposable WordPress acceptance & native <-> decoupled round trip
         }
         expect(ready, `WordPress Playground did not become ready:\n${serverLogs}`).toBe(true);
 
-        const passRes = await fetch(`${wpUrl}/wp-content/forgewp-acceptance-pass.txt`);
-        expect(passRes.ok).toBe(true);
+        // The blueprint can still be running its last steps (it writes the
+        // application password file) after the server already answers.
+        let passRes = await fetch(`${wpUrl}/wp-content/forgewp-acceptance-pass.txt`);
+        const passDeadline = Date.now() + 60_000;
+        while (!passRes.ok && Date.now() < passDeadline) {
+          await new Promise((r) => setTimeout(r, 750));
+          passRes = await fetch(`${wpUrl}/wp-content/forgewp-acceptance-pass.txt`);
+        }
+        expect(passRes.ok, `WordPress Playground never wrote the application password file:\n${serverLogs}`).toBe(true);
         const appPass = (await passRes.text()).trim();
         const auth = { username: 'admin', applicationPassword: appPass };
         const authHeader =

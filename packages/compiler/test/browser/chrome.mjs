@@ -3,7 +3,22 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+/**
+ * Opens Chrome for a browser check. Shared CI machines are sometimes slow to
+ * start a browser: startup gets 60 s (FORGEWP_CHROME_STARTUP_MS), and a failed
+ * start is tried once more with a fresh profile before the check fails.
+ */
 export async function openChrome(options = {}) {
+  try {
+    return await openChromeOnce(options);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.startsWith('Chrome startup')) throw error;
+    console.warn(`[forgewp browser] ${error.message}; trying once more with a fresh profile.`);
+    return openChromeOnce(options);
+  }
+}
+
+async function openChromeOnce(options = {}) {
   const headed =
     typeof options.headed === 'boolean'
       ? options.headed
@@ -59,7 +74,7 @@ export async function openChrome(options = {}) {
       if (value) return value;
       await delay(100);
     }
-    throw new Error(`Timed out: ${label}`);
+    throw new Error(label === 'Chrome startup' ? 'Chrome startup timed out' : `Timed out: ${label}`);
   };
   const close = async () => {
     socket?.close();
@@ -74,7 +89,13 @@ export async function openChrome(options = {}) {
     }
   };
   try {
-    await wait(() => fs.existsSync(path.join(profile, 'DevToolsActivePort')), 'Chrome startup');
+    const startupMs = Number(process.env.FORGEWP_CHROME_STARTUP_MS) || 60000;
+    await wait(() => {
+      if (child.exitCode !== null) {
+        throw new Error(`Chrome startup failed: the browser exited with code ${child.exitCode}`);
+      }
+      return fs.existsSync(path.join(profile, 'DevToolsActivePort'));
+    }, 'Chrome startup', startupMs);
     const port = fs.readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0];
     const tabs = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
     socket = new WebSocket(tabs.find((tab) => tab.type === 'page').webSocketDebuggerUrl);

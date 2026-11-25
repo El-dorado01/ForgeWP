@@ -25,6 +25,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { companionConstant } from './companion-plugin.js';
 
+/**
+ * On Windows, Composer is a composer.bat / composer.cmd wrapper, which Node can
+ * only start through a shell (spawn without one fails with ENOENT). The
+ * arguments are fixed values, never user input, so the shell is safe there.
+ */
+const COMPOSER_SHELL = process.platform === 'win32';
+
 export const COMPANION_TREE_DIRS = ['src', 'includes', 'templates', 'assets'];
 
 /** Never copied (§16.6). Matched against the path relative to src/server/plugin/. */
@@ -145,7 +152,7 @@ export function buildComposerVendor(pluginSrcDir, treeFiles, { spawn = spawnSync
         'and commit composer.lock, so every export installs the same library versions.',
     );
   }
-  const probe = spawn('composer', ['--version'], { encoding: 'utf8' });
+  const probe = spawn('composer', ['--version'], { encoding: 'utf8', shell: COMPOSER_SHELL });
   if (probe.error || probe.status !== 0) {
     throw new Error(
       '[ForgeWP] src/server/plugin/composer.json needs Composer, which is not installed (or not on PATH). ' +
@@ -163,7 +170,7 @@ export function buildComposerVendor(pluginSrcDir, treeFiles, { spawn = spawnSync
   const run = spawn(
     'composer',
     ['install', '--no-dev', '--prefer-dist', '--optimize-autoloader', '--no-interaction', '--no-progress', '--no-scripts'],
-    { cwd: tmp, encoding: 'utf8', env: { ...process.env, COMPOSER_NO_AUDIT: '1' } },
+    { cwd: tmp, encoding: 'utf8', shell: COMPOSER_SHELL, env: { ...process.env, COMPOSER_NO_AUDIT: '1' } },
   );
   const output = `${run.stdout || ''}${run.stderr || ''}`;
   if (run.status !== 0) {
