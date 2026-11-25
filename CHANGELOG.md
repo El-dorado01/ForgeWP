@@ -4,6 +4,22 @@ All notable changes to the published ForgeWP packages. Versions follow
 [semantic versioning](https://semver.org); before 1.0, a minor version
 (0.5 → 0.6) can contain breaking changes.
 
+## 2026-11-25: release from GitHub
+
+| Package | Version |
+| --- | --- |
+| `@forgewp/compiler` | 0.6.0 → **0.6.1** |
+| `@forgewp/react` | 0.6.0 → **0.6.1** |
+| `create-forgewp` | 0.6.0 → **0.6.1** |
+| `@forgewp/woocommerce` | 0.2.0 → **0.2.1** |
+| `@forgewp/auth` | 0.1.3 → **0.1.4** |
+| `@forgewp/ui` | 0.4.5 → **0.4.6** |
+| `@forgewp/plugin-seo` | 0.4.4 → **0.4.5** |
+
+No code changes. The first release published by GitHub Actions with npm
+trusted publishing: every package now links to its source in the ForgeWP
+repository and carries a provenance statement showing it was built there.
+
 ## 2026-11-25: pre-beta
 
 | Package | Version |

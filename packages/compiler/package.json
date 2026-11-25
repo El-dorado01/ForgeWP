@@ -1,6 +1,6 @@
 {
   "name": "@forgewp/compiler",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Compile ForgeWP React themes into installable WordPress themes",
   "repository": {
     "type": "git",
