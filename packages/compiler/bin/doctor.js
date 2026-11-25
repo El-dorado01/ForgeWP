@@ -5,6 +5,8 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { SYSTEM_BLUEPRINTS } from "../lib/blueprints.js";
 import { loadConfig } from "../lib/load-config.js";
+import { checkCompanionSources, listCompanionTree } from "../lib/companion-sources.js";
+import { spawnSync } from "node:child_process";
 import { loadFrameworkAdapter } from "../lib/framework-adapter.js";
 import { diagnoseNextNativeCompatibility } from "../lib/next-adapter.js";
 import { findWpConfigPath } from "../lib/project-language.js";
@@ -277,6 +279,25 @@ if (frameworkAdapter === "nextjs") {
     return warnings.length > 0 ? warnings.join("\n        👉 ") : null;
   });
 }
+
+// 4.6 Companion Plugin sources (src/server/plugin, contract §16)
+runCheck("Companion Plugin Sources", () => {
+  const pluginDir = path.join(projectRoot, "src", "server", "plugin");
+  if (!existsSync(pluginDir)) return null;
+  const tree = listCompanionTree(pluginDir, loadedConfig && loadedConfig.companion && loadedConfig.companion.exclude);
+  const problems = checkCompanionSources(pluginDir, tree);
+  if (existsSync(path.join(pluginDir, "composer.json"))) {
+    if (!existsSync(path.join(pluginDir, "composer.lock"))) {
+      problems.push("src/server/plugin/composer.json has no composer.lock: run `composer update` there and commit composer.lock.");
+    }
+    const composer = spawnSync("composer", ["--version"], { encoding: "utf8" });
+    if (composer.error || composer.status !== 0) {
+      problems.push("src/server/plugin/composer.json needs Composer at export time: install it from https://getcomposer.org/download/.");
+    }
+  }
+  if (problems.length > 0) throw new Error(problems.join("\n"));
+  return null;
+});
 
 // 5. Tailwind / Global CSS Integration Check
 runCheck("Global Stylesheet Architecture", () => {

@@ -1033,7 +1033,7 @@ Original questions:
 - **Q5 Beta gateway scope:** `offline` + `redirect` only; `client` gateways (Stripe Elements, PayPal buttons) post-beta? (Recommended.)
 - **Q6 Parity CI with WooCommerce:** the workflow would download WooCommerce from its GitHub release (`woocommerce/woocommerce` → `woocommerce.zip`) into the CI WordPress. OK to add? (The cloud sandbox install was blocked by the permission classifier here, so this needs your approval.)
 
-## 16. Companion Plugin sources — hand-written plugin code (R9 — Status: **Approved 2026-11-25**: founder Q1–Q3, Gemini's review amendments in 16.10)
+## 16. Companion Plugin sources — hand-written plugin code (R9 — Status: **Approved 2026-11-25**, **implemented 2026-11-25** (16.11): founder Q1–Q3, Gemini's review amendments in 16.10)
 
 **Why:** Hospitality 2035 (EDD order-linked sequential licenses, PDF stamping, private delivery, admin settings) needs real plugin code: several files, namespaced classes, Composer libraries (PDF), its own assets and templates, and setup on activation/upgrade. Today `src/server/plugin/*.php` is flat files pasted into one `backend.php`.
 
@@ -1115,3 +1115,12 @@ Unit: layout copy, autoload, exclusions, ABSPATH lint, lifecycle actions, `php -
 8. **Libraries that write into their own folder.** `vendor/` is replaced on every plugin update and may be read-only. A library that writes cache files next to its own files (tFPDF's font metrics for TrueType fonts) must be pointed at a writable folder, such as the project's private folder. Documented with tFPDF as the example; not something ForgeWP can do for the library.
 9. **Plugin headers (new).** `companion.requiresPlugins: ['easy-digital-downloads']` and `companion.requiresPhp: '8.1'` become the `Requires Plugins` / `Requires PHP` headers of `<slug>-companion.php`, so WordPress refuses activation without them. The theme's copy cannot enforce headers: project code still checks, for example `function_exists('edd_get_order')`, and shows an admin notice.
 10. **`wp.config.ts` surface (new).** `companion?: { autoload?: Record<string, string>; exclude?: string[]; embedInTheme?: boolean; requiresPlugins?: string[]; requiresPhp?: string }`, typed in `defineConfig`, all optional.
+
+### 16.11 Implementation notes (Claude, 2026-11-25)
+
+- Code: `packages/compiler/lib/companion-sources.js` (tree, exclusions, checks, Composer, prelude, `uninstall.php`), `lib/companion-plugin.js` (headers, lifecycle hooks, `embedInTheme`), `bin/doctor.js` ("Companion Plugin Sources"). Tests: `test/functions/companion-sources.test.js`.
+- **Fixed on the way (existed before R9):** the plugin's `register_activation_hook` sat inside the "no copy loaded yet" guard, so activating the plugin next to the active ForgeWP theme never fired `forgewp_companion_activated` (or flushed rewrites). The hooks are now registered unconditionally; the handlers come from whichever copy runs.
+- `embedInTheme: false` without the plugin: front-end requests get a 503 "site temporarily unavailable" page (`Retry-After: 3600`) instead of PHP errors (the templates call backend functions); wp-admin works and shows a notice.
+- `forgewp_companion_upgraded` is not fired on a first install (no stored version yet); `forgewp_companion_activated` covers that.
+- **Not built:** the Theme Options checkbox for 16.5. Opting in is the `FORGEWP_COMPANION_DELETE_DATA` constant only.
+- Verified in the sandbox (parity fixture with a temporary tree: a Composer-autoloaded namespaced class, a CSS file, file-level lifecycle handlers): theme only and theme + plugin (class, `_DIR`, `_URL` with CSS 200 from each copy); activated fires for theme activation and for plugin activation next to the theme; upgrade 0.1.0 → 0.1.1 fires once over three requests; deactivation hands over to the theme's copy; uninstall without opt-in keeps data, with opt-in fires once with the theme active (no second copy loaded, no fatal) and under twentytwentyfive; `embedInTheme: false` gives 503 without the plugin and 200 with it.

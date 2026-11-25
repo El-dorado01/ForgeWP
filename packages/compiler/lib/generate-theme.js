@@ -46,6 +46,14 @@ import { collectPageTemplateRoutes } from './collect-page-template-routes.js';
 import { buildFunctionsPhpParts } from './functions/index.js';
 import { discoverNextDynamicHierarchy } from './next-dynamic-routes.js';
 import { buildThemeCompanionLoaderPhp, writeCompanionPlugin } from './companion-plugin.js';
+import {
+  buildComposerVendor,
+  buildCompanionPreludePhp,
+  buildCompanionUninstallPhp,
+  checkCompanionSources,
+  listCompanionTree,
+  writeCompanionTree,
+} from './companion-sources.js';
 import { loadMenusData } from './functions/load-menus.js';
 import {
   loadTranslationsData,
@@ -2093,6 +2101,22 @@ if (window.forgeWpBlocks) {
         `Treating as theme code: ${serverLegacy.files.join(', ')}.`,
     );
   }
+  // R9 (§16): project tree (src/, includes/, templates/, assets/) + Composer
+  // libraries, copied into project/ of both backend copies. Order in
+  // backend.php: constants → vendor autoload → companion.autoload → generated
+  // backend → flat src/server/plugin/*.php files.
+  const pluginSrcDir = path.join(serverDir, 'plugin');
+  const companionTree = listCompanionTree(pluginSrcDir, config.companion && config.companion.exclude);
+  const companionProblems = checkCompanionSources(pluginSrcDir, companionTree);
+  if (companionProblems.length > 0) {
+    throw new Error(`[ForgeWP] Companion Plugin sources need changes:\n- ${companionProblems.join('\n- ')}`);
+  }
+  const composerVendor = buildComposerVendor(pluginSrcDir, companionTree);
+  const hasCompanionProject = companionTree.length > 0 || Boolean(composerVendor);
+  companionBackendPhp =
+    buildCompanionPreludePhp(config, { hasTree: companionTree.length > 0, hasVendor: Boolean(composerVendor) }) +
+    '\n' +
+    companionBackendPhp;
   if (serverPlugin.php) {
     companionBackendPhp +=
       '\n\n/**\n * ── PHP Server Escape Hatch, backend (src/server/plugin/) ──\n */' + serverPlugin.php + '\n';
@@ -2127,7 +2151,19 @@ if (window.forgeWpBlocks) {
     functionsPhpContent,
     'utf8',
   );
-  writeCompanionPlugin({ outDir, config, backendPhp: companionBackendPhp });
+  try {
+    writeCompanionPlugin({
+      outDir,
+      config,
+      backendPhp: companionBackendPhp,
+      uninstallPhp: buildCompanionUninstallPhp(config),
+      writeTree: hasCompanionProject
+        ? (dest) => writeCompanionTree(pluginSrcDir, companionTree, dest, composerVendor && composerVendor.vendorDir)
+        : null,
+    });
+  } finally {
+    if (composerVendor) composerVendor.cleanup();
+  }
 
   // WordPress runtime reads translations.json from the theme root. Serialize
   // cms/translations.ts (preferred) or the legacy JSON file into that artifact.
