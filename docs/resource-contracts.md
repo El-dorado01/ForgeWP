@@ -1032,3 +1032,72 @@ Original questions:
 - **Q4 Native cart/checkout/account pages:** (a) WooCommerce blocks or (b) ForgeWP React? (Recommended: (a) for beta.)
 - **Q5 Beta gateway scope:** `offline` + `redirect` only; `client` gateways (Stripe Elements, PayPal buttons) post-beta? (Recommended.)
 - **Q6 Parity CI with WooCommerce:** the workflow would download WooCommerce from its GitHub release (`woocommerce/woocommerce` → `woocommerce.zip`) into the CI WordPress. OK to add? (The cloud sandbox install was blocked by the permission classifier here, so this needs your approval.)
+
+## 16. Companion Plugin sources — hand-written plugin code (R9 — Status: **Draft 2026-11-25**, needs founder Q1–Q3 + Gemini review)
+
+**Why:** Hospitality 2035 (EDD order-linked sequential licenses, PDF stamping, private delivery, admin settings) needs real plugin code: several files, namespaced classes, Composer libraries (PDF), its own assets and templates, and setup on activation/upgrade. Today `src/server/plugin/*.php` is flat files pasted into one `backend.php`.
+
+### 16.1 Source layout (backwards compatible)
+
+```
+src/server/plugin/
+  *.php            ← unchanged: pasted into backend.php, in file-name order (today's behaviour)
+  src/             ← NEW: PHP classes, autoloaded (PSR-4, see 16.2)
+  includes/        ← NEW: PHP files the project require_once's itself
+  templates/       ← NEW: PHP/HTML templates (e.g. a license email, a PDF layout)
+  assets/          ← NEW: JS, CSS, images, fonts the plugin enqueues
+  composer.json    ← NEW, optional (see 16.3)
+```
+
+Every folder except the flat `*.php` files is copied **as is** into `project/` of both copies of the backend: `<slug>-companion/project/…` and the theme's `companion/project/…`. Nothing else in `src/server/plugin/` is copied (no stray files).
+
+### 16.2 Reaching your files (both copies)
+
+Only one copy runs at a time (the active plugin wins, the existing `FORGEWP_COMPANION_<SLUG>` guard). The backend defines, for whichever copy runs:
+
+| Constant | Value |
+|---|---|
+| `FORGEWP_COMPANION_<SLUG>_DIR` | absolute path of `project/` (trailing slash) |
+| `FORGEWP_COMPANION_<SLUG>_URL` | URL of `project/` (for `wp_enqueue_script` / `wp_enqueue_style`) |
+
+PSR-4 autoloading without Composer: `wp.config.ts` `companion.autoload: { 'Hospitality\\Licensing\\': 'src/' }` (paths relative to `src/server/plugin/`). The compiler emits a small `spl_autoload_register` for these prefixes. With Composer (16.3), Composer's autoloader is used instead.
+
+### 16.3 Composer libraries — **Q1 (founder)**
+
+- **Option A (recommended): `composer install --no-dev --optimize-autoloader` during export** when `src/server/plugin/composer.json` exists; `vendor/` goes into both copies. Needs Composer on the developer machine and in CI (`forgewp doctor` checks it and explains how to install). Lockfile (`composer.lock`) required, so builds are repeatable.
+- Option B: the project commits `src/server/plugin/vendor/`; the export only copies it. No Composer needed at export time, but `vendor/` lives in Git.
+
+### 16.4 Lifecycle hooks (both copies)
+
+| Action (project code adds handlers) | When |
+|---|---|
+| `forgewp_companion_activated` (exists for plugin activation; R9 adds the theme case) | Plugin activated, or the ForgeWP theme activated while the plugin is inactive (`after_switch_theme`) |
+| `forgewp_companion_upgraded( $from, $to )` **NEW** | First request after the backend's version changes (stored in option `forgewp_companion_<slug>_version`), whichever copy runs; runs once, guarded by a lock |
+| `forgewp_companion_deactivated` **NEW** | Plugin deactivated (the theme's copy takes over if the theme is active) |
+| `forgewp_companion_uninstall` **NEW** | Plugin deleted in wp-admin (`uninstall.php`); see Q2 |
+
+### 16.5 Uninstall data — **Q2 (founder)**
+
+- **Recommended: keep data by default.** `forgewp_companion_uninstall` runs only when the site owner opted in (`define('FORGEWP_COMPANION_DELETE_DATA', true)` in `wp-config.php`, or a checkbox on the Theme Options page). Deleting the plugin then never destroys license records or orders by accident. Note the theme's copy keeps serving the backend after the plugin is deleted, which is another reason not to delete data by default.
+- Alternative: always run it (WordPress's usual meaning of "delete").
+
+### 16.6 Private files
+
+- Default exclusions, never copied: `.env*`, `*.key`, `*.pem`, `auth.json`, `tests/`, `node_modules/`, `.git*`, `phpunit.xml*`, `*.md`.
+- `companion.exclude: ['assets/raw/**']` adds more globs.
+- **Files to sell (the study PDF) must not be in the plugin at all**: everything in a plugin folder can be downloaded by URL. The docs show storing them in a protected uploads folder and delivering them through a REST/download handler that checks the order (the Hospitality feature).
+- The export fails if a PHP file under `src/`, `includes/` or `templates/` lacks the `defined('ABSPATH') || exit;` guard (a direct URL to it must not run it); `forgewp doctor --fix` can add it.
+
+### 16.7 The theme's built-in copy — **Q3 (founder)**
+
+The embedded copy doubles the theme ZIP size with Composer libraries, and the WordPress.org theme directory does not accept themes that contain plugin features. Options:
+- **Recommended: `companion.embedInTheme: true` by default** (one-ZIP install keeps working), with `false` for themes going to WordPress.org or with large libraries; then the theme shows an admin notice asking to install the Companion Plugin.
+- Alternative: always embed.
+
+### 16.8 Out of scope
+
+Plugin auto-updates from a private server, WP-CLI commands, multisite network activation (works, untested), React-built admin screens (later, through the existing hydration pipeline).
+
+### 16.9 Acceptance
+
+Unit: layout copy, autoload, exclusions, ABSPATH lint, lifecycle actions, `php -l` of all output. Sandbox: plugin only / theme only / both; upgrade 1.0 → 1.1 runs `forgewp_companion_upgraded` once; deactivate → theme copy takes over, no data loss; uninstall with and without opt-in. Gemini (LocalWP): Hospitality's licensing feature built on this, EDD + Stripe test mode, PDF delivered and stamped, survives theme switch and plugin upgrade.
