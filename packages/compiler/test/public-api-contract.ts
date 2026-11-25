@@ -59,6 +59,9 @@ export function publicApiContract(
     transformFunctionsPhp(php, theme, root, { path }) {
       return php + `\n// ${theme.slug}: ${path.basename(root)}`;
     },
+    transformBackendPhp(php, theme) {
+      return php + `\n// backend for ${theme.slug}`;
+    },
   };
   // Existing plugins that need fewer parameters remain assignable.
   const simple: ForgeWPPlugin = {

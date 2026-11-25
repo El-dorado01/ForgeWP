@@ -68,7 +68,20 @@ export interface ForgeWPPluginContext {
 export interface ForgeWPPlugin {
   name: string;
   validateConfig?: (config: ForgeWPThemeConfig, themeRoot: string, context: ForgeWPPluginContext) => void;
+  /** Changes the theme half (functions.php): presentation hooks such as wp_head or the_content. */
   transformFunctionsPhp?: (
+    php: string,
+    config: ForgeWPThemeConfig,
+    themeRoot: string,
+    context: ForgeWPPluginContext,
+  ) => string;
+  /**
+   * Changes the backend half: the Companion Plugin and the theme's embedded copy
+   * of it (REST routes, content types, data hooks). Code added here keeps working
+   * when the site runs decoupled or under another theme, so it must not call
+   * functions that only the ForgeWP theme defines. Must return the PHP string.
+   */
+  transformBackendPhp?: (
     php: string,
     config: ForgeWPThemeConfig,
     themeRoot: string,

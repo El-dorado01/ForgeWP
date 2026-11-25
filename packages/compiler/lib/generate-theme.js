@@ -2105,6 +2105,23 @@ if (window.forgeWpBlocks) {
       '\n';
   }
 
+  // Plugin hook for the backend half (Companion Plugin + the theme's embedded
+  // copy): REST routes, content types, data hooks. Runs after src/server/plugin
+  // so packages see the project's own backend code too.
+  if (config.plugins && Array.isArray(config.plugins)) {
+    for (const plugin of config.plugins) {
+      if (typeof plugin.transformBackendPhp === 'function') {
+        const next = plugin.transformBackendPhp(companionBackendPhp, config, themeRoot, { fs, path });
+        if (typeof next !== 'string') {
+          throw new Error(
+            `[ForgeWP] Plugin "${plugin.name || 'unnamed'}": transformBackendPhp must return the PHP as a string.`,
+          );
+        }
+        companionBackendPhp = next;
+      }
+    }
+  }
+
   writeFileSync(
     path.join(outDir, 'functions.php'),
     functionsPhpContent,
