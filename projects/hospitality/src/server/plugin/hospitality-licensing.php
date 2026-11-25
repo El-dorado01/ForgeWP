@@ -14,12 +14,20 @@ add_action('forgewp_companion_upgraded', function () {
 
 add_action('forgewp_companion_uninstall', array('Hospitality2035\\Licensing\\Store', 'uninstall'));
 
-add_action('plugins_loaded', function () {
-    if (!function_exists('edd_get_order')) {
-        add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p>Hospitality Licensing benötigt Easy Digital Downloads 3 oder neuer.</p></div>';
-        });
-        return;
+if (!defined('WP_UNINSTALL_PLUGIN')) {
+    $h2035_boot = function () {
+        if (!function_exists('edd_get_order')) {
+            add_action('admin_notices', function () {
+                echo '<div class="notice notice-error"><p>Hospitality Licensing benötigt Easy Digital Downloads 3 oder neuer.</p></div>';
+            });
+            return;
+        }
+        \Hospitality2035\Licensing\Plugin::boot();
+    };
+
+    if (did_action('plugins_loaded')) {
+        $h2035_boot();
+    } else {
+        add_action('plugins_loaded', $h2035_boot);
     }
-    \Hospitality2035\Licensing\Plugin::boot();
-});
+}
