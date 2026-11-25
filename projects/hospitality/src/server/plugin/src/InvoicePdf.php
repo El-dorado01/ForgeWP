@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace Hospitality2035\Licensing;
 
+defined('ABSPATH') || exit;
+
 use RuntimeException;
 
 final class InvoicePdf

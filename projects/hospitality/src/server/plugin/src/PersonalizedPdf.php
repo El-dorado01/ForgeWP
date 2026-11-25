@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Hospitality2035\Licensing;
 
+defined('ABSPATH') || exit;
+
 use InvalidArgumentException;
 use RuntimeException;
 use setasign\Fpdi\Tfpdf\Fpdi;

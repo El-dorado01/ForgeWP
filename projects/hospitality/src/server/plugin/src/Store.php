@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace Hospitality2035\Licensing;
 
+defined('ABSPATH') || exit;
+
 use RuntimeException;
 
 final class Store
@@ -100,5 +102,14 @@ final class Store
         $number = ($order->mode === 'test' ? 'TEST-' : '') . 'H2035-' . str_pad((string) $id, 6, '0', STR_PAD_LEFT);
         self::update((int) $order->id, ['number' => $number]);
         return self::get((int) $order->id);
+    }
+
+    public static function uninstall(): void
+    {
+        global $wpdb;
+        $wpdb->query('DROP TABLE IF EXISTS ' . self::table());
+        $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'hospitality_invoice_sequences');
+        delete_option('h2035_settings');
+        delete_option('h2035_schema');
     }
 }

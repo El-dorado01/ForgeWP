@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace Hospitality2035\Licensing;
 
+defined('ABSPATH') || exit;
+
 use RuntimeException;
 use setasign\Fpdi\Tfpdf\Fpdi;
 
@@ -54,5 +56,21 @@ final class Storage
         }
         if (hash_file('sha256', $target) !== hash_file('sha256', $source)) throw new RuntimeException('master_hash_mismatch');
         return $name;
+    }
+
+    public static function fontCacheDir(): string
+    {
+        $base = self::root() . '/font-cache';
+        $unifont = $base . '/unifont';
+        if (!is_dir($unifont) && !@mkdir($unifont, 0700, true)) {
+            throw new RuntimeException('font_cache_mkdir_failed');
+        }
+        $resolved = realpath($base);
+        if (!$resolved || !is_writable($unifont)) {
+            throw new RuntimeException('font_cache_unwritable');
+        }
+        @chmod($resolved, 0700);
+        @chmod($unifont, 0700);
+        return rtrim($resolved, '/\\') . '/';
     }
 }

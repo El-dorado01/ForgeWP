@@ -30,6 +30,11 @@ export default defineConfig({
   style: 'shadcn', // "forgewp" (sharp corners) or "shadcn" (smooth modern curves)
   frameworkAdapter: 'react',
 
+  companion: {
+    requiresPlugins: ['easy-digital-downloads'],
+    requiresPhp: '8.1',
+  },
+
   formsAdminCapability: 'manage_options',
 
   i18n: {

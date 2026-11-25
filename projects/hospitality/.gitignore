@@ -10,3 +10,4 @@ Thumbs.db
 !.env.example
 *.log
 .vite
+src/server/plugin/vendor/

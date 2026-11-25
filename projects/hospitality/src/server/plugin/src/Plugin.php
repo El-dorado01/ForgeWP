@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace Hospitality2035\Licensing;
 
+defined('ABSPATH') || exit;
+
 use RuntimeException;
 use Throwable;
 
@@ -29,8 +31,13 @@ final class Plugin
         });
         Admin::boot();
         add_action('wp_enqueue_scripts', static function () {
-            $file = dirname(__DIR__) . '/assets/receipt.css';
-            wp_enqueue_style('h2035-licensing-receipt', plugins_url('assets/receipt.css', dirname(__DIR__) . '/hospitality-licensing.php'), [], (string) filemtime($file));
+            $file = FORGEWP_COMPANION_HOSPITALITY_DIR . 'assets/receipt.css';
+            wp_enqueue_style(
+                'h2035-licensing-receipt',
+                FORGEWP_COMPANION_HOSPITALITY_URL . 'assets/receipt.css',
+                [],
+                is_file($file) ? (string) filemtime($file) : '0.2.1'
+            );
         });
         add_filter('edd_get_option_checkout_address_fields', [self::class, 'billingFields']);
         add_filter('edd_require_billing_address', static function ($required) {
