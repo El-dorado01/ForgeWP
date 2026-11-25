@@ -265,6 +265,8 @@ export interface ForgeWPThemeConfig {
     };
     /** Globs relative to public/ that are never copied into the theme, e.g. ['videos/raw/**', '*.psd']. */
     exclude?: string[];
+    /** Lossless pass after the build: referenced PNGs to lossless WebP, PNG recompression, identical fonts merged (default true). */
+    lossless?: boolean;
   };
   companion?: {
     /** PSR-4 prefixes → folders relative to src/server/plugin/, e.g. { 'Acme\\Shop\\': 'src/' }. Not needed with Composer. */
