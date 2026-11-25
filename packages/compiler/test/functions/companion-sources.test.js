@@ -14,6 +14,7 @@ import {
   buildCompanionPreludePhp,
   buildCompanionUninstallPhp,
   stripSourceInstalls,
+  buildComposerVendor,
 } from '../../lib/companion-sources.js';
 import { buildCompanionPluginMainFile, buildThemeCompanionLoaderPhp } from '../../lib/companion-plugin.js';
 import { generateTheme } from '../../lib/generate-theme.js';
@@ -66,6 +67,25 @@ describe('globs and exclusions (§16.6)', () => {
       write(root, 'assets/a.css', 'body{}');
       write(root, 'templates/mail.php', "<?php defined('ABSPATH') || exit; ?>");
       expect(listCompanionTree(root)).toEqual(['assets/a.css', 'src/A.php', 'templates/mail.php']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('Composer on Windows', () => {
+  it('starts Composer through a shell only on Windows (composer.bat needs one)', () => {
+    const root = tmpdir();
+    try {
+      write(root, 'composer.json', '{}');
+      write(root, 'composer.lock', '{}');
+      const calls = [];
+      const spawn = (cmd, args, opts) => {
+        calls.push(opts.shell);
+        return args[0] === '--version' ? { status: 0 } : { status: 1, stdout: '', stderr: 'stop here' };
+      };
+      expect(() => buildComposerVendor(root, [], { spawn })).toThrow(/stop here/);
+      expect(calls).toEqual([process.platform === 'win32', process.platform === 'win32']);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

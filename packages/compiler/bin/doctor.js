@@ -290,7 +290,8 @@ runCheck("Companion Plugin Sources", () => {
     if (!existsSync(path.join(pluginDir, "composer.lock"))) {
       problems.push("src/server/plugin/composer.json has no composer.lock: run `composer update` there and commit composer.lock.");
     }
-    const composer = spawnSync("composer", ["--version"], { encoding: "utf8" });
+    // composer.bat on Windows needs a shell (fixed arguments only).
+    const composer = spawnSync("composer", ["--version"], { encoding: "utf8", shell: process.platform === "win32" });
     if (composer.error || composer.status !== 0) {
       problems.push("src/server/plugin/composer.json needs Composer at export time: install it from https://getcomposer.org/download/.");
     }
