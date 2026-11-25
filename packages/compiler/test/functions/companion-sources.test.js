@@ -83,7 +83,7 @@ describe('forgewp_companion_ready', () => {
 $GLOBALS['done'] = array('plugins_loaded' => ${pluginsLoadedAlreadyFired ? 1 : 0});
 $GLOBALS['hooks'] = array();
 function did_action($h) { return $GLOBALS['done'][$h] ?? 0; }
-function add_action($h, $cb, $p = 10) { $GLOBALS['hooks'][$h][] = $cb; }
+function add_action($h, $cb, $p = 10) { $GLOBALS['hooks'][$h][] = $cb; } function add_filter() {}
 function do_action($h) { $GLOBALS['done'][$h] = ($GLOBALS['done'][$h] ?? 0) + 1; foreach ($GLOBALS['hooks'][$h] ?? array() as $cb) $cb(); }
 function plugins_url($p, $f) { return 'u/' . $p; } function trailingslashit($s) { return $s . '/'; } function get_template_directory_uri() { return 't'; }
 define('FORGEWP_COMPANION_ACME_SITE', 'plugin');
@@ -234,7 +234,7 @@ describe('generated PHP', () => {
       write(root, 'project/src/Billing/Invoice.php', GUARD.replace('Acme\\Shop', 'Acme\\Shop\\Billing') + 'final class Invoice { public static function n() { return 42; } }');
       write(root, 'run.php', `<?php
 define('ABSPATH', __DIR__);
-function add_action() {} function did_action() { return 0; } function trailingslashit($s) { return rtrim($s, '/') . '/'; }
+function add_action() {} function add_filter() {} function did_action() { return 0; } function trailingslashit($s) { return rtrim($s, '/') . '/'; }
 function get_template_directory_uri() { return 'https://site.test/wp-content/themes/acme-site'; }
 define('FORGEWP_COMPANION_ACME_SITE', 'theme');
 ${buildCompanionPreludePhp(config, { hasVendor: false })}
@@ -257,6 +257,7 @@ echo json_encode(array(\\Acme\\Shop\\Billing\\Invoice::n(), substr(FORGEWP_COMPA
 $GLOBALS['fired'] = 0; $GLOBALS['deleted'] = array();
 function do_action($a) { if ($a === 'forgewp_companion_uninstall') $GLOBALS['fired']++; }
 function delete_option($k) { $GLOBALS['deleted'][] = $k; }
+function get_option($k) { return $GLOBALS['opt'][$k] ?? false; }
 define('WP_UNINSTALL_PLUGIN', 'x');
 ${pre}
 include __DIR__ . '/uninstall.php';
@@ -266,8 +267,11 @@ echo json_encode(array($GLOBALS['fired'], $GLOBALS['loaded'] ?? 0, count($GLOBAL
         return JSON.parse(r.stdout);
       };
       expect(run('')).toEqual([0, 0, 0]);
-      expect(run("define('FORGEWP_COMPANION_DELETE_DATA', true);")).toEqual([1, 1, 2]);
-      expect(run("define('FORGEWP_COMPANION_DELETE_DATA', true); define('FORGEWP_COMPANION_ACME_SITE', 'theme');")).toEqual([1, 0, 2]);
+      expect(run("define('FORGEWP_COMPANION_DELETE_DATA', true);")).toEqual([1, 1, 3]);
+      expect(run("define('FORGEWP_COMPANION_DELETE_DATA', true); define('FORGEWP_COMPANION_ACME_SITE', 'theme');")).toEqual([1, 0, 3]);
+      // The Settings → Companion checkbox alone is enough; an unchecked box ('') is not.
+      expect(run("$GLOBALS['opt']['forgewp_companion_acme_site_delete_data'] = '1';")).toEqual([1, 1, 3]);
+      expect(run("$GLOBALS['opt']['forgewp_companion_acme_site_delete_data'] = '';")).toEqual([0, 0, 0]);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
