@@ -74,6 +74,35 @@ describe('globs and exclusions (§16.6)', () => {
   });
 });
 
+describe('forgewp_companion_ready', () => {
+  it.skipIf(!hasPhp)('waits for plugins_loaded in the plugin copy and for after_setup_theme in the theme copy (loaded too late for plugins_loaded)', () => {
+    const run = (pluginsLoadedAlreadyFired) => {
+      const root = tmpdir();
+      try {
+        write(root, 'run.php', `<?php
+$GLOBALS['done'] = array('plugins_loaded' => ${pluginsLoadedAlreadyFired ? 1 : 0});
+$GLOBALS['hooks'] = array();
+function did_action($h) { return $GLOBALS['done'][$h] ?? 0; }
+function add_action($h, $cb, $p = 10) { $GLOBALS['hooks'][$h][] = $cb; }
+function do_action($h) { $GLOBALS['done'][$h] = ($GLOBALS['done'][$h] ?? 0) + 1; foreach ($GLOBALS['hooks'][$h] ?? array() as $cb) $cb(); }
+function plugins_url($p, $f) { return 'u/' . $p; } function trailingslashit($s) { return $s . '/'; } function get_template_directory_uri() { return 't'; }
+define('FORGEWP_COMPANION_ACME_SITE', 'plugin');
+${buildCompanionPreludePhp({ slug: 'acme-site', version: '1.0.0' }, { hasVendor: false })}
+add_action('forgewp_companion_ready', function () { $GLOBALS['ready'][] = 1; });
+do_action('plugins_loaded'); do_action('after_setup_theme'); do_action('plugins_loaded');
+echo json_encode(array(count($GLOBALS['ready'] ?? array()), isset($GLOBALS['hooks']['after_setup_theme'])));`);
+        const r = spawnSync('php', [path.join(root, 'run.php')], { encoding: 'utf8' });
+        expect(r.status, r.stdout + r.stderr).toBe(0);
+        return JSON.parse(r.stdout);
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    };
+    expect(run(false)).toEqual([1, false]); // plugin copy: fires on plugins_loaded, once
+    expect(run(true)).toEqual([1, true]); // theme copy: plugins_loaded is over, fires on after_setup_theme
+  });
+});
+
 describe('vendor exclusions', () => {
   it("leaves out the project's vendor/ globs (unused library fonts) and nothing else", () => {
     const root = tmpdir();
@@ -205,7 +234,7 @@ describe('generated PHP', () => {
       write(root, 'project/src/Billing/Invoice.php', GUARD.replace('Acme\\Shop', 'Acme\\Shop\\Billing') + 'final class Invoice { public static function n() { return 42; } }');
       write(root, 'run.php', `<?php
 define('ABSPATH', __DIR__);
-function add_action() {} function trailingslashit($s) { return rtrim($s, '/') . '/'; }
+function add_action() {} function did_action() { return 0; } function trailingslashit($s) { return rtrim($s, '/') . '/'; }
 function get_template_directory_uri() { return 'https://site.test/wp-content/themes/acme-site'; }
 define('FORGEWP_COMPANION_ACME_SITE', 'theme');
 ${buildCompanionPreludePhp(config, { hasVendor: false })}

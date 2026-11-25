@@ -312,6 +312,27 @@ ${map}
   }
   lines.push(`
 /**
+ * forgewp_companion_ready: once per request, when the project code can start,
+ * whichever copy runs. The theme's copy loads from functions.php, after
+ * plugins_loaded has fired, so code waiting for plugins_loaded never ran there.
+ * Plugin copy: plugins_loaded (priority 20, after other plugins). Theme copy:
+ * after_setup_theme (priority 0, the first hook after functions.php).
+ */
+if (!function_exists('forgewp_companion_fire_ready')) {
+    function forgewp_companion_fire_ready() {
+        if (!did_action('forgewp_companion_ready')) {
+            do_action('forgewp_companion_ready');
+        }
+    }
+}
+if (did_action('plugins_loaded')) {
+    add_action('after_setup_theme', 'forgewp_companion_fire_ready', 0);
+} else {
+    add_action('plugins_loaded', 'forgewp_companion_fire_ready', 20);
+}
+`);
+  lines.push(`
+/**
  * forgewp_companion_upgraded( $from, $to ): once, on the first request after the
  * backend's version changes (whichever copy runs). Not fired on a first install
  * (forgewp_companion_activated covers that).
