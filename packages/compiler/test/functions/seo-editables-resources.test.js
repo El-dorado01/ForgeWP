@@ -226,7 +226,9 @@ describe('SEO loopback head', () => {
 const MINUTE_IN_SECONDS = 60;
 function wp_parse_url($u) { return parse_url($u); }
 function get_transient($k) { return $GLOBALS['t'][$k] ?? false; }
-function set_transient($k, $v, $e) { $GLOBALS['t'][$k] = $v; }
+function set_transient($k, $v, $e) { $GLOBALS['t'][$k] = $v; $GLOBALS['ttl'][$k] = $e; }
+function get_option($k, $d = false) { return $GLOBALS['o'][$k] ?? $d; }
+function update_option($k, $v, $a = null) { $GLOBALS['o'][$k] = $v; return true; }
 class WP_Error {} function is_wp_error($v) { return $v instanceof WP_Error; }
 function wp_remote_get($url, $args) { $GLOBALS['calls'][] = $url; return $GLOBALS['reply']; }
 function wp_remote_retrieve_response_code($r) { return $r['code']; }
@@ -249,6 +251,22 @@ echo json_encode(array(forgewp_seo_loopback_head('https://evil.test/'), forgewp_
     const r = loop(`$GLOBALS['reply'] = new WP_Error();
 echo json_encode(array(forgewp_seo_loopback_head('https://wp.example.com/a/'), forgewp_seo_loopback_head('https://wp.example.com/b/'), count($GLOBALS['calls']), (bool) get_transient('forgewp_seo_loopback_down')));`);
     expect(r).toEqual(['', '', 1, true]);
+  });
+
+  it.skipIf(!hasPhp)('pauses a failing loopback for one minute only (busy small hosts recover)', () => {
+    const r = loop(`$GLOBALS['reply'] = new WP_Error();
+forgewp_seo_loopback_head('https://wp.example.com/a/');
+echo json_encode($GLOBALS['ttl']['forgewp_seo_loopback_down']);`);
+    expect(r).toBe(60);
+  });
+
+  it.skipIf(!hasPhp)('keys stored heads by path, and saving content gives every path a new key', () => {
+    const r = loop(`$a = forgewp_seo_head_cache_key('/kontakt/');
+$same = forgewp_seo_head_cache_key('/kontakt/') === $a;
+$other = forgewp_seo_head_cache_key('/en/contact/') !== $a;
+forgewp_seo_head_cache_bump();
+echo json_encode(array($same, $other, forgewp_seo_head_cache_key('/kontakt/') !== $a));`);
+    expect(r).toEqual([true, true, true]);
   });
 
   it.skipIf(!hasPhp)('ignores non-200 pages without marking the loopback as down', () => {

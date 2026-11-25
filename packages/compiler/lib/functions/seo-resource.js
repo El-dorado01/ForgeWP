@@ -416,6 +416,32 @@ if (!function_exists('forgewp_seo_resource')) {
         return apply_filters('forgewp_seo_resource', $payload, array('target' => $target, 'path' => $path, 'lang' => $lang));
     }
 
+    // ── Head cache: the last head a logged-out visitor got for a path ────────
+    //
+    // Every logged-out page view (including our own loopback) stores its head
+    // for 10 minutes, so GET /seo usually reads it without calling the site
+    // again. That matters on hosts with few PHP workers, where a loopback can
+    // wait behind the REST request that started it. Saving content, terms,
+    // menus or settings clears every stored head.
+
+    function forgewp_seo_head_cache_key($path) {
+        $gen = (int) get_option('forgewp_seo_head_gen', 0);
+        return 'forgewp_seo_head_' . md5($gen . '|' . (string) $path);
+    }
+
+    function forgewp_seo_head_cache_bump() {
+        update_option('forgewp_seo_head_gen', (int) get_option('forgewp_seo_head_gen', 0) + 1, true);
+    }
+    foreach (array('save_post', 'deleted_post', 'edited_term', 'created_term', 'delete_term', 'wp_update_nav_menu', 'customize_save_after', 'switch_theme') as $forgewp_seo_hook) {
+        add_action($forgewp_seo_hook, 'forgewp_seo_head_cache_bump');
+    }
+    add_action('updated_option', function ($option) {
+        // SEO plugins, site title/description and permalinks change the head.
+        if ($option !== 'forgewp_seo_head_gen' && preg_match('/^(wpseo|rank[-_]math|aioseo|seopress|blogname|blogdescription|permalink_structure|site_icon)/', (string) $option)) {
+            forgewp_seo_head_cache_bump();
+        }
+    });
+
     // ── REST ──────────────────────────────────────────────────────────────────
 
     /**
@@ -432,7 +458,9 @@ if (!function_exists('forgewp_seo_resource')) {
         if ($url === '' || empty($parsed['host']) || empty($home['host']) || strtolower($parsed['host']) !== strtolower($home['host'])) {
             return '';
         }
-        // Remember a failing loopback for 10 minutes instead of waiting on it every time.
+        // Remember a failing loopback for a minute instead of waiting on it every
+        // time. Short on purpose: on small hosts a timeout often only means the
+        // PHP workers were busy.
         if (get_transient('forgewp_seo_loopback_down')) {
             return '';
         }
@@ -443,7 +471,7 @@ if (!function_exists('forgewp_seo_resource')) {
             'sslverify'   => (bool) apply_filters('https_local_ssl_verify', false),
         ));
         if (is_wp_error($response)) {
-            set_transient('forgewp_seo_loopback_down', 1, 10 * MINUTE_IN_SECONDS);
+            set_transient('forgewp_seo_loopback_down', 1, MINUTE_IN_SECONDS);
             return '';
         }
         if ((int) wp_remote_retrieve_response_code($response) !== 200) {
@@ -457,6 +485,23 @@ if (!function_exists('forgewp_seo_resource')) {
         }
         $start = strpos($body, '>', $start);
         return $start === false ? '' : substr($body, $start + 1, $end - $start - 1);
+    }
+
+    function forgewp_seo_switch_language($lang) {
+        if ($lang === '') {
+            return;
+        }
+        if (function_exists('PLL') && is_object(PLL()) && isset(PLL()->model) && method_exists(PLL()->model, 'get_language')) {
+            $language = PLL()->model->get_language($lang);
+            if ($language) {
+                PLL()->curlang = $language;
+                if (!empty($language->locale) && function_exists('switch_to_locale')) {
+                    switch_to_locale($language->locale);
+                }
+            }
+        } elseif (has_action('wpml_switch_language')) {
+            do_action('wpml_switch_language', $lang);
+        }
     }
 
     function forgewp_seo_rest($request) {
@@ -474,16 +519,20 @@ if (!function_exists('forgewp_seo_resource')) {
             return new WP_Error('FORGEWP_SEO_NOT_FOUND', 'No published page at this path.', array('status' => 404));
         }
         forgewp_seo_setup_query($target);
-        $html = '';
+        $cache_key = forgewp_seo_head_cache_key($path);
+        $html = (string) get_transient($cache_key);
         // Read the page's real head, as a visitor gets it. A head captured inside
         // this REST request misses whatever plugins and themes prepare on
         // front-end-only hooks: Rank Math skips its title format and JSON-LD under
         // REST, and themes build schema on template_redirect. If the site cannot
         // reach itself, fall back to the in-request capture below.
-        if (apply_filters('forgewp_seo_use_loopback', true, $target)) {
+        if ($html === '' && apply_filters('forgewp_seo_use_loopback', true, $target)) {
             $html = forgewp_seo_loopback_head(forgewp_seo_object_url($target));
         }
         if ($html === '') {
+            // Last resort: render the head inside this request, in the page's
+            // language (Polylang/WPML do not switch language for REST requests).
+            forgewp_seo_switch_language(is_string($lang) ? $lang : '');
             $GLOBALS['forgewp_seo_capturing'] = true;
             ob_start();
             do_action('wp_head');
@@ -561,7 +610,11 @@ if (!function_exists('forgewp_seo_resource')) {
         $path = forgewp_seo_norm_path(forgewp_seo_url_path(home_url($uri))) ?: '/';
         $lang = function_exists('forgewp_resource_lang') ? forgewp_resource_lang(null) : '';
         $head = (string) apply_filters('forgewp_seo_theme_head', '') . (string) $GLOBALS['forgewp_seo_head_html'];
-        $payload = forgewp_seo_build(forgewp_seo_parse_head($head), $target, $path, is_wp_error($lang) ? '' : $lang);
+        $lang = is_wp_error($lang) ? '' : $lang;
+        if (!is_user_logged_in() && empty($_GET) && !is_404()) {
+            set_transient(forgewp_seo_head_cache_key($path), $head, 10 * MINUTE_IN_SECONDS);
+        }
+        $payload = forgewp_seo_build(forgewp_seo_parse_head($head), $target, $path, $lang);
         echo '<script>(function(h){h.resources=h.resources||{};h.resources.seo=' . wp_json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) . ';})(window.forgeWpHydration=window.forgeWpHydration||{});</script>' . "\n";
     }, 100);
 }
