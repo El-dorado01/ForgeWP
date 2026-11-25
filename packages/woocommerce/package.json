@@ -2,6 +2,11 @@
   "name": "@forgewp/woocommerce",
   "version": "0.2.0",
   "description": "WooCommerce components and hooks for ForgeWP themes",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/El-dorado01/ForgeWP.git",
+    "directory": "packages/woocommerce"
+  },
   "type": "module",
   "exports": {
     ".": {

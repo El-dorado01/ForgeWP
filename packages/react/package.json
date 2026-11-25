@@ -2,6 +2,11 @@
   "name": "@forgewp/react",
   "version": "0.6.0",
   "description": "Lightweight WordPress data hooks and primitives for React — ForgeWP",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/El-dorado01/ForgeWP.git",
+    "directory": "packages/react"
+  },
   "type": "module",
   "exports": {
     ".": {

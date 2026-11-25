@@ -2,6 +2,11 @@
   "name": "create-forgewp",
   "version": "0.6.0",
   "description": "Scaffold a ForgeWP React + Tailwind WordPress theme project",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/El-dorado01/ForgeWP.git",
+    "directory": "packages/create-forgewp"
+  },
   "type": "module",
   "license": "MIT",
   "bin": {

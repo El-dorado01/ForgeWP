@@ -2,6 +2,11 @@
   "name": "@forgewp/compiler",
   "version": "0.6.0",
   "description": "Compile ForgeWP React themes into installable WordPress themes",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/El-dorado01/ForgeWP.git",
+    "directory": "packages/compiler"
+  },
   "type": "module",
   "license": "MIT",
   "bin": {
