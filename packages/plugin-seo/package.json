@@ -1,6 +1,6 @@
 {
   "name": "@forgewp/plugin-seo",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "type": "module",
   "main": "./index.js",
   "types": "./index.d.ts",
@@ -8,6 +8,6 @@
     ".": "./index.js"
   },
   "peerDependencies": {
-    "@forgewp/compiler": "workspace:^0.4.4"
+    "@forgewp/compiler": "workspace:>=0.5.0 <1.0.0"
   }
 }
